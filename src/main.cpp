@@ -466,7 +466,6 @@ int main(int, char**)
         if(viewport_texture != 0)
         {
             update_viewport_texture(viewport_texture, framebuffer);
-            viewport_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
             // Display at logical UI size, not pixel size.
             ImGui::Image(
