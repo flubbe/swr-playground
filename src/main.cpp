@@ -403,7 +403,6 @@ int main(int, char**)
       "[info] viewport ready"};
 
     bool running = true;
-    bool viewport_hovered = false;
     int frame_index = 0;
 
     float last_update_time = static_cast<float>(SDL_GetTicks()) / 1000.0f;

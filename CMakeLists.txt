@@ -50,6 +50,18 @@ add_executable(swr_playground
     src/framebuffer.cpp
 )
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+    target_compile_options(swr_playground PRIVATE
+        -msse
+        -msse2
+        -msse3
+        -msse4
+        -msse4.1
+        -msse4.2
+        -mfpmath=sse
+    )
+endif()
+
 target_include_directories(swr_playground PRIVATE src)
 
 target_link_libraries(swr_playground PRIVATE
