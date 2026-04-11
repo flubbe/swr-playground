@@ -534,6 +534,7 @@ int main(int, char**)
         {
             ImGui::Text("FPS: %.1f", io.Framerate);
             ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
+            ImGui::Text("render time: %.3f ms", 1000.f * framebuffer.get_render_time());
         }
 
         ImGui::End();

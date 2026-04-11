@@ -72,7 +72,13 @@ void Framebuffer::update(float delta_time)
         gear_rotation -= 2 * static_cast<float>(M_PI);
     }
 
+    auto render_start_time = std::chrono::steady_clock::now();
+
     begin_render();
     draw_gears();
     end_render();
+
+    render_time = std::chrono::duration<float>(
+                    std::chrono::steady_clock::now() - render_start_time)
+                    .count();
 }

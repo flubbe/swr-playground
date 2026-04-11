@@ -463,6 +463,9 @@ class Framebuffer
     /** Whether to update the animation. */
     bool update_animation{true};
 
+    /** Time taken to render the frame. */
+    float render_time{0.f};
+
 protected:
     void initialize()
     {
@@ -600,5 +603,10 @@ public:
     void set_update_animation(bool state)
     {
         update_animation = state;
+    }
+
+    float get_render_time() const
+    {
+        return render_time;
     }
 };
