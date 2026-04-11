@@ -18,7 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
+#include <print>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -309,7 +309,7 @@ int main(int, char**)
       SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if(!window)
     {
-        std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        std::println(stderr, "SDL_CreateWindow failed: {}", SDL_GetError());
         SDL_Quit();
         return 1;
     }
@@ -317,7 +317,7 @@ int main(int, char**)
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     if(!gl_context)
     {
-        std::fprintf(stderr, "SDL_GL_CreateContext failed: %s\n", SDL_GetError());
+        std::println(stderr, "SDL_GL_CreateContext failed: {}", SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
@@ -325,7 +325,7 @@ int main(int, char**)
 
     if(!SDL_GL_MakeCurrent(window, gl_context))
     {
-        std::fprintf(stderr, "SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
+        std::println(stderr, "SDL_GL_MakeCurrent failed: {}", SDL_GetError());
         SDL_GL_DestroyContext(gl_context);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -346,7 +346,7 @@ int main(int, char**)
     // Backend init: SDL platform + OpenGL renderer.
     if(!ImGui_ImplSDL3_InitForOpenGL(window, gl_context))
     {
-        std::fprintf(stderr, "ImGui_ImplSDL3_InitForOpenGL failed\n");
+        std::println(stderr, "ImGui_ImplSDL3_InitForOpenGL failed");
         ImGui::DestroyContext();
         SDL_GL_DestroyContext(gl_context);
         SDL_DestroyWindow(window);
@@ -357,7 +357,7 @@ int main(int, char**)
     // GLSL version string should match your context.
     if(!ImGui_ImplOpenGL3_Init("#version 330"))
     {
-        std::fprintf(stderr, "ImGui_ImplOpenGL3_Init failed\n");
+        std::println(stderr, "ImGui_ImplOpenGL3_Init failed");
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
         SDL_GL_DestroyContext(gl_context);
@@ -387,7 +387,7 @@ int main(int, char**)
     }
     catch(const std::exception& e)
     {
-        std::fprintf(stderr, "%s\n", e.what());
+        std::println(stderr, "{}", e.what());
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
