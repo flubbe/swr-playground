@@ -62,5 +62,5 @@ target_link_libraries(swr_playground PRIVATE
 if(MSVC)
     target_compile_options(swr_playground PRIVATE /W4)
 else()
-    target_compile_options(swr_playground PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(swr_playground PRIVATE -Wall -Wextra)
 endif()

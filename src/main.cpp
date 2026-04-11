@@ -373,10 +373,10 @@ int main(int, char**)
     int pixel_w = 0, pixel_h = 0;
     SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
 
-    std::printf("display scale: %f\n", display_scale);
-    std::printf("pixel density: %f\n", pixel_density);
-    std::printf("window size: %d x %d\n", window_w, window_h);
-    std::printf("pixel size: %d x %d\n", pixel_w, pixel_h);
+    std::println("display scale: {}", display_scale);
+    std::println("pixel density: {}", pixel_density);
+    std::println("window size: {} x {}", window_w, window_h);
+    std::println("pixel size: {} x {}", pixel_w, pixel_h);
 
     Framebuffer framebuffer(640, 480);
 
@@ -451,7 +451,7 @@ int main(int, char**)
             }
             catch(const std::exception& e)
             {
-                std::println(stderr, "%s", e.what());
+                std::println(stderr, "{}", e.what());
                 running = false;
             }
         }
