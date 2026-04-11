@@ -1,7 +1,7 @@
 # Software Rasterizer Playground
 
-[![License](https://img.shields.io/github/license/flubbe/swr-playground)](https://github.com/flubbe/-playground/blob/main/LICENSE.txt)
-[![Build Status](https://github.com/flubbe/-playground/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flubbe/-playground/actions)
+[![License](https://img.shields.io/github/license/flubbe/swr-playground)](https://github.com/flubbe/swr-playground/blob/main/LICENSE.txt)
+[![Build Status](https://github.com/flubbe/swr-playground/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flubbe/-playground/actions)
 
 An [ImGui](https://github.com/ocornut/imgui) application with a software-rendered
 viewport and some controls.
