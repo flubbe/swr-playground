@@ -22,7 +22,7 @@
 #include "shader.h"
 
 /** collect a set of geometric data into a single object. */
-class drawable_object
+class DrawableObject
 {
     /** index buffer. */
     std::vector<std::uint32_t> index_buffer;
@@ -38,10 +38,10 @@ class drawable_object
 
 public:
     /** default constructor. */
-    drawable_object() = default;
+    DrawableObject() = default;
 
     /** initialize the object at least with an index buffer id. */
-    drawable_object(std::vector<std::uint32_t> in_ib, std::uint32_t in_vb, std::uint32_t in_nb)
+    DrawableObject(std::vector<std::uint32_t> in_ib, std::uint32_t in_vb, std::uint32_t in_nb)
     : index_buffer{std::move(in_ib)}
     , vertex_buffer_id{in_vb}
     , normal_buffer_id{in_nb}
@@ -50,7 +50,7 @@ public:
     }
 
     /** move data. */
-    drawable_object(drawable_object&& other)
+    DrawableObject(DrawableObject&& other)
     : index_buffer{std::move(other.index_buffer)}
     , vertex_buffer_id{other.vertex_buffer_id}
     , normal_buffer_id{other.normal_buffer_id}
@@ -59,8 +59,8 @@ public:
         other.has_data = false;
     }
 
-    drawable_object(const drawable_object&) = default;
-    drawable_object& operator=(const drawable_object&) = default;
+    DrawableObject(const DrawableObject&) = default;
+    DrawableObject& operator=(const DrawableObject&) = default;
 
     /** release all data. */
     void release()
@@ -90,19 +90,19 @@ public:
 };
 
 /** the gear's inner cylinder has smooth shading enabled, so we divide the meshes (and also the shaders) accordingly. */
-struct gear_object
+struct GearObject
 {
     /** outside of the gear. */
-    drawable_object outside;
+    DrawableObject outside;
 
     /** inner cylinder of the gear. */
-    drawable_object cylinder;
+    DrawableObject cylinder;
 
     /** flat shader for the outside. */
-    shader::color_flat flat_shader;
+    shader::ColorFlat flat_shader;
 
     /** smooth shader for the cylinder. */
-    shader::color_smooth smooth_shader;
+    shader::ColorSmooth smooth_shader;
 
     /** flat shader id. */
     std::uint32_t flat_shader_id{0};
@@ -111,13 +111,13 @@ struct gear_object
     std::uint32_t smooth_shader_id{0};
 
     /** default constructor. */
-    gear_object() = default;
+    GearObject() = default;
 
     /** disable copying. */
-    gear_object(const gear_object&) = delete;
-    gear_object(gear_object&&) = delete;
+    GearObject(const GearObject&) = delete;
+    GearObject(GearObject&&) = delete;
 
-    gear_object& operator=(const gear_object& other) = delete;
+    GearObject& operator=(const GearObject& other) = delete;
 
     /** release all data and unregister shaders. */
     void release()
@@ -418,8 +418,8 @@ struct gear_object
         cylinder = {std::move(ib), swr::CreateAttributeBuffer(vb), swr::CreateAttributeBuffer(nb)};
 
         /* create shaders. */
-        smooth_shader = {color};
-        flat_shader = {color};
+        smooth_shader = shader::ColorSmooth{color};
+        flat_shader = shader::ColorFlat{color};
 
         flat_shader_id = swr::RegisterShader(&flat_shader);
         smooth_shader_id = swr::RegisterShader(&smooth_shader);
@@ -446,7 +446,7 @@ class Framebuffer
     ml::mat4x4 proj;
 
     /** the gears. */
-    gear_object gears[3];
+    GearObject gears[3];
 
     /** view rotation. */
     ml::vec3 view_rotation = {20.f, 30.f, 0.f};

@@ -1,8 +1,6 @@
 /**
  * Software Rasterizer Playground.
  *
- * color shader with directional lighting.
- *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
@@ -31,31 +29,37 @@
 namespace
 {
 
-class sdl_error : public std::runtime_error
+class SDLError : public std::runtime_error
 {
 public:
-    explicit sdl_error(std::string_view message)
-    : std::runtime_error{std::format("{}: {}", message, SDL_GetError())}
+    explicit SDLError(std::string_view message)
+    : std::runtime_error{
+        std::format(
+          "{}: {}",
+          message,
+          SDL_GetError())}
     {
     }
 };
 
-class gl_error : public std::runtime_error
+class GLError : public std::runtime_error
 {
 public:
-    explicit gl_error(std::string_view message)
+    explicit GLError(std::string_view message)
     : std::runtime_error{std::string{message}}
     {
     }
 };
 
-GLuint create_viewport_texture(int width, int height)
+GLuint create_viewport_texture(
+  int width,
+  int height)
 {
     GLuint texture = 0;
     glGenTextures(1, &texture);
     if(texture == 0)
     {
-        throw gl_error{"glGenTextures failed"};
+        throw GLError{"glGenTextures failed"};
     }
 
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -89,7 +93,9 @@ void destroy_viewport_texture(GLuint& texture)
     }
 }
 
-void update_viewport_texture(GLuint texture, const Framebuffer& framebuffer)
+void update_viewport_texture(
+  GLuint texture,
+  const Framebuffer& framebuffer)
 {
     glBindTexture(GL_TEXTURE_2D, texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -290,7 +296,7 @@ int main(int, char**)
 {
     if(!SDL_Init(SDL_INIT_VIDEO))
     {
-        std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        std::println(stderr, "SDL_Init failed: {}", SDL_GetError());
         return 1;
     }
 

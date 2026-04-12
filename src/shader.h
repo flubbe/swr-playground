@@ -27,20 +27,23 @@ namespace shader
  *   location 1: view matrix                    [mat4x4]
  *
  */
-class color_flat : public swr::program<color_flat>
+class ColorFlat : public swr::program<ColorFlat>
 {
     ml::vec4 diffuse_color{1, 0, 0, 1};
     ml::vec4 ambient_color{1, 0, 0, 1};
 
 public:
-    color_flat() = default;
-    color_flat(ml::vec4 in_color)
+    ColorFlat() = default;
+    explicit ColorFlat(ml::vec4 in_color)
     : diffuse_color{in_color}
     , ambient_color{in_color}
     {
     }
 
-    virtual void pre_link(boost::container::static_vector<swr::interpolation_qualifier, swr::limits::max::varyings>& iqs) const override
+    virtual void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
     {
         // set interpolation qualifiers for all varyings.
         iqs = {
@@ -74,7 +77,9 @@ public:
       [[maybe_unused]] const ml::vec4& gl_FragCoord,
       [[maybe_unused]] bool gl_FrontFacing,
       [[maybe_unused]] const ml::vec2& gl_PointCoord,
-      const boost::container::static_vector<swr::varying, swr::limits::max::varyings>& varyings,
+      const boost::container::static_vector<
+        swr::varying,
+        swr::limits::max::varyings>& varyings,
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
@@ -86,20 +91,23 @@ public:
     }
 };
 
-class color_smooth : public swr::program<color_smooth>
+class ColorSmooth : public swr::program<ColorSmooth>
 {
     ml::vec4 diffuse_color{1, 0, 0, 1};
     ml::vec4 ambient_color{1, 0, 0, 1};
 
 public:
-    color_smooth() = default;
-    color_smooth(ml::vec4 in_color)
+    ColorSmooth() = default;
+    explicit ColorSmooth(ml::vec4 in_color)
     : diffuse_color{in_color}
     , ambient_color{in_color}
     {
     }
 
-    virtual void pre_link(boost::container::static_vector<swr::interpolation_qualifier, swr::limits::max::varyings>& iqs) const override
+    virtual void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
     {
         // set interpolation qualifiers for all varyings.
         iqs = {
@@ -132,7 +140,9 @@ public:
       [[maybe_unused]] const ml::vec4& gl_FragCoord,
       [[maybe_unused]] bool gl_FrontFacing,
       [[maybe_unused]] const ml::vec2& gl_PointCoord,
-      const boost::container::static_vector<swr::varying, swr::limits::max::varyings>& varyings,
+      const boost::container::static_vector<
+        swr::varying,
+        swr::limits::max::varyings>& varyings,
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
