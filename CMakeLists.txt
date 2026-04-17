@@ -7,8 +7,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-find_package(SDL3 REQUIRED CONFIG)
 find_package(OpenGL REQUIRED)
+
+set(SWR_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_APP OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SWR_SDL_PROVIDER FETCH CACHE STRING "" FORCE)
+
+FetchContent_Declare(
+    swr_src
+    GIT_REPOSITORY https://github.com/flubbe/swr.git
+    GIT_TAG a437199
+)
+FetchContent_MakeAvailable(swr_src)
 
 FetchContent_Declare(
     imgui
