@@ -39,10 +39,26 @@ struct ClassInfo
     }
 };
 
+struct ObjectId
+{
+    std::uint32_t value = 0;
+};
+
+inline ObjectId make_object_id(std::uint32_t value)
+{
+    return {value};
+}
+
 class Object
 {
     /** RTTI-style type info. */
     ClassInfo class_info;
+
+    /** object id. */
+    ObjectId object_id{0};
+
+    /** object name. */
+    std::string name;
 
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
@@ -58,19 +74,51 @@ public:
     virtual ~Object() = default;
 
     /** initialize the object with a mesh. */
-    Object(std::vector<RenderData> mesh_handles)
+    Object(
+      std::vector<RenderData> mesh_handles)
     : mesh_handles{std::move(mesh_handles)}
     {
     }
 
     /** move data. */
     Object(Object&& other)
-    : mesh_handles{std::move(other.mesh_handles)}
+    : class_info{other.class_info}
+    , object_id{other.object_id}
+    , name{std::move(other.name)}
+    , mesh_handles{std::move(other.mesh_handles)}
     {
     }
 
     Object(const Object&) = default;
     Object& operator=(const Object&) = default;
+
+    Object& operator=(Object&& other)
+    {
+        class_info = other.class_info;
+        object_id = other.object_id;
+        name = std::move(other.name);
+        mesh_handles = std::move(other.mesh_handles);
+    }
+
+    ObjectId get_object_id() const noexcept
+    {
+        return object_id;
+    }
+
+    void set_object_id(ObjectId object_id) noexcept
+    {
+        this->object_id = object_id;
+    }
+
+    const std::string& get_name() const noexcept
+    {
+        return name;
+    }
+
+    void set_name(std::string object_name)
+    {
+        name = std::move(object_name);
+    }
 
     virtual const ClassInfo* get_class() const
     {

@@ -25,6 +25,9 @@ class Scene
     /** scene objects. */
     std::vector<std::unique_ptr<Object>> objects;
 
+    /** object id tracking. */
+    std::unordered_map<const ClassInfo*, uint32_t> next_ids;
+
     /** scene light. */
     Light light;
 
@@ -63,6 +66,17 @@ public:
         auto obj = std::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
+
+        // set object id and name,
+        const ClassInfo* class_info = T::static_class();
+        uint32_t object_id = ++next_ids[class_info];
+
+        ptr->set_object_id(make_object_id(object_id));
+        ptr->set_name(
+          std::format(
+            "{}_{}",
+            class_info->name,
+            object_id));
 
         return ptr;
     }
