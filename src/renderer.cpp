@@ -26,6 +26,8 @@ void Renderer::render(
       viewport.draw_params.cull_face);
 
     auto view = viewport.camera.get_transform();
+    auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w) * scene.get_light().position;
+
     for(auto& obj: scene.get_objects())
     {
         if(!obj->is_drawable())
@@ -33,7 +35,6 @@ void Renderer::render(
             continue;
         }
 
-        auto light_dir = view * scene.get_light().position;
         auto obj_view = view * obj->get_transform();
 
         const auto& meshes = obj->get_meshes();

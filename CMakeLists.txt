@@ -91,6 +91,7 @@ target_link_libraries(imgui PUBLIC
 add_executable(swr_playground
     src/scene/gear.cpp
     src/scene/scene.cpp
+    src/imgui.cpp
     src/main.cpp
     src/platform.cpp
     src/renderdevice.cpp
