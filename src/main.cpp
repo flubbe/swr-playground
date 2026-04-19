@@ -438,9 +438,9 @@ int main(int, char**)
     std::array<Object*, 3> gear_objs = {nullptr, nullptr, nullptr};
     {
         std::array<GearGeometry, 3> gear_geoms = {
-          make_gear(1.0, 4.0, 1.0, 20, 0.7, {0.8f, 0.1f, 0.0f, 1.0f}),
-          make_gear(0.5, 2.0, 2.0, 10, 0.7, {0.0f, 0.8f, 0.2f, 1.0f}),
-          make_gear(1.3, 2.0, 0.5, 10, 0.7, {0.2f, 0.2f, 1.0f, 1.0f})};
+          make_gear(1.0, 4.0, 1.0, 20, 0.7),
+          make_gear(0.5, 2.0, 2.0, 10, 0.7),
+          make_gear(1.3, 2.0, 0.5, 10, 0.7)};
 
         std::array<std::uint32_t, 3> inner_mesh_handles = {
           render_device.create_mesh(

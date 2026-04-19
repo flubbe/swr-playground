@@ -17,8 +17,7 @@ GearGeometry make_gear(
   float outer_radius,
   float width,
   int teeth,
-  float tooth_depth,
-  ml::vec4 color)
+  float tooth_depth)
 {
     GearGeometry gear_geom;
 

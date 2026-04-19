@@ -8,6 +8,8 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <chrono>
+
 #include "renderdevice.h"
 #include "renderer.h"
 #include "scene/scene.h"
