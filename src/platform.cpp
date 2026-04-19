@@ -12,7 +12,9 @@
 
 #include <SDL3/SDL.h>
 
-bool platform_init()
+bool platform_init(
+  [[maybe_unused]] int argc,
+  [[maybe_unused]] char* argv[])
 {
     if(!SDL_Init(SDL_INIT_VIDEO))
     {

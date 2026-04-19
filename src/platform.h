@@ -11,7 +11,9 @@
 #pragma once
 
 /** Global platform initialization. */
-bool platform_init();
+bool platform_init(
+  int argc,
+  char* argv[]);
 
 /** Global platform shutdown. */
 void platform_shutdown();
