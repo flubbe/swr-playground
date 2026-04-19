@@ -10,6 +10,17 @@ include(FetchContent)
 find_package(OpenGL REQUIRED)
 
 #
+# Guidelines Support Library
+#
+FetchContent_Declare(
+    gsl
+    GIT_REPOSITORY https://github.com/microsoft/GSL.git
+    GIT_TAG v4.2.1
+)
+
+FetchContent_MakeAvailable(gsl)
+
+#
 # SDL3
 #
 find_package(SDL3 QUIET CONFIG)
@@ -81,6 +92,7 @@ add_executable(swr_playground
     src/scene/gear.cpp
     src/scene/scene.cpp
     src/main.cpp
+    src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp
 )
@@ -102,8 +114,9 @@ endif()
 target_link_libraries(swr_playground PRIVATE
     swrast
     imgui
-    SDL3::SDL3
+    Microsoft.GSL::GSL
     OpenGL::GL
+    SDL3::SDL3
 )
 
 if(MSVC)

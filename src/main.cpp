@@ -6,14 +6,6 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_opengl.h>
-
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <backends/imgui_impl_sdl3.h>
-#include <backends/imgui_impl_opengl3.h>
-
 #include <algorithm>
 #include <cmath>
 #include <print>
@@ -22,8 +14,19 @@
 #include <string_view>
 #include <vector>
 
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_opengl.h>
+
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <backends/imgui_impl_sdl3.h>
+#include <backends/imgui_impl_opengl3.h>
+
+#include <gsl/gsl>
+
 #include "swr/swr.h"
 
+#include "platform.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
 #include "renderer.h"
@@ -314,19 +317,13 @@ void update_gears(
 
 int main(int, char**)
 {
-    if(!SDL_Init(SDL_INIT_VIDEO))
+    if(!platform_init())
     {
-        std::println(stderr, "SDL_Init failed: {}", SDL_GetError());
-        return 1;
+        return EXIT_FAILURE;
     }
 
-    // Attributes should be set before context creation.
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    const auto shutdown = gsl::finally([]() -> void
+                                       { platform_shutdown(); });
 
     SDL_Window* window = SDL_CreateWindow(
       "SWR Playground",
@@ -336,25 +333,37 @@ int main(int, char**)
     if(!window)
     {
         std::println(stderr, "SDL_CreateWindow failed: {}", SDL_GetError());
-        SDL_Quit();
         return 1;
     }
+
+    const auto window_cleanup = gsl::finally(
+      [&]() -> void
+      {
+        if(window)
+        {
+            SDL_DestroyWindow(window);
+            window = nullptr;
+        } });
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     if(!gl_context)
     {
         std::println(stderr, "SDL_GL_CreateContext failed: {}", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
         return 1;
     }
+
+    const auto gl_cleanup = gsl::finally(
+      [&]
+      {
+        if(gl_context)
+        {
+            SDL_GL_DestroyContext(gl_context);
+            gl_context = nullptr;
+        } });
 
     if(!SDL_GL_MakeCurrent(window, gl_context))
     {
         std::println(stderr, "SDL_GL_MakeCurrent failed: {}", SDL_GetError());
-        SDL_GL_DestroyContext(gl_context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
         return 1;
     }
 
@@ -369,28 +378,28 @@ int main(int, char**)
     load_fonts();
     apply_editor_theme();
 
-    // Backend init: SDL platform + OpenGL renderer.
     if(!ImGui_ImplSDL3_InitForOpenGL(window, gl_context))
     {
         std::println(stderr, "ImGui_ImplSDL3_InitForOpenGL failed");
         ImGui::DestroyContext();
-        SDL_GL_DestroyContext(gl_context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
         return 1;
     }
 
-    // GLSL version string should match your context.
     if(!ImGui_ImplOpenGL3_Init("#version 330"))
     {
         std::println(stderr, "ImGui_ImplOpenGL3_Init failed");
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
-        SDL_GL_DestroyContext(gl_context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
         return 1;
     }
+
+    const auto imgui_cleanup = gsl::finally(
+      []
+      {
+          ImGui_ImplOpenGL3_Shutdown();
+          ImGui_ImplSDL3_Shutdown();
+          ImGui::DestroyContext();
+      });
 
     float pixel_density = SDL_GetWindowPixelDensity(window);
     float display_scale = SDL_GetWindowDisplayScale(window);
@@ -512,12 +521,6 @@ int main(int, char**)
     catch(const std::exception& e)
     {
         std::println(stderr, "{}", e.what());
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplSDL3_Shutdown();
-        ImGui::DestroyContext();
-        SDL_GL_DestroyContext(gl_context);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
         return 1;
     }
 
@@ -692,13 +695,6 @@ int main(int, char**)
     }
 
     destroy_viewport_texture(viewport_texture);
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
-
-    SDL_GL_DestroyContext(gl_context);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
 
     return 0;
 }
