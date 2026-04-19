@@ -8,6 +8,11 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#pragma once
+
+#include "swr/swr.h"
+#include "swr/shaders.h"
+
 namespace shader
 {
 
@@ -27,6 +32,7 @@ namespace shader
  *   location 1: view matrix                    [mat4x4]
  *
  */
+
 class ColorFlat : public swr::program<ColorFlat>
 {
     ml::vec4 diffuse_color{1, 0, 0, 1};

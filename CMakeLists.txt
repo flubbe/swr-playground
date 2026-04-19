@@ -38,7 +38,7 @@ set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 36e2571
+    GIT_TAG 7df418f
 )
 FetchContent_MakeAvailable(swr_src)
 
@@ -78,8 +78,11 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/scene/gear.cpp
+    src/scene/scene.cpp
     src/main.cpp
-    src/framebuffer.cpp
+    src/renderdevice.cpp
+    src/renderer.cpp
 )
 
 target_include_directories(swr_playground PRIVATE src)

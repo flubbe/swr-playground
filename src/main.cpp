@@ -24,7 +24,11 @@
 
 #include "swr/swr.h"
 
-#include "framebuffer.h"
+#include "scene/scene.h"
+#include "renderdevice.h"
+#include "renderer.h"
+#include "shader_cache.h"
+#include "viewport.h"
 
 namespace
 {
@@ -95,7 +99,7 @@ void destroy_viewport_texture(GLuint& texture)
 
 void update_viewport_texture(
   GLuint texture,
-  const Framebuffer& framebuffer)
+  const RenderDevice& render_device)
 {
     glBindTexture(GL_TEXTURE_2D, texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -104,11 +108,11 @@ void update_viewport_texture(
       0,
       0,
       0,
-      framebuffer.get_width(),
-      framebuffer.get_height(),
+      render_device.get_width(),
+      render_device.get_height(),
       GL_BGRA,
       GL_UNSIGNED_INT_8_8_8_8_REV,
-      framebuffer.get_data());
+      render_device.get_data());
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -290,6 +294,22 @@ void load_fonts()
     io.FontGlobalScale = 1.0f;
 }
 
+/** re-calculate the gear transformations. */
+void update_gears(
+  std::array<Object*, 3>& gears,
+  float time)
+{
+    gears[0]->set_transform(
+      ml::matrices::translation(-3.f, -2.f, 0.f)
+      * ml::matrices::rotation_z(time));
+    gears[1]->set_transform(
+      ml::matrices::translation(3.1f, -2.f, 0.f)
+      * ml::matrices::rotation_z(-2.f * time - 9.f));
+    gears[2]->set_transform(
+      ml::matrices::translation(-3.1f, 4.2f, 0.f)
+      * ml::matrices::rotation_z(-2.f * time - 25.f));
+}
+
 }    // namespace
 
 int main(int, char**)
@@ -384,12 +404,110 @@ int main(int, char**)
     std::println("window size: {} x {}", window_w, window_h);
     std::println("pixel size: {} x {}", pixel_w, pixel_h);
 
-    Framebuffer framebuffer(640, 480);
+    RenderDevice render_device{640, 480};
+    ShaderCache shader_cache;
+    Camera cam{
+      render_device.get_width(),
+      render_device.get_height()};
+    Renderer renderer{render_device};
+
+    Scene scene;
+    Viewport viewport;
+
+    // create materials.
+    std::array<shader::ColorFlat*, 3> flat_shaders = {
+      shader_cache.add<shader::ColorFlat>(ml::vec4{1, 0, 0, 1}),
+      shader_cache.add<shader::ColorFlat>(ml::vec4{0, 1, 0, 1}),
+      shader_cache.add<shader::ColorFlat>(ml::vec4{0, 0, 1, 1})};
+
+    std::array<shader::ColorSmooth*, 3> smooth_shaders = {
+      shader_cache.add<shader::ColorSmooth>(ml::vec4{1, 0, 0, 1}),
+      shader_cache.add<shader::ColorSmooth>(ml::vec4{0, 1, 0, 1}),
+      shader_cache.add<shader::ColorSmooth>(ml::vec4{0, 0, 1, 1})};
+
+    std::array<std::uint32_t, 3> flat_material_handles = {
+      render_device.create_material(*flat_shaders[0]),
+      render_device.create_material(*flat_shaders[1]),
+      render_device.create_material(*flat_shaders[2]),
+    };
+    std::array<std::uint32_t, 3> smooth_material_handles = {
+      render_device.create_material(*smooth_shaders[0]),
+      render_device.create_material(*smooth_shaders[1]),
+      render_device.create_material(*smooth_shaders[2])};
+
+    std::array<Object*, 3> gear_objs = {nullptr, nullptr, nullptr};
+    {
+        std::array<GearGeometry, 3> gear_geoms = {
+          make_gear(1.0, 4.0, 1.0, 20, 0.7, {0.8f, 0.1f, 0.0f, 1.0f}),
+          make_gear(0.5, 2.0, 2.0, 10, 0.7, {0.0f, 0.8f, 0.2f, 1.0f}),
+          make_gear(1.3, 2.0, 0.5, 10, 0.7, {0.2f, 0.2f, 1.0f, 1.0f})};
+
+        std::array<std::uint32_t, 3> inner_mesh_handles = {
+          render_device.create_mesh(
+            gear_geoms[0].inner_indices,
+            gear_geoms[0].inner_vertices,
+            gear_geoms[0].inner_normals),
+          render_device.create_mesh(
+            gear_geoms[1].inner_indices,
+            gear_geoms[1].inner_vertices,
+            gear_geoms[1].inner_normals),
+          render_device.create_mesh(
+            gear_geoms[2].inner_indices,
+            gear_geoms[2].inner_vertices,
+            gear_geoms[2].inner_normals)};
+
+        std::array<std::uint32_t, 3> outer_mesh_handles = {
+          render_device.create_mesh(
+            gear_geoms[0].outer_indices,
+            gear_geoms[0].outer_vertices,
+            gear_geoms[0].outer_normals),
+          render_device.create_mesh(
+            gear_geoms[1].outer_indices,
+            gear_geoms[1].outer_vertices,
+            gear_geoms[1].outer_normals),
+          render_device.create_mesh(
+            gear_geoms[2].outer_indices,
+            gear_geoms[2].outer_vertices,
+            gear_geoms[2].outer_normals)};
+
+        std::array<ml::mat4x4, 3> transforms = {
+          ml::matrices::translation(-3.f, -2.f, 0.f),
+          ml::matrices::translation(3.1f, -2.f, 0.f),
+          ml::matrices::translation(-3.1f, 4.2f, 0.f)};
+
+        // populate scene.
+        for(std::size_t i = 0; i < 3; ++i)
+        {
+            gear_objs[i] = scene.add_object<Object>(
+              std::vector{
+                MeshHandle{
+                  .mesh_handle = inner_mesh_handles[i],
+                  .material_handle = smooth_material_handles[i]},
+                MeshHandle{
+                  .mesh_handle = outer_mesh_handles[i],
+                  .material_handle = flat_material_handles[i]}});
+
+            gear_objs[i]->set_transform(transforms[i]);
+        }
+    }
+
+    // TODO set up light
+    ml::mat4x4 view = ml::mat4x4::identity();
+    view *= ml::matrices::translation(0.f, 0.f, -40.f);
+
+    ml::vec3 view_rotation = {20.f, 30.f, 0.f};
+    view *= ml::matrices::rotation_x(ml::to_radians(view_rotation.x));
+    view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
+    view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
+
+    viewport.camera.set_transform(view);
 
     GLuint viewport_texture = 0;
     try
     {
-        viewport_texture = create_viewport_texture(framebuffer.get_width(), framebuffer.get_height());
+        viewport_texture = create_viewport_texture(
+          render_device.get_width(),
+          render_device.get_height());
     }
     catch(const std::exception& e)
     {
@@ -440,19 +558,25 @@ int main(int, char**)
         int viewport_w_px = std::max(1, static_cast<int>(std::round(avail.x * pixel_density)));
         int viewport_h_px = std::max(1, static_cast<int>(std::round(avail.y * pixel_density)));
 
-        if(viewport_w_px != framebuffer.get_width() || viewport_h_px != framebuffer.get_height())
+        // FIXME the dimensions should not come from the render device
+        if(viewport_w_px != render_device.get_width()
+           || viewport_h_px != render_device.get_height())
         {
-            framebuffer.resize(viewport_w_px, viewport_h_px);
+            viewport.camera.set_resolution(viewport_w_px, viewport_h_px);
+            render_device.resize(viewport_w_px, viewport_h_px);
+
             destroy_viewport_texture(viewport_texture);
 
             try
             {
-                viewport_texture = create_viewport_texture(framebuffer.get_width(), framebuffer.get_height());
+                viewport_texture = create_viewport_texture(
+                  render_device.get_width(),
+                  render_device.get_height());
                 log_lines.push_back(
                   std::format(
                     "[info] resized viewport to {}x{}",
-                    framebuffer.get_width(),
-                    framebuffer.get_height()));
+                    render_device.get_width(),
+                    render_device.get_height()));
             }
             catch(const std::exception& e)
             {
@@ -466,12 +590,17 @@ int main(int, char**)
         last_update_time = time_seconds;
         if(delta_time > 0)
         {
-            framebuffer.update(delta_time);
+            scene.tick(delta_time);
+            update_gears(gear_objs, scene.get_time());
         }
+
+        renderer.render(
+          scene,
+          viewport);
 
         if(viewport_texture != 0)
         {
-            update_viewport_texture(viewport_texture, framebuffer);
+            update_viewport_texture(viewport_texture, render_device);
 
             // Display at logical UI size, not pixel size.
             ImGui::Image(
@@ -509,30 +638,34 @@ int main(int, char**)
 
         if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::Text("Framebuffer: %d x %d px", framebuffer.get_width(), framebuffer.get_height());
+            ImGui::Text(
+              "Framebuffer: %d x %d px",
+              render_device.get_width(),
+              render_device.get_height());
             ImGui::Text("Window pixel density: %.2f", pixel_density);
             ImGui::Text("Frame: %d", frame_index);
+            ImGui::Text("Scene time: %.1f s", scene.get_time());
         }
 
         if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            static bool wireframe = false;
-            static bool cull_face = true;
-            static bool update_animation = true;
+            bool wireframe = viewport.draw_params.wireframe;
+            bool cull_face = viewport.draw_params.cull_face;
+            bool paused = scene.is_paused();
 
-            if(ImGui::Checkbox("Animate", &update_animation))
+            if(ImGui::Checkbox("Paused", &paused))
             {
-                framebuffer.set_update_animation(update_animation);
+                scene.set_paused(paused);
             }
 
             if(ImGui::Checkbox("Wireframe", &wireframe))
             {
-                framebuffer.set_wireframe(wireframe);
+                viewport.draw_params.wireframe = wireframe;
             }
 
             if(ImGui::Checkbox("Face Culling", &cull_face))
             {
-                framebuffer.set_cull_face(cull_face);
+                viewport.draw_params.cull_face = cull_face;
             }
         }
 
@@ -540,7 +673,7 @@ int main(int, char**)
         {
             ImGui::Text("FPS: %.1f", io.Framerate);
             ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
-            ImGui::Text("render time: %.3f ms", 1000.f * framebuffer.get_render_time());
+            ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
         }
 
         ImGui::End();
