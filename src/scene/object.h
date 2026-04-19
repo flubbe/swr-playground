@@ -14,19 +14,41 @@
 
 #include "ml/all.h"
 
-struct MeshHandle
+struct RenderData
 {
     std::uint32_t mesh_handle{0};
     std::uint32_t material_handle{0};
 };
 
+/** Class info for RTTI-style object queries. */
+struct ClassInfo
+{
+    std::string_view name;
+    const ClassInfo* parent = nullptr;
+
+    bool is_a(const ClassInfo* other) const
+    {
+        for(auto p = this; p != nullptr; p = p->parent)
+        {
+            if(p == other)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
 class Object
 {
+    /** RTTI-style type info. */
+    ClassInfo class_info;
+
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** meshes. */
-    std::vector<MeshHandle> mesh_handles;
+    std::vector<RenderData> mesh_handles;
 
 public:
     /** default constructor. */
@@ -36,7 +58,7 @@ public:
     virtual ~Object() = default;
 
     /** initialize the object with a mesh. */
-    Object(std::vector<MeshHandle> mesh_handles)
+    Object(std::vector<RenderData> mesh_handles)
     : mesh_handles{std::move(mesh_handles)}
     {
     }
@@ -50,13 +72,37 @@ public:
     Object(const Object&) = default;
     Object& operator=(const Object&) = default;
 
+    virtual const ClassInfo* get_class() const
+    {
+        return static_class();
+    }
+
+    static const ClassInfo* static_class()
+    {
+        static const ClassInfo cls{
+          .name = "Object",
+          .parent = nullptr};
+        return &cls;
+    }
+
+    template<typename T>
+    bool is_a() const
+    {
+        return get_class()->is_a(T::static_class());
+    }
+
+    bool is_a(const ClassInfo* cls) const
+    {
+        return get_class()->is_a(cls);
+    }
+
     /** release all data. */
     virtual void release()
     {
     }
 
     /** set the mesh. */
-    void set_meshes(std::vector<MeshHandle> handles)
+    void set_meshes(std::vector<RenderData> handles)
     {
         mesh_handles = std::move(handles);
     }
@@ -68,7 +114,7 @@ public:
     }
 
     /** get the mesh handle. */
-    const std::vector<MeshHandle>& get_meshes() const
+    const std::vector<RenderData>& get_meshes() const
     {
         return mesh_handles;
     }
@@ -97,3 +143,19 @@ public:
         return transform;
     }
 };
+
+#define DECLARE_CLASS(Type, Base)               \
+public:                                         \
+    using Super = Base;                         \
+    static const ClassInfo* static_class();     \
+    const ClassInfo* get_class() const override \
+    {                                           \
+        return Type::static_class();            \
+    }
+
+#define DEFINE_CLASS(Type)                                              \
+    const ClassInfo* Type::static_class()                               \
+    {                                                                   \
+        static const ClassInfo cls{#Type, Type::Super::static_class()}; \
+        return &cls;                                                    \
+    }

@@ -30,3 +30,20 @@ GearGeometry make_gear(
   float width,
   int teeth,
   float tooth_depth);
+
+struct GearParameters
+{
+    RenderData inner;
+    RenderData outer;
+};
+
+/** A gear object. */
+class Gear : public Object
+{
+    DECLARE_CLASS(Gear, Object);
+
+public:
+    Gear() = default;
+
+    explicit Gear(const GearParameters& params);
+};

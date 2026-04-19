@@ -56,10 +56,10 @@ public:
     void tick(float delta_time);
 
     template<typename T, typename... Args>
+        requires(
+          std::is_base_of_v<Object, T>)
     T* add_object(Args&&... args)
     {
-        static_assert(std::is_base_of_v<Object, T>);
-
         auto obj = std::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));

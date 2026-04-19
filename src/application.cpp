@@ -17,6 +17,7 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "scene/gear.h"
 #include "scene/scene.h"
 #include "application.h"
 #include "imgui.h"
@@ -188,6 +189,86 @@ void draw_main_dockspace(
     ImGui::End();
 }
 
+/*
+ * Debug scene creation.
+ */
+
+struct GearBuildParams
+{
+    ml::vec4 color;
+    float inner_radius;
+    float outer_radius;
+    float width;
+    int teeth;
+    float tooth_depth;
+};
+
+GearParameters create_gear_resources(
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  const GearBuildParams& p)
+{
+    auto* flat_shader = shader_cache.add<shader::ColorFlat>(p.color);
+    auto* smooth_shader = shader_cache.add<shader::ColorSmooth>(p.color);
+
+    auto flat_material = device.create_material(*flat_shader);
+    auto smooth_material = device.create_material(*smooth_shader);
+
+    auto geom = make_gear(
+      p.inner_radius,
+      p.outer_radius,
+      p.width,
+      p.teeth,
+      p.tooth_depth);
+
+    auto inner_mesh = device.create_mesh(
+      geom.inner_indices,
+      geom.inner_vertices,
+      geom.inner_normals);
+
+    auto outer_mesh = device.create_mesh(
+      geom.outer_indices,
+      geom.outer_vertices,
+      geom.outer_normals);
+
+    return GearParameters{
+      .inner = RenderData{
+        .mesh_handle = inner_mesh,
+        .material_handle = smooth_material,
+      },
+      .outer = RenderData{
+        .mesh_handle = outer_mesh,
+        .material_handle = flat_material,
+      },
+    };
+}
+
+class GearFactory
+{
+    RenderDevice& device;
+    ShaderCache& shader_cache;
+
+public:
+    GearFactory(
+      RenderDevice& device,
+      ShaderCache& shader_cache)
+    : device{device}
+    , shader_cache{shader_cache}
+    {
+    }
+
+    Gear& create(
+      Scene& scene,
+      const GearBuildParams& build,
+      const ml::mat4x4& transform)
+    {
+        auto params = create_gear_resources(device, shader_cache, build);
+        auto* gear = scene.add_object<Gear>(params);
+        gear->set_transform(transform);
+        return *gear;
+    }
+};
+
 /** re-calculate the gear transformations. */
 void update_gears(
   std::array<Object*, 3>& gears,
@@ -213,78 +294,32 @@ void Application::setup_scene()
         throw std::runtime_error{"Application not initialized."};
     }
 
-    // create materials.
-    std::array<shader::ColorFlat*, 3> flat_shaders = {
-      shader_cache->add<shader::ColorFlat>(ml::vec4{1, 0, 0, 1}),
-      shader_cache->add<shader::ColorFlat>(ml::vec4{0, 1, 0, 1}),
-      shader_cache->add<shader::ColorFlat>(ml::vec4{0, 0, 1, 1})};
-
-    std::array<shader::ColorSmooth*, 3> smooth_shaders = {
-      shader_cache->add<shader::ColorSmooth>(ml::vec4{1, 0, 0, 1}),
-      shader_cache->add<shader::ColorSmooth>(ml::vec4{0, 1, 0, 1}),
-      shader_cache->add<shader::ColorSmooth>(ml::vec4{0, 0, 1, 1})};
-
-    std::array<std::uint32_t, 3> flat_material_handles = {
-      render_device->create_material(*flat_shaders[0]),
-      render_device->create_material(*flat_shaders[1]),
-      render_device->create_material(*flat_shaders[2]),
-    };
-    std::array<std::uint32_t, 3> smooth_material_handles = {
-      render_device->create_material(*smooth_shaders[0]),
-      render_device->create_material(*smooth_shaders[1]),
-      render_device->create_material(*smooth_shaders[2])};
-
-    std::array<GearGeometry, 3> gear_geoms = {
-      make_gear(1.0, 4.0, 1.0, 20, 0.7),
-      make_gear(0.5, 2.0, 2.0, 10, 0.7),
-      make_gear(1.3, 2.0, 0.5, 10, 0.7)};
-
-    std::array<std::uint32_t, 3> inner_mesh_handles = {
-      render_device->create_mesh(
-        gear_geoms[0].inner_indices,
-        gear_geoms[0].inner_vertices,
-        gear_geoms[0].inner_normals),
-      render_device->create_mesh(
-        gear_geoms[1].inner_indices,
-        gear_geoms[1].inner_vertices,
-        gear_geoms[1].inner_normals),
-      render_device->create_mesh(
-        gear_geoms[2].inner_indices,
-        gear_geoms[2].inner_vertices,
-        gear_geoms[2].inner_normals)};
-
-    std::array<std::uint32_t, 3> outer_mesh_handles = {
-      render_device->create_mesh(
-        gear_geoms[0].outer_indices,
-        gear_geoms[0].outer_vertices,
-        gear_geoms[0].outer_normals),
-      render_device->create_mesh(
-        gear_geoms[1].outer_indices,
-        gear_geoms[1].outer_vertices,
-        gear_geoms[1].outer_normals),
-      render_device->create_mesh(
-        gear_geoms[2].outer_indices,
-        gear_geoms[2].outer_vertices,
-        gear_geoms[2].outer_normals)};
-
-    std::array<ml::mat4x4, 3> transforms = {
-      ml::matrices::translation(-3.f, -2.f, 0.f),
-      ml::matrices::translation(3.1f, -2.f, 0.f),
-      ml::matrices::translation(-3.1f, 4.2f, 0.f)};
-
-    // populate scene.
-    for(std::size_t i = 0; i < 3; ++i)
+    struct GearInit
     {
-        gear_objs[i] = scene->add_object<Object>(
-          std::vector{
-            MeshHandle{
-              .mesh_handle = inner_mesh_handles[i],
-              .material_handle = smooth_material_handles[i]},
-            MeshHandle{
-              .mesh_handle = outer_mesh_handles[i],
-              .material_handle = flat_material_handles[i]}});
+        GearBuildParams build;
+        ml::mat4x4 transform;
+    };
 
-        gear_objs[i]->set_transform(transforms[i]);
+    std::array<GearInit, 3> gears = {{
+      {
+        .build = {.color = {1, 0, 0, 1}, .inner_radius = 1.0f, .outer_radius = 4.0f, .width = 1.0f, .teeth = 20, .tooth_depth = 0.7f},
+        .transform = ml::matrices::translation(-3.f, -2.f, 0.f),
+      },
+      {
+        .build = {.color = {0, 1, 0, 1}, .inner_radius = 0.5f, .outer_radius = 2.0f, .width = 2.0f, .teeth = 10, .tooth_depth = 0.7f},
+        .transform = ml::matrices::translation(3.1f, -2.f, 0.f),
+      },
+      {
+        .build = {.color = {0, 0, 1, 1}, .inner_radius = 1.3f, .outer_radius = 2.0f, .width = 0.5f, .teeth = 10, .tooth_depth = 0.7f},
+        .transform = ml::matrices::translation(-3.1f, 4.2f, 0.f),
+      },
+    }};
+
+    GearFactory factory{*render_device, *shader_cache};
+
+    for(std::size_t i = 0; i < gears.size(); ++i)
+    {
+        gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
     }
 }
 

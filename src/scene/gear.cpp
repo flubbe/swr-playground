@@ -297,3 +297,22 @@ GearGeometry make_gear(
 
     return gear_geom;
 }
+
+/*
+ * Gear object.
+ */
+
+DEFINE_CLASS(Gear);
+
+Gear::Gear(
+  const GearParameters& params)
+: Object{
+    std::vector{
+      RenderData{
+        .mesh_handle = params.inner.mesh_handle,
+        .material_handle = params.inner.material_handle},
+      RenderData{
+        .mesh_handle = params.outer.mesh_handle,
+        .material_handle = params.outer.material_handle}}}
+{
+}
