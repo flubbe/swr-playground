@@ -115,8 +115,16 @@ void setup_dock_layout(ImGuiID dockspace_id)
     ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
 
     ImGuiID dock_main = dockspace_id;
+    ImGuiID dock_left = 0;
     ImGuiID dock_right = 0;
     ImGuiID dock_bottom = 0;
+
+    dock_left = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Left,
+      0.20f,
+      nullptr,
+      &dock_main);
 
     dock_right = ImGui::DockBuilderSplitNode(
       dock_main,
@@ -124,15 +132,18 @@ void setup_dock_layout(ImGuiID dockspace_id)
       0.25f,
       nullptr,
       &dock_main);
+
     dock_bottom = ImGui::DockBuilderSplitNode(
       dock_main,
       ImGuiDir_Down,
-      0.25f, nullptr,
+      0.25f,
+      nullptr,
       &dock_main);
 
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("Console", dock_bottom);
     ImGui::DockBuilderDockWindow("Tools", dock_right);
+    ImGui::DockBuilderDockWindow("Inspector", dock_left);
 
     ImGui::DockBuilderFinish(dockspace_id);
 }
@@ -283,6 +294,140 @@ void update_gears(
     gears[2]->set_transform(
       ml::matrices::translation(-3.1f, 4.2f, 0.f)
       * ml::matrices::rotation_z(-2.f * time - 25.f));
+}
+
+void imgui_draw_console(std::vector<std::string>& log_lines)
+{
+    ImGui::Begin("Console");
+
+    if(ImGui::Button("Clear"))
+    {
+        log_lines.clear();
+    }
+
+    ImGui::Separator();
+
+    ImGui::BeginChild(
+      "ConsoleScrollRegion",
+      ImVec2{0, 0},
+      false,
+      ImGuiWindowFlags_HorizontalScrollbar);
+    for(const std::string& line: log_lines)
+    {
+        ImGui::TextUnformatted(line.c_str());
+    }
+    if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+    {
+        ImGui::SetScrollHereY(1.0f);
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+void imgui_draw_tools(
+  ImGuiIO& io,
+  RenderDevice& render_device,
+  Renderer& renderer,
+  Scene& scene,
+  Viewport& viewport,
+  float pixel_density,
+  int frame_index)
+{
+    ImGui::Begin("Tools");
+
+    if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text(
+          "Framebuffer: %d x %d px",
+          render_device.get_width(),
+          render_device.get_height());
+        ImGui::Text("Window pixel density: %.2f", pixel_density);
+        ImGui::Text("Frame: %d", frame_index);
+        ImGui::Text("Scene time: %.1f s", scene.get_time());
+    }
+
+    if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        bool wireframe = viewport.draw_params.wireframe;
+        bool cull_face = viewport.draw_params.cull_face;
+        bool paused = scene.is_paused();
+
+        if(ImGui::Checkbox("Paused", &paused))
+        {
+            scene.set_paused(paused);
+        }
+
+        if(ImGui::Checkbox("Wireframe", &wireframe))
+        {
+            viewport.draw_params.wireframe = wireframe;
+        }
+
+        if(ImGui::Checkbox("Face Culling", &cull_face))
+        {
+            viewport.draw_params.cull_face = cull_face;
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("FPS: %.1f", io.Framerate);
+        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
+        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_scene_inspector(
+  Scene& scene,
+  std::optional<ObjectId>& selected_object_id)
+{
+    ImGui::Begin("Inspector");
+
+    for(const auto& obj_ptr: scene.get_objects())
+    {
+        if(!obj_ptr)
+        {
+            continue;
+        }
+
+        Object& obj = *obj_ptr;
+        bool is_selected = (selected_object_id == obj.get_object_id());
+
+        const auto type_name = obj.get_class()->name;
+        std::string label =
+          std::format(
+            "{} ({})##{}",
+            obj.get_name(),
+            type_name,
+            obj.get_object_id().value);
+
+        ImGuiTreeNodeFlags flags =
+          ImGuiTreeNodeFlags_OpenOnArrow
+          | ImGuiTreeNodeFlags_OpenOnDoubleClick
+          | ImGuiTreeNodeFlags_SpanAvailWidth;
+
+        if(is_selected)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+
+        bool open = ImGui::TreeNodeEx(label.c_str(), flags);
+
+        if(ImGui::IsItemClicked())
+        {
+            selected_object_id = obj.get_object_id();
+        }
+
+        if(open)
+        {
+            ImGui::Text("ID: %u", obj.get_object_id().value);
+            ImGui::TreePop();
+        }
+    }
+
+    ImGui::End();
 }
 
 }    // namespace
@@ -528,71 +673,16 @@ void Application::run()
 
         ImGui::End();
 
-        ImGui::Begin("Console");
-
-        if(ImGui::Button("Clear"))
-        {
-            log_lines.clear();
-        }
-
-        ImGui::Separator();
-
-        ImGui::BeginChild("ConsoleScrollRegion", ImVec2{0, 0}, false, ImGuiWindowFlags_HorizontalScrollbar);
-        for(const std::string& line: log_lines)
-        {
-            ImGui::TextUnformatted(line.c_str());
-        }
-        if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-        {
-            ImGui::SetScrollHereY(1.0f);
-        }
-        ImGui::EndChild();
-
-        ImGui::End();
-
-        ImGui::Begin("Tools");
-
-        if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::Text(
-              "Framebuffer: %d x %d px",
-              render_device->get_width(),
-              render_device->get_height());
-            ImGui::Text("Window pixel density: %.2f", pixel_density);
-            ImGui::Text("Frame: %d", frame_index);
-            ImGui::Text("Scene time: %.1f s", scene->get_time());
-        }
-
-        if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            bool wireframe = viewport->draw_params.wireframe;
-            bool cull_face = viewport->draw_params.cull_face;
-            bool paused = scene->is_paused();
-
-            if(ImGui::Checkbox("Paused", &paused))
-            {
-                scene->set_paused(paused);
-            }
-
-            if(ImGui::Checkbox("Wireframe", &wireframe))
-            {
-                viewport->draw_params.wireframe = wireframe;
-            }
-
-            if(ImGui::Checkbox("Face Culling", &cull_face))
-            {
-                viewport->draw_params.cull_face = cull_face;
-            }
-        }
-
-        if(ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            ImGui::Text("FPS: %.1f", io.Framerate);
-            ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
-            ImGui::Text("render time: %.3f ms", 1000.f * renderer->get_render_time());
-        }
-
-        ImGui::End();
+        imgui_draw_console(log_lines);
+        imgui_draw_tools(
+          io,
+          *render_device,
+          *renderer,
+          *scene,
+          *viewport,
+          pixel_density,
+          frame_index);
+        imgui_draw_scene_inspector(*scene, selected_object_id);
 
         ImGui::Render();
 

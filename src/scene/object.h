@@ -42,6 +42,15 @@ struct ClassInfo
 struct ObjectId
 {
     std::uint32_t value = 0;
+
+    bool operator==(const ObjectId& other) const noexcept
+    {
+        return value == other.value;
+    }
+    bool operator!=(const ObjectId& other) const noexcept
+    {
+        return !(*this == other);
+    }
 };
 
 inline ObjectId make_object_id(std::uint32_t value)
@@ -98,6 +107,8 @@ public:
         object_id = other.object_id;
         name = std::move(other.name);
         mesh_handles = std::move(other.mesh_handles);
+
+        return *this;
     }
 
     ObjectId get_object_id() const noexcept

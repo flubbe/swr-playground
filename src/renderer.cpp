@@ -28,7 +28,7 @@ void Renderer::render(
     auto view = viewport.camera.get_transform();
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w) * scene.get_light().position;
 
-    for(auto& obj: scene.get_objects())
+    for(const auto& obj: scene.get_objects())
     {
         if(!obj->is_drawable())
         {

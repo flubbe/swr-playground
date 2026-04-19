@@ -65,7 +65,7 @@ std::uint32_t RenderDevice::create_mesh(
   std::vector<ml::vec4> normals)
 {
     std::uint32_t mesh_id = 0;
-    while(meshes.find(mesh_id) != meshes.end())
+    while(meshes.contains(mesh_id))
     {
         ++mesh_id;
     }
@@ -107,7 +107,7 @@ std::uint32_t RenderDevice::create_material(
     }
 
     std::uint32_t material_id = 0;
-    while(materials.find(material_id) != materials.end())
+    while(materials.contains(material_id))
     {
         ++material_id;
     }

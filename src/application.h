@@ -44,6 +44,8 @@ class Application
     Scene* scene{nullptr};
     Viewport* viewport{nullptr};
 
+    std::optional<ObjectId> selected_object_id;
+
     bool initialized{false};
 
     int window_w{0};

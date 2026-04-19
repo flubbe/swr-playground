@@ -38,7 +38,7 @@ class Scene
     bool paused{false};
 
 public:
-    Scene();
+    Scene() = default;
 
     void set_paused(bool in_pause)
     {
