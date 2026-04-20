@@ -10,8 +10,17 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+
+struct ImGuiIO;
+class RenderDevice;
+class Renderer;
+class Scene;
+struct Viewport;
 
 /** Set up ImGui. */
 bool imgui_init(
@@ -20,3 +29,18 @@ bool imgui_init(
 
 /** Shut down ImGui. */
 void imgui_shutdown();
+
+void imgui_draw_main_dockspace(bool& running);
+
+void imgui_draw_console_panel(std::vector<std::string>& log_lines);
+
+void imgui_draw_tools_panel(
+  RenderDevice& render_device,
+  Viewport& viewport,
+  Scene& scene,
+  Renderer& renderer,
+  int frame_index,
+  float pixel_density,
+  const ImGuiIO& io);
+
+void imgui_draw_inspector_panel(Scene& scene);

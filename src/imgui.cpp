@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <cmath>
+#include <format>
 #include <print>
 #include <stdexcept>
 
@@ -7,6 +10,10 @@
 #include <backends/imgui_impl_opengl3.h>
 
 #include "imgui.h"
+#include "renderdevice.h"
+#include "renderer.h"
+#include "scene/scene.h"
+#include "viewport.h"
 
 namespace
 {
@@ -104,6 +111,47 @@ void load_fonts()
     io.FontGlobalScale = 1.0f;
 }
 
+void imgui_setup_dock_layout(ImGuiID dockspace_id)
+{
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGui::DockBuilderRemoveNode(dockspace_id);
+    ImGui::DockBuilderAddNode(
+      dockspace_id,
+      ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+    ImGuiID dock_main = dockspace_id;
+    ImGuiID dock_left = 0;
+    ImGuiID dock_right = 0;
+    ImGuiID dock_bottom = 0;
+
+    dock_left = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Left,
+      0.22f,
+      nullptr,
+      &dock_main);
+    dock_right = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Right,
+      0.25f,
+      nullptr,
+      &dock_main);
+    dock_bottom = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Down,
+      0.25f, nullptr,
+      &dock_main);
+
+    ImGui::DockBuilderDockWindow("Viewport", dock_main);
+    ImGui::DockBuilderDockWindow("Console", dock_bottom);
+    ImGui::DockBuilderDockWindow("Tools", dock_right);
+    ImGui::DockBuilderDockWindow("Inspector", dock_left);
+
+    ImGui::DockBuilderFinish(dockspace_id);
+}
+
 }    // namespace
 
 bool imgui_init(
@@ -142,4 +190,189 @@ void imgui_shutdown()
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
+}
+
+void imgui_draw_main_dockspace(bool& running)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGuiWindowFlags host_window_flags =
+      ImGuiWindowFlags_NoDocking
+      | ImGuiWindowFlags_NoTitleBar
+      | ImGuiWindowFlags_NoCollapse
+      | ImGuiWindowFlags_NoResize
+      | ImGuiWindowFlags_NoMove
+      | ImGuiWindowFlags_NoBringToFrontOnFocus
+      | ImGuiWindowFlags_NoNavFocus
+      | ImGuiWindowFlags_MenuBar;
+
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0f, 0.0f});
+
+    ImGui::Begin("MainDockHost", nullptr, host_window_flags);
+    ImGui::PopStyleVar(3);
+
+    if(ImGui::BeginMenuBar())
+    {
+        if(ImGui::BeginMenu("File"))
+        {
+            if(ImGui::MenuItem("Quit", nullptr, false, true))
+            {
+                running = false;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+    ImGui::DockSpace(dockspace_id, ImVec2{0.0f, 0.0f});
+
+    static bool first_time = true;
+    if(first_time)
+    {
+        imgui_setup_dock_layout(dockspace_id);
+        first_time = false;
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_console_panel(std::vector<std::string>& log_lines)
+{
+    ImGui::Begin("Console");
+
+    if(ImGui::Button("Clear"))
+    {
+        log_lines.clear();
+    }
+
+    ImGui::Separator();
+
+    ImGui::BeginChild("ConsoleScrollRegion", ImVec2{0, 0}, false, ImGuiWindowFlags_HorizontalScrollbar);
+    for(const std::string& line: log_lines)
+    {
+        ImGui::TextUnformatted(line.c_str());
+    }
+    if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+    {
+        ImGui::SetScrollHereY(1.0f);
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+void imgui_draw_tools_panel(
+  RenderDevice& render_device,
+  Viewport& viewport,
+  Scene& scene,
+  Renderer& renderer,
+  int frame_index,
+  float pixel_density,
+  const ImGuiIO& io)
+{
+    ImGui::Begin("Tools");
+
+    if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text(
+          "Framebuffer: %d x %d px",
+          render_device.get_width(),
+          render_device.get_height());
+        ImGui::Text("Window pixel density: %.2f", pixel_density);
+        ImGui::Text("Frame: %d", frame_index);
+        ImGui::Text("Scene time: %.1f s", scene.get_time());
+    }
+
+    if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        bool wireframe = viewport.draw_params.wireframe;
+        bool cull_face = viewport.draw_params.cull_face;
+        bool paused = scene.is_paused();
+
+        if(ImGui::Checkbox("Paused", &paused))
+        {
+            scene.set_paused(paused);
+        }
+
+        if(ImGui::Checkbox("Wireframe", &wireframe))
+        {
+            viewport.draw_params.wireframe = wireframe;
+        }
+
+        if(ImGui::Checkbox("Face Culling", &cull_face))
+        {
+            viewport.draw_params.cull_face = cull_face;
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("FPS: %.1f", io.Framerate);
+        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
+        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_inspector_panel(Scene& scene)
+{
+    ImGui::Begin("Inspector");
+
+    const auto& objects = scene.get_objects();
+    if(objects.empty())
+    {
+        ImGui::TextUnformatted("No objects in scene.");
+    }
+    else
+    {
+        for(const auto& object: objects)
+        {
+            const Object* inspected = object.get();
+            const ClassInfo* class_info = inspected->get_class();
+            const std::string type_name = class_info != nullptr
+                                            ? std::string{class_info->name}
+                                            : std::string{"Unknown"};
+            const std::string object_header = std::format(
+              "{} ({})",
+              inspected->get_name(),
+              type_name);
+
+            if(ImGui::CollapsingHeader(object_header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                const std::string table_id = std::format(
+                  "ObjectProperties##{}",
+                  inspected->get_object_id().value);
+                const ImGuiTableFlags table_flags =
+                  ImGuiTableFlags_BordersInnerV
+                  | ImGuiTableFlags_BordersOuter
+                  | ImGuiTableFlags_RowBg
+                  | ImGuiTableFlags_SizingStretchSame;
+
+                if(ImGui::BeginTable(table_id.c_str(), 2, table_flags))
+                {
+                    ImGui::TableSetupColumn("Property");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted("Object ID");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::Text("%u", inspected->get_object_id().value);
+
+                    ImGui::EndTable();
+                }
+            }
+        }
+    }
+
+    ImGui::End();
 }
