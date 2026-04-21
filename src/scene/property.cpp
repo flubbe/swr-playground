@@ -25,32 +25,36 @@ const std::string& empty_string()
 }    // namespace
 
 Property::Property(
+  std::string name,
   std::string label,
   bool read_only)
-: label{std::move(label)}
+: name{std::move(name)}
+, label{std::move(label)}
 , read_only{read_only}
 {
 }
 
 IntProperty::IntProperty(
+  std::string name,
   std::string label,
   int* value,
   bool read_only,
   float speed)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , speed{speed}
 {
 }
 
 IntProperty::IntProperty(
+  std::string name,
   std::string label,
   int* value,
   int min_value,
   int max_value,
   bool read_only,
   float speed)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -111,24 +115,26 @@ void IntProperty::accept(PropertyVisitor& visitor)
 }
 
 UIntProperty::UIntProperty(
+  std::string name,
   std::string label,
   std::uint32_t* value,
   bool read_only,
   float speed)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , speed{speed}
 {
 }
 
 UIntProperty::UIntProperty(
+  std::string name,
   std::string label,
   std::uint32_t* value,
   std::uint32_t min_value,
   std::uint32_t max_value,
   bool read_only,
   float speed)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -189,12 +195,13 @@ void UIntProperty::accept(PropertyVisitor& visitor)
 }
 
 FloatProperty::FloatProperty(
+  std::string name,
   std::string label,
   float* value,
   bool read_only,
   float speed,
   const char* format)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , speed{speed}
 , format{format}
@@ -202,6 +209,7 @@ FloatProperty::FloatProperty(
 }
 
 FloatProperty::FloatProperty(
+  std::string name,
   std::string label,
   float* value,
   float min_value,
@@ -209,7 +217,7 @@ FloatProperty::FloatProperty(
   bool read_only,
   float speed,
   const char* format)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -276,10 +284,11 @@ void FloatProperty::accept(PropertyVisitor& visitor)
 }
 
 BoolProperty::BoolProperty(
+  std::string name,
   std::string label,
   bool* value,
   bool read_only)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 {
 }
@@ -311,11 +320,12 @@ void BoolProperty::accept(PropertyVisitor& visitor)
 }
 
 StringProperty::StringProperty(
+  std::string name,
   std::string label,
   std::string* value,
   bool read_only,
   std::size_t max_length)
-: Property{std::move(label), read_only}
+: Property{std::move(name), std::move(label), read_only}
 , value{value}
 , max_length{max_length}
 {

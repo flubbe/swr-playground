@@ -38,15 +38,22 @@ public:
 
 class Property
 {
+    std::string name;
     std::string label;
     bool read_only{false};
 
 public:
     Property(
+      std::string name,
       std::string label,
       bool read_only = false);
 
     virtual ~Property() = default;
+
+    const std::string& get_name() const noexcept
+    {
+        return name;
+    }
 
     const std::string& get_label() const noexcept
     {
@@ -87,12 +94,14 @@ class IntProperty : public Property
 
 public:
     IntProperty(
+      std::string name,
       std::string label,
       int* value,
       bool read_only = false,
       float speed = 1.0f);
 
     IntProperty(
+      std::string name,
       std::string label,
       int* value,
       int min_value,
@@ -122,12 +131,14 @@ class UIntProperty : public Property
 
 public:
     UIntProperty(
+      std::string name,
       std::string label,
       std::uint32_t* value,
       bool read_only = false,
       float speed = 1.0f);
 
     UIntProperty(
+      std::string name,
       std::string label,
       std::uint32_t* value,
       std::uint32_t min_value,
@@ -158,6 +169,7 @@ class FloatProperty : public Property
 
 public:
     FloatProperty(
+      std::string name,
       std::string label,
       float* value,
       bool read_only = false,
@@ -165,6 +177,7 @@ public:
       const char* format = "%.3f");
 
     FloatProperty(
+      std::string name,
       std::string label,
       float* value,
       float min_value,
@@ -192,6 +205,7 @@ class BoolProperty : public Property
 
 public:
     BoolProperty(
+      std::string name,
       std::string label,
       bool* value,
       bool read_only = false);
@@ -210,6 +224,7 @@ class StringProperty : public Property
 
 public:
     StringProperty(
+      std::string name,
       std::string label,
       std::string* value,
       bool read_only = false,
@@ -263,12 +278,14 @@ template<>
 struct PropertyFactory<int>
 {
     static std::unique_ptr<Property> construct(
+      std::string name,
       std::string_view label,
       int& value,
       bool read_only)
     {
         return std::make_unique<IntProperty>(
-          std::string(label),
+          std::string{name},
+          std::string{label},
           &value,
           read_only);
     }
@@ -278,12 +295,14 @@ template<>
 struct PropertyFactory<std::uint32_t>
 {
     static std::unique_ptr<Property> construct(
+      std::string_view name,
       std::string_view label,
       std::uint32_t& value,
       bool read_only)
     {
         return std::make_unique<UIntProperty>(
-          std::string(label),
+          std::string{name},
+          std::string{label},
           &value,
           read_only);
     }
@@ -293,12 +312,14 @@ template<>
 struct PropertyFactory<float>
 {
     static std::unique_ptr<Property> construct(
+      std::string_view name,
       std::string_view label,
       float& value,
       bool read_only)
     {
         return std::make_unique<FloatProperty>(
-          std::string(label),
+          std::string{name},
+          std::string{label},
           &value,
           read_only);
     }
@@ -308,12 +329,14 @@ template<>
 struct PropertyFactory<bool>
 {
     static std::unique_ptr<Property> construct(
+      std::string_view name,
       std::string_view label,
       bool& value,
       bool read_only)
     {
         return std::make_unique<BoolProperty>(
-          std::string(label),
+          std::string{name},
+          std::string{label},
           &value,
           read_only);
     }
@@ -323,12 +346,14 @@ template<>
 struct PropertyFactory<std::string>
 {
     static std::unique_ptr<Property> construct(
+      std::string_view name,
       std::string_view label,
       std::string& value,
       bool read_only)
     {
         return std::make_unique<StringProperty>(
-          std::string(label),
+          std::string{name},
+          std::string{label},
           &value,
           read_only);
     }
@@ -348,7 +373,7 @@ struct UnwrapType
 template<typename Class, typename Member, Member Class::* MemberPtr>
 std::unique_ptr<Property> construct_member(
   Object& obj,
-  std::string_view /*name*/,
+  std::string_view name,
   std::string_view label,
   bool read_only)
 {
@@ -362,6 +387,7 @@ std::unique_ptr<Property> construct_member(
     using UnwrappedType = typename Traits::Type;
 
     return PropertyFactory<UnwrappedType>::construct(
+      name,
       label,
       Traits::get(value),
       read_only);

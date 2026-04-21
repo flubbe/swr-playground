@@ -568,6 +568,10 @@ void imgui_draw_inspector_panel(Scene& scene)
                         ImGui::TableNextRow();
                         ImGui::TableSetColumnIndex(0);
                         ImGui::TextUnformatted(property->get_label().c_str());
+                        if(ImGui::IsItemHovered())
+                        {
+                            ImGui::SetTooltip("%s", property->get_name().c_str());
+                        }
                         ImGui::TableSetColumnIndex(1);
                         property->accept(property_renderer);
                         ImGui::PopID();
