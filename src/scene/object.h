@@ -27,7 +27,7 @@ struct RenderData
 
 struct ObjectId
 {
-    std::uint32_t value = 0;
+    unsigned int value = 0;
 
     bool operator==(const ObjectId& other) const noexcept
     {
@@ -39,10 +39,31 @@ struct ObjectId
     }
 };
 
+// Property support.
+
+template<>
+struct PropertyTypeMap<ObjectId>
+{
+    using type = UIntProperty;
+};
+
+template<>
+struct UnwrapType<ObjectId>
+{
+    using Type = unsigned int;
+
+    static Type& get(ObjectId& value) noexcept
+    {
+        return value.value;
+    }
+};
+
 inline ObjectId make_object_id(std::uint32_t value)
 {
     return {value};
 }
+
+using PropertyList = std::vector<std::unique_ptr<Property>>;
 
 class Object
 {
@@ -51,17 +72,21 @@ class Object
     /** RTTI-style type info. */
     const ClassInfo* class_info{Object::static_class()};
 
-    /** object id. */
-    ObjectId object_id{0};
-
-    /** object name. */
-    std::string name;
+    /** Property list. */
+    PropertyList properties;
 
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** meshes. */
     std::vector<RenderData> mesh_handles;
+
+public:
+    /** object id. */
+    ObjectId object_id{0};
+
+    /** object name. */
+    std::string name;
 
 protected:
     Object(
@@ -70,6 +95,7 @@ protected:
     : class_info{class_info}
     , mesh_handles{std::move(mesh_handles)}
     {
+        initialize_properties();
     }
 
     void set_class_info(const ClassInfo* class_info) noexcept
@@ -77,21 +103,14 @@ protected:
         this->class_info = class_info;
     }
 
+    void initialize_properties();
+
 public:
-    using PropertyList = std::vector<std::unique_ptr<Property>>;
-
-    static std::uint32_t* property_access_object_id_value(Object& object) noexcept
-    {
-        return &object.object_id.value;
-    }
-
-    static std::string* property_access_name(Object& object) noexcept
-    {
-        return &object.name;
-    }
-
     /** default constructor. */
-    Object() = default;
+    Object()
+    {
+        initialize_properties();
+    }
 
     /** default destructor. */
     virtual ~Object() = default;
@@ -108,10 +127,13 @@ public:
     /** move data. */
     Object(Object&& other)
     : class_info{other.class_info}
+    , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
-    , mesh_handles{std::move(other.mesh_handles)}
     {
+        other.class_info = nullptr;
+
+        initialize_properties();
     }
 
     Object(const Object&) = default;
@@ -120,9 +142,11 @@ public:
     Object& operator=(Object&& other)
     {
         class_info = other.class_info;
+        mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
         name = std::move(other.name);
-        mesh_handles = std::move(other.mesh_handles);
+
+        other.class_info = nullptr;
 
         return *this;
     }
@@ -165,7 +189,10 @@ public:
         return get_class()->is_a(cls);
     }
 
-    virtual PropertyList get_properties();
+    PropertyList& get_properties()
+    {
+        return properties;
+    }
 
     /** release all data. */
     virtual void release()

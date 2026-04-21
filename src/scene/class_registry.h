@@ -70,12 +70,12 @@ struct PropertyRegistration
     }
 };
 
-#define DECLARE_CLASS_CORE(Type)                           \
+#define DECLARE_CLASS_CORE(Type)                             \
     static constexpr std::string_view module_name = "Scene"; \
-    static const ClassInfo* static_class() noexcept;      \
-    static std::unique_ptr<Object> create_instance();     \
-                                                          \
-private:                                                  \
+    static const ClassInfo* static_class() noexcept;         \
+    static std::unique_ptr<Object> create_instance();        \
+                                                             \
+private:                                                     \
     static const AutoClassRegistrar auto_class_registrar;
 
 #define DECLARE_ROOT_CLASS(Type) \
@@ -86,50 +86,52 @@ public:                          \
 public:                                         \
     using Super = Base;                         \
     DECLARE_CLASS_CORE(Type)                    \
-                                                 \
+                                                \
 public:                                         \
     const ClassInfo* get_class() const override \
     {                                           \
         return Type::static_class();            \
     }
 
-#define DEFINE_CLASS_COMMON(Type, base_class_getter)     \
-    namespace                                            \
-    {                                                    \
+#define DEFINE_CLASS_COMMON(Type, base_class_getter)    \
+    namespace                                           \
+    {                                                   \
     ClassInfo g_class_storage_##Type{};                 \
-                                                         \
-    static_assert(                                       \
-      (base_class_getter) == nullptr                     \
-        || std::is_invocable_v<                          \
-          decltype(base_class_getter)>,                  \
-      "base_class_getter must be invocable");            \
-    PendingClassRegistration g_class_reg_##Type{         \
-      .name = #Type,                                     \
-      .module_name = Type::module_name,                  \
-      .size = sizeof(Type),                              \
-      .storage = &g_class_storage_##Type,                \
-      .get_base_class = (base_class_getter),             \
-      .factory = &Type::create_instance,                 \
-    };                                                   \
-                                                         \
-    PendingClassNode g_class_node_##Type{                \
-      .reg = &g_class_reg_##Type,                        \
-      .next = nullptr,                                   \
-    };                                                   \
-    }                                                    \
-                                                         \
-    const ClassInfo* Type::static_class() noexcept       \
-    {                                                    \
-        return &g_class_storage_##Type;                  \
-    }                                                    \
-                                                         \
-    std::unique_ptr<Object> Type::create_instance()      \
-    {                                                    \
-        return std::make_unique<Type>();                 \
-    }                                                    \
-                                                         \
-    const AutoClassRegistrar Type::auto_class_registrar{ \
-      &g_class_node_##Type}
+                                                        \
+    static_assert(                                      \
+      (base_class_getter) == nullptr                    \
+        || std::is_invocable_v<                         \
+          decltype(base_class_getter)>,                 \
+      "base_class_getter must be invocable");           \
+    PendingClassRegistration g_class_reg_##Type{        \
+      .name = #Type,                                    \
+      .module_name = Type::module_name,                 \
+      .size = sizeof(Type),                             \
+      .storage = &g_class_storage_##Type,               \
+      .get_base_class = (base_class_getter),            \
+      .factory = &Type::create_instance,                \
+    };                                                  \
+                                                        \
+    PendingClassNode g_class_node_##Type{               \
+      .reg = &g_class_reg_##Type,                       \
+      .next = nullptr,                                  \
+    };                                                  \
+    }                                                   \
+                                                        \
+    const ClassInfo* Type::static_class() noexcept      \
+    {                                                   \
+        return &g_class_storage_##Type;                 \
+    }                                                   \
+                                                        \
+    std::unique_ptr<Object> Type::create_instance()     \
+    {                                                   \
+        return std::make_unique<Type>();                \
+    }                                                   \
+                                                        \
+    const AutoClassRegistrar Type::auto_class_registrar \
+    {                                                   \
+        &g_class_node_##Type                            \
+    }
 
 #define DEFINE_ROOT_CLASS(Type) \
     DEFINE_CLASS_COMMON(Type, nullptr)
@@ -137,11 +139,28 @@ public:                                         \
 #define DEFINE_CLASS(Type) \
     DEFINE_CLASS_COMMON(Type, &Type::Super::static_class)
 
-#define REGISTER_PROPERTY(Type, Id, ...)                             \
-    namespace                                                        \
-    {                                                                \
-    PropertyDescriptor Type##_property_##Id __VA_ARGS__;             \
-    PropertyRegistration Type##_property_registration_##Id{          \
-      &Type::static_class,                                           \
-      Type##_property_##Id};                                         \
+#define REGISTER_PROPERTY_READONLY(Type, name, label)              \
+    namespace                                                      \
+    {                                                              \
+    PropertyDescriptor Type##_##name{                              \
+      #name,                                                       \
+      label,                                                       \
+      true,                                                        \
+      &construct_member<Type, decltype(Type::name), &Type::name>}; \
+    PropertyRegistration Type##_##name##_registration{             \
+      &Type::static_class,                                         \
+      Type##_##name};                                              \
+    }
+
+#define REGISTER_PROPERTY_READWRITE(Type, name, label)             \
+    namespace                                                      \
+    {                                                              \
+    PropertyDescriptor Type##_##name{                              \
+      #name,                                                       \
+      label,                                                       \
+      false,                                                       \
+      &construct_member<Type, decltype(Type::name), &Type::name>}; \
+    PropertyRegistration Type##_##name##_registration{             \
+      &Type::static_class,                                         \
+      Type##_##name};                                              \
     }

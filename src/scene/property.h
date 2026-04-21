@@ -61,31 +61,19 @@ public:
     virtual void accept(PropertyVisitor& visitor) = 0;
 };
 
+using ConstructFn = std::unique_ptr<Property> (*)(
+  Object&,
+  std::string_view,    // name
+  std::string_view,    // label
+  bool                 // read_only
+);
+
 struct PropertyDescriptor
 {
-    using IntAccessor = int* (*)(Object&) noexcept;
-    using UIntAccessor = std::uint32_t* (*)(Object&) noexcept;
-    using FloatAccessor = float* (*)(Object&) noexcept;
-    using BoolAccessor = bool* (*)(Object&) noexcept;
-    using StringAccessor = std::string* (*)(Object&) noexcept;
-
-    enum class FieldType
-    {
-        Int,
-        UInt,
-        Float,
-        Bool,
-        String,
-    };
-
+    std::string_view name;
     std::string_view label;
-    FieldType field_type{FieldType::Int};
-    IntAccessor get_int{nullptr};
-    UIntAccessor get_uint{nullptr};
-    FloatAccessor get_float{nullptr};
-    BoolAccessor get_bool{nullptr};
-    StringAccessor get_string{nullptr};
     bool read_only{false};
+    ConstructFn construct{nullptr};
     PropertyDescriptor* next{nullptr};
 };
 
@@ -234,3 +222,147 @@ public:
 
     void accept(PropertyVisitor& visitor) override;
 };
+
+template<typename T>
+struct PropertyTypeMap;
+
+template<>
+struct PropertyTypeMap<int>
+{
+    using type = IntProperty;
+};
+
+template<>
+struct PropertyTypeMap<std::uint32_t>
+{
+    using type = UIntProperty;
+};
+
+template<>
+struct PropertyTypeMap<float>
+{
+    using type = FloatProperty;
+};
+
+template<>
+struct PropertyTypeMap<bool>
+{
+    using type = BoolProperty;
+};
+
+template<>
+struct PropertyTypeMap<std::string>
+{
+    using type = StringProperty;
+};
+
+template<typename T>
+struct PropertyFactory;
+
+template<>
+struct PropertyFactory<int>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view label,
+      int& value,
+      bool read_only)
+    {
+        return std::make_unique<IntProperty>(
+          std::string(label),
+          &value,
+          read_only);
+    }
+};
+
+template<>
+struct PropertyFactory<std::uint32_t>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view label,
+      std::uint32_t& value,
+      bool read_only)
+    {
+        return std::make_unique<UIntProperty>(
+          std::string(label),
+          &value,
+          read_only);
+    }
+};
+
+template<>
+struct PropertyFactory<float>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view label,
+      float& value,
+      bool read_only)
+    {
+        return std::make_unique<FloatProperty>(
+          std::string(label),
+          &value,
+          read_only);
+    }
+};
+
+template<>
+struct PropertyFactory<bool>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view label,
+      bool& value,
+      bool read_only)
+    {
+        return std::make_unique<BoolProperty>(
+          std::string(label),
+          &value,
+          read_only);
+    }
+};
+
+template<>
+struct PropertyFactory<std::string>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view label,
+      std::string& value,
+      bool read_only)
+    {
+        return std::make_unique<StringProperty>(
+          std::string(label),
+          &value,
+          read_only);
+    }
+};
+
+template<typename T>
+struct UnwrapType
+{
+    using Type = T;
+
+    static Type& get(T& value) noexcept
+    {
+        return value;
+    }
+};
+
+template<typename Class, typename Member, Member Class::* MemberPtr>
+std::unique_ptr<Property> construct_member(
+  Object& obj,
+  std::string_view /*name*/,
+  std::string_view label,
+  bool read_only)
+{
+    static_assert(std::is_base_of_v<Object, Class>,
+                  "Class must derive from Object");
+
+    auto& typed = static_cast<Class&>(obj);
+    Member& value = typed.*MemberPtr;
+
+    using Traits = UnwrapType<Member>;
+    using UnwrappedType = typename Traits::Type;
+
+    return PropertyFactory<UnwrappedType>::construct(
+      label,
+      Traits::get(value),
+      read_only);
+}

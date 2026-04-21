@@ -13,10 +13,8 @@
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 DEFINE_ROOT_CLASS(Object);
 
-Object::PropertyList Object::get_properties()
+void Object::initialize_properties()
 {
-    PropertyList properties;
-
     std::vector<const ClassInfo*> class_chain;
 
     // gather class chain for property lookup.
@@ -32,92 +30,26 @@ Object::PropertyList Object::get_properties()
             descriptor != nullptr;
             descriptor = descriptor->next)
         {
-            switch(descriptor->field_type)
-            {
-            case PropertyDescriptor::FieldType::Int:
-                if(descriptor->get_int == nullptr)
-                {
-                    break;
-                }
-                properties.emplace_back(
-                  std::make_unique<IntProperty>(
-                    std::string{descriptor->label},
-                    descriptor->get_int(*this),
-                    descriptor->read_only));
-                break;
-            case PropertyDescriptor::FieldType::UInt:
-                if(descriptor->get_uint == nullptr)
-                {
-                    break;
-                }
-                properties.emplace_back(
-                  std::make_unique<UIntProperty>(
-                    std::string{descriptor->label},
-                    descriptor->get_uint(*this),
-                    descriptor->read_only));
-                break;
-            case PropertyDescriptor::FieldType::Float:
-                if(descriptor->get_float == nullptr)
-                {
-                    break;
-                }
-                properties.emplace_back(
-                  std::make_unique<FloatProperty>(
-                    std::string{descriptor->label},
-                    descriptor->get_float(*this),
-                    descriptor->read_only));
-                break;
-            case PropertyDescriptor::FieldType::Bool:
-                if(descriptor->get_bool == nullptr)
-                {
-                    break;
-                }
-                properties.emplace_back(
-                  std::make_unique<BoolProperty>(
-                    std::string{descriptor->label},
-                    descriptor->get_bool(*this),
-                    descriptor->read_only));
-                break;
-            case PropertyDescriptor::FieldType::String:
-                if(descriptor->get_string == nullptr)
-                {
-                    break;
-                }
-                properties.emplace_back(
-                  std::make_unique<StringProperty>(
-                    std::string{descriptor->label},
-                    descriptor->get_string(*this),
-                    descriptor->read_only));
-                break;
-            }
+            properties.emplace_back(
+              descriptor->construct(
+                *this,
+                descriptor->name,
+                descriptor->label,
+                descriptor->read_only));
         }
     }
-
-    return properties;
 }
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 
-REGISTER_PROPERTY(
+REGISTER_PROPERTY_READONLY(
   Object,
   object_id,
-  {
-    .label = "Object ID",
-    .field_type = PropertyDescriptor::FieldType::UInt,
-    .get_uint = &Object::property_access_object_id_value,
-    .read_only = true,
-    .next = nullptr,
-  });
+  "Object ID");
 
-REGISTER_PROPERTY(
+REGISTER_PROPERTY_READWRITE(
   Object,
   name,
-  {
-    .label = "Name",
-    .field_type = PropertyDescriptor::FieldType::String,
-    .get_string = &Object::property_access_name,
-    .read_only = false,
-    .next = nullptr,
-  });
+  "Name");
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)

@@ -554,7 +554,7 @@ void imgui_draw_inspector_panel(Scene& scene)
                     ImGui::TableSetupColumn("Value");
                     ImGui::TableHeadersRow();
 
-                    auto properties = inspected->get_properties();
+                    auto& properties = inspected->get_properties();
                     ImGuiPropertyRenderer property_renderer;
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {
