@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * A scene description.
+ * Scene description.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
