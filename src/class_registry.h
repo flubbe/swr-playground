@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Reflection class registration.
+ * Object reflection.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

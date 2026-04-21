@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Class metadata for scene reflection.
+ * Object implementation.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

@@ -1,3 +1,13 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * Scene description.
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
 #include "gear.h"
 #include "scene.h"
 
