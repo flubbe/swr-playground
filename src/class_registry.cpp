@@ -16,38 +16,61 @@
 
 namespace
 {
+
+/** Class registry type, mapping qualified names to class metadata. */
 using ClassMap = std::unordered_map<std::string, const ClassInfo*>;
 
+/** Head of pending class linked list. */
 PendingClassNode*& pending_head()
 {
     static PendingClassNode* head = nullptr;
     return head;
 }
 
+/** Class registry. */
 ClassMap& classes()
 {
     static ClassMap map;
     return map;
 }
 
+/** Automatric registration enable/disable. */
 bool& auto_registration_enabled()
 {
     static bool value = true;
     return value;
 }
 
-void register_class(const ClassInfo& cls)
+/**
+ * Register a class.
+ *
+ * @param cls Class info/metadata to register.
+ * @throws Throws a `std::runtime_error` if the class was already registered.
+ */
+void register_class(
+  const ClassInfo& cls)
 {
     const auto [_, inserted] = classes().emplace(cls.qualified_name, &cls);
     if(!inserted)
     {
         throw std::runtime_error{
-          std::format("Duplicate class registration: {}", cls.qualified_name)};
+          std::format(
+            "Duplicate class registration: {}",
+            cls.qualified_name)};
     }
 }
+
 }    // namespace
 
-void ReflectionSystem::allow_auto_registration(const bool enabled) noexcept
+void ReflectionSystem::add_pending(
+  PendingClassNode* node) noexcept
+{
+    node->next = pending_head();
+    pending_head() = node;
+}
+
+void ReflectionSystem::allow_auto_registration(
+  const bool enabled) noexcept
 {
     auto_registration_enabled() = enabled;
 }
@@ -55,12 +78,6 @@ void ReflectionSystem::allow_auto_registration(const bool enabled) noexcept
 bool ReflectionSystem::is_auto_registration_allowed() noexcept
 {
     return auto_registration_enabled();
-}
-
-void ReflectionSystem::add_pending(PendingClassNode* node) noexcept
-{
-    node->next = pending_head();
-    pending_head() = node;
 }
 
 void ReflectionSystem::process_pending_registrations()
@@ -88,7 +105,9 @@ void ReflectionSystem::process_pending_registrations()
         if(!cls.name.empty())
         {
             throw std::runtime_error{
-              std::format("Class already initialized: {}", cls.qualified_name)};
+              std::format(
+                "Class already registered: {}",
+                cls.qualified_name)};
         }
 
         cls.name = reg->name;
@@ -102,18 +121,21 @@ void ReflectionSystem::process_pending_registrations()
     }
 }
 
-const ClassInfo* ReflectionSystem::find_class(const std::string_view qualified_name) noexcept
+const ClassInfo* ReflectionSystem::find_class(
+  std::string_view qualified_name)
 {
-    const auto it = classes().find(qualified_name.data());
+    const auto it = classes().find(std::string{qualified_name});
     return (it != classes().end()) ? it->second : nullptr;
 }
 
-void ReflectionSystem::unregister_class(const std::string_view qualified_name)
+bool ReflectionSystem::unregister_class(
+  std::string_view qualified_name)
 {
-    classes().erase(qualified_name.data());
+    return classes().erase(std::string{qualified_name}) != 0;
 }
 
-void ReflectionSystem::unregister_module(const std::string_view module_name)
+void ReflectionSystem::unregister_module(
+  std::string_view module_name)
 {
     for(auto it = classes().begin(); it != classes().end();)
     {

@@ -17,48 +17,118 @@
 
 #include "class_info.h"
 
+/** Static info about a pending class registration. */
 struct PendingClassRegistration
 {
+    /** The class name. */
     std::string_view name{};
+
+    /** Module name of the class. */
     std::string_view module_name{};
+
+    /** Byte size of the class. */
     std::size_t size{0};
 
+    /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
+
+    /** Return the base class. */
     const ClassInfo* (*get_base_class)() noexcept = nullptr;
+
+    /** Instance creation. */
     FactoryFn factory{nullptr};
 };
 
+/** Linked-list for the automatic registration. */
 struct PendingClassNode
 {
+    /** Pending class registration. */
     const PendingClassRegistration* reg{nullptr};
+
+    /** Next pending node. */
     PendingClassNode* next{nullptr};
 };
 
+/** Reflection system. */
 class ReflectionSystem
 {
+    friend struct AutoClassRegistrar;
+
+    /**
+     * Add a class to the pending registration list.
+     *
+     * @param node The class info inside a class node.
+     */
+    static void add_pending(
+      PendingClassNode* node) noexcept;
+
 public:
-    static void allow_auto_registration(bool enabled) noexcept;
+    /**
+     * Enable/disable automatic class registration. Useful when loading dynamic libraries.
+     * Registration is enabled by default.
+     *
+     * @param enabled Whether to enable automatic registration.
+     */
+    static void allow_auto_registration(
+      bool enabled) noexcept;
+
+    /** Whether automatic registration is currently allowed. */
     static bool is_auto_registration_allowed() noexcept;
 
+    /**
+     * Process all pending registrations. Needs to be called after
+     * automatic registration ended, e.g. after dynamic library loading.
+     *
+     * @throws Throws `std::runtime_error` if called while automatic registration is enabled.
+     * @throws Throws `std::runtime_error` if the registration data is invalid.
+     * @throws Throws `std::runtime_error` if a class was already registered.
+     */
     static void process_pending_registrations();
-    static const ClassInfo* find_class(std::string_view qualified_name) noexcept;
-    static void unregister_class(std::string_view qualified_name);
-    static void unregister_module(std::string_view module_name);
-    static void clear();
 
-private:
-    friend struct AutoClassRegistrar;
-    static void add_pending(PendingClassNode* node) noexcept;
+    /**
+     * Find a class by name.
+     *
+     * @param qualified_name The qualified class name as `module_name.class_name`.
+     * @returns Returns the class info, or `nullptr` if the class is not found.
+     */
+    static const ClassInfo* find_class(std::string_view qualified_name);
+
+    /**
+     * Remove a class from the registry.
+     *
+     * @param qualified_name The qualified class name.
+     * @returns Returns `bool` if `qualified_name` was removed from the registry.
+     */
+    static bool unregister_class(std::string_view qualified_name);
+
+    /**
+     * Remove all classes loaded by a module.
+     *
+     * @param module_name Name of the module to remove.
+     */
+    static void unregister_module(std::string_view module_name);
+
+    /** Clear the registry. */
+    static void clear();
 };
 
+/** Automatic class registration helper. Executed during static initialization. */
 struct AutoClassRegistrar
 {
-    explicit AutoClassRegistrar(PendingClassNode* node) noexcept
+    /**
+     * Register a class node.
+     *
+     * @param node The node to add.
+     */
+    explicit AutoClassRegistrar(
+      PendingClassNode* node) noexcept
     {
         ReflectionSystem::add_pending(node);
     }
 };
 
+/** Automatic property registration helper.  */
+// FIXME This depends on static initialization order.
 struct PropertyRegistration
 {
     PropertyRegistration(
