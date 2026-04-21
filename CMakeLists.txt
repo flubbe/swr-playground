@@ -129,6 +129,3 @@ if(MSVC)
 else()
     target_compile_options(swr_playground PRIVATE -Wall -Wextra)
 endif()
-
-add_executable(registry_test
-    registry_test.cpp)
