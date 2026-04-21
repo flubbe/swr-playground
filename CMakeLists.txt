@@ -89,7 +89,10 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/scene/class_registry.cpp
     src/scene/gear.cpp
+    src/scene/object.cpp
+    src/scene/property.cpp
     src/scene/scene.cpp
     src/application.cpp
     src/imgui.cpp
@@ -126,3 +129,6 @@ if(MSVC)
 else()
     target_compile_options(swr_playground PRIVATE -Wall -Wextra)
 endif()
+
+add_executable(registry_test
+    registry_test.cpp)

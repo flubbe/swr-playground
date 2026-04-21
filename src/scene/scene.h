@@ -38,7 +38,7 @@ class Scene
     bool paused{false};
 
 public:
-    Scene();
+    Scene() = default;
 
     void set_paused(bool in_pause)
     {
@@ -82,6 +82,11 @@ public:
     }
 
     const std::vector<std::unique_ptr<Object>>& get_objects() const
+    {
+        return objects;
+    }
+
+    std::vector<std::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

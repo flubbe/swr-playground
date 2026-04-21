@@ -43,7 +43,10 @@ class Gear : public Object
     DECLARE_CLASS(Gear, Object);
 
 public:
-    Gear() = default;
+    Gear()
+    : Object{Gear::static_class()}
+    {
+    }
 
     explicit Gear(const GearParameters& params);
 };

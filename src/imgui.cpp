@@ -152,6 +152,166 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
     ImGui::DockBuilderFinish(dockspace_id);
 }
 
+class ImGuiPropertyRenderer : public PropertyVisitor
+{
+public:
+    void visit(IntProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text("%d", property.get_value());
+            return;
+        }
+
+        int value = property.get_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragInt(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   property.get_min_value(),
+                                   property.get_max_value())
+                               : ImGui::DragInt(
+                                   "##value",
+                                   &value,
+                                   property.get_speed());
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(UIntProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text("%u", property.get_value());
+            return;
+        }
+
+        std::uint32_t value = property.get_value();
+        const std::uint32_t min_value = property.get_min_value();
+        const std::uint32_t max_value = property.get_max_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragScalar(
+                                   "##value",
+                                   ImGuiDataType_U32,
+                                   &value,
+                                   property.get_speed(),
+                                   &min_value,
+                                   &max_value,
+                                   "%u")
+                               : ImGui::DragScalar(
+                                   "##value",
+                                   ImGuiDataType_U32,
+                                   &value,
+                                   property.get_speed(),
+                                   nullptr,
+                                   nullptr,
+                                   "%u");
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(FloatProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text(property.get_format(), property.get_value());
+            return;
+        }
+
+        float value = property.get_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragFloat(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   property.get_min_value(),
+                                   property.get_max_value(),
+                                   property.get_format())
+                               : ImGui::DragFloat(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   0.0f,
+                                   0.0f,
+                                   property.get_format());
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(BoolProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::TextUnformatted(property.get_value() ? "true" : "false");
+            return;
+        }
+
+        bool value = property.get_value();
+        if(ImGui::Checkbox("##value", &value))
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(StringProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::TextUnformatted(property.get_value().c_str());
+            return;
+        }
+
+        const std::size_t buffer_size = std::max<std::size_t>(property.get_max_length() + 1, 2);
+        std::vector<char> buffer(buffer_size, '\0');
+        const std::string& value = property.get_value();
+        const std::size_t copied = std::min(value.size(), property.get_max_length());
+        std::copy_n(value.data(), copied, buffer.data());
+        buffer[copied] = '\0';
+
+        if(ImGui::InputText("##value", buffer.data(), buffer.size()))
+        {
+            property.set_value(buffer.data());
+        }
+    }
+};
+
 }    // namespace
 
 bool imgui_init(
@@ -326,16 +486,16 @@ void imgui_draw_inspector_panel(Scene& scene)
 {
     ImGui::Begin("Inspector");
 
-    const auto& objects = scene.get_objects();
+    auto& objects = scene.get_objects();
     if(objects.empty())
     {
         ImGui::TextUnformatted("No objects in scene.");
     }
     else
     {
-        for(const auto& object: objects)
+        for(auto& object: objects)
         {
-            const Object* inspected = object.get();
+            Object* inspected = object.get();
             const ClassInfo* class_info = inspected->get_class();
             const std::string type_name = class_info != nullptr
                                             ? std::string{class_info->name}
@@ -362,11 +522,24 @@ void imgui_draw_inspector_panel(Scene& scene)
                     ImGui::TableSetupColumn("Value");
                     ImGui::TableHeadersRow();
 
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::TextUnformatted("Object ID");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%u", inspected->get_object_id().value);
+                    auto properties = inspected->get_properties();
+                    ImGuiPropertyRenderer property_renderer;
+                    for(std::size_t i = 0; i < properties.size(); ++i)
+                    {
+                        Property* property = properties[i].get();
+                        if(property == nullptr)
+                        {
+                            continue;
+                        }
+
+                        ImGui::PushID(static_cast<int>(i));
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextUnformatted(property->get_label().c_str());
+                        ImGui::TableSetColumnIndex(1);
+                        property->accept(property_renderer);
+                        ImGui::PopID();
+                    }
 
                     ImGui::EndTable();
                 }

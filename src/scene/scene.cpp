@@ -1,10 +1,6 @@
 #include "gear.h"
 #include "scene.h"
 
-Scene::Scene()
-{
-}
-
 void Scene::clear()
 {
     for(auto& obj: objects)

@@ -25,6 +25,8 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
+    ReflectionSystem::process_pending_registrations();
+
     const auto shutdown = gsl::finally([]() -> void
                                        { platform_shutdown(); });
 

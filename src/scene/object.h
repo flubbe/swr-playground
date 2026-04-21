@@ -10,33 +10,19 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "class_registry.h"
 #include "ml/all.h"
+#include "property.h"
 
 struct RenderData
 {
     std::uint32_t mesh_handle{0};
     std::uint32_t material_handle{0};
-};
-
-/** Class info for RTTI-style object queries. */
-struct ClassInfo
-{
-    std::string_view name;
-    const ClassInfo* parent = nullptr;
-
-    bool is_a(const ClassInfo* other) const
-    {
-        for(auto p = this; p != nullptr; p = p->parent)
-        {
-            if(p == other)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 };
 
 struct ObjectId
@@ -51,8 +37,10 @@ inline ObjectId make_object_id(std::uint32_t value)
 
 class Object
 {
+    DECLARE_ROOT_CLASS(Object);
+
     /** RTTI-style type info. */
-    ClassInfo class_info;
+    const ClassInfo* class_info{Object::static_class()};
 
     /** object id. */
     ObjectId object_id{0};
@@ -66,7 +54,33 @@ class Object
     /** meshes. */
     std::vector<RenderData> mesh_handles;
 
+protected:
+    Object(
+      const ClassInfo* class_info,
+      std::vector<RenderData> mesh_handles = {})
+    : class_info{class_info}
+    , mesh_handles{std::move(mesh_handles)}
+    {
+    }
+
+    void set_class_info(const ClassInfo* class_info) noexcept
+    {
+        this->class_info = class_info;
+    }
+
 public:
+    using PropertyList = std::vector<std::unique_ptr<Property>>;
+
+    static std::uint32_t* property_access_object_id_value(Object& object) noexcept
+    {
+        return &object.object_id.value;
+    }
+
+    static std::string* property_access_name(Object& object) noexcept
+    {
+        return &object.name;
+    }
+
     /** default constructor. */
     Object() = default;
 
@@ -76,7 +90,9 @@ public:
     /** initialize the object with a mesh. */
     Object(
       std::vector<RenderData> mesh_handles)
-    : mesh_handles{std::move(mesh_handles)}
+    : Object{
+        Object::static_class(),
+        std::move(mesh_handles)}
     {
     }
 
@@ -124,15 +140,9 @@ public:
 
     virtual const ClassInfo* get_class() const
     {
-        return static_class();
-    }
-
-    static const ClassInfo* static_class()
-    {
-        static const ClassInfo cls{
-          .name = "Object",
-          .parent = nullptr};
-        return &cls;
+        return class_info != nullptr
+                 ? class_info
+                 : static_class();
     }
 
     template<typename T>
@@ -145,6 +155,8 @@ public:
     {
         return get_class()->is_a(cls);
     }
+
+    virtual PropertyList get_properties();
 
     /** release all data. */
     virtual void release()
@@ -193,19 +205,3 @@ public:
         return transform;
     }
 };
-
-#define DECLARE_CLASS(Type, Base)               \
-public:                                         \
-    using Super = Base;                         \
-    static const ClassInfo* static_class();     \
-    const ClassInfo* get_class() const override \
-    {                                           \
-        return Type::static_class();            \
-    }
-
-#define DEFINE_CLASS(Type)                                              \
-    const ClassInfo* Type::static_class()                               \
-    {                                                                   \
-        static const ClassInfo cls{#Type, Type::Super::static_class()}; \
-        return &cls;                                                    \
-    }
