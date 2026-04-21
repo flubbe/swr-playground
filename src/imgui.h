@@ -20,6 +20,7 @@ struct ImGuiIO;
 class RenderDevice;
 class Renderer;
 class Scene;
+class Object;
 struct Viewport;
 
 /** Set up ImGui. */
@@ -44,3 +45,7 @@ void imgui_draw_tools_panel(
   const ImGuiIO& io);
 
 void imgui_draw_inspector_panel(Scene& scene);
+
+Object* imgui_get_selected_object() noexcept;
+void imgui_set_selected_object(Object* object) noexcept;
+void imgui_clear_selected_object() noexcept;

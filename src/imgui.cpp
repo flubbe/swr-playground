@@ -17,6 +17,28 @@
 
 namespace
 {
+Object* g_selected_object = nullptr;    // FIXME should not be global.
+
+void validate_selected_object(Scene& scene) noexcept
+{
+    if(g_selected_object == nullptr)
+    {
+        return;
+    }
+
+    const auto& objects = scene.get_objects();
+    const bool found = std::any_of(
+      objects.begin(),
+      objects.end(),
+      [](const std::unique_ptr<Object>& object)
+      {
+          return object.get() == g_selected_object;
+      });
+    if(!found)
+    {
+        g_selected_object = nullptr;
+    }
+}
 
 void apply_editor_theme()
 {
@@ -485,6 +507,7 @@ void imgui_draw_tools_panel(
 void imgui_draw_inspector_panel(Scene& scene)
 {
     ImGui::Begin("Inspector");
+    validate_selected_object(scene);
 
     auto& objects = scene.get_objects();
     if(objects.empty())
@@ -501,11 +524,20 @@ void imgui_draw_inspector_panel(Scene& scene)
                                             ? std::string{class_info->name}
                                             : std::string{"Unknown"};
             const std::string object_header = std::format(
-              "{} ({})",
+              "{} ({})##{}",
               inspected->get_name(),
-              type_name);
+              type_name,
+              inspected->get_object_id().value);
 
-            if(ImGui::CollapsingHeader(object_header.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+            ImGuiTreeNodeFlags header_flags =
+              ImGuiTreeNodeFlags_DefaultOpen
+              | ImGuiTreeNodeFlags_SpanAvailWidth;
+            if(inspected == g_selected_object)
+            {
+                header_flags |= ImGuiTreeNodeFlags_Selected;
+            }
+
+            if(ImGui::CollapsingHeader(object_header.c_str(), header_flags))
             {
                 const std::string table_id = std::format(
                   "ObjectProperties##{}",
@@ -544,8 +576,28 @@ void imgui_draw_inspector_panel(Scene& scene)
                     ImGui::EndTable();
                 }
             }
+
+            if(ImGui::IsItemClicked())
+            {
+                g_selected_object = inspected;
+            }
         }
     }
 
     ImGui::End();
+}
+
+Object* imgui_get_selected_object() noexcept
+{
+    return g_selected_object;
+}
+
+void imgui_set_selected_object(Object* object) noexcept
+{
+    g_selected_object = object;
+}
+
+void imgui_clear_selected_object() noexcept
+{
+    g_selected_object = nullptr;
 }

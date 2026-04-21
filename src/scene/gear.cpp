@@ -8,6 +8,8 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <numbers>
+
 #include "gear.h"
 #include "renderdevice.h"
 
@@ -22,10 +24,10 @@ GearGeometry make_gear(
     GearGeometry gear_geom;
 
     float r0 = inner_radius;
-    float r1 = outer_radius - tooth_depth / 2.f;
-    float r2 = outer_radius + tooth_depth / 2.f;
+    float r1 = outer_radius - (tooth_depth / 2.f);
+    float r2 = outer_radius + (tooth_depth / 2.f);
 
-    float da = 2.f * static_cast<float>(M_PI / teeth) / 4.f;
+    float da = 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth) / 4.f;
 
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
@@ -34,7 +36,7 @@ GearGeometry make_gear(
     /* draw front face */
     for(int i = 0; i <= teeth; ++i)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
         vb.emplace_back(r0 * std::cos(angle), r0 * std::sin(angle), width * 0.5f);
         vb.emplace_back(r1 * std::cos(angle), r1 * std::sin(angle), width * 0.5f);
 
@@ -73,10 +75,10 @@ GearGeometry make_gear(
     }
 
     /* draw front sides of teeth */
-    da = 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth) / 4.f;
+    da = 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth) / 4.f;
     for(int i = 0; i < teeth; ++i)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
 
         vb.emplace_back(r1 * std::cos(angle), r1 * std::sin(angle), width * 0.5f);
         vb.emplace_back(r2 * std::cos(angle + da), r2 * std::sin(angle + da), width * 0.5f);
@@ -101,7 +103,7 @@ GearGeometry make_gear(
     /* draw back face */
     for(int i = 0; i <= teeth; ++i)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
         vb.emplace_back(r1 * std::cos(angle), r1 * std::sin(angle), -width * 0.5f);
         vb.emplace_back(r0 * std::cos(angle), r0 * std::sin(angle), -width * 0.5f);
 
@@ -140,10 +142,10 @@ GearGeometry make_gear(
     }
 
     /* draw back sides of teeth */
-    da = 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth) / 4.f;
+    da = 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth) / 4.f;
     for(int i = 0; i < teeth; ++i)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
 
         vb.emplace_back(r1 * std::cos(angle + 3 * da), r1 * std::sin(angle + 3 * da), -width * 0.5f);
         vb.emplace_back(r2 * std::cos(angle + 2 * da), r2 * std::sin(angle + 2 * da), -width * 0.5f);
@@ -168,7 +170,7 @@ GearGeometry make_gear(
     /* draw outward faces of teeth */
     for(int i = 0; i < teeth; ++i)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
 
         vb.emplace_back(r1 * std::cos(angle), r1 * std::sin(angle), width * 0.5f);
         vb.emplace_back(r1 * std::cos(angle), r1 * std::sin(angle), -width * 0.5f);
@@ -270,7 +272,7 @@ GearGeometry make_gear(
     /* draw inside radius cylinder */
     for(int i = 0; i <= teeth; i++)
     {
-        float angle = i * 2.f * static_cast<float>(M_PI) / static_cast<float>(teeth);
+        float angle = static_cast<float>(i) * 2.f * std::numbers::pi_v<float> / static_cast<float>(teeth);
         vb.emplace_back(r0 * std::cos(angle), r0 * std::sin(angle), -width * 0.5f);
         vb.emplace_back(r0 * std::cos(angle), r0 * std::sin(angle), width * 0.5f);
 

@@ -28,6 +28,15 @@ struct RenderData
 struct ObjectId
 {
     std::uint32_t value = 0;
+
+    bool operator==(const ObjectId& other) const noexcept
+    {
+        return value == other.value;
+    }
+    bool operator!=(const ObjectId& other) const noexcept
+    {
+        return !(*this == other);
+    }
 };
 
 inline ObjectId make_object_id(std::uint32_t value)
