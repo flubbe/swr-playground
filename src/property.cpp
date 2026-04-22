@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "class_info.h"
 #include "property.h"
 
 namespace
@@ -22,7 +23,43 @@ const std::string& empty_string()
     return k_empty;
 }
 
+const ml::mat4x4& identity_mat4()
+{
+    static const ml::mat4x4 k_identity = ml::mat4x4::identity();
+    return k_identity;
+}
+
 }    // namespace
+
+PropertyRegistration::PropertyRegistration(
+  const ClassInfo* (*get_class)() noexcept,
+  PropertyDescriptor* descriptor) noexcept
+{
+    if(get_class == nullptr || descriptor == nullptr)
+    {
+        return;
+    }
+
+    ClassInfo* cls = const_cast<ClassInfo*>(get_class());
+    if(cls == nullptr)
+    {
+        return;
+    }
+
+    descriptor->next = nullptr;
+    if(cls->first_property == nullptr)
+    {
+        cls->first_property = descriptor;
+        return;
+    }
+
+    PropertyDescriptor* tail = cls->first_property;
+    while(tail->next != nullptr)
+    {
+        tail = tail->next;
+    }
+    tail->next = descriptor;
+}
 
 Property::Property(
   std::string name,
@@ -359,6 +396,42 @@ std::size_t StringProperty::get_max_length() const noexcept
 }
 
 void StringProperty::accept(PropertyVisitor& visitor)
+{
+    visitor.visit(*this);
+}
+
+Mat4Property::Mat4Property(
+  std::string name,
+  std::string label,
+  ml::mat4x4* value,
+  bool read_only)
+: Property{std::move(name), std::move(label), read_only}
+, value{value}
+{
+}
+
+bool Mat4Property::has_value() const noexcept
+{
+    return value != nullptr;
+}
+
+const ml::mat4x4& Mat4Property::get_value() const noexcept
+{
+    return value != nullptr ? *value : identity_mat4();
+}
+
+bool Mat4Property::set_value(const ml::mat4x4& in_value) noexcept
+{
+    if(value == nullptr || is_read_only())
+    {
+        return false;
+    }
+
+    *value = in_value;
+    return true;
+}
+
+void Mat4Property::accept(PropertyVisitor& visitor)
 {
     visitor.visit(*this);
 }

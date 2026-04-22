@@ -20,11 +20,11 @@
 /** Static info about a pending class registration. */
 struct PendingClassRegistration
 {
-    /** The class name. */
-    std::string_view name{};
-
     /** Module name of the class. */
     std::string_view module_name{};
+
+    /** The class name. */
+    std::string_view name{};
 
     /** Byte size of the class. */
     std::size_t size{0};
@@ -127,19 +127,6 @@ struct AutoClassRegistrar
     }
 };
 
-/** Automatic property registration helper.  */
-// FIXME This depends on static initialization order.
-struct PropertyRegistration
-{
-    PropertyRegistration(
-      const ClassInfo* (*class_provider)() noexcept,
-      PropertyDescriptor& descriptor) noexcept
-    {
-        auto* cls = const_cast<ClassInfo*>(class_provider());
-        cls->register_property(descriptor);
-    }
-};
-
 #define DECLARE_CLASS_CORE(Type)                             \
     static constexpr std::string_view module_name = "Scene"; \
     static const ClassInfo* static_class() noexcept;         \
@@ -174,13 +161,12 @@ public:                                         \
           decltype(base_class_getter)>,                 \
       "base_class_getter must be invocable");           \
     PendingClassRegistration g_class_reg_##Type{        \
-      .name = #Type,                                    \
       .module_name = Type::module_name,                 \
+      .name = #Type,                                    \
       .size = sizeof(Type),                             \
       .storage = &g_class_storage_##Type,               \
       .get_base_class = (base_class_getter),            \
-      .factory = &Type::create_instance,                \
-    };                                                  \
+      .factory = &Type::create_instance};               \
                                                         \
     PendingClassNode g_class_node_##Type{               \
       .reg = &g_class_reg_##Type,                       \
@@ -210,27 +196,25 @@ public:                                         \
     DEFINE_CLASS_COMMON(Type, &Type::Super::static_class)
 
 #define REGISTER_PROPERTY_READONLY(Type, name, label)              \
-    namespace                                                      \
-    {                                                              \
-    PropertyDescriptor Type##_##name{                              \
+    inline PropertyDescriptor Type##_##name{                       \
       #name,                                                       \
       label,                                                       \
       true,                                                        \
       &construct_member<Type, decltype(Type::name), &Type::name>}; \
-    PropertyRegistration Type##_##name##_registration{             \
-      &Type::static_class,                                         \
-      Type##_##name};                                              \
+    inline PropertyRegistration Type##_##name##_registration       \
+    {                                                              \
+        &Type::static_class,                                       \
+          &Type##_##name                                           \
     }
 
 #define REGISTER_PROPERTY_READWRITE(Type, name, label)             \
-    namespace                                                      \
-    {                                                              \
-    PropertyDescriptor Type##_##name{                              \
+    inline PropertyDescriptor Type##_##name{                       \
       #name,                                                       \
       label,                                                       \
       false,                                                       \
       &construct_member<Type, decltype(Type::name), &Type::name>}; \
-    PropertyRegistration Type##_##name##_registration{             \
-      &Type::static_class,                                         \
-      Type##_##name};                                              \
+    inline PropertyRegistration Type##_##name##_registration       \
+    {                                                              \
+        &Type::static_class,                                       \
+          &Type##_##name                                           \
     }

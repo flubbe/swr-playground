@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <format>
 #include <print>
@@ -16,6 +17,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <misc/cpp/imgui_stdlib.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
@@ -161,7 +163,7 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
     dock_left = ImGui::DockBuilderSplitNode(
       dock_main,
       ImGuiDir_Left,
-      0.22f,
+      0.27f,
       nullptr,
       &dock_main);
     dock_right = ImGui::DockBuilderSplitNode(
@@ -330,16 +332,78 @@ public:
             return;
         }
 
-        const std::size_t buffer_size = std::max<std::size_t>(property.get_max_length() + 1, 2);
-        std::vector<char> buffer(buffer_size, '\0');
-        const std::string& value = property.get_value();
-        const std::size_t copied = std::min(value.size(), property.get_max_length());
-        std::copy_n(value.data(), copied, buffer.data());
-        buffer[copied] = '\0';
-
-        if(ImGui::InputText("##value", buffer.data(), buffer.size()))
+        std::string value = property.get_value();
+        if(value.size() > property.get_max_length())
         {
-            property.set_value(buffer.data());
+            value.resize(property.get_max_length());
+        }
+
+        if(ImGui::InputText("##value", &value))
+        {
+            if(value.size() > property.get_max_length())
+            {
+                value.resize(property.get_max_length());
+            }
+            property.set_value(value);
+        }
+    }
+
+    void visit(Mat4Property& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        ml::mat4x4 value = property.get_value();
+        bool changed = false;
+
+        for(int row = 0; row < 4; ++row)
+        {
+            float row_values[4] = {
+              value.rows[row].x,
+              value.rows[row].y,
+              value.rows[row].z,
+              value.rows[row].w};
+
+            const bool row_changed = property.is_read_only()
+                                       ? false
+                                       : ([&]()
+                                          {
+                                           ImGui::PushItemWidth(-FLT_MIN);
+                                           const bool changed = ImGui::DragFloat4(
+                                             std::format("##row{}", row).c_str(),
+                                             row_values,
+                                             0.01f,
+                                             0.0f,
+                                             0.0f,
+                                             "%.3f");
+                                           ImGui::PopItemWidth();
+                                           return changed; })();
+
+            if(property.is_read_only())
+            {
+                ImGui::Text(
+                  "[%.3f %.3f %.3f %.3f]",
+                  row_values[0],
+                  row_values[1],
+                  row_values[2],
+                  row_values[3]);
+            }
+            else if(row_changed)
+            {
+                value.rows[row].x = row_values[0];
+                value.rows[row].y = row_values[1];
+                value.rows[row].z = row_values[2];
+                value.rows[row].w = row_values[3];
+                changed = true;
+            }
+        }
+
+        if(changed)
+        {
+            property.set_value(value);
         }
     }
 };
@@ -556,15 +620,20 @@ void imgui_draw_inspector_panel(Scene& scene)
                   ImGuiTableFlags_BordersInnerV
                   | ImGuiTableFlags_BordersOuter
                   | ImGuiTableFlags_RowBg
-                  | ImGuiTableFlags_SizingStretchSame;
+                  | ImGuiTableFlags_SizingFixedFit;
 
                 if(ImGui::BeginTable(table_id.c_str(), 2, table_flags))
                 {
-                    ImGui::TableSetupColumn("Property");
-                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableSetupColumn(
+                      "Property",
+                      ImGuiTableColumnFlags_WidthFixed,
+                      80.0f);
+                    ImGui::TableSetupColumn(
+                      "Value",
+                      ImGuiTableColumnFlags_WidthStretch);
                     ImGui::TableHeadersRow();
 
-                    auto& properties = inspected->get_properties();
+                    PropertyList properties = inspected->get_properties();
                     ImGuiPropertyRenderer property_renderer;
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {

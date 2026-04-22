@@ -13,23 +13,30 @@
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 DEFINE_ROOT_CLASS(Object);
 
-void Object::initialize_properties()
+PropertyList Object::get_properties()
 {
     std::vector<const ClassInfo*> class_chain;
+    PropertyList properties;
 
-    // gather class chain for property lookup.
+    // Gather class chain so base class properties come first.
     for(const ClassInfo* cls = get_class(); cls != nullptr; cls = cls->parent)
     {
         class_chain.push_back(cls);
     }
 
-    // keep declaration order.
     for(auto it = class_chain.rbegin(); it != class_chain.rend(); ++it)
     {
-        for(PropertyDescriptor* descriptor = (*it)->first_property;
+        const ClassInfo* cls = *it;
+
+        for(PropertyDescriptor* descriptor = cls->first_property;
             descriptor != nullptr;
             descriptor = descriptor->next)
         {
+            if(descriptor->construct == nullptr)
+            {
+                continue;
+            }
+
             properties.emplace_back(
               descriptor->construct(
                 *this,
@@ -38,10 +45,11 @@ void Object::initialize_properties()
                 descriptor->read_only));
         }
     }
+
+    return properties;
 }
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-
 REGISTER_PROPERTY_READONLY(
   Object,
   object_id,
@@ -51,5 +59,10 @@ REGISTER_PROPERTY_READWRITE(
   Object,
   name,
   "Name");
+
+REGISTER_PROPERTY_READWRITE(
+  Object,
+  transform,
+  "Transform");
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)

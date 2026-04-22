@@ -112,8 +112,13 @@ void ReflectionSystem::process_pending_registrations()
 
         cls.name = reg->name;
         cls.module_name = reg->module_name;
-        cls.qualified_name = std::format("{}.{}", reg->module_name, reg->name);
-        cls.parent = (reg->get_base_class != nullptr) ? reg->get_base_class() : nullptr;
+        cls.qualified_name = std::format(
+          "{}.{}",
+          reg->module_name,
+          reg->name);
+        cls.parent = (reg->get_base_class != nullptr)
+                       ? reg->get_base_class()
+                       : nullptr;
         cls.size = reg->size;
         cls.factory = reg->factory;
 

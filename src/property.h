@@ -16,13 +16,18 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include "ml/all.h"
 
 class IntProperty;
 class UIntProperty;
 class FloatProperty;
 class BoolProperty;
 class StringProperty;
+class Mat4Property;
 class Object;
+struct ClassInfo;
 
 class PropertyVisitor
 {
@@ -34,6 +39,7 @@ public:
     virtual void visit(FloatProperty& property) = 0;
     virtual void visit(BoolProperty& property) = 0;
     virtual void visit(StringProperty& property) = 0;
+    virtual void visit(Mat4Property& property) = 0;
 };
 
 class Property
@@ -68,6 +74,8 @@ public:
     virtual void accept(PropertyVisitor& visitor) = 0;
 };
 
+using PropertyList = std::vector<std::unique_ptr<Property>>;
+
 using ConstructFn = std::unique_ptr<Property> (*)(
   Object&,
   std::string_view,    // name
@@ -82,6 +90,13 @@ struct PropertyDescriptor
     bool read_only{false};
     ConstructFn construct{nullptr};
     PropertyDescriptor* next{nullptr};
+};
+
+struct PropertyRegistration
+{
+    PropertyRegistration(
+      const ClassInfo* (*get_class)() noexcept,
+      PropertyDescriptor* descriptor) noexcept;
 };
 
 class IntProperty : public Property
@@ -123,9 +138,9 @@ public:
 
 class UIntProperty : public Property
 {
-    std::uint32_t* value{nullptr};
-    std::uint32_t min_value{0};
-    std::uint32_t max_value{0};
+    unsigned int* value{nullptr};
+    unsigned int min_value{0};
+    unsigned int max_value{0};
     bool has_limits{false};
     float speed{1.0f};
 
@@ -133,26 +148,26 @@ public:
     UIntProperty(
       std::string name,
       std::string label,
-      std::uint32_t* value,
+      unsigned int* value,
       bool read_only = false,
       float speed = 1.0f);
 
     UIntProperty(
       std::string name,
       std::string label,
-      std::uint32_t* value,
-      std::uint32_t min_value,
-      std::uint32_t max_value,
+      unsigned int* value,
+      unsigned int min_value,
+      unsigned int max_value,
       bool read_only = false,
       float speed = 1.0f);
 
     bool has_value() const noexcept;
-    std::uint32_t get_value() const noexcept;
-    bool set_value(std::uint32_t in_value) noexcept;
+    unsigned int get_value() const noexcept;
+    bool set_value(unsigned int in_value) noexcept;
 
     bool has_limits_enabled() const noexcept;
-    std::uint32_t get_min_value() const noexcept;
-    std::uint32_t get_max_value() const noexcept;
+    unsigned int get_min_value() const noexcept;
+    unsigned int get_max_value() const noexcept;
     float get_speed() const noexcept;
 
     void accept(PropertyVisitor& visitor) override;
@@ -238,6 +253,24 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+class Mat4Property : public Property
+{
+    ml::mat4x4* value{nullptr};
+
+public:
+    Mat4Property(
+      std::string name,
+      std::string label,
+      ml::mat4x4* value,
+      bool read_only = false);
+
+    bool has_value() const noexcept;
+    const ml::mat4x4& get_value() const noexcept;
+    bool set_value(const ml::mat4x4& in_value) noexcept;
+
+    void accept(PropertyVisitor& visitor) override;
+};
+
 template<typename T>
 struct PropertyTypeMap;
 
@@ -269,6 +302,12 @@ template<>
 struct PropertyTypeMap<std::string>
 {
     using type = StringProperty;
+};
+
+template<>
+struct PropertyTypeMap<ml::mat4x4>
+{
+    using type = Mat4Property;
 };
 
 template<typename T>
@@ -352,6 +391,23 @@ struct PropertyFactory<std::string>
       bool read_only)
     {
         return std::make_unique<StringProperty>(
+          std::string{name},
+          std::string{label},
+          &value,
+          read_only);
+    }
+};
+
+template<>
+struct PropertyFactory<ml::mat4x4>
+{
+    static std::unique_ptr<Property> construct(
+      std::string_view name,
+      std::string_view label,
+      ml::mat4x4& value,
+      bool read_only)
+    {
+        return std::make_unique<Mat4Property>(
           std::string{name},
           std::string{label},
           &value,

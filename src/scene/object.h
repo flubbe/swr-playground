@@ -63,8 +63,6 @@ inline ObjectId make_object_id(std::uint32_t value)
     return {value};
 }
 
-using PropertyList = std::vector<std::unique_ptr<Property>>;
-
 class Object
 {
     DECLARE_ROOT_CLASS(Object);
@@ -72,16 +70,13 @@ class Object
     /** RTTI-style type info. */
     const ClassInfo* class_info{Object::static_class()};
 
-    /** Property list. */
-    PropertyList properties;
-
-    /** object transformation matrix. */
-    ml::mat4x4 transform{ml::mat4x4::identity()};
-
     /** meshes. */
     std::vector<RenderData> mesh_handles;
 
 public:
+    /** object transformation matrix. */
+    ml::mat4x4 transform{ml::mat4x4::identity()};
+
     /** object id. */
     ObjectId object_id{0};
 
@@ -95,7 +90,6 @@ protected:
     : class_info{class_info}
     , mesh_handles{std::move(mesh_handles)}
     {
-        initialize_properties();
     }
 
     void set_class_info(const ClassInfo* class_info) noexcept
@@ -103,14 +97,9 @@ protected:
         this->class_info = class_info;
     }
 
-    void initialize_properties();
-
 public:
     /** default constructor. */
-    Object()
-    {
-        initialize_properties();
-    }
+    Object() = default;
 
     /** default destructor. */
     virtual ~Object() = default;
@@ -132,8 +121,6 @@ public:
     , name{std::move(other.name)}
     {
         other.class_info = nullptr;
-
-        initialize_properties();
     }
 
     Object(const Object&) = default;
@@ -189,10 +176,7 @@ public:
         return get_class()->is_a(cls);
     }
 
-    PropertyList& get_properties()
-    {
-        return properties;
-    }
+    PropertyList get_properties();
 
     /** release all data. */
     virtual void release()
