@@ -89,15 +89,15 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/reflection/class_registry.cpp
+    src/reflection/property.cpp
     src/scene/gear.cpp
     src/scene/object.cpp
     src/scene/scene.cpp
     src/application.cpp
-    src/class_registry.cpp
     src/imgui.cpp
     src/main.cpp
     src/platform.cpp
-    src/property.cpp
     src/renderdevice.cpp
     src/renderer.cpp
 )

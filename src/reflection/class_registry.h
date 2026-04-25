@@ -15,7 +15,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include "class_info.h"
+#include "reflection/class_info.h"
 
 /** Static info about a pending class registration. */
 struct PendingClassRegistration
@@ -40,32 +40,6 @@ struct PendingClassRegistration
 
     /** Property registration. */
     PropertyRegisterFn register_properties{nullptr};
-
-    /** Constructor. */
-    PendingClassRegistration() = delete;
-    PendingClassRegistration(const PendingClassRegistration&) = delete;
-    PendingClassRegistration(PendingClassRegistration&&) = delete;
-
-    PendingClassRegistration& operator=(const PendingClassRegistration&) = delete;
-    PendingClassRegistration& operator=(PendingClassRegistration&&) = delete;
-
-    PendingClassRegistration(
-      std::string_view module_name,
-      std::string_view name,
-      std::size_t size,
-      ClassInfo* storage,
-      ClassInfo* super,
-      FactoryFn factory,
-      PropertyRegisterFn register_properties) noexcept
-    : module_name{module_name}
-    , name{name}
-    , size{size}
-    , storage{storage}
-    , super{super}
-    , factory{factory}
-    , register_properties{register_properties}
-    {
-    }
 };
 
 /** Linked-list for the automatic registration. */
@@ -136,8 +110,9 @@ public:
      * Remove all classes loaded by a module.
      *
      * @param module_name Name of the module to remove.
+     * @returns Returns the removed class count.
      */
-    static void unregister_module(
+    static std::size_t unregister_module(
       std::string_view module_name);
 
     /** Clear the registry. */
@@ -200,44 +175,44 @@ private:
         &g_class_node_##Type                            \
     }
 
-#define DEFINE_ROOT_CLASS(Type)                  \
-    namespace                                    \
-    {                                            \
-    ClassInfo g_class_storage_##Type{};          \
-    PendingClassRegistration g_class_reg_##Type{ \
-      Type::module_name,                         \
-      #Type,                                     \
-      sizeof(Type),                              \
-      &g_class_storage_##Type,                   \
-      nullptr,                                   \
-      &Type::create_instance,                    \
-      &Type::register_properties};               \
-                                                 \
-    PendingClassNode g_class_node_##Type{        \
-      .reg = &g_class_reg_##Type,                \
-      .next = nullptr,                           \
-    };                                           \
-    }                                            \
+#define DEFINE_ROOT_CLASS(Type)                           \
+    namespace                                             \
+    {                                                     \
+    ClassInfo g_class_storage_##Type{};                   \
+    PendingClassRegistration g_class_reg_##Type{          \
+      .module_name = Type::module_name,                   \
+      .name = #Type,                                      \
+      .size = sizeof(Type),                               \
+      .storage = &g_class_storage_##Type,                 \
+      .super = nullptr,                                   \
+      .factory = &Type::create_instance,                  \
+      .register_properties = &Type::register_properties}; \
+                                                          \
+    PendingClassNode g_class_node_##Type{                 \
+      .reg = &g_class_reg_##Type,                         \
+      .next = nullptr,                                    \
+    };                                                    \
+    }                                                     \
     DEFINE_CLASS_COMMON(Type)
 
-#define DEFINE_CLASS(Type)                       \
-    namespace                                    \
-    {                                            \
-    ClassInfo g_class_storage_##Type{};          \
-    PendingClassRegistration g_class_reg_##Type{ \
-      Type::module_name,                         \
-      #Type,                                     \
-      sizeof(Type),                              \
-      &g_class_storage_##Type,                   \
-      Type::Super::static_class(),               \
-      &Type::create_instance,                    \
-      &Type::register_properties};               \
-                                                 \
-    PendingClassNode g_class_node_##Type{        \
-      .reg = &g_class_reg_##Type,                \
-      .next = nullptr,                           \
-    };                                           \
-    }                                            \
+#define DEFINE_CLASS(Type)                                \
+    namespace                                             \
+    {                                                     \
+    ClassInfo g_class_storage_##Type{};                   \
+    PendingClassRegistration g_class_reg_##Type{          \
+      .module_name = Type::module_name,                   \
+      .name = #Type,                                      \
+      .size = sizeof(Type),                               \
+      .storage = &g_class_storage_##Type,                 \
+      .super = Type::Super::static_class(),               \
+      .factory = &Type::create_instance,                  \
+      .register_properties = &Type::register_properties}; \
+                                                          \
+    PendingClassNode g_class_node_##Type{                 \
+      .reg = &g_class_reg_##Type,                         \
+      .next = nullptr,                                    \
+    };                                                    \
+    }                                                     \
     DEFINE_CLASS_COMMON(Type)
 
 #define PROPERTY(Name, Label, Flags)                                                 \

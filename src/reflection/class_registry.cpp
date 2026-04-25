@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#include "class_registry.h"
+#include "reflection/class_registry.h"
 
 namespace
 {
@@ -168,20 +168,25 @@ bool ReflectionSystem::unregister_class(
     return classes().erase(std::string{qualified_name}) != 0;
 }
 
-void ReflectionSystem::unregister_module(
+std::size_t ReflectionSystem::unregister_module(
   std::string_view module_name)
 {
+    std::size_t removed_count = 0;
+
     for(auto it = classes().begin(); it != classes().end();)
     {
         if(it->second->module_name == module_name)
         {
             it = classes().erase(it);
+            ++removed_count;
         }
         else
         {
             ++it;
         }
     }
+
+    return removed_count;
 }
 
 void ReflectionSystem::clear()

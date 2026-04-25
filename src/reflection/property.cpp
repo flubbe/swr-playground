@@ -11,8 +11,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "class_info.h"
-#include "property.h"
+#include "reflection/class_info.h"
+#include "reflection/property.h"
 
 namespace
 {

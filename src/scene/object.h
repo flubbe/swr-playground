@@ -15,9 +15,10 @@
 #include <string>
 #include <vector>
 
-#include "class_registry.h"
 #include "ml/all.h"
-#include "property.h"
+
+#include "reflection/class_registry.h"
+#include "reflection/property.h"
 
 struct RenderData
 {
