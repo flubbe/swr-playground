@@ -141,9 +141,7 @@ void ReflectionSystem::process_pending_registrations()
           "{}.{}",
           reg->module_name,
           reg->name);
-        cls.parent = (reg->get_base_class != nullptr)
-                       ? reg->get_base_class()
-                       : nullptr;
+        cls.super = reg->super;
         cls.size = reg->size;
         cls.factory = reg->factory;
         cls.register_properties = reg->register_properties;

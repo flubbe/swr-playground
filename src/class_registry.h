@@ -32,8 +32,8 @@ struct PendingClassRegistration
     /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
 
-    /** Return the base class. */
-    ClassInfo* (*get_base_class)() noexcept = nullptr;
+    /** The super class. */
+    ClassInfo* super{nullptr};
 
     /** Instance creation. */
     FactoryFn factory{nullptr};
@@ -54,14 +54,14 @@ struct PendingClassRegistration
       std::string_view name,
       std::size_t size,
       ClassInfo* storage,
-      ClassInfo* (*get_base_class)() noexcept,
+      ClassInfo* super,
       FactoryFn factory,
       PropertyRegisterFn register_properties) noexcept
     : module_name{module_name}
     , name{name}
     , size{size}
     , storage{storage}
-    , get_base_class{get_base_class}
+    , super{super}
     , factory{factory}
     , register_properties{register_properties}
     {
@@ -160,30 +160,29 @@ struct AutoClassRegistrar
 };
 
 #define DECLARE_CLASS_CORE(Module, Type)                     \
+public:                                                      \
     using ThisClass = Type;                                  \
     static constexpr std::string_view module_name = #Module; \
     static ClassInfo* static_class() noexcept;               \
     static std::unique_ptr<Object> create_instance();        \
+    static void register_properties(ClassInfo& class_info);  \
                                                              \
 private:                                                     \
     static const AutoClassRegistrar auto_class_registrar;
 
-#define DECLARE_ROOT_CLASS(Module, Type)               \
-    std::vector<std::unique_ptr<Property>> properties; \
-                                                       \
-public:                                                \
+#define DECLARE_ROOT_CLASS(Module, Type) \
     DECLARE_CLASS_CORE(Module, Type)
 
 #define DECLARE_CLASS(Module, Type, Base)       \
+    DECLARE_CLASS_CORE(Module, Type)            \
 public:                                         \
     using Super = Base;                         \
-    DECLARE_CLASS_CORE(Module, Type)            \
-                                                \
-public:                                         \
     const ClassInfo* get_class() const override \
     {                                           \
         return Type::static_class();            \
-    }
+    }                                           \
+                                                \
+private:
 
 #define DEFINE_CLASS_COMMON(Type)                       \
     ClassInfo* Type::static_class() noexcept            \
@@ -230,7 +229,7 @@ public:                                         \
       #Type,                                     \
       sizeof(Type),                              \
       &g_class_storage_##Type,                   \
-      &Type::Super::static_class,                \
+      Type::Super::static_class(),               \
       &Type::create_instance,                    \
       &Type::register_properties};               \
                                                  \

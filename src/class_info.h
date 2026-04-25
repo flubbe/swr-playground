@@ -36,8 +36,8 @@ struct ClassInfo
     /** Byte size of the class. */
     std::size_t size{0};
 
-    /** Parent class info. */
-    const ClassInfo* parent{nullptr};
+    /** Super-class info. */
+    const ClassInfo* super{nullptr};
 
     /** Instance creation. */
     FactoryFn factory{nullptr};
@@ -51,12 +51,12 @@ struct ClassInfo
     /**
      * Check if this class is a child of another class.
      *
-     * @param other The potential base class.
-     * @returns Returns `true` if `other` is a base class.
+     * @param other The potential super class.
+     * @returns Returns `true` if `other` is a super class.
      */
     bool is_a(const ClassInfo* other) const
     {
-        for(auto p = this; p != nullptr; p = p->parent)
+        for(auto p = this; p != nullptr; p = p->super)
         {
             if(p == other)
             {

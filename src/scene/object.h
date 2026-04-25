@@ -70,6 +70,9 @@ class Object
     /** RTTI-style type info. */
     const ClassInfo* class_info{Object::static_class()};
 
+    /** Reflected properties, filled in by `initialize_properties`. */
+    std::vector<std::unique_ptr<Property>> properties;
+
     /** meshes. */
     std::vector<RenderData> mesh_handles;
 
@@ -119,8 +122,8 @@ public:
 
     /** move data. */
     Object(Object&& other)
-    : properties{std::move(other.properties)}
-    , class_info{other.class_info}
+    : class_info{other.class_info}
+    , properties{std::move(other.properties)}
     , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
@@ -143,8 +146,6 @@ public:
 
         return *this;
     }
-
-    static void register_properties(ClassInfo&);
 
     ObjectId get_object_id() const noexcept
     {

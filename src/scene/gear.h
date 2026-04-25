@@ -49,6 +49,4 @@ public:
     }
 
     explicit Gear(const GearParameters& params);
-
-    static void register_properties(ClassInfo& class_info);
 };

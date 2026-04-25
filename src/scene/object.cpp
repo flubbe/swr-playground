@@ -29,7 +29,7 @@ void Object::initialize_properties()
     std::vector<const ClassInfo*> class_chain;
 
     // Gather class chain so base class properties come first.
-    for(const ClassInfo* cls = get_class(); cls != nullptr; cls = cls->parent)
+    for(const ClassInfo* cls = get_class(); cls != nullptr; cls = cls->super)
     {
         class_chain.push_back(cls);
     }
