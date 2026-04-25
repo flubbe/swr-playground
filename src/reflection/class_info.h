@@ -16,6 +16,10 @@
 #include "reflection/property.h"
 
 class Object;
+
+namespace reflect
+{
+
 struct ClassInfo;
 
 using FactoryFn = std::unique_ptr<Object> (*)();
@@ -66,3 +70,5 @@ struct ClassInfo
         return false;
     }
 };
+
+}    // namespace reflect

@@ -20,8 +20,12 @@
 
 #include "ml/all.h"
 
-struct ClassInfo;
 class Object;
+
+namespace reflect
+{
+
+struct ClassInfo;
 
 class IntProperty;
 class UIntProperty;
@@ -505,3 +509,5 @@ std::unique_ptr<Property> construct_member(
       Traits::get(value),
       read_only);
 }
+
+}    // namespace reflect

@@ -42,6 +42,9 @@ struct ObjectId
 
 // Property support.
 
+namespace reflect
+{
+
 template<>
 struct PropertyTypeMap<ObjectId>
 {
@@ -59,20 +62,25 @@ struct UnwrapType<ObjectId>
     }
 };
 
+}    // namespace reflect
+
 inline ObjectId make_object_id(std::uint32_t value)
 {
     return {value};
 }
 
 class Object
+: public reflect::ReflectRoot<Object>
 {
-    DECLARE_ROOT_CLASS(Scene, Object);
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
 
+private:
     /** RTTI-style type info. */
-    const ClassInfo* class_info{Object::static_class()};
+    const reflect::ClassInfo* class_info{Object::static_class()};
 
     /** Reflected properties, filled in by `initialize_properties`. */
-    std::vector<std::unique_ptr<Property>> properties;
+    std::vector<std::unique_ptr<reflect::Property>> properties;
 
     /** meshes. */
     std::vector<RenderData> mesh_handles;
@@ -89,7 +97,7 @@ public:
 
 protected:
     Object(
-      const ClassInfo* class_info,
+      const reflect::ClassInfo* class_info,
       std::vector<RenderData> mesh_handles = {})
     : class_info{class_info}
     , mesh_handles{std::move(mesh_handles)}
@@ -97,7 +105,7 @@ protected:
         initialize_properties();
     }
 
-    void set_class_info(const ClassInfo* class_info) noexcept
+    void set_class_info(const reflect::ClassInfo* class_info) noexcept
     {
         this->class_info = class_info;
     }
@@ -168,7 +176,7 @@ public:
         name = std::move(object_name);
     }
 
-    virtual const ClassInfo* get_class() const
+    virtual const reflect::ClassInfo* get_class() const
     {
         return class_info != nullptr
                  ? class_info
@@ -181,13 +189,14 @@ public:
         return get_class()->is_a(T::static_class());
     }
 
-    bool is_a(const ClassInfo* cls) const
+    bool is_a(const reflect::ClassInfo* cls) const
     {
         return get_class()->is_a(cls);
     }
 
     std::vector<
-      std::unique_ptr<Property>>&
+      std::unique_ptr<
+        reflect::Property>>&
       get_properties()
     {
         return properties;
@@ -240,3 +249,5 @@ public:
         return transform;
     }
 };
+
+DECLARE_REFLECTION(Scene, Object);

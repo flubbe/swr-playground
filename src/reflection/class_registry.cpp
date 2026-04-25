@@ -18,12 +18,12 @@ namespace
 {
 
 /** Class registry type, mapping qualified names to class metadata. */
-using ClassMap = std::unordered_map<std::string, const ClassInfo*>;
+using ClassMap = std::unordered_map<std::string, const reflect::ClassInfo*>;
 
 /** Head of pending class linked list. */
-PendingClassNode*& pending_head()
+reflect::PendingClassNode*& pending_head()
 {
-    static PendingClassNode* head = nullptr;
+    static reflect::PendingClassNode* head = nullptr;
     return head;
 }
 
@@ -48,7 +48,7 @@ bool& auto_registration_enabled()
  * @throws Throws a `std::runtime_error` if the class was already registered.
  */
 void register_class(
-  const ClassInfo& cls)
+  const reflect::ClassInfo& cls)
 {
     const auto [_, inserted] = classes().emplace(cls.qualified_name, &cls);
     if(!inserted)
@@ -69,14 +69,14 @@ void register_class(
  *
  * @param cls The class info.
  */
-void reverse_properties(ClassInfo& cls)
+void reverse_properties(reflect::ClassInfo& cls)
 {
-    std::unique_ptr<PropertyDescriptor> prev = nullptr;
-    std::unique_ptr<PropertyDescriptor> curr = std::move(cls.first_property);
+    std::unique_ptr<reflect::PropertyDescriptor> prev = nullptr;
+    std::unique_ptr<reflect::PropertyDescriptor> curr = std::move(cls.first_property);
 
     while(curr != nullptr)
     {
-        std::unique_ptr<PropertyDescriptor> next = std::move(curr->next);
+        std::unique_ptr<reflect::PropertyDescriptor> next = std::move(curr->next);
         curr->next = std::move(prev);
         prev = std::move(curr);
         curr = std::move(next);
@@ -86,6 +86,9 @@ void reverse_properties(ClassInfo& cls)
 }
 
 }    // namespace
+
+namespace reflect
+{
 
 void ReflectionSystem::add_pending(
   PendingClassNode* node) noexcept
@@ -146,10 +149,13 @@ void ReflectionSystem::process_pending_registrations()
         cls.factory = reg->factory;
         cls.register_properties = reg->register_properties;
 
-        // register properties. properties are registered in reverse
-        // declaration order, so we reverse them here.
-        cls.register_properties(cls);
-        reverse_properties(cls);
+        if(cls.register_properties != nullptr)
+        {
+            // register properties. properties are registered in reverse
+            // declaration order, so we reverse them here.
+            cls.register_properties(cls);
+            reverse_properties(cls);
+        }
 
         register_class(cls);
     }
@@ -193,3 +199,5 @@ void ReflectionSystem::clear()
 {
     classes().clear();
 }
+
+}    // namespace reflect

@@ -12,24 +12,39 @@
 
 #include "object.h"
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-DEFINE_ROOT_CLASS(Object);
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 
-void Object::register_properties(ClassInfo& class_info)
+DEFINE_REFLECTION(Object);
+
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+void Object::register_properties(reflect::ClassInfo& class_info)
 {
-    PROPERTY(object_id, "Object ID", PropertyFlags::ReadOnly);
-    PROPERTY(name, "Name", PropertyFlags::None);
-    PROPERTY(transform, "Transform", PropertyFlags::None);
+    register_property<&Object::object_id>(
+      class_info,
+      "object_id",
+      "Object ID",
+      reflect::PropertyFlags::ReadOnly);
+    register_property<&Object::name>(
+      class_info,
+      "name",
+      "Name",
+      reflect::PropertyFlags::None);
+    register_property<&Object::transform>(
+      class_info,
+      "transform",
+      "Transform",
+      reflect::PropertyFlags::None);
 }
 
 void Object::initialize_properties()
 {
     properties.clear();
 
-    std::vector<const ClassInfo*> class_chain;
+    std::vector<const reflect::ClassInfo*> class_chain;
 
     // Gather class chain so base class properties come first.
-    for(const ClassInfo* cls = get_class(); cls != nullptr; cls = cls->super)
+    for(const auto* cls = get_class(); cls != nullptr; cls = cls->super)
     {
         class_chain.push_back(cls);
     }
@@ -41,7 +56,7 @@ void Object::initialize_properties()
             continue;
         }
 
-        for(PropertyDescriptor* descriptor = cls->first_property.get();
+        for(auto* descriptor = cls->first_property.get();
             descriptor != nullptr;
             descriptor = descriptor->next ? descriptor->next.get() : nullptr)
         {

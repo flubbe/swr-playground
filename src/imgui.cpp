@@ -186,10 +186,10 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
     ImGui::DockBuilderFinish(dockspace_id);
 }
 
-class ImGuiPropertyRenderer : public PropertyVisitor
+class ImGuiPropertyRenderer : public reflect::PropertyVisitor
 {
 public:
-    void visit(IntProperty& property) override
+    void visit(reflect::IntProperty& property) override
     {
         if(!property.has_value())
         {
@@ -221,7 +221,7 @@ public:
         }
     }
 
-    void visit(UIntProperty& property) override
+    void visit(reflect::UIntProperty& property) override
     {
         if(!property.has_value())
         {
@@ -261,7 +261,7 @@ public:
         }
     }
 
-    void visit(FloatProperty& property) override
+    void visit(reflect::FloatProperty& property) override
     {
         if(!property.has_value())
         {
@@ -297,7 +297,7 @@ public:
         }
     }
 
-    void visit(BoolProperty& property) override
+    void visit(reflect::BoolProperty& property) override
     {
         if(!property.has_value())
         {
@@ -318,7 +318,7 @@ public:
         }
     }
 
-    void visit(StringProperty& property) override
+    void visit(reflect::StringProperty& property) override
     {
         if(!property.has_value())
         {
@@ -348,7 +348,7 @@ public:
         }
     }
 
-    void visit(Mat4Property& property) override
+    void visit(reflect::Mat4Property& property) override
     {
         if(!property.has_value())
         {
@@ -592,7 +592,7 @@ void imgui_draw_inspector_panel(Scene& scene)
     {
         for(auto& object: objects)
         {
-            const ClassInfo* class_info = object->get_class();
+            const auto* class_info = object->get_class();
             const std::string type_name = class_info != nullptr
                                             ? std::string{class_info->name}
                                             : std::string{"Unknown"};
@@ -637,7 +637,7 @@ void imgui_draw_inspector_panel(Scene& scene)
                     ImGuiPropertyRenderer property_renderer;
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {
-                        Property* property = properties[i].get();
+                        auto* property = properties[i].get();
                         if(property == nullptr)
                         {
                             continue;

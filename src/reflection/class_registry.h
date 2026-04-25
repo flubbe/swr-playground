@@ -17,6 +17,9 @@
 
 #include "reflection/class_info.h"
 
+namespace reflect
+{
+
 /** Static info about a pending class registration. */
 struct PendingClassRegistration
 {
@@ -134,94 +137,150 @@ struct AutoClassRegistrar
     }
 };
 
-#define DECLARE_CLASS_CORE(Module, Type)                     \
-public:                                                      \
-    using ThisClass = Type;                                  \
-    static constexpr std::string_view module_name = #Module; \
-    static ClassInfo* static_class() noexcept;               \
-    static std::unique_ptr<Object> create_instance();        \
-    static void register_properties(ClassInfo& class_info);  \
-                                                             \
-private:                                                     \
-    static const AutoClassRegistrar auto_class_registrar;
+template<typename T>
+struct TypeReflection;
 
-#define DECLARE_ROOT_CLASS(Module, Type) \
-    DECLARE_CLASS_CORE(Module, Type)
+template<typename T>
+std::unique_ptr<Object> factory()
+{
+    static_assert(
+      std::is_base_of_v<Object, T>,
+      "T must inherit from Object");
+    return std::make_unique<T>();
+}
 
-#define DECLARE_CLASS(Module, Type, Base)       \
-    DECLARE_CLASS_CORE(Module, Type)            \
-public:                                         \
-    using Super = Base;                         \
-    const ClassInfo* get_class() const override \
-    {                                           \
-        return Type::static_class();            \
-    }                                           \
-                                                \
-private:
-
-#define DEFINE_CLASS_COMMON(Type)                       \
-    ClassInfo* Type::static_class() noexcept            \
-    {                                                   \
-        return &g_class_storage_##Type;                 \
-    }                                                   \
-                                                        \
-    std::unique_ptr<Object> Type::create_instance()     \
-    {                                                   \
-        return std::make_unique<Type>();                \
-    }                                                   \
-                                                        \
-    const AutoClassRegistrar Type::auto_class_registrar \
-    {                                                   \
-        &g_class_node_##Type                            \
+template<typename T>
+ClassInfo* super_class_info() noexcept
+{
+    if constexpr(requires { typename T::Super; })
+    {
+        return T::Super::static_class();
     }
 
-#define DEFINE_ROOT_CLASS(Type)                           \
-    namespace                                             \
-    {                                                     \
-    ClassInfo g_class_storage_##Type{};                   \
-    PendingClassRegistration g_class_reg_##Type{          \
-      .module_name = Type::module_name,                   \
-      .name = #Type,                                      \
-      .size = sizeof(Type),                               \
-      .storage = &g_class_storage_##Type,                 \
-      .super = nullptr,                                   \
-      .factory = &Type::create_instance,                  \
-      .register_properties = &Type::register_properties}; \
-                                                          \
-    PendingClassNode g_class_node_##Type{                 \
-      .reg = &g_class_reg_##Type,                         \
-      .next = nullptr,                                    \
-    };                                                    \
-    }                                                     \
-    DEFINE_CLASS_COMMON(Type)
+    return nullptr;
+}
 
-#define DEFINE_CLASS(Type)                                \
-    namespace                                             \
-    {                                                     \
-    ClassInfo g_class_storage_##Type{};                   \
-    PendingClassRegistration g_class_reg_##Type{          \
-      .module_name = Type::module_name,                   \
-      .name = #Type,                                      \
-      .size = sizeof(Type),                               \
-      .storage = &g_class_storage_##Type,                 \
-      .super = Type::Super::static_class(),               \
-      .factory = &Type::create_instance,                  \
-      .register_properties = &Type::register_properties}; \
-                                                          \
-    PendingClassNode g_class_node_##Type{                 \
-      .reg = &g_class_reg_##Type,                         \
-      .next = nullptr,                                    \
-    };                                                    \
-    }                                                     \
-    DEFINE_CLASS_COMMON(Type)
+template<typename T>
+struct StaticClassRegistration
+{
+    static_assert(
+      std::is_convertible_v<decltype(TypeReflection<T>::module_name), std::string_view>,
+      "TypeReflection<T>::module_name must be convertible to std::string_view");
+    static_assert(
+      std::is_convertible_v<decltype(TypeReflection<T>::class_name), std::string_view>,
+      "TypeReflection<T>::class_name must be convertible to std::string_view");
+    static_assert(
+      std::is_same_v<decltype(TypeReflection<T>::register_properties), const PropertyRegisterFn>,
+      "TypeReflection<T>::register_properties must be PropertyRegisterFn");
 
-#define PROPERTY(Name, Label, Flags)                                                 \
-    {                                                                                \
-        auto property_##Name = std::make_unique<PropertyDescriptor>(                 \
-          #Name,                                                                     \
-          Label,                                                                     \
-          Flags,                                                                     \
-          &construct_member<ThisClass, decltype(ThisClass::Name), &ThisClass::Name>, \
-          std::move(class_info.first_property));                                     \
-        class_info.first_property = std::move(property_##Name);                      \
+    ClassInfo storage{};
+    PendingClassRegistration registration{
+      .module_name = TypeReflection<T>::module_name,
+      .name = TypeReflection<T>::class_name,
+      .size = sizeof(T),
+      .storage = &storage,
+      .super = super_class_info<T>(),
+      .factory = &factory<T>,
+      .register_properties = TypeReflection<T>::register_properties};
+    PendingClassNode node{
+      .reg = &registration,
+      .next = nullptr};
+    AutoClassRegistrar registrar{&node};
+};
+
+template<typename T>
+StaticClassRegistration<T>& class_registration() noexcept;
+
+/**
+ * Reflection declaration/definition pattern:
+ * - Put `DECLARE_REFLECTION(Module, Type)` in the type header.
+ * - Put `DEFINE_REFLECTION(Type)` in exactly one translation unit.
+ */
+#define DECLARE_REFLECTION(Module, Type)                                \
+    namespace reflect                                                   \
+    {                                                                   \
+    template<>                                                          \
+    struct TypeReflection<Type>                                         \
+    {                                                                   \
+        static constexpr std::string_view module_name = #Module;        \
+        static constexpr std::string_view class_name = #Type;           \
+        static constexpr PropertyRegisterFn register_properties =       \
+          &Type::register_properties;                                   \
+    };                                                                  \
+    template<>                                                          \
+    StaticClassRegistration<Type>& class_registration<Type>() noexcept; \
     }
+
+#define DEFINE_REFLECTION(Type)                                                 \
+    namespace                                                                   \
+    {                                                                           \
+    reflect::StaticClassRegistration<Type> g_reflection_registration_##Type{};  \
+    }                                                                           \
+    namespace reflect                                                           \
+    {                                                                           \
+    template<>                                                                  \
+    reflect::StaticClassRegistration<Type>& class_registration<Type>() noexcept \
+    {                                                                           \
+        return g_reflection_registration_##Type;                                \
+    }                                                                           \
+    }
+
+template<typename Derived>
+class ReflectRoot
+{
+public:
+    static ClassInfo* static_class() noexcept
+    {
+        return &class_registration<Derived>().storage;
+    }
+};
+
+template<typename Derived, typename Base>
+class Reflected : public Base
+{
+public:
+    using Super = Base;
+    using Base::Base;
+
+    static ClassInfo* static_class() noexcept
+    {
+        return &class_registration<Derived>().storage;
+    }
+
+    const ClassInfo* get_class() const override
+    {
+        return Derived::static_class();
+    }
+};
+
+template<typename T>
+struct MemberPointerTraits;
+
+template<typename Class, typename Member>
+struct MemberPointerTraits<Member Class::*>
+{
+    using ClassType = Class;
+    using MemberType = Member;
+};
+
+template<auto MemberPtr>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags)
+{
+    using Traits = MemberPointerTraits<decltype(MemberPtr)>;
+    using ClassType = typename Traits::ClassType;
+    using MemberType = typename Traits::MemberType;
+
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      name,
+      label,
+      flags,
+      &construct_member<ClassType, MemberType, MemberPtr>,
+      std::move(class_info.first_property));
+    class_info.first_property = std::move(descriptor);
+}
+
+}    // namespace reflect

@@ -31,6 +31,9 @@ const ml::mat4x4& identity_mat4()
 
 }    // namespace
 
+namespace reflect
+{
+
 Property::Property(
   std::string name,
   std::string label,
@@ -408,3 +411,5 @@ void Mat4Property::accept(PropertyVisitor& visitor)
 {
     visitor.visit(*this);
 }
+
+}    // namespace reflect
