@@ -31,43 +31,16 @@ const ml::mat4x4& identity_mat4()
 
 }    // namespace
 
-PropertyRegistration::PropertyRegistration(
-  const ClassInfo* (*get_class)() noexcept,
-  PropertyDescriptor* descriptor) noexcept
-{
-    if(get_class == nullptr || descriptor == nullptr)
-    {
-        return;
-    }
-
-    ClassInfo* cls = const_cast<ClassInfo*>(get_class());
-    if(cls == nullptr)
-    {
-        return;
-    }
-
-    descriptor->next = nullptr;
-    if(cls->first_property == nullptr)
-    {
-        cls->first_property = descriptor;
-        return;
-    }
-
-    PropertyDescriptor* tail = cls->first_property;
-    while(tail->next != nullptr)
-    {
-        tail = tail->next;
-    }
-    tail->next = descriptor;
-}
-
 Property::Property(
   std::string name,
   std::string label,
   bool read_only)
 : name{std::move(name)}
 , label{std::move(label)}
-, read_only{read_only}
+, flags{
+    read_only
+      ? PropertyFlags::ReadOnly
+      : PropertyFlags::None}
 {
 }
 

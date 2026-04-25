@@ -40,7 +40,7 @@ struct GearParameters
 /** A gear object. */
 class Gear : public Object
 {
-    DECLARE_CLASS(Gear, Object);
+    DECLARE_CLASS(Scene, Gear, Object);
 
 public:
     Gear()
@@ -49,4 +49,6 @@ public:
     }
 
     explicit Gear(const GearParameters& params);
+
+    static void register_properties(ClassInfo& class_info);
 };

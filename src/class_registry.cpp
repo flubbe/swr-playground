@@ -60,6 +60,31 @@ void register_class(
     }
 }
 
+/**
+ * Reverse the property linked-list.
+ *
+ * When traversing the initial property linked list, the properties are encountered
+ * in reverse declaration order. To not reverse them every time on object construction,
+ * we do it once after registration.
+ *
+ * @param cls The class info.
+ */
+void reverse_properties(ClassInfo& cls)
+{
+    std::unique_ptr<PropertyDescriptor> prev = nullptr;
+    std::unique_ptr<PropertyDescriptor> curr = std::move(cls.first_property);
+
+    while(curr != nullptr)
+    {
+        std::unique_ptr<PropertyDescriptor> next = std::move(curr->next);
+        curr->next = std::move(prev);
+        prev = std::move(curr);
+        curr = std::move(next);
+    }
+
+    cls.first_property = std::move(prev);
+}
+
 }    // namespace
 
 void ReflectionSystem::add_pending(
@@ -121,6 +146,12 @@ void ReflectionSystem::process_pending_registrations()
                        : nullptr;
         cls.size = reg->size;
         cls.factory = reg->factory;
+        cls.register_properties = reg->register_properties;
+
+        // register properties. properties are registered in reverse
+        // declaration order, so we reverse them here.
+        cls.register_properties(cls);
+        reverse_properties(cls);
 
         register_class(cls);
     }

@@ -33,10 +33,39 @@ struct PendingClassRegistration
     ClassInfo* storage{nullptr};
 
     /** Return the base class. */
-    const ClassInfo* (*get_base_class)() noexcept = nullptr;
+    ClassInfo* (*get_base_class)() noexcept = nullptr;
 
     /** Instance creation. */
     FactoryFn factory{nullptr};
+
+    /** Property registration. */
+    PropertyRegisterFn register_properties{nullptr};
+
+    /** Constructor. */
+    PendingClassRegistration() = delete;
+    PendingClassRegistration(const PendingClassRegistration&) = delete;
+    PendingClassRegistration(PendingClassRegistration&&) = delete;
+
+    PendingClassRegistration& operator=(const PendingClassRegistration&) = delete;
+    PendingClassRegistration& operator=(PendingClassRegistration&&) = delete;
+
+    PendingClassRegistration(
+      std::string_view module_name,
+      std::string_view name,
+      std::size_t size,
+      ClassInfo* storage,
+      ClassInfo* (*get_base_class)() noexcept,
+      FactoryFn factory,
+      PropertyRegisterFn register_properties) noexcept
+    : module_name{module_name}
+    , name{name}
+    , size{size}
+    , storage{storage}
+    , get_base_class{get_base_class}
+    , factory{factory}
+    , register_properties{register_properties}
+    {
+    }
 };
 
 /** Linked-list for the automatic registration. */
@@ -91,7 +120,8 @@ public:
      * @param qualified_name The qualified class name as `module_name.class_name`.
      * @returns Returns the class info, or `nullptr` if the class is not found.
      */
-    static const ClassInfo* find_class(std::string_view qualified_name);
+    static const ClassInfo* find_class(
+      std::string_view qualified_name);
 
     /**
      * Remove a class from the registry.
@@ -99,14 +129,16 @@ public:
      * @param qualified_name The qualified class name.
      * @returns Returns `bool` if `qualified_name` was removed from the registry.
      */
-    static bool unregister_class(std::string_view qualified_name);
+    static bool unregister_class(
+      std::string_view qualified_name);
 
     /**
      * Remove all classes loaded by a module.
      *
      * @param module_name Name of the module to remove.
      */
-    static void unregister_module(std::string_view module_name);
+    static void unregister_module(
+      std::string_view module_name);
 
     /** Clear the registry. */
     static void clear();
@@ -127,22 +159,25 @@ struct AutoClassRegistrar
     }
 };
 
-#define DECLARE_CLASS_CORE(Type)                             \
-    static constexpr std::string_view module_name = "Scene"; \
-    static const ClassInfo* static_class() noexcept;         \
+#define DECLARE_CLASS_CORE(Module, Type)                     \
+    using ThisClass = Type;                                  \
+    static constexpr std::string_view module_name = #Module; \
+    static ClassInfo* static_class() noexcept;               \
     static std::unique_ptr<Object> create_instance();        \
                                                              \
 private:                                                     \
     static const AutoClassRegistrar auto_class_registrar;
 
-#define DECLARE_ROOT_CLASS(Type) \
-public:                          \
-    DECLARE_CLASS_CORE(Type)
+#define DECLARE_ROOT_CLASS(Module, Type)               \
+    std::vector<std::unique_ptr<Property>> properties; \
+                                                       \
+public:                                                \
+    DECLARE_CLASS_CORE(Module, Type)
 
-#define DECLARE_CLASS(Type, Base)               \
+#define DECLARE_CLASS(Module, Type, Base)       \
 public:                                         \
     using Super = Base;                         \
-    DECLARE_CLASS_CORE(Type)                    \
+    DECLARE_CLASS_CORE(Module, Type)            \
                                                 \
 public:                                         \
     const ClassInfo* get_class() const override \
@@ -150,31 +185,8 @@ public:                                         \
         return Type::static_class();            \
     }
 
-#define DEFINE_CLASS_COMMON(Type, base_class_getter)    \
-    namespace                                           \
-    {                                                   \
-    ClassInfo g_class_storage_##Type{};                 \
-                                                        \
-    static_assert(                                      \
-      (base_class_getter) == nullptr                    \
-        || std::is_invocable_v<                         \
-          decltype(base_class_getter)>,                 \
-      "base_class_getter must be invocable");           \
-    PendingClassRegistration g_class_reg_##Type{        \
-      .module_name = Type::module_name,                 \
-      .name = #Type,                                    \
-      .size = sizeof(Type),                             \
-      .storage = &g_class_storage_##Type,               \
-      .get_base_class = (base_class_getter),            \
-      .factory = &Type::create_instance};               \
-                                                        \
-    PendingClassNode g_class_node_##Type{               \
-      .reg = &g_class_reg_##Type,                       \
-      .next = nullptr,                                  \
-    };                                                  \
-    }                                                   \
-                                                        \
-    const ClassInfo* Type::static_class() noexcept      \
+#define DEFINE_CLASS_COMMON(Type)                       \
+    ClassInfo* Type::static_class() noexcept            \
     {                                                   \
         return &g_class_storage_##Type;                 \
     }                                                   \
@@ -189,32 +201,53 @@ public:                                         \
         &g_class_node_##Type                            \
     }
 
-#define DEFINE_ROOT_CLASS(Type) \
-    DEFINE_CLASS_COMMON(Type, nullptr)
+#define DEFINE_ROOT_CLASS(Type)                  \
+    namespace                                    \
+    {                                            \
+    ClassInfo g_class_storage_##Type{};          \
+    PendingClassRegistration g_class_reg_##Type{ \
+      Type::module_name,                         \
+      #Type,                                     \
+      sizeof(Type),                              \
+      &g_class_storage_##Type,                   \
+      nullptr,                                   \
+      &Type::create_instance,                    \
+      &Type::register_properties};               \
+                                                 \
+    PendingClassNode g_class_node_##Type{        \
+      .reg = &g_class_reg_##Type,                \
+      .next = nullptr,                           \
+    };                                           \
+    }                                            \
+    DEFINE_CLASS_COMMON(Type)
 
-#define DEFINE_CLASS(Type) \
-    DEFINE_CLASS_COMMON(Type, &Type::Super::static_class)
+#define DEFINE_CLASS(Type)                       \
+    namespace                                    \
+    {                                            \
+    ClassInfo g_class_storage_##Type{};          \
+    PendingClassRegistration g_class_reg_##Type{ \
+      Type::module_name,                         \
+      #Type,                                     \
+      sizeof(Type),                              \
+      &g_class_storage_##Type,                   \
+      &Type::Super::static_class,                \
+      &Type::create_instance,                    \
+      &Type::register_properties};               \
+                                                 \
+    PendingClassNode g_class_node_##Type{        \
+      .reg = &g_class_reg_##Type,                \
+      .next = nullptr,                           \
+    };                                           \
+    }                                            \
+    DEFINE_CLASS_COMMON(Type)
 
-#define REGISTER_PROPERTY_READONLY(Type, name, label)              \
-    inline PropertyDescriptor Type##_##name{                       \
-      #name,                                                       \
-      label,                                                       \
-      true,                                                        \
-      &construct_member<Type, decltype(Type::name), &Type::name>}; \
-    inline PropertyRegistration Type##_##name##_registration       \
-    {                                                              \
-        &Type::static_class,                                       \
-          &Type##_##name                                           \
-    }
-
-#define REGISTER_PROPERTY_READWRITE(Type, name, label)             \
-    inline PropertyDescriptor Type##_##name{                       \
-      #name,                                                       \
-      label,                                                       \
-      false,                                                       \
-      &construct_member<Type, decltype(Type::name), &Type::name>}; \
-    inline PropertyRegistration Type##_##name##_registration       \
-    {                                                              \
-        &Type::static_class,                                       \
-          &Type##_##name                                           \
+#define PROPERTY(Name, Label, Flags)                                                 \
+    {                                                                                \
+        auto property_##Name = std::make_unique<PropertyDescriptor>(                 \
+          #Name,                                                                     \
+          Label,                                                                     \
+          Flags,                                                                     \
+          &construct_member<ThisClass, decltype(ThisClass::Name), &ThisClass::Name>, \
+          std::move(class_info.first_property));                                     \
+        class_info.first_property = std::move(property_##Name);                      \
     }

@@ -8,15 +8,25 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <ranges>
+
 #include "object.h"
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 DEFINE_ROOT_CLASS(Object);
 
-PropertyList Object::get_properties()
+void Object::register_properties(ClassInfo& class_info)
 {
+    PROPERTY(object_id, "Object ID", PropertyFlags::ReadOnly);
+    PROPERTY(name, "Name", PropertyFlags::None);
+    PROPERTY(transform, "Transform", PropertyFlags::None);
+}
+
+void Object::initialize_properties()
+{
+    properties.clear();
+
     std::vector<const ClassInfo*> class_chain;
-    PropertyList properties;
 
     // Gather class chain so base class properties come first.
     for(const ClassInfo* cls = get_class(); cls != nullptr; cls = cls->parent)
@@ -24,13 +34,16 @@ PropertyList Object::get_properties()
         class_chain.push_back(cls);
     }
 
-    for(auto it = class_chain.rbegin(); it != class_chain.rend(); ++it)
+    for(const auto& cls: class_chain | std::views::reverse)
     {
-        const ClassInfo* cls = *it;
+        if(cls->first_property == nullptr)
+        {
+            continue;
+        }
 
-        for(PropertyDescriptor* descriptor = cls->first_property;
+        for(PropertyDescriptor* descriptor = cls->first_property.get();
             descriptor != nullptr;
-            descriptor = descriptor->next)
+            descriptor = descriptor->next ? descriptor->next.get() : nullptr)
         {
             if(descriptor->construct == nullptr)
             {
@@ -42,27 +55,7 @@ PropertyList Object::get_properties()
                 *this,
                 descriptor->name,
                 descriptor->label,
-                descriptor->read_only));
+                descriptor->is_read_only()));
         }
     }
-
-    return properties;
 }
-
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-REGISTER_PROPERTY_READONLY(
-  Object,
-  object_id,
-  "Object ID");
-
-REGISTER_PROPERTY_READWRITE(
-  Object,
-  name,
-  "Name");
-
-REGISTER_PROPERTY_READWRITE(
-  Object,
-  transform,
-  "Transform");
-
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)

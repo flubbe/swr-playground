@@ -65,7 +65,7 @@ inline ObjectId make_object_id(std::uint32_t value)
 
 class Object
 {
-    DECLARE_ROOT_CLASS(Object);
+    DECLARE_ROOT_CLASS(Scene, Object);
 
     /** RTTI-style type info. */
     const ClassInfo* class_info{Object::static_class()};
@@ -90,12 +90,15 @@ protected:
     : class_info{class_info}
     , mesh_handles{std::move(mesh_handles)}
     {
+        initialize_properties();
     }
 
     void set_class_info(const ClassInfo* class_info) noexcept
     {
         this->class_info = class_info;
     }
+
+    void initialize_properties();
 
 public:
     /** default constructor. */
@@ -111,11 +114,13 @@ public:
         Object::static_class(),
         std::move(mesh_handles)}
     {
+        initialize_properties();
     }
 
     /** move data. */
     Object(Object&& other)
-    : class_info{other.class_info}
+    : properties{std::move(other.properties)}
+    , class_info{other.class_info}
     , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
@@ -128,6 +133,7 @@ public:
 
     Object& operator=(Object&& other)
     {
+        properties = std::move(other.properties);
         class_info = other.class_info;
         mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
@@ -137,6 +143,8 @@ public:
 
         return *this;
     }
+
+    static void register_properties(ClassInfo&);
 
     ObjectId get_object_id() const noexcept
     {
@@ -176,7 +184,12 @@ public:
         return get_class()->is_a(cls);
     }
 
-    PropertyList get_properties();
+    std::vector<
+      std::unique_ptr<Property>>&
+      get_properties()
+    {
+        return properties;
+    }
 
     /** release all data. */
     virtual void release()

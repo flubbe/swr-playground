@@ -19,6 +19,7 @@ class Object;
 struct ClassInfo;
 
 using FactoryFn = std::unique_ptr<Object> (*)();
+using PropertyRegisterFn = void (*)(ClassInfo&);
 
 /** Class info for RTTI-style object queries and editor metadata. */
 struct ClassInfo
@@ -41,8 +42,11 @@ struct ClassInfo
     /** Instance creation. */
     FactoryFn factory{nullptr};
 
+    /** Property registration. */
+    PropertyRegisterFn register_properties{nullptr};
+
     /** Linked list of registered properties for this class. */
-    PropertyDescriptor* first_property{nullptr};
+    std::unique_ptr<PropertyDescriptor> first_property;
 
     /**
      * Check if this class is a child of another class.

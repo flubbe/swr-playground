@@ -592,21 +592,21 @@ void imgui_draw_inspector_panel(Scene& scene)
     {
         for(auto& object: objects)
         {
-            Object* inspected = object.get();
-            const ClassInfo* class_info = inspected->get_class();
+            const ClassInfo* class_info = object->get_class();
             const std::string type_name = class_info != nullptr
                                             ? std::string{class_info->name}
                                             : std::string{"Unknown"};
             const std::string object_header = std::format(
-              "{} ({})##{}",
-              inspected->get_name(),
+              "{} ({}.{})##{}",
+              object->get_name(),
+              class_info->module_name,
               type_name,
-              inspected->get_object_id().value);
+              object->get_object_id().value);
 
             ImGuiTreeNodeFlags header_flags =
               ImGuiTreeNodeFlags_DefaultOpen
               | ImGuiTreeNodeFlags_SpanAvailWidth;
-            if(inspected == g_selected_object)
+            if(object.get() == g_selected_object)
             {
                 header_flags |= ImGuiTreeNodeFlags_Selected;
             }
@@ -615,7 +615,7 @@ void imgui_draw_inspector_panel(Scene& scene)
             {
                 const std::string table_id = std::format(
                   "ObjectProperties##{}",
-                  inspected->get_object_id().value);
+                  object->get_object_id().value);
                 const ImGuiTableFlags table_flags =
                   ImGuiTableFlags_BordersInnerV
                   | ImGuiTableFlags_BordersOuter
@@ -633,7 +633,7 @@ void imgui_draw_inspector_panel(Scene& scene)
                       ImGuiTableColumnFlags_WidthStretch);
                     ImGui::TableHeadersRow();
 
-                    PropertyList properties = inspected->get_properties();
+                    auto& properties = object->get_properties();
                     ImGuiPropertyRenderer property_renderer;
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {
@@ -662,7 +662,7 @@ void imgui_draw_inspector_panel(Scene& scene)
 
             if(ImGui::IsItemClicked())
             {
-                g_selected_object = inspected;
+                g_selected_object = object.get();
             }
         }
     }

@@ -20,14 +20,15 @@
 
 #include "ml/all.h"
 
+struct ClassInfo;
+class Object;
+
 class IntProperty;
 class UIntProperty;
 class FloatProperty;
 class BoolProperty;
 class StringProperty;
 class Mat4Property;
-class Object;
-struct ClassInfo;
 
 class PropertyVisitor
 {
@@ -42,11 +43,40 @@ public:
     virtual void visit(Mat4Property& property) = 0;
 };
 
+enum class PropertyFlags : std::uint32_t
+{
+    None = 0,
+    ReadOnly = 1,
+};
+
+inline PropertyFlags operator|(
+  PropertyFlags a,
+  PropertyFlags b)
+{
+    using T = std::underlying_type_t<PropertyFlags>;
+    return static_cast<PropertyFlags>(
+      static_cast<T>(a) | static_cast<T>(b));
+}
+
+inline PropertyFlags operator&(
+  PropertyFlags a,
+  PropertyFlags b)
+{
+    using T = std::underlying_type_t<PropertyFlags>;
+    return static_cast<PropertyFlags>(
+      static_cast<T>(a) & static_cast<T>(b));
+}
+
 class Property
 {
+    /** Property name. */
     std::string name;
+
+    /** Display name. */
     std::string label;
-    bool read_only{false};
+
+    /** Property flags. */
+    PropertyFlags flags{PropertyFlags::None};
 
 public:
     Property(
@@ -56,25 +86,33 @@ public:
 
     virtual ~Property() = default;
 
+    /** Property name. */
     const std::string& get_name() const noexcept
     {
         return name;
     }
 
+    /** Property label / display name. */
     const std::string& get_label() const noexcept
     {
         return label;
     }
 
-    bool is_read_only() const noexcept
+    /** Property flags. */
+    PropertyFlags get_flags() const noexcept
     {
-        return read_only;
+        return flags;
     }
 
+    /** Whether the property is read-only. */
+    bool is_read_only() const noexcept
+    {
+        return (get_flags() & PropertyFlags::ReadOnly) != PropertyFlags::None;
+    }
+
+    /** Visitor acceptor. */
     virtual void accept(PropertyVisitor& visitor) = 0;
 };
-
-using PropertyList = std::vector<std::unique_ptr<Property>>;
 
 using ConstructFn = std::unique_ptr<Property> (*)(
   Object&,
@@ -87,15 +125,34 @@ struct PropertyDescriptor
 {
     std::string_view name;
     std::string_view label;
-    bool read_only{false};
-    ConstructFn construct{nullptr};
-    PropertyDescriptor* next{nullptr};
+    PropertyFlags flags;
+    ConstructFn construct;
+    std::unique_ptr<PropertyDescriptor> next;
+
+    PropertyDescriptor(
+      std::string_view name,
+      std::string_view label,
+      PropertyFlags flags,
+      ConstructFn construct,
+      std::unique_ptr<PropertyDescriptor> next)
+    : name{name}
+    , label{label}
+    , flags{flags}
+    , construct{construct}
+    , next{std::move(next)}
+    {
+    }
+
+    bool is_read_only() const
+    {
+        return (flags & PropertyFlags::ReadOnly) != PropertyFlags::None;
+    }
 };
 
 struct PropertyRegistration
 {
     PropertyRegistration(
-      const ClassInfo* (*get_class)() noexcept,
+      ClassInfo* cls,
       PropertyDescriptor* descriptor) noexcept;
 };
 

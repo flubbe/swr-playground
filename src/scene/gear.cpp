@@ -319,3 +319,9 @@ Gear::Gear(
         .material_handle = params.outer.material_handle}}}
 {
 }
+
+void Gear::register_properties(
+  [[maybe_unused]] ClassInfo& class_info)
+{
+    // No properties to register.
+}
