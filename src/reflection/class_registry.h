@@ -359,8 +359,34 @@ StaticClassRegistration<Root, T>& class_registration() noexcept;
 template<typename Base>
 class ReflectRoot
 {
+protected:
+    /** RTTI-style type info. */
+    const ClassInfo* class_info{Base::static_class()};
+
 public:
     using Root = Base;
+
+    /** Default constructor. */
+    ReflectRoot() = default;
+
+    /** Virtual destructor. */
+    virtual ~ReflectRoot() = default;
+
+    /**
+     * Constructor.
+     *
+     * @param class_info The `ClassInfo` for this class.
+     * @throws Throws a `std::runtime_error` if `class_info` is `nullptr`.
+     */
+    ReflectRoot(
+      const ClassInfo* class_info)
+    : class_info{class_info}
+    {
+        if(class_info == nullptr)
+        {
+            throw std::runtime_error("Cannot create root without class_info.");
+        }
+    }
 
     /**
      * Returns the reflection metadata for this type.
@@ -372,6 +398,44 @@ public:
     static ClassInfo* static_class() noexcept
     {
         return &class_registration<Root, Root>().storage;
+    }
+
+    /**
+     * Returns the reflection metadata for this instance.
+     *
+     * This is the virtual, instance-level counterpart to `static_class()`,
+     * allowing access to the concrete type's `ClassInfo` through a base
+     * class pointer or reference.
+     */
+    virtual const ClassInfo* get_class() const
+    {
+        assert(class_info != nullptr);
+        return class_info;
+    }
+
+    /**
+     * Checks whether this instance is of type `T` or derived from `T`.
+     *
+     * @tparam T The class type to check. Must be part of the same
+     *           reflection hierarchy.
+     * @returns `true` if this instance's dynamic type is `T` or a subclass of `T`.
+     */
+    template<typename T>
+        requires std::is_base_of_v<Root, T>
+    bool is_a() const
+    {
+        return get_class()->is_a(T::static_class());
+    }
+
+    /**
+     * Checks whether this instance is of the given class or derived from it.
+     *
+     * @param cls The class to check against.
+     * @returns `true` if this instance's dynamic type is `cls` or a subclass of it.
+     */
+    bool is_a(const reflect::ClassInfo* cls) const
+    {
+        return get_class()->is_a(cls);
     }
 };
 
@@ -429,6 +493,7 @@ public:
     {
         return &class_registration<Root, Derived>().storage;
     }
+
     /**
      * Returns the reflection metadata for this instance.
      *

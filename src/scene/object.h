@@ -70,9 +70,6 @@ public:
     static void register_properties(reflect::ClassInfo& class_info);
 
 private:
-    /** RTTI-style type info. */
-    const reflect::ClassInfo* class_info{Object::static_class()};
-
     /** Reflected properties, filled in by `initialize_properties`. */
     std::vector<std::unique_ptr<reflect::Property>> properties;
 
@@ -93,7 +90,7 @@ protected:
     Object(
       const reflect::ClassInfo* class_info,
       std::vector<RenderData> mesh_handles = {})
-    : class_info{class_info}
+    : reflect::ReflectRoot<Object>{class_info}
     , mesh_handles{std::move(mesh_handles)}
     {
         initialize_properties();
@@ -125,7 +122,7 @@ public:
 
     /** move data. */
     Object(Object&& other)
-    : class_info{other.class_info}
+    : ReflectRoot<Object>{other.class_info}
     , properties{std::move(other.properties)}
     , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
@@ -168,24 +165,6 @@ public:
     void set_name(std::string object_name)
     {
         name = std::move(object_name);
-    }
-
-    virtual const reflect::ClassInfo* get_class() const
-    {
-        return class_info != nullptr
-                 ? class_info
-                 : static_class();
-    }
-
-    template<typename T>
-    bool is_a() const
-    {
-        return get_class()->is_a(T::static_class());
-    }
-
-    bool is_a(const reflect::ClassInfo* cls) const
-    {
-        return get_class()->is_a(cls);
     }
 
     std::vector<
