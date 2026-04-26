@@ -146,7 +146,7 @@ std::unique_ptr<Root> factory()
 {
     static_assert(
       std::is_base_of_v<Root, T>,
-      "T must inherit from Object");
+      "T must inherit from root type");
     return std::make_unique<T>();
 }
 
@@ -298,7 +298,10 @@ void register_property(
   std::string_view label,
   PropertyFlags flags = PropertyFlags::None)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor<Object, ClassInfo>>(
+    auto descriptor = std::make_unique<
+      PropertyDescriptor<
+        typename MemberClassType<MemberPtr>::Root,
+        ClassInfo>>(
       std::string{name},
       std::string{label},
       flags,
