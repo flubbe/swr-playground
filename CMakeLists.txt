@@ -89,8 +89,8 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
-    src/reflection/property.cpp
     src/scene/gear.cpp
     src/scene/object.cpp
     src/scene/scene.cpp
@@ -100,7 +100,6 @@ add_executable(swr_playground
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp
-    src/reflection/builtin_properties.cpp
 )
 
 target_include_directories(swr_playground PRIVATE src)

@@ -268,7 +268,8 @@ std::vector<const ClassInfo*> ReflectionSystem::get_registered_classes()
           {
               return a->qualified_name < b->qualified_name;
           }
-          return a->root_tag < b->root_tag;
+
+          return std::less<>{}(a->root_tag, b->root_tag);
       });
 
     return result;

@@ -1,3 +1,13 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * Built-in reflected properties.
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
 #include "builtin_properties.h"
 
 namespace

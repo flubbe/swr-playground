@@ -57,7 +57,12 @@ public:
     Property(
       std::string name,
       std::string label,
-      PropertyFlags flags = PropertyFlags::None);
+      PropertyFlags flags = PropertyFlags::None)
+    : name{std::move(name)}
+    , label{std::move(label)}
+    , flags{flags}
+    {
+    }
 
     virtual ~Property() = default;
 

@@ -16,6 +16,11 @@
 namespace reflect
 {
 
+/**
+ * Property flags.
+ *
+ * Defines binary operators `|` and `&`.
+ */
 enum class PropertyFlags : std::uint32_t
 {
     None = 0,

@@ -21,8 +21,17 @@
 namespace reflect
 {
 
+/**
+ * Get a tag for a type.
+ *
+ * @note The tag is a unique memory address.
+ */
 template<typename Root>
-const void* root_type_tag() noexcept;
+const void* root_type_tag() noexcept
+{
+    static const int tag = 0;
+    return &tag;
+}
 
 /** Static info about a pending class registration. */
 struct PendingClassRegistration
@@ -192,10 +201,17 @@ struct AutoClassRegistrar
     }
 };
 
+/**
+ * Factory for `T`.
+ *
+ * @tparam Root Root type for the class hierarchy.
+ * @tparam T The type to construct.
+ * @returns Returns a new (type-erased) instance of `T`.
+ */
 template<
   typename Root,
   typename T>
-void* factory_erased()
+void* factory()
 {
     static_assert(
       std::is_base_of_v<Root, T>,
@@ -203,18 +219,20 @@ void* factory_erased()
     return static_cast<Root*>(new T{});
 }
 
+/**
+ * Destroy an instance of a child class of `Root`.
+ *
+ * @tparam Root Root type for the class hierarchy.
+ * @param instance The instance to destroy.
+ */
 template<typename Root>
-void destroy_erased(
+void destroy(
   void* instance)
 {
+    static_assert(
+      std::has_virtual_destructor_v<Root>,
+      "Root must have a virtual destructor");
     delete static_cast<Root*>(instance);
-}
-
-template<typename Root>
-const void* root_type_tag() noexcept
-{
-    static const int tag = 0;
-    return &tag;
 }
 
 /** Return a type's super class or `nullptr` if there is none. */
@@ -230,10 +248,17 @@ ClassInfo* super_class_info() noexcept
 }
 
 /** Templated reflection type entry. */
-template<typename Root, typename T>
+template<
+  typename Root,
+  typename T>
 struct TypeReflection;
 
-/** Registration helper for statically registered classes. */
+/**
+ * Registration helper for statically registered classes.
+ *
+ * @tparam Root Root type for the class hierarchy.
+ * @tparam T The type to register.
+ */
 template<
   typename Root,
   typename T>
@@ -263,8 +288,8 @@ struct StaticClassRegistration
       .storage = &storage,
       .super = super_class_info<T>(),
       .root_tag = root_type_tag<Root>(),
-      .factory = &factory_erased<Root, T>,
-      .destroy = &destroy_erased<Root>,
+      .factory = &factory<Root, T>,
+      .destroy = &destroy<Root>,
       .register_properties = TypeReflection<Root, T>::register_properties};
     PendingClassNode node{
       .reg = &registration,
@@ -277,6 +302,8 @@ template<typename Root, typename T>
 StaticClassRegistration<Root, T>& class_registration() noexcept;
 
 /**
+ * Declare a reflected type.
+ *
  * Reflection declaration/definition pattern:
  * - Put `DECLARE_REFLECTION(Module, Type)` in the type header.
  * - Put `DEFINE_REFLECTION(Type)` in exactly one translation unit.
@@ -296,6 +323,13 @@ StaticClassRegistration<Root, T>& class_registration() noexcept;
     StaticClassRegistration<Type::Root, Type>& class_registration<Type::Root, Type>() noexcept; \
     }
 
+/**
+ * Define a reflected type.
+ *
+ * Reflection declaration/definition pattern:
+ * - Put `DECLARE_REFLECTION(Module, Type)` in the type header.
+ * - Put `DEFINE_REFLECTION(Type)` in exactly one translation unit.
+ */
 #define DEFINE_REFLECTION(Type)                                                            \
     namespace                                                                              \
     {                                                                                      \
@@ -311,35 +345,97 @@ StaticClassRegistration<Root, T>& class_registration() noexcept;
     }                                                                                      \
     }
 
-/** Super class for the root class of all reflected classes. */
-template<typename Derived>
+/**
+ * Super class for the root class of all reflected classes.
+ *
+ * Usage example:
+ * ```cpp
+ * class Object : public ReflectRoot<Object>
+ * {};
+ * ```
+ *
+ * @tparam Base The root class.
+ */
+template<typename Base>
 class ReflectRoot
 {
 public:
-    using Root = Derived;
+    using Root = Base;
 
+    /**
+     * Returns the reflection metadata for this type.
+     *
+     * The returned pointer refers to the statically registered `ClassInfo`
+     * instance describing this class in the reflection system.
+     * The pointer is valid for the lifetime of the program.
+     */
     static ClassInfo* static_class() noexcept
     {
-        return &class_registration<Root, Derived>().storage;
+        return &class_registration<Root, Root>().storage;
     }
 };
 
-/** Super class for a non-root reflected class. */
+/**
+ * Concept for base classes in a reflected type hierarchy.
+ *
+ * A reflected base must provide a nested `Root` type and expose
+ * `get_class()` on const instances, returning exactly `const ClassInfo*`.
+ *
+ * @note This does not check that `get_class()` is virtual. That is enforced
+ *       by `override` in derived reflected classes.
+ */
+template<typename T>
+concept ReflectedBase =
+  requires {
+      typename T::Root;
+  } && requires(const T& t) {
+      { t.get_class() } -> std::same_as<const ClassInfo*>;
+  };
+
+/**
+ * CRTP base for a non-root reflected class.
+ *
+ * `Reflected<Derived, Base>` inherits from `Base` and provides reflection
+ * metadata for `Derived`.
+ *
+ * Usage example:
+ * ```cpp
+ * class Chair : public Reflected<Chair, Object>
+ * {};
+ * ```
+ *
+ * @tparam Derived The concrete reflected class.
+ * @tparam Base The reflected base class. Must provide `Root`, `static_class()`,
+ *              and a virtual `get_class()` override target.
+ */
 template<
   typename Derived,
-  typename Base>
+  ReflectedBase Base>
 class Reflected : public Base
 {
 public:
     using Super = Base;
-    using Root = Base::Root;
+    using Root = typename Base::Root;
     using Base::Base;
 
+    /**
+     * Returns the reflection metadata for this type.
+     *
+     * The returned pointer refers to the statically registered `ClassInfo`
+     * instance describing this class in the reflection system.
+     * The pointer is valid for the lifetime of the program.
+     */
     static ClassInfo* static_class() noexcept
     {
         return &class_registration<Root, Derived>().storage;
     }
-
+    /**
+     * Returns the reflection metadata for this instance.
+     *
+     * This is the virtual, instance-level counterpart to `static_class()`,
+     * allowing access to the concrete type's `ClassInfo` through a base
+     * class pointer or reference.
+     */
     const ClassInfo* get_class() const override
     {
         return Derived::static_class();

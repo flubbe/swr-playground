@@ -43,10 +43,10 @@ struct ClassInfo
     /** Root hierarchy marker for this class. */
     const void* root_tag{nullptr};
 
-    /** Instance creation (erased). */
+    /** Type-erased instance creation function. */
     FactoryFn factory{nullptr};
 
-    /** Instance destruction (erased). */
+    /** Type-erased instance destruction function. */
     DestroyFn destroy{nullptr};
 
     /** Property registration. */
