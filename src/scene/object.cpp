@@ -28,13 +28,11 @@ void Object::register_properties(reflect::ClassInfo& class_info)
     register_property<&Object::name>(
       class_info,
       "name",
-      "Name",
-      reflect::PropertyFlags::None);
+      "Name");
     register_property<&Object::transform>(
       class_info,
       "transform",
-      "Transform",
-      reflect::PropertyFlags::None);
+      "Transform");
 }
 
 void Object::initialize_properties()
@@ -67,7 +65,7 @@ void Object::initialize_properties()
 
             properties.emplace_back(
               descriptor->construct(
-                *this,
+                this,
                 descriptor->name,
                 descriptor->label,
                 descriptor->flags));

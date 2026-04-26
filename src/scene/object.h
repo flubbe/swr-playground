@@ -46,12 +46,6 @@ namespace reflect
 {
 
 template<>
-struct PropertyTypeMap<ObjectId>
-{
-    using type = UIntProperty;
-};
-
-template<>
 struct UnwrapType<ObjectId>
 {
     using Type = unsigned int;

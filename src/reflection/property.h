@@ -20,7 +20,8 @@
 
 #include "ml/all.h"
 
-class Object;
+#include "except.h"
+#include "traits.h"
 
 namespace reflect
 {
@@ -119,27 +120,27 @@ public:
 };
 
 using ConstructFn = std::unique_ptr<Property> (*)(
-  Object&,
+  void*,               // object
   std::string_view,    // name
   std::string_view,    // label
   PropertyFlags);
 
 struct PropertyDescriptor
 {
-    std::string_view name;
-    std::string_view label;
+    std::string name;
+    std::string label;
     PropertyFlags flags;
     ConstructFn construct;
     std::unique_ptr<PropertyDescriptor> next;
 
     PropertyDescriptor(
-      std::string_view name,
-      std::string_view label,
+      std::string name,
+      std::string label,
       PropertyFlags flags,
       ConstructFn construct,
       std::unique_ptr<PropertyDescriptor> next)
-    : name{name}
-    , label{label}
+    : name{std::move(name)}
+    , label{std::move(label)}
     , flags{flags}
     , construct{construct}
     , next{std::move(next)}
@@ -332,45 +333,6 @@ public:
 };
 
 template<typename T>
-struct PropertyTypeMap;
-
-template<>
-struct PropertyTypeMap<int>
-{
-    using type = IntProperty;
-};
-
-template<>
-struct PropertyTypeMap<std::uint32_t>
-{
-    using type = UIntProperty;
-};
-
-template<>
-struct PropertyTypeMap<float>
-{
-    using type = FloatProperty;
-};
-
-template<>
-struct PropertyTypeMap<bool>
-{
-    using type = BoolProperty;
-};
-
-template<>
-struct PropertyTypeMap<std::string>
-{
-    using type = StringProperty;
-};
-
-template<>
-struct PropertyTypeMap<ml::mat4x4>
-{
-    using type = Mat4Property;
-};
-
-template<typename T>
 struct PropertyFactory;
 
 template<>
@@ -486,30 +448,55 @@ struct UnwrapType
     }
 };
 
-template<
-  typename Class,
-  typename Member,
-  Member Class::* MemberPtr>
+/**
+ * Construct a property and bind it to a member.
+ *
+ * @note `obj` has to be an instance of the class defined by `MemberPtr`, which is checked via the `is_a`
+ *       method on the instance.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param obj Pointer to the object instance.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ *
+ * @throws instance_error If `obj` is not an instance of the required class.
+ */
+template<auto MemberPtr>
 std::unique_ptr<Property> construct_member(
-  Object& obj,
+  void* obj,
   std::string_view name,
   std::string_view label,
   PropertyFlags flags)
 {
-    static_assert(
-      std::is_base_of_v<Object, Class>,
-      "Class must derive from Object");
+    if(obj == nullptr)
+    {
+        throw instance_error{"object is null."};
+    }
 
-    auto& typed = static_cast<Class&>(obj);
-    Member& value = typed.*MemberPtr;
+    using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
+    using ClassType = typename MemberPtrTraits::ClassType;
+    using MemberType = typename MemberPtrTraits::MemberType;
 
-    using Traits = UnwrapType<Member>;
-    using UnwrappedType = typename Traits::Type;
+    auto& typed = *static_cast<ClassType*>(obj);
+    if(!typed.is_a(ClassType::static_class()))
+    {
+        throw instance_error{
+          std::format(
+            "object is not an instance of '{}'.",
+            ClassType::static_class()->name)};
+    }
+
+    MemberType& value = typed.*MemberPtr;
+
+    using MemberTraits = UnwrapType<MemberType>;
+    using UnwrappedType = typename MemberTraits::Type;
 
     return PropertyFactory<UnwrappedType>::construct(
       name,
       label,
-      Traits::get(value),
+      MemberTraits::get(value),
       flags);
 }
 

@@ -264,18 +264,6 @@ public:
  * Property registration.
  */
 
-/** Helper to get class and member types. */
-template<typename T>
-struct MemberPointerTraits;
-
-/** Helper to get class and member types. */
-template<typename Class, typename Member>
-struct MemberPointerTraits<Member Class::*>
-{
-    using ClassType = Class;
-    using MemberType = Member;
-};
-
 /**
  * Register a data member as a reflected property.
  *
@@ -291,17 +279,13 @@ void register_property(
   ClassInfo& class_info,
   std::string_view name,
   std::string_view label,
-  PropertyFlags flags)
+  PropertyFlags flags = PropertyFlags::None)
 {
-    using Traits = MemberPointerTraits<decltype(MemberPtr)>;
-    using ClassType = typename Traits::ClassType;
-    using MemberType = typename Traits::MemberType;
-
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      name,
-      label,
+      std::string{name},
+      std::string{label},
       flags,
-      &construct_member<ClassType, MemberType, MemberPtr>,
+      &construct_member<MemberPtr>,
       std::move(class_info.first_property));
     class_info.first_property = std::move(descriptor);
 }
