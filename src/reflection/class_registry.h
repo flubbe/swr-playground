@@ -139,11 +139,13 @@ struct AutoClassRegistrar
 };
 
 /** Factory for object creation. */
-template<typename T>
-std::unique_ptr<Object> factory()
+template<
+  typename Root,
+  typename T>
+std::unique_ptr<Root> factory()
 {
     static_assert(
-      std::is_base_of_v<Object, T>,
+      std::is_base_of_v<Root, T>,
       "T must inherit from Object");
     return std::make_unique<T>();
 }
@@ -161,38 +163,40 @@ ClassInfo* super_class_info() noexcept
 }
 
 /** Templated reflection type entry. */
-template<typename T>
+template<typename Root, typename T>
 struct TypeReflection;
 
 /** Registration helper for statically registered classes. */
-template<typename T>
+template<
+  typename Root,
+  typename T>
 struct StaticClassRegistration
 {
     static_assert(
       std::is_convertible_v<
-        decltype(TypeReflection<T>::module_name),
+        decltype(TypeReflection<Root, T>::module_name),
         std::string_view>,
       "TypeReflection<T>::module_name must be convertible to std::string_view");
     static_assert(
       std::is_convertible_v<
-        decltype(TypeReflection<T>::class_name),
+        decltype(TypeReflection<Root, T>::class_name),
         std::string_view>,
       "TypeReflection<T>::class_name must be convertible to std::string_view");
     static_assert(
       std::is_same_v<
-        decltype(TypeReflection<T>::register_properties),
-        const ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn>,
+        decltype(TypeReflection<Root, T>::register_properties),
+        const typename ReflectionTraits<Root, ClassInfo>::PropertyRegisterFn>,
       "TypeReflection<T>::register_properties must be PropertyRegisterFn");
 
     ClassInfo storage{};
     PendingClassRegistration registration{
-      .module_name = TypeReflection<T>::module_name,
-      .name = TypeReflection<T>::class_name,
+      .module_name = TypeReflection<Root, T>::module_name,
+      .name = TypeReflection<Root, T>::class_name,
       .size = sizeof(T),
       .storage = &storage,
       .super = super_class_info<T>(),
-      .factory = &factory<T>,
-      .register_properties = TypeReflection<T>::register_properties};
+      .factory = &factory<Root, T>,
+      .register_properties = TypeReflection<Root, T>::register_properties};
     PendingClassNode node{
       .reg = &registration,
       .next = nullptr};
@@ -200,41 +204,42 @@ struct StaticClassRegistration
 };
 
 /** Return the static class registration for a type. */
-template<typename T>
-StaticClassRegistration<T>& class_registration() noexcept;
+template<typename Root, typename T>
+StaticClassRegistration<Root, T>& class_registration() noexcept;
 
 /**
  * Reflection declaration/definition pattern:
  * - Put `DECLARE_REFLECTION(Module, Type)` in the type header.
  * - Put `DEFINE_REFLECTION(Type)` in exactly one translation unit.
  */
-#define DECLARE_REFLECTION(Module, Type)                                \
-    namespace reflect                                                   \
-    {                                                                   \
-    template<>                                                          \
-    struct TypeReflection<Type>                                         \
-    {                                                                   \
-        static constexpr std::string_view module_name = #Module;        \
-        static constexpr std::string_view class_name = #Type;           \
-        static constexpr auto register_properties =                     \
-          &Type::register_properties;                                   \
-    };                                                                  \
-    template<>                                                          \
-    StaticClassRegistration<Type>& class_registration<Type>() noexcept; \
+#define DECLARE_REFLECTION(Module, Type)                                                        \
+    namespace reflect                                                                           \
+    {                                                                                           \
+    template<>                                                                                  \
+    struct TypeReflection<Type::Root, Type>                                                     \
+    {                                                                                           \
+        static constexpr std::string_view module_name = #Module;                                \
+        static constexpr std::string_view class_name = #Type;                                   \
+        static constexpr auto register_properties =                                             \
+          &Type::register_properties;                                                           \
+    };                                                                                          \
+    template<>                                                                                  \
+    StaticClassRegistration<Type::Root, Type>& class_registration<Type::Root, Type>() noexcept; \
     }
 
-#define DEFINE_REFLECTION(Type)                                                 \
-    namespace                                                                   \
-    {                                                                           \
-    reflect::StaticClassRegistration<Type> g_reflection_registration_##Type{};  \
-    }                                                                           \
-    namespace reflect                                                           \
-    {                                                                           \
-    template<>                                                                  \
-    reflect::StaticClassRegistration<Type>& class_registration<Type>() noexcept \
-    {                                                                           \
-        return g_reflection_registration_##Type;                                \
-    }                                                                           \
+#define DEFINE_REFLECTION(Type)                                                            \
+    namespace                                                                              \
+    {                                                                                      \
+    reflect::StaticClassRegistration<Type::Root, Type> g_reflection_registration_##Type{}; \
+    }                                                                                      \
+    namespace reflect                                                                      \
+    {                                                                                      \
+    template<>                                                                             \
+    reflect::StaticClassRegistration<Type::Root, Type>&                                    \
+      class_registration<Type::Root, Type>() noexcept                                      \
+    {                                                                                      \
+        return g_reflection_registration_##Type;                                           \
+    }                                                                                      \
     }
 
 /** Super class for the root class of all reflected classes. */
@@ -242,23 +247,28 @@ template<typename Derived>
 class ReflectRoot
 {
 public:
+    using Root = Derived;
+
     static ClassInfo* static_class() noexcept
     {
-        return &class_registration<Derived>().storage;
+        return &class_registration<Root, Derived>().storage;
     }
 };
 
 /** Super class for a non-root reflected class. */
-template<typename Derived, typename Base>
+template<
+  typename Derived,
+  typename Base>
 class Reflected : public Base
 {
 public:
     using Super = Base;
+    using Root = Base::Root;
     using Base::Base;
 
     static ClassInfo* static_class() noexcept
     {
-        return &class_registration<Derived>().storage;
+        return &class_registration<Root, Derived>().storage;
     }
 
     const ClassInfo* get_class() const override

@@ -37,8 +37,6 @@ struct GearParameters
     RenderData outer;
 };
 
-class Gear;
-
 /** A gear object. */
 class Gear : public reflect::Reflected<Gear, Object>
 {
