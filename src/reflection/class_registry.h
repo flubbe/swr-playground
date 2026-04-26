@@ -16,6 +16,7 @@
 #include <type_traits>
 
 #include "class_info.h"
+#include "traits.h"
 
 namespace reflect
 {
@@ -39,10 +40,10 @@ struct PendingClassRegistration
     ClassInfo* super{nullptr};
 
     /** Instance creation. */
-    FactoryFn factory{nullptr};
+    ReflectionTraits<Object, ClassInfo>::FactoryFn factory{nullptr};
 
     /** Property registration. */
-    PropertyRegisterFn register_properties{nullptr};
+    ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn register_properties{nullptr};
 };
 
 /** Linked-list for the automatic registration. */
@@ -168,13 +169,19 @@ template<typename T>
 struct StaticClassRegistration
 {
     static_assert(
-      std::is_convertible_v<decltype(TypeReflection<T>::module_name), std::string_view>,
+      std::is_convertible_v<
+        decltype(TypeReflection<T>::module_name),
+        std::string_view>,
       "TypeReflection<T>::module_name must be convertible to std::string_view");
     static_assert(
-      std::is_convertible_v<decltype(TypeReflection<T>::class_name), std::string_view>,
+      std::is_convertible_v<
+        decltype(TypeReflection<T>::class_name),
+        std::string_view>,
       "TypeReflection<T>::class_name must be convertible to std::string_view");
     static_assert(
-      std::is_same_v<decltype(TypeReflection<T>::register_properties), const PropertyRegisterFn>,
+      std::is_same_v<
+        decltype(TypeReflection<T>::register_properties),
+        const ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn>,
       "TypeReflection<T>::register_properties must be PropertyRegisterFn");
 
     ClassInfo storage{};
@@ -209,7 +216,7 @@ StaticClassRegistration<T>& class_registration() noexcept;
     {                                                                   \
         static constexpr std::string_view module_name = #Module;        \
         static constexpr std::string_view class_name = #Type;           \
-        static constexpr PropertyRegisterFn register_properties =       \
+        static constexpr auto register_properties =                     \
           &Type::register_properties;                                   \
     };                                                                  \
     template<>                                                          \
@@ -281,7 +288,7 @@ void register_property(
   std::string_view label,
   PropertyFlags flags = PropertyFlags::None)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor<void>>(
+    auto descriptor = std::make_unique<PropertyDescriptor<Object, ClassInfo>>(
       std::string{name},
       std::string{label},
       flags,

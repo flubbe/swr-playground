@@ -15,16 +15,12 @@
 #include <stdexcept>
 
 #include "property.h"
+#include "traits.h"
 
 class Object;
 
 namespace reflect
 {
-
-struct ClassInfo;
-
-using FactoryFn = std::unique_ptr<Object> (*)();
-using PropertyRegisterFn = void (*)(ClassInfo&);
 
 /** Class info for RTTI-style object queries and editor metadata. */
 struct ClassInfo
@@ -45,13 +41,13 @@ struct ClassInfo
     const ClassInfo* super{nullptr};
 
     /** Instance creation. */
-    FactoryFn factory{nullptr};
+    ReflectionTraits<Object, ClassInfo>::FactoryFn factory{nullptr};
 
     /** Property registration. */
-    PropertyRegisterFn register_properties{nullptr};
+    ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn register_properties{nullptr};
 
     /** Linked list of registered properties for this class. */
-    std::unique_ptr<PropertyDescriptor<void>> first_property;
+    std::unique_ptr<PropertyDescriptor<Object, ClassInfo>> first_property;
 
     /**
      * Check if this class is a child of another class.

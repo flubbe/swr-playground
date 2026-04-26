@@ -17,30 +17,21 @@ namespace reflect
 
 class Property;
 
-template<typename Root>
+template<
+  typename Root,
+  typename Info>
 struct ReflectionTraits
 {
     using RootType = Root;
+    using ClassInfoType = Info;
 
+    using FactoryFn = std::unique_ptr<Root> (*)();
     using ConstructFn = std::unique_ptr<Property> (*)(
       Root&,
       std::string_view,
       std::string_view,
       PropertyFlags);
-};
-
-// FIXME temporary
-template<>
-struct ReflectionTraits<void>
-{
-    using RootType = void;
-    using InstanceType = void*;
-
-    using ConstructFn = std::unique_ptr<Property> (*)(
-      InstanceType,
-      std::string_view,
-      std::string_view,
-      PropertyFlags);
+    using PropertyRegisterFn = void (*)(ClassInfoType&);
 };
 
 /** Helper to get class and member types. */

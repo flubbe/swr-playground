@@ -66,7 +66,7 @@ void Object::initialize_properties()
 
             properties.emplace_back(
               descriptor->construct(
-                this,
+                *this,
                 descriptor->name,
                 descriptor->label,
                 descriptor->flags));

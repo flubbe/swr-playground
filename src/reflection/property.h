@@ -95,20 +95,22 @@ public:
     virtual void accept(PropertyVisitor& visitor) = 0;
 };
 
-template<typename Root>
+template<
+  typename Root,
+  typename ClassInfoType>
 struct PropertyDescriptor
 {
     std::string name;
     std::string label;
     PropertyFlags flags;
-    ReflectionTraits<Root>::ConstructFn construct;
+    ReflectionTraits<Root, ClassInfoType>::ConstructFn construct;
     std::unique_ptr<PropertyDescriptor> next;
 
     PropertyDescriptor(
       std::string name,
       std::string label,
       PropertyFlags flags,
-      ReflectionTraits<Root>::ConstructFn construct,
+      ReflectionTraits<Root, ClassInfoType>::ConstructFn construct,
       std::unique_ptr<PropertyDescriptor> next)
     : name{std::move(name)}
     , label{std::move(label)}
@@ -138,6 +140,10 @@ struct UnwrapType
     }
 };
 
+template<auto MemberPtr>
+using MemberClassType =
+  typename MemberPointerTraits<decltype(MemberPtr)>::ClassType;
+
 /**
  * Construct a property and bind it to a member.
  *
@@ -155,30 +161,15 @@ struct UnwrapType
  */
 template<auto MemberPtr>
 std::unique_ptr<Property> construct_member(
-  void* obj,
+  MemberClassType<MemberPtr>& obj,
   std::string_view name,
   std::string_view label,
   PropertyFlags flags)
 {
-    if(obj == nullptr)
-    {
-        throw instance_error{"object is null."};
-    }
-
     using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
-    using ClassType = typename MemberPtrTraits::ClassType;
     using MemberType = typename MemberPtrTraits::MemberType;
 
-    auto& typed = *static_cast<ClassType*>(obj);
-    if(!typed.is_a(ClassType::static_class()))
-    {
-        throw instance_error{
-          std::format(
-            "object is not an instance of '{}'.",
-            ClassType::static_class()->name)};
-    }
-
-    MemberType& value = typed.*MemberPtr;
+    MemberType& value = obj.*MemberPtr;
 
     using MemberTraits = UnwrapType<MemberType>;
     using UnwrappedType = typename MemberTraits::Type;

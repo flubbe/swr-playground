@@ -78,16 +78,16 @@ void reverse_properties(
   reflect::ClassInfo& cls) noexcept
 {
     std::unique_ptr<
-      reflect::PropertyDescriptor<void>>
+      reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
       prev = nullptr;
     std::unique_ptr<
-      reflect::PropertyDescriptor<void>>
+      reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
       curr = std::move(cls.first_property);
 
     while(curr != nullptr)
     {
         std::unique_ptr<
-          reflect::PropertyDescriptor<void>>
+          reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
           next = std::move(curr->next);
         curr->next = std::move(prev);
         prev = std::move(curr);
