@@ -48,30 +48,6 @@ public:
     virtual void visit(Mat4Property& property) = 0;
 };
 
-enum class PropertyFlags : std::uint32_t
-{
-    None = 0,
-    ReadOnly = 1,
-};
-
-inline PropertyFlags operator|(
-  PropertyFlags a,
-  PropertyFlags b)
-{
-    using T = std::underlying_type_t<PropertyFlags>;
-    return static_cast<PropertyFlags>(
-      static_cast<T>(a) | static_cast<T>(b));
-}
-
-inline PropertyFlags operator&(
-  PropertyFlags a,
-  PropertyFlags b)
-{
-    using T = std::underlying_type_t<PropertyFlags>;
-    return static_cast<PropertyFlags>(
-      static_cast<T>(a) & static_cast<T>(b));
-}
-
 class Property
 {
     /** Property name. */
@@ -117,32 +93,6 @@ public:
 
     /** Visitor acceptor. */
     virtual void accept(PropertyVisitor& visitor) = 0;
-};
-
-template<typename Root>
-struct ReflectionTraits
-{
-    using RootType = Root;
-
-    using ConstructFn = std::unique_ptr<Property> (*)(
-      Root&,
-      std::string_view,
-      std::string_view,
-      PropertyFlags);
-};
-
-// FIXME temporary
-template<>
-struct ReflectionTraits<void>
-{
-    using RootType = void;
-    using InstanceType = void*;
-
-    using ConstructFn = std::unique_ptr<Property> (*)(
-      InstanceType,
-      std::string_view,
-      std::string_view,
-      PropertyFlags);
 };
 
 template<typename Root>
