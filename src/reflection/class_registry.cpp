@@ -86,9 +86,7 @@ void reverse_properties(
 
     while(curr != nullptr)
     {
-        std::unique_ptr<
-          reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
-          next = std::move(curr->next);
+        auto next = std::move(curr->next);
         curr->next = std::move(prev);
         prev = std::move(curr);
         curr = std::move(next);
