@@ -10,13 +10,9 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "ml/all.h"
 
@@ -25,8 +21,6 @@
 
 namespace reflect
 {
-
-struct ClassInfo;
 
 class IntProperty;
 class UIntProperty;
@@ -95,34 +89,52 @@ public:
     virtual void accept(PropertyVisitor& visitor) = 0;
 };
 
-template<
-  typename Root,
-  typename ClassInfoType>
-struct PropertyDescriptor
+struct DescriptorBase
 {
     std::string name;
     std::string label;
     PropertyFlags flags;
-    ReflectionTraits<Root, ClassInfoType>::ConstructFn construct;
-    std::unique_ptr<PropertyDescriptor> next;
 
-    PropertyDescriptor(
+    DescriptorBase(
       std::string name,
       std::string label,
-      PropertyFlags flags,
-      ReflectionTraits<Root, ClassInfoType>::ConstructFn construct,
-      std::unique_ptr<PropertyDescriptor> next)
+      const PropertyFlags flags)
     : name{std::move(name)}
     , label{std::move(label)}
     , flags{flags}
-    , construct{construct}
-    , next{std::move(next)}
     {
     }
 
     bool is_read_only() const
     {
         return (flags & PropertyFlags::ReadOnly) != PropertyFlags::None;
+    }
+};
+
+struct PropertyDescriptor : DescriptorBase
+{
+    using ConstructFn = std::unique_ptr<Property> (*)(
+      void*,
+      std::string_view,
+      std::string_view,
+      PropertyFlags);
+
+    ConstructFn construct;
+    std::unique_ptr<PropertyDescriptor> next;
+
+    PropertyDescriptor(
+      std::string name,
+      std::string label,
+      const PropertyFlags flags,
+      ConstructFn construct,
+      std::unique_ptr<PropertyDescriptor> next)
+    : DescriptorBase{
+        std::move(name),
+        std::move(label),
+        flags}
+    , construct{construct}
+    , next{std::move(next)}
+    {
     }
 };
 
@@ -178,6 +190,25 @@ std::unique_ptr<Property> construct_member(
       name,
       label,
       MemberTraits::get(value),
+      flags);
+}
+
+template<auto MemberPtr>
+std::unique_ptr<Property> construct_member_erased(
+  void* obj,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags)
+{
+    if(obj == nullptr)
+    {
+        throw instance_error{"null object instance for property construction"};
+    }
+
+    return construct_member<MemberPtr>(
+      *static_cast<MemberClassType<MemberPtr>*>(obj),
+      name,
+      label,
       flags);
 }
 

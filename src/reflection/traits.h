@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include <memory>
+#include <string_view>
+
 #include "flags.h"
 
 namespace reflect

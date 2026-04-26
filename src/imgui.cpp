@@ -14,6 +14,8 @@
 #include <format>
 #include <print>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -21,16 +23,20 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "reflection/builtin_properties.h"
+#include "reflection/class_registry.h"
+#include "scene/scene.h"
 #include "imgui.h"
 #include "renderdevice.h"
 #include "renderer.h"
-#include "reflection/builtin_properties.h"
-#include "scene/scene.h"
+#include "utils.h"
 #include "viewport.h"
 
 namespace
 {
-Object* g_selected_object = nullptr;    // FIXME should not be global.
+
+Object* g_selected_object = nullptr;                     // FIXME should not be global.
+const reflect::ClassInfo* g_selected_class = nullptr;    // FIXME should not be global.
 
 void validate_selected_object(Scene& scene) noexcept
 {
@@ -40,9 +46,8 @@ void validate_selected_object(Scene& scene) noexcept
     }
 
     const auto& objects = scene.get_objects();
-    const bool found = std::any_of(
-      objects.begin(),
-      objects.end(),
+    const bool found = std::ranges::any_of(
+      objects,
       [](const std::unique_ptr<Object>& object)
       {
           return object.get() == g_selected_object;
@@ -51,6 +56,144 @@ void validate_selected_object(Scene& scene) noexcept
     {
         g_selected_object = nullptr;
     }
+}
+
+void validate_selected_class() noexcept
+{
+    if(g_selected_class == nullptr)
+    {
+        return;
+    }
+
+    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    const auto it = std::ranges::find(
+      classes,
+      g_selected_class);
+    if(it == classes.end())
+    {
+        g_selected_class = nullptr;
+    }
+}
+
+bool class_matches_filter(
+  const reflect::ClassInfo* cls,
+  std::string_view filter)
+{
+    if(cls == nullptr)
+    {
+        return false;
+    }
+
+    if(filter.empty())
+    {
+        return true;
+    }
+
+    const std::string needle = to_lower_copy(std::string{filter});
+
+    return to_lower_copy(cls->module_name).contains(needle)
+           || to_lower_copy(cls->name).contains(needle)
+           || to_lower_copy(cls->qualified_name).contains(needle);
+}
+
+const char* property_flags_badge(const reflect::PropertyFlags flags) noexcept
+{
+    if((flags & reflect::PropertyFlags::ReadOnly) != reflect::PropertyFlags::None)
+    {
+        return "RO";
+    }
+    return "-";
+}
+
+using ClassChildrenMap = std::unordered_map<
+  const reflect::ClassInfo*,
+  std::vector<const reflect::ClassInfo*>>;
+
+bool class_tree_contains_match(
+  const reflect::ClassInfo* cls,
+  const ClassChildrenMap& children_by_parent,
+  std::string_view filter,
+  std::unordered_map<const reflect::ClassInfo*, bool>& memo)
+{
+    if(cls == nullptr)
+    {
+        return false;
+    }
+
+    const auto memo_it = memo.find(cls);
+    if(memo_it != memo.end())
+    {
+        return memo_it->second;
+    }
+
+    bool visible = class_matches_filter(cls, filter);
+    const auto children_it = children_by_parent.find(cls);
+    if(children_it != children_by_parent.end())
+    {
+        for(const auto* child: children_it->second)
+        {
+            visible = visible || class_tree_contains_match(child, children_by_parent, filter, memo);
+        }
+    }
+
+    memo.emplace(cls, visible);
+    return visible;
+}
+
+void draw_class_tree_node(
+  const reflect::ClassInfo* cls,
+  const ClassChildrenMap& children_by_parent,
+  std::string_view filter,
+  std::unordered_map<const reflect::ClassInfo*, bool>& visible_memo)
+{
+    if(cls == nullptr)
+    {
+        return;
+    }
+    if(!class_tree_contains_match(cls, children_by_parent, filter, visible_memo))
+    {
+        return;
+    }
+
+    const auto children_it = children_by_parent.find(cls);
+    const bool has_children = children_it != children_by_parent.end() && !children_it->second.empty();
+
+    ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_OpenOnArrow
+      | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if(!has_children)
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+    if(cls == g_selected_class)
+    {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    ImGui::PushID(cls);
+    const bool open = ImGui::TreeNodeEx(cls->qualified_name.c_str(), flags);
+    if(ImGui::IsItemClicked())
+    {
+        g_selected_class = cls;
+    }
+
+    if(open)
+    {
+        if(has_children)
+        {
+            for(const auto* child: children_it->second)
+            {
+                draw_class_tree_node(
+                  child,
+                  children_by_parent,
+                  filter,
+                  visible_memo);
+            }
+        }
+        ImGui::TreePop();
+    }
+
+    ImGui::PopID();
 }
 
 void apply_editor_theme()
@@ -182,7 +325,8 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("Console", dock_bottom);
     ImGui::DockBuilderDockWindow("Tools", dock_right);
-    ImGui::DockBuilderDockWindow("Inspector", dock_left);
+    ImGui::DockBuilderDockWindow("Scene Inspector", dock_left);
+    ImGui::DockBuilderDockWindow("Class Inspector", dock_left);
 
     ImGui::DockBuilderFinish(dockspace_id);
 }
@@ -579,9 +723,9 @@ void imgui_draw_tools_panel(
     ImGui::End();
 }
 
-void imgui_draw_inspector_panel(Scene& scene)
+void imgui_draw_scene_inspector_panel(Scene& scene)
 {
-    ImGui::Begin("Inspector");
+    ImGui::Begin("Scene Inspector");
     validate_selected_object(scene);
 
     auto& objects = scene.get_objects();
@@ -667,6 +811,220 @@ void imgui_draw_inspector_panel(Scene& scene)
             }
         }
     }
+
+    ImGui::End();
+}
+
+void imgui_draw_class_inspector_panel()
+{
+    ImGui::Begin("Class Inspector");
+    validate_selected_class();
+
+    static std::string filter_text;
+    std::string filter = to_lower_copy(filter_text);
+
+    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    if(classes.empty())
+    {
+        ImGui::TextUnformatted("No reflected classes registered.");
+        ImGui::End();
+        return;
+    }
+
+    std::unordered_set<const reflect::ClassInfo*> known_classes{
+      classes.begin(),
+      classes.end()};
+    ClassChildrenMap children_by_parent;
+    std::vector<const reflect::ClassInfo*> roots;
+    roots.reserve(classes.size());
+
+    for(const auto* cls: classes)
+    {
+        if(cls == nullptr)
+        {
+            continue;
+        }
+
+        const bool has_known_parent =
+          cls->super != nullptr
+          && known_classes.contains(cls->super);
+        if(has_known_parent)
+        {
+            children_by_parent[cls->super].push_back(cls);
+        }
+        else
+        {
+            roots.push_back(cls);
+        }
+    }
+
+    for(auto& [_, children]: children_by_parent)
+    {
+        std::ranges::sort(
+          children,
+          [](const reflect::ClassInfo* a, const reflect::ClassInfo* b)
+          {
+              if(a->qualified_name != b->qualified_name)
+              {
+                  return a->qualified_name < b->qualified_name;
+              }
+              return a->root_tag < b->root_tag;
+          });
+    }
+    std::ranges::sort(
+      roots,
+      [](const reflect::ClassInfo* a, const reflect::ClassInfo* b)
+      {
+          if(a->qualified_name != b->qualified_name)
+          {
+              return a->qualified_name < b->qualified_name;
+          }
+          return a->root_tag < b->root_tag;
+      });
+
+    if(g_selected_class == nullptr)
+    {
+        g_selected_class = roots.front();
+    }
+
+    ImGui::InputTextWithHint("##class-filter", "Filter classes...", &filter_text);
+    ImGui::SeparatorText("Hierarchy");
+
+    const float avail_h = ImGui::GetContentRegionAvail().y;
+    const float hierarchy_h = std::max(150.0f, avail_h * 0.42f);
+
+    ImGui::BeginChild("ClassHierarchy", ImVec2{0, hierarchy_h}, true);
+    std::unordered_map<const reflect::ClassInfo*, bool> visible_memo;
+    bool any_visible = false;
+    for(const auto* root: roots)
+    {
+        if(class_tree_contains_match(root, children_by_parent, filter, visible_memo))
+        {
+            any_visible = true;
+            draw_class_tree_node(
+              root,
+              children_by_parent,
+              filter,
+              visible_memo);
+        }
+    }
+    if(!any_visible)
+    {
+        ImGui::TextDisabled("No classes match filter.");
+    }
+    ImGui::EndChild();
+
+    ImGui::SeparatorText("Details");
+    ImGui::BeginChild("ClassDetails", ImVec2{0, 0}, true);
+
+    if(g_selected_class == nullptr)
+    {
+        ImGui::TextUnformatted("Select a class from the hierarchy.");
+    }
+    else
+    {
+        const auto* cls = g_selected_class;
+        const auto child_count_it = children_by_parent.find(cls);
+        const std::size_t child_count =
+          child_count_it != children_by_parent.end()
+            ? child_count_it->second.size()
+            : 0;
+
+        ImGui::Text("%s", cls->qualified_name.c_str());
+        ImGui::Separator();
+        ImGui::Text("Module: %s", cls->module_name.c_str());
+        ImGui::Text("Name: %s", cls->name.c_str());
+        ImGui::Text("Size: %zu bytes", cls->size);
+        ImGui::Text(
+          "Parent: %s",
+          cls->super != nullptr
+            ? cls->super->qualified_name.c_str()
+            : "<none>");
+        ImGui::Text("Children: %zu", child_count);
+        ImGui::Text("Root Tag: %p", cls->root_tag);
+
+        ImGui::SeparatorText("Properties");
+
+        std::vector<const reflect::ClassInfo*> class_chain;
+        for(const auto* p = cls; p != nullptr; p = p->super)
+        {
+            class_chain.push_back(p);
+        }
+
+        const float pad = ImGui::GetStyle().CellPadding.x * 2.0f;
+        float label_col_width = ImGui::CalcTextSize("Label").x + pad;
+        float name_col_width = ImGui::CalcTextSize("Name").x + pad;
+        float flags_col_width = ImGui::CalcTextSize("Flags").x + pad;
+        float origin_col_width = ImGui::CalcTextSize("Origin").x + pad;
+
+        for(const auto* origin: class_chain | std::views::reverse)
+        {
+            origin_col_width = std::max(
+              origin_col_width,
+              ImGui::CalcTextSize(origin->qualified_name.c_str()).x + pad);
+
+            for(auto* descriptor = origin->first_property.get();
+                descriptor != nullptr;
+                descriptor = descriptor->next.get())
+            {
+                label_col_width = std::max(
+                  label_col_width,
+                  ImGui::CalcTextSize(descriptor->label.c_str()).x + pad);
+                name_col_width = std::max(
+                  name_col_width,
+                  ImGui::CalcTextSize(descriptor->name.c_str()).x + pad);
+                flags_col_width = std::max(
+                  flags_col_width,
+                  ImGui::CalcTextSize(property_flags_badge(descriptor->flags)).x + pad);
+            }
+        }
+
+        const ImGuiTableFlags property_table_flags =
+          ImGuiTableFlags_BordersInnerV
+          | ImGuiTableFlags_BordersOuter
+          | ImGuiTableFlags_RowBg
+          | ImGuiTableFlags_Resizable
+          | ImGuiTableFlags_SizingFixedFit
+          | ImGuiTableFlags_ScrollX;
+
+        if(ImGui::BeginTable("ClassProperties", 4, property_table_flags))
+        {
+            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, label_col_width);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, name_col_width);
+            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, flags_col_width);
+            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthFixed, origin_col_width);
+            ImGui::TableHeadersRow();
+
+            for(const auto* origin: class_chain | std::views::reverse)
+            {
+                for(auto* descriptor = origin->first_property.get();
+                    descriptor != nullptr;
+                    descriptor = descriptor->next.get())
+                {
+                    ImGui::PushID(descriptor);
+                    ImGui::TableNextRow();
+
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted(descriptor->label.c_str());
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(descriptor->name.c_str());
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
+
+                    ImGui::TableSetColumnIndex(3);
+                    ImGui::TextUnformatted(origin->qualified_name.c_str());
+
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    ImGui::EndChild();
 
     ImGui::End();
 }

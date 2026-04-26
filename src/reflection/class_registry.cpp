@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Object reflection.
+ * Reflection registry.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -9,7 +9,9 @@
  */
 
 #include <format>
+#include <algorithm>
 #include <stdexcept>
+#include <vector>
 #include <unordered_map>
 
 #include "class_registry.h"
@@ -18,7 +20,7 @@ namespace
 {
 
 /** Class registry type, mapping qualified names to class metadata. */
-using ClassMap = std::unordered_map<
+using ClassMap = std::unordered_multimap<
   std::string,
   const reflect::ClassInfo*>;
 
@@ -36,7 +38,7 @@ ClassMap& classes() noexcept
     return map;
 }
 
-/** Automatric registration enable/disable. */
+/** Automatic registration enable/disable. */
 bool& auto_registration_enabled() noexcept
 {
     static bool value = true;
@@ -52,17 +54,24 @@ bool& auto_registration_enabled() noexcept
 void register_class(
   const reflect::ClassInfo& cls)
 {
-    const auto [_, inserted] =
-      classes().emplace(
-        cls.qualified_name,
-        &cls);
-    if(!inserted)
+    const auto [begin, end] = classes().equal_range(cls.qualified_name);
+    for(auto it = begin; it != end; ++it)
     {
-        throw std::runtime_error{
-          std::format(
-            "Duplicate class registration: {}",
-            cls.qualified_name)};
+        const reflect::ClassInfo* existing = it->second;
+        if(existing != nullptr
+           && existing->root_tag == cls.root_tag)
+        {
+            throw std::runtime_error{
+              std::format(
+                "Duplicate class registration for root '{}': {}",
+                static_cast<const void*>(cls.root_tag),
+                cls.qualified_name)};
+        }
     }
+
+    classes().emplace(
+      cls.qualified_name,
+      &cls);
 }
 
 /**
@@ -78,10 +87,10 @@ void reverse_properties(
   reflect::ClassInfo& cls) noexcept
 {
     std::unique_ptr<
-      reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
+      reflect::PropertyDescriptor>
       prev = nullptr;
     std::unique_ptr<
-      reflect::PropertyDescriptor<Object, reflect::ClassInfo>>
+      reflect::PropertyDescriptor>
       curr = std::move(cls.first_property);
 
     while(curr != nullptr)
@@ -120,10 +129,10 @@ bool ReflectionSystem::is_auto_registration_allowed() noexcept
 
 void ReflectionSystem::process_pending_registrations()
 {
-    if(!auto_registration_enabled())
+    if(auto_registration_enabled())
     {
         throw std::runtime_error{
-          "ReflectionSystem::process_pending_registrations called while auto registration is disabled"};
+          "ReflectionSystem::process_pending_registrations called while auto registration is enabled"};
     }
 
     while(pending_head() != nullptr)
@@ -156,8 +165,10 @@ void ReflectionSystem::process_pending_registrations()
           reg->module_name,
           reg->name);
         cls.super = reg->super;
+        cls.root_tag = reg->root_tag;
         cls.size = reg->size;
         cls.factory = reg->factory;
+        cls.destroy = reg->destroy;
         cls.register_properties = reg->register_properties;
 
         if(cls.register_properties != nullptr)
@@ -173,20 +184,46 @@ void ReflectionSystem::process_pending_registrations()
 }
 
 const ClassInfo* ReflectionSystem::find_class(
-  std::string_view qualified_name)
+  std::string_view qualified_name,
+  const void* root_tag)
 {
-    const auto it = classes().find(std::string{qualified_name});
-    return (it != classes().end())
-             ? it->second
-             : nullptr;
+    const auto [begin, end] = classes().equal_range(std::string{qualified_name});
+    for(auto it = begin; it != end; ++it)
+    {
+        const ClassInfo* cls = it->second;
+        if(cls != nullptr
+           && cls->root_tag == root_tag)
+        {
+            return cls;
+        }
+    }
+
+    return nullptr;
 }
 
 bool ReflectionSystem::unregister_class(
-  std::string_view qualified_name)
+  std::string_view qualified_name,
+  const void* root_tag)
 {
-    return classes().erase(
-             std::string{qualified_name})
-           != 0;
+    bool removed = false;
+    const std::string key{qualified_name};
+    const auto [begin, end] = classes().equal_range(key);
+
+    for(auto it = begin; it != end;)
+    {
+        const ClassInfo* cls = it->second;
+        if(cls != nullptr
+           && cls->root_tag == root_tag)
+        {
+            it = classes().erase(it);
+            removed = true;
+            continue;
+        }
+
+        ++it;
+    }
+
+    return removed;
 }
 
 std::size_t ReflectionSystem::unregister_module(
@@ -208,6 +245,33 @@ std::size_t ReflectionSystem::unregister_module(
     }
 
     return removed_count;
+}
+
+std::vector<const ClassInfo*> ReflectionSystem::get_registered_classes()
+{
+    std::vector<const ClassInfo*> result;
+    result.reserve(classes().size());
+
+    for(const auto& [_, cls]: classes())
+    {
+        if(cls != nullptr)
+        {
+            result.push_back(cls);
+        }
+    }
+
+    std::ranges::sort(
+      result,
+      [](const ClassInfo* a, const ClassInfo* b)
+      {
+          if(a->qualified_name != b->qualified_name)
+          {
+              return a->qualified_name < b->qualified_name;
+          }
+          return a->root_tag < b->root_tag;
+      });
+
+    return result;
 }
 
 void ReflectionSystem::clear()

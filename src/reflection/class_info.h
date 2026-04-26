@@ -12,12 +12,8 @@
 
 #include <cstddef>
 #include <string>
-#include <stdexcept>
 
 #include "property.h"
-#include "traits.h"
-
-class Object;
 
 namespace reflect
 {
@@ -25,6 +21,10 @@ namespace reflect
 /** Class info for RTTI-style object queries and editor metadata. */
 struct ClassInfo
 {
+    using FactoryFn = void* (*)();
+    using DestroyFn = void (*)(void*);
+    using PropertyRegisterFn = void (*)(ClassInfo&);
+
     /** Module name of the class. */
     std::string module_name;
 
@@ -40,14 +40,20 @@ struct ClassInfo
     /** Super-class info. */
     const ClassInfo* super{nullptr};
 
-    /** Instance creation. */
-    ReflectionTraits<Object, ClassInfo>::FactoryFn factory{nullptr};
+    /** Root hierarchy marker for this class. */
+    const void* root_tag{nullptr};
+
+    /** Instance creation (erased). */
+    FactoryFn factory{nullptr};
+
+    /** Instance destruction (erased). */
+    DestroyFn destroy{nullptr};
 
     /** Property registration. */
-    ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn register_properties{nullptr};
+    PropertyRegisterFn register_properties{nullptr};
 
     /** Linked list of registered properties for this class. */
-    std::unique_ptr<PropertyDescriptor<Object, ClassInfo>> first_property;
+    std::unique_ptr<PropertyDescriptor> first_property;
 
     /**
      * Check if this class is a child of another class.

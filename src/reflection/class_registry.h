@@ -14,12 +14,15 @@
 #include <memory>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 #include "class_info.h"
-#include "traits.h"
 
 namespace reflect
 {
+
+template<typename Root>
+const void* root_type_tag() noexcept;
 
 /** Static info about a pending class registration. */
 struct PendingClassRegistration
@@ -39,11 +42,17 @@ struct PendingClassRegistration
     /** The super class. */
     ClassInfo* super{nullptr};
 
-    /** Instance creation. */
-    ReflectionTraits<Object, ClassInfo>::FactoryFn factory{nullptr};
+    /** Root hierarchy marker for this class. */
+    const void* root_tag{nullptr};
+
+    /** Instance creation (erased). */
+    ClassInfo::FactoryFn factory{nullptr};
+
+    /** Instance destruction (erased). */
+    ClassInfo::DestroyFn destroy{nullptr};
 
     /** Property registration. */
-    ReflectionTraits<Object, ClassInfo>::PropertyRegisterFn register_properties{nullptr};
+    ClassInfo::PropertyRegisterFn register_properties{nullptr};
 };
 
 /** Linked-list for the automatic registration. */
@@ -93,22 +102,60 @@ public:
     static void process_pending_registrations();
 
     /**
-     * Find a class by name.
+     * Find a class by name within a specific root hierarchy marker.
      *
      * @param qualified_name The qualified class name as `module_name.class_name`.
-     * @returns Returns the class info, or `nullptr` if the class is not found.
+     * @param root_tag Root hierarchy marker.
+     * @returns Returns the class info if found and root-compatible, or `nullptr`.
      */
     static const ClassInfo* find_class(
-      std::string_view qualified_name);
+      std::string_view qualified_name,
+      const void* root_tag);
 
     /**
-     * Remove a class from the registry.
+     * Find a class by name for a specific root hierarchy.
+     *
+     * @tparam Root Root type used to filter classes.
+     *
+     * @param qualified_name The qualified class name as `module_name.class_name`.
+     * @returns Returns the class info if found and root-compatible, or `nullptr`.
+     */
+    template<typename Root>
+    static const ClassInfo* find_class(
+      std::string_view qualified_name)
+    {
+        return find_class(
+          qualified_name,
+          root_type_tag<Root>());
+    }
+
+    /**
+     * Remove a class from the registry for a specific root hierarchy marker.
      *
      * @param qualified_name The qualified class name.
-     * @returns Returns `bool` if `qualified_name` was removed from the registry.
+     * @param root_tag Root hierarchy marker.
+     * @returns Returns `true` if a class matching `qualified_name` and `root_tag` was removed.
      */
     static bool unregister_class(
-      std::string_view qualified_name);
+      std::string_view qualified_name,
+      const void* root_tag);
+
+    /**
+     * Remove a class from the registry for a specific root hierarchy type.
+     *
+     * @tparam Root Root type used to filter classes.
+     *
+     * @param qualified_name The qualified class name.
+     * @returns Returns `true` if a root-compatible class was removed.
+     */
+    template<typename Root>
+    static bool unregister_class(
+      std::string_view qualified_name)
+    {
+        return unregister_class(
+          qualified_name,
+          root_type_tag<Root>());
+    }
 
     /**
      * Remove all classes loaded by a module.
@@ -118,6 +165,13 @@ public:
      */
     static std::size_t unregister_module(
       std::string_view module_name);
+
+    /**
+     * Return all currently registered classes.
+     *
+     * @returns Returns a stable, sorted snapshot of registered classes.
+     */
+    static std::vector<const ClassInfo*> get_registered_classes();
 
     /** Clear the registry. */
     static void clear();
@@ -138,16 +192,29 @@ struct AutoClassRegistrar
     }
 };
 
-/** Factory for object creation. */
 template<
   typename Root,
   typename T>
-std::unique_ptr<Root> factory()
+void* factory_erased()
 {
     static_assert(
       std::is_base_of_v<Root, T>,
       "T must inherit from root type");
-    return std::make_unique<T>();
+    return static_cast<Root*>(new T{});
+}
+
+template<typename Root>
+void destroy_erased(
+  void* instance)
+{
+    delete static_cast<Root*>(instance);
+}
+
+template<typename Root>
+const void* root_type_tag() noexcept
+{
+    static const int tag = 0;
+    return &tag;
 }
 
 /** Return a type's super class or `nullptr` if there is none. */
@@ -185,7 +252,7 @@ struct StaticClassRegistration
     static_assert(
       std::is_same_v<
         decltype(TypeReflection<Root, T>::register_properties),
-        const typename ReflectionTraits<Root, ClassInfo>::PropertyRegisterFn>,
+        const ClassInfo::PropertyRegisterFn>,
       "TypeReflection<T>::register_properties must be PropertyRegisterFn");
 
     ClassInfo storage{};
@@ -195,7 +262,9 @@ struct StaticClassRegistration
       .size = sizeof(T),
       .storage = &storage,
       .super = super_class_info<T>(),
-      .factory = &factory<Root, T>,
+      .root_tag = root_type_tag<Root>(),
+      .factory = &factory_erased<Root, T>,
+      .destroy = &destroy_erased<Root>,
       .register_properties = TypeReflection<Root, T>::register_properties};
     PendingClassNode node{
       .reg = &registration,
@@ -299,13 +368,11 @@ void register_property(
   PropertyFlags flags = PropertyFlags::None)
 {
     auto descriptor = std::make_unique<
-      PropertyDescriptor<
-        typename MemberClassType<MemberPtr>::Root,
-        ClassInfo>>(
+      PropertyDescriptor>(
       std::string{name},
       std::string{label},
       flags,
-      &construct_member<MemberPtr>,
+      &construct_member_erased<MemberPtr>,
       std::move(class_info.first_property));
     class_info.first_property = std::move(descriptor);
 }

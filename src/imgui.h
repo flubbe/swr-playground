@@ -44,7 +44,8 @@ void imgui_draw_tools_panel(
   float pixel_density,
   const ImGuiIO& io);
 
-void imgui_draw_inspector_panel(Scene& scene);
+void imgui_draw_scene_inspector_panel(Scene& scene);
+void imgui_draw_class_inspector_panel();
 
 Object* imgui_get_selected_object() noexcept;
 void imgui_set_selected_object(Object* object) noexcept;

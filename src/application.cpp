@@ -477,7 +477,8 @@ void Application::run()
           frame_index,
           pixel_density,
           io);
-        imgui_draw_inspector_panel(*scene);
+        imgui_draw_scene_inspector_panel(*scene);
+        imgui_draw_class_inspector_panel();
 
         ImGui::Render();
 

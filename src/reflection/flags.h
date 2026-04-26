@@ -8,7 +8,9 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <cstddef>
+#pragma once
+
+#include <cstdint>
 #include <type_traits>
 
 namespace reflect
