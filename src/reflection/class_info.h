@@ -51,7 +51,7 @@ struct ClassInfo
     PropertyRegisterFn register_properties{nullptr};
 
     /** Linked list of registered properties for this class. */
-    std::unique_ptr<PropertyDescriptor> first_property;
+    std::unique_ptr<PropertyDescriptor<void>> first_property;
 
     /**
      * Check if this class is a child of another class.

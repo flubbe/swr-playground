@@ -100,6 +100,7 @@ add_executable(swr_playground
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp
+    src/reflection/builtin_properties.cpp
 )
 
 target_include_directories(swr_playground PRIVATE src)

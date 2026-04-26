@@ -281,7 +281,7 @@ void register_property(
   std::string_view label,
   PropertyFlags flags = PropertyFlags::None)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = std::make_unique<PropertyDescriptor<void>>(
       std::string{name},
       std::string{label},
       flags,

@@ -24,6 +24,7 @@
 #include "imgui.h"
 #include "renderdevice.h"
 #include "renderer.h"
+#include "reflection/builtin_properties.h"
 #include "scene/scene.h"
 #include "viewport.h"
 
