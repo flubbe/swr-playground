@@ -11,8 +11,8 @@
 #include <algorithm>
 #include <utility>
 
-#include "reflection/class_info.h"
-#include "reflection/property.h"
+#include "class_info.h"
+#include "property.h"
 
 namespace
 {
@@ -37,13 +37,10 @@ namespace reflect
 Property::Property(
   std::string name,
   std::string label,
-  bool read_only)
+  PropertyFlags flags)
 : name{std::move(name)}
 , label{std::move(label)}
-, flags{
-    read_only
-      ? PropertyFlags::ReadOnly
-      : PropertyFlags::None}
+, flags{flags}
 {
 }
 
@@ -51,9 +48,9 @@ IntProperty::IntProperty(
   std::string name,
   std::string label,
   int* value,
-  bool read_only,
+  PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , speed{speed}
 {
@@ -65,9 +62,9 @@ IntProperty::IntProperty(
   int* value,
   int min_value,
   int max_value,
-  bool read_only,
+  PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -131,9 +128,9 @@ UIntProperty::UIntProperty(
   std::string name,
   std::string label,
   std::uint32_t* value,
-  bool read_only,
+  PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , speed{speed}
 {
@@ -145,9 +142,9 @@ UIntProperty::UIntProperty(
   std::uint32_t* value,
   std::uint32_t min_value,
   std::uint32_t max_value,
-  bool read_only,
+  PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -211,10 +208,10 @@ FloatProperty::FloatProperty(
   std::string name,
   std::string label,
   float* value,
-  bool read_only,
+  PropertyFlags flags,
   float speed,
   const char* format)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , speed{speed}
 , format{format}
@@ -227,10 +224,10 @@ FloatProperty::FloatProperty(
   float* value,
   float min_value,
   float max_value,
-  bool read_only,
+  PropertyFlags flags,
   float speed,
   const char* format)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , min_value{min_value}
 , max_value{max_value}
@@ -300,8 +297,8 @@ BoolProperty::BoolProperty(
   std::string name,
   std::string label,
   bool* value,
-  bool read_only)
-: Property{std::move(name), std::move(label), read_only}
+  PropertyFlags flags)
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 {
 }
@@ -336,9 +333,9 @@ StringProperty::StringProperty(
   std::string name,
   std::string label,
   std::string* value,
-  bool read_only,
+  PropertyFlags flags,
   std::size_t max_length)
-: Property{std::move(name), std::move(label), read_only}
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 , max_length{max_length}
 {
@@ -380,8 +377,8 @@ Mat4Property::Mat4Property(
   std::string name,
   std::string label,
   ml::mat4x4* value,
-  bool read_only)
-: Property{std::move(name), std::move(label), read_only}
+  PropertyFlags flags)
+: Property{std::move(name), std::move(label), flags}
 , value{value}
 {
 }

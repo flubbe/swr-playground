@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Object reflection.
+ * Reflection.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -15,7 +15,7 @@
 #include <string_view>
 #include <type_traits>
 
-#include "reflection/class_info.h"
+#include "class_info.h"
 
 namespace reflect
 {
@@ -137,9 +137,7 @@ struct AutoClassRegistrar
     }
 };
 
-template<typename T>
-struct TypeReflection;
-
+/** Factory for object creation. */
 template<typename T>
 std::unique_ptr<Object> factory()
 {
@@ -149,6 +147,7 @@ std::unique_ptr<Object> factory()
     return std::make_unique<T>();
 }
 
+/** Return a type's super class or `nullptr` if there is none. */
 template<typename T>
 ClassInfo* super_class_info() noexcept
 {
@@ -160,6 +159,11 @@ ClassInfo* super_class_info() noexcept
     return nullptr;
 }
 
+/** Templated reflection type entry. */
+template<typename T>
+struct TypeReflection;
+
+/** Registration helper for statically registered classes. */
 template<typename T>
 struct StaticClassRegistration
 {
@@ -188,6 +192,7 @@ struct StaticClassRegistration
     AutoClassRegistrar registrar{&node};
 };
 
+/** Return the static class registration for a type. */
 template<typename T>
 StaticClassRegistration<T>& class_registration() noexcept;
 
@@ -225,6 +230,7 @@ StaticClassRegistration<T>& class_registration() noexcept;
     }                                                                           \
     }
 
+/** Super class for the root class of all reflected classes. */
 template<typename Derived>
 class ReflectRoot
 {
@@ -235,6 +241,7 @@ public:
     }
 };
 
+/** Super class for a non-root reflected class. */
 template<typename Derived, typename Base>
 class Reflected : public Base
 {
@@ -253,9 +260,15 @@ public:
     }
 };
 
+/*
+ * Property registration.
+ */
+
+/** Helper to get class and member types. */
 template<typename T>
 struct MemberPointerTraits;
 
+/** Helper to get class and member types. */
 template<typename Class, typename Member>
 struct MemberPointerTraits<Member Class::*>
 {
@@ -263,6 +276,16 @@ struct MemberPointerTraits<Member Class::*>
     using MemberType = Member;
 };
 
+/**
+ * Register a data member as a reflected property.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param class_info Class metadata to append the property to.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ */
 template<auto MemberPtr>
 void register_property(
   ClassInfo& class_info,

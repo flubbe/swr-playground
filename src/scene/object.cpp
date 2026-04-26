@@ -70,7 +70,7 @@ void Object::initialize_properties()
                 *this,
                 descriptor->name,
                 descriptor->label,
-                descriptor->is_read_only()));
+                descriptor->flags));
         }
     }
 }

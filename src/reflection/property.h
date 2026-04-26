@@ -86,7 +86,7 @@ public:
     Property(
       std::string name,
       std::string label,
-      bool read_only = false);
+      PropertyFlags flags = PropertyFlags::None);
 
     virtual ~Property() = default;
 
@@ -122,8 +122,7 @@ using ConstructFn = std::unique_ptr<Property> (*)(
   Object&,
   std::string_view,    // name
   std::string_view,    // label
-  bool                 // read_only
-);
+  PropertyFlags);
 
 struct PropertyDescriptor
 {
@@ -173,7 +172,7 @@ public:
       std::string name,
       std::string label,
       int* value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     IntProperty(
@@ -182,7 +181,7 @@ public:
       int* value,
       int min_value,
       int max_value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     bool has_value() const noexcept;
@@ -210,7 +209,7 @@ public:
       std::string name,
       std::string label,
       unsigned int* value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     UIntProperty(
@@ -219,7 +218,7 @@ public:
       unsigned int* value,
       unsigned int min_value,
       unsigned int max_value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     bool has_value() const noexcept;
@@ -248,7 +247,7 @@ public:
       std::string name,
       std::string label,
       float* value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 0.01f,
       const char* format = "%.3f");
 
@@ -258,7 +257,7 @@ public:
       float* value,
       float min_value,
       float max_value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       float speed = 0.01f,
       const char* format = "%.3f");
 
@@ -284,7 +283,7 @@ public:
       std::string name,
       std::string label,
       bool* value,
-      bool read_only = false);
+      PropertyFlags flags = PropertyFlags::None);
 
     bool has_value() const noexcept;
     bool get_value() const noexcept;
@@ -303,7 +302,7 @@ public:
       std::string name,
       std::string label,
       std::string* value,
-      bool read_only = false,
+      PropertyFlags flags = PropertyFlags::None,
       std::size_t max_length = 256);
 
     bool has_value() const noexcept;
@@ -323,7 +322,7 @@ public:
       std::string name,
       std::string label,
       ml::mat4x4* value,
-      bool read_only = false);
+      PropertyFlags flags = PropertyFlags::None);
 
     bool has_value() const noexcept;
     const ml::mat4x4& get_value() const noexcept;
@@ -381,13 +380,13 @@ struct PropertyFactory<int>
       std::string name,
       std::string_view label,
       int& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<IntProperty>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -398,13 +397,13 @@ struct PropertyFactory<std::uint32_t>
       std::string_view name,
       std::string_view label,
       std::uint32_t& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<UIntProperty>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -415,13 +414,13 @@ struct PropertyFactory<float>
       std::string_view name,
       std::string_view label,
       float& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<FloatProperty>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -432,13 +431,13 @@ struct PropertyFactory<bool>
       std::string_view name,
       std::string_view label,
       bool& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<BoolProperty>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -449,13 +448,13 @@ struct PropertyFactory<std::string>
       std::string_view name,
       std::string_view label,
       std::string& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<StringProperty>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -466,13 +465,13 @@ struct PropertyFactory<ml::mat4x4>
       std::string_view name,
       std::string_view label,
       ml::mat4x4& value,
-      bool read_only)
+      PropertyFlags flags)
     {
         return std::make_unique<Mat4Property>(
           std::string{name},
           std::string{label},
           &value,
-          read_only);
+          flags);
     }
 };
 
@@ -487,15 +486,19 @@ struct UnwrapType
     }
 };
 
-template<typename Class, typename Member, Member Class::* MemberPtr>
+template<
+  typename Class,
+  typename Member,
+  Member Class::* MemberPtr>
 std::unique_ptr<Property> construct_member(
   Object& obj,
   std::string_view name,
   std::string_view label,
-  bool read_only)
+  PropertyFlags flags)
 {
-    static_assert(std::is_base_of_v<Object, Class>,
-                  "Class must derive from Object");
+    static_assert(
+      std::is_base_of_v<Object, Class>,
+      "Class must derive from Object");
 
     auto& typed = static_cast<Class&>(obj);
     Member& value = typed.*MemberPtr;
@@ -507,7 +510,7 @@ std::unique_ptr<Property> construct_member(
       name,
       label,
       Traits::get(value),
-      read_only);
+      flags);
 }
 
 }    // namespace reflect

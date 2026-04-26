@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <string>
 
-#include "reflection/property.h"
+#include "property.h"
 
 class Object;
 

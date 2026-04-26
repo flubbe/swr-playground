@@ -12,30 +12,32 @@
 #include <stdexcept>
 #include <unordered_map>
 
-#include "reflection/class_registry.h"
+#include "class_registry.h"
 
 namespace
 {
 
 /** Class registry type, mapping qualified names to class metadata. */
-using ClassMap = std::unordered_map<std::string, const reflect::ClassInfo*>;
+using ClassMap = std::unordered_map<
+  std::string,
+  const reflect::ClassInfo*>;
 
 /** Head of pending class linked list. */
-reflect::PendingClassNode*& pending_head()
+reflect::PendingClassNode*& pending_head() noexcept
 {
     static reflect::PendingClassNode* head = nullptr;
     return head;
 }
 
 /** Class registry. */
-ClassMap& classes()
+ClassMap& classes() noexcept
 {
     static ClassMap map;
     return map;
 }
 
 /** Automatric registration enable/disable. */
-bool& auto_registration_enabled()
+bool& auto_registration_enabled() noexcept
 {
     static bool value = true;
     return value;
@@ -50,7 +52,10 @@ bool& auto_registration_enabled()
 void register_class(
   const reflect::ClassInfo& cls)
 {
-    const auto [_, inserted] = classes().emplace(cls.qualified_name, &cls);
+    const auto [_, inserted] =
+      classes().emplace(
+        cls.qualified_name,
+        &cls);
     if(!inserted)
     {
         throw std::runtime_error{
@@ -69,14 +74,21 @@ void register_class(
  *
  * @param cls The class info.
  */
-void reverse_properties(reflect::ClassInfo& cls)
+void reverse_properties(
+  reflect::ClassInfo& cls) noexcept
 {
-    std::unique_ptr<reflect::PropertyDescriptor> prev = nullptr;
-    std::unique_ptr<reflect::PropertyDescriptor> curr = std::move(cls.first_property);
+    std::unique_ptr<
+      reflect::PropertyDescriptor>
+      prev = nullptr;
+    std::unique_ptr<
+      reflect::PropertyDescriptor>
+      curr = std::move(cls.first_property);
 
     while(curr != nullptr)
     {
-        std::unique_ptr<reflect::PropertyDescriptor> next = std::move(curr->next);
+        std::unique_ptr<
+          reflect::PropertyDescriptor>
+          next = std::move(curr->next);
         curr->next = std::move(prev);
         prev = std::move(curr);
         curr = std::move(next);
@@ -123,7 +135,8 @@ void ReflectionSystem::process_pending_registrations()
         node->next = nullptr;
 
         const PendingClassRegistration* reg = node->reg;
-        if(reg == nullptr || reg->storage == nullptr)
+        if(reg == nullptr
+           || reg->storage == nullptr)
         {
             throw std::runtime_error{
               "Invalid pending class registration entry"};
@@ -165,13 +178,17 @@ const ClassInfo* ReflectionSystem::find_class(
   std::string_view qualified_name)
 {
     const auto it = classes().find(std::string{qualified_name});
-    return (it != classes().end()) ? it->second : nullptr;
+    return (it != classes().end())
+             ? it->second
+             : nullptr;
 }
 
 bool ReflectionSystem::unregister_class(
   std::string_view qualified_name)
 {
-    return classes().erase(std::string{qualified_name}) != 0;
+    return classes().erase(
+             std::string{qualified_name})
+           != 0;
 }
 
 std::size_t ReflectionSystem::unregister_module(
