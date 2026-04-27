@@ -553,6 +553,22 @@ concept ReflectedBase =
   };
 
 /**
+ * Concept to ensure a class `Derived` has a `register_properties` function that is
+ * distinct from its parent `Super`.
+ */
+template<
+  class Derived,
+  class Super>
+concept HasOwnRegisterProperties =
+  requires {
+      { &Derived::register_properties }
+        -> std::same_as<void (*)(ClassInfo&)>;
+      { &Super::register_properties }
+        -> std::same_as<void (*)(ClassInfo&)>;
+  }
+  && (&Derived::register_properties != &Super::register_properties);
+
+/**
  * CRTP base for a non-root reflected class.
  *
  * `Reflected<Derived, Base>` inherits from `Base` and provides reflection
@@ -587,6 +603,13 @@ public:
      */
     static ClassInfo* static_class() noexcept
     {
+        // Validate register_properties here, since it is evaluated
+        // after instantiation (thus it cannot be a requires clause).
+        static_assert(
+          HasOwnRegisterProperties<Derived, Super>,
+          "Each reflected class must declare its own "
+          "static void register_properties(ClassInfo&).");
+
         return &class_registration<Root, Derived>().storage;
     }
 
