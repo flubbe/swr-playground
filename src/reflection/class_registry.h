@@ -14,6 +14,7 @@
 #include <concepts>
 #include <cstddef>
 #include <memory>
+#include <ranges>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -373,6 +374,48 @@ protected:
     /** RTTI-style type info. */
     const ClassInfo* class_info{Base::static_class()};
 
+    /** Reflected properties, filled in by `initialize_properties`. */
+    std::vector<std::unique_ptr<Property>> properties;
+
+    /** Initialize the property list from the class metadata. */
+    void initialize_properties()
+    {
+        properties.clear();
+
+        std::vector<const reflect::ClassInfo*> class_chain;
+
+        // Gather class chain so base class properties come first.
+        for(const auto* cls = get_class(); cls != nullptr; cls = cls->super)
+        {
+            class_chain.push_back(cls);
+        }
+
+        for(const auto& cls: class_chain | std::views::reverse)
+        {
+            if(cls->first_property == nullptr)
+            {
+                continue;
+            }
+
+            for(auto* descriptor = cls->first_property.get();
+                descriptor != nullptr;
+                descriptor = descriptor->next ? descriptor->next.get() : nullptr)
+            {
+                if(descriptor->construct == nullptr)
+                {
+                    continue;
+                }
+
+                properties.emplace_back(
+                  descriptor->construct(
+                    this,
+                    descriptor->name,
+                    descriptor->label,
+                    descriptor->flags));
+            }
+        }
+    }
+
 public:
     using Root = Base;
 
@@ -382,8 +425,24 @@ public:
     {
     }
 
-    /** Default constructor. */
+    /**
+     * Constructor.
+     *
+     * @note Creates an invalid object (no class info set).
+     */
     ReflectRoot() = default;
+
+    ReflectRoot(const ReflectRoot&) = delete;
+
+    ReflectRoot(ReflectRoot&& other)
+    : class_info{other.class_info}
+    , properties{std::move(other.properties)}
+    {
+        if(class_info == nullptr)
+        {
+            throw std::runtime_error("Cannot create root without class_info.");
+        }
+    }
 
     /** Virtual destructor. */
     virtual ~ReflectRoot() = default;
@@ -402,6 +461,20 @@ public:
         {
             throw std::runtime_error("Cannot create root without class_info.");
         }
+
+        initialize_properties();
+    }
+
+    ReflectRoot& operator=(const ReflectRoot&) = delete;
+
+    ReflectRoot& operator=(ReflectRoot&& other)
+    {
+        class_info = other.class_info;
+        properties = std::move(other.properties);
+
+        other.class_info = nullptr;
+
+        return *this;
     }
 
     /**
@@ -452,6 +525,13 @@ public:
     bool is_a(const reflect::ClassInfo* cls) const
     {
         return get_class()->is_a(cls);
+    }
+
+    /** Return the properties for this class. */
+    template<class Self>
+    decltype(auto) get_properties(this Self& self)
+    {
+        return (self.ReflectRoot<Root>::properties);
     }
 };
 

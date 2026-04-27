@@ -14,7 +14,7 @@
 
 #include "object.h"
 
-class Camera : public Object
+class Camera : public reflect::Reflected<Camera, Object>
 {
     /** Sensor width. */
     int width{0};
@@ -37,6 +37,8 @@ protected:
     }
 
 public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
     Camera() = default;
 
     Camera(int width, int height)
@@ -58,3 +60,5 @@ public:
         update();
     }
 };
+
+DECLARE_REFLECTION(Scene, Camera);

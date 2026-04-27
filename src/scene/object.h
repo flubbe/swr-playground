@@ -66,17 +66,13 @@ inline ObjectId make_object_id(std::uint32_t value)
 class Object
 : public reflect::ReflectRoot<Object>
 {
-public:
-    static void register_properties(reflect::ClassInfo& class_info);
-
 private:
-    /** Reflected properties, filled in by `initialize_properties`. */
-    std::vector<std::unique_ptr<reflect::Property>> properties;
-
     /** meshes. */
     std::vector<RenderData> mesh_handles;
 
 public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
@@ -93,15 +89,12 @@ protected:
     : reflect::ReflectRoot<Object>{class_info}
     , mesh_handles{std::move(mesh_handles)}
     {
-        initialize_properties();
     }
 
     void set_class_info(const reflect::ClassInfo* class_info) noexcept
     {
         this->class_info = class_info;
     }
-
-    void initialize_properties();
 
 public:
     /** default constructor. */
@@ -117,13 +110,11 @@ public:
         Object::static_class(),
         std::move(mesh_handles)}
     {
-        initialize_properties();
     }
 
     /** move data. */
     Object(Object&& other)
-    : ReflectRoot<Object>{other.class_info}
-    , properties{std::move(other.properties)}
+    : reflect::ReflectRoot<Object>{std::move(other)}
     , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
@@ -131,18 +122,16 @@ public:
         other.class_info = nullptr;
     }
 
-    Object(const Object&) = default;
-    Object& operator=(const Object&) = default;
+    Object(const Object&) = delete;
+    Object& operator=(const Object&) = delete;
 
     Object& operator=(Object&& other)
     {
-        properties = std::move(other.properties);
-        class_info = other.class_info;
+        static_cast<ReflectRoot<Object>&>(*this) = std::move(other);
+
         mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
         name = std::move(other.name);
-
-        other.class_info = nullptr;
 
         return *this;
     }
@@ -165,14 +154,6 @@ public:
     void set_name(std::string object_name)
     {
         name = std::move(object_name);
-    }
-
-    std::vector<
-      std::unique_ptr<
-        reflect::Property>>&
-      get_properties()
-    {
-        return properties;
     }
 
     /** release all data. */
