@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <string_view>
