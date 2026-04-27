@@ -25,6 +25,7 @@
 
 #include "reflection/builtin_properties.h"
 #include "reflection/class_registry.h"
+#include "scene/properties.h"
 #include "scene/scene.h"
 #include "imgui.h"
 #include "renderdevice.h"

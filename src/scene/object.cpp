@@ -11,6 +11,7 @@
 #include <ranges>
 
 #include "reflection/builtin_properties.h"
+#include "scene/properties.h"
 #include "object.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
