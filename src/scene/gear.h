@@ -38,12 +38,17 @@ struct GearParameters
 };
 
 /** A gear object. */
-class Gear : public Object
+class Gear : public reflect::Reflected<Gear, Object>
 {
-    DECLARE_CLASS(Gear, Object);
-
 public:
-    Gear() = default;
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    Gear()
+    : Reflected<Gear, Object>{Gear::static_class()}
+    {
+    }
 
     explicit Gear(const GearParameters& params);
 };
+
+DECLARE_REFLECTION(Scene, Gear);

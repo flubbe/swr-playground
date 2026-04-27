@@ -10,9 +10,15 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "ml/all.h"
+
+#include "reflection/class_registry.h"
+#include "reflection/property.h"
 
 struct RenderData
 {
@@ -20,28 +26,9 @@ struct RenderData
     std::uint32_t material_handle{0};
 };
 
-/** Class info for RTTI-style object queries. */
-struct ClassInfo
-{
-    std::string_view name;
-    const ClassInfo* parent = nullptr;
-
-    bool is_a(const ClassInfo* other) const
-    {
-        for(auto p = this; p != nullptr; p = p->parent)
-        {
-            if(p == other)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-};
-
 struct ObjectId
 {
-    std::uint32_t value = 0;
+    unsigned int value = 0;
 
     bool operator==(const ObjectId& other) const noexcept
     {
@@ -53,15 +40,45 @@ struct ObjectId
     }
 };
 
+// Property support.
+
+namespace reflect
+{
+
+template<>
+struct UnwrapType<ObjectId>
+{
+    using Type = unsigned int;
+
+    static Type& get(ObjectId& value) noexcept
+    {
+        return value.value;
+    }
+};
+
+}    // namespace reflect
+
 inline ObjectId make_object_id(std::uint32_t value)
 {
     return {value};
 }
 
 class Object
+: public reflect::ReflectRoot<Object>
 {
-    /** RTTI-style type info. */
-    ClassInfo class_info;
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+private:
+    /** Reflected properties, filled in by `initialize_properties`. */
+    std::vector<std::unique_ptr<reflect::Property>> properties;
+
+    /** meshes. */
+    std::vector<RenderData> mesh_handles;
+
+public:
+    /** object transformation matrix. */
+    ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** object id. */
     ObjectId object_id{0};
@@ -69,11 +86,22 @@ class Object
     /** object name. */
     std::string name;
 
-    /** object transformation matrix. */
-    ml::mat4x4 transform{ml::mat4x4::identity()};
+protected:
+    Object(
+      const reflect::ClassInfo* class_info,
+      std::vector<RenderData> mesh_handles = {})
+    : reflect::ReflectRoot<Object>{class_info}
+    , mesh_handles{std::move(mesh_handles)}
+    {
+        initialize_properties();
+    }
 
-    /** meshes. */
-    std::vector<RenderData> mesh_handles;
+    void set_class_info(const reflect::ClassInfo* class_info) noexcept
+    {
+        this->class_info = class_info;
+    }
+
+    void initialize_properties();
 
 public:
     /** default constructor. */
@@ -85,17 +113,22 @@ public:
     /** initialize the object with a mesh. */
     Object(
       std::vector<RenderData> mesh_handles)
-    : mesh_handles{std::move(mesh_handles)}
+    : Object{
+        Object::static_class(),
+        std::move(mesh_handles)}
     {
+        initialize_properties();
     }
 
     /** move data. */
     Object(Object&& other)
-    : class_info{other.class_info}
+    : ReflectRoot<Object>{other.class_info}
+    , properties{std::move(other.properties)}
+    , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
-    , mesh_handles{std::move(other.mesh_handles)}
     {
+        other.class_info = nullptr;
     }
 
     Object(const Object&) = default;
@@ -103,10 +136,13 @@ public:
 
     Object& operator=(Object&& other)
     {
+        properties = std::move(other.properties);
         class_info = other.class_info;
+        mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
         name = std::move(other.name);
-        mesh_handles = std::move(other.mesh_handles);
+
+        other.class_info = nullptr;
 
         return *this;
     }
@@ -131,28 +167,12 @@ public:
         name = std::move(object_name);
     }
 
-    virtual const ClassInfo* get_class() const
+    std::vector<
+      std::unique_ptr<
+        reflect::Property>>&
+      get_properties()
     {
-        return static_class();
-    }
-
-    static const ClassInfo* static_class()
-    {
-        static const ClassInfo cls{
-          .name = "Object",
-          .parent = nullptr};
-        return &cls;
-    }
-
-    template<typename T>
-    bool is_a() const
-    {
-        return get_class()->is_a(T::static_class());
-    }
-
-    bool is_a(const ClassInfo* cls) const
-    {
-        return get_class()->is_a(cls);
+        return properties;
     }
 
     /** release all data. */
@@ -203,18 +223,4 @@ public:
     }
 };
 
-#define DECLARE_CLASS(Type, Base)               \
-public:                                         \
-    using Super = Base;                         \
-    static const ClassInfo* static_class();     \
-    const ClassInfo* get_class() const override \
-    {                                           \
-        return Type::static_class();            \
-    }
-
-#define DEFINE_CLASS(Type)                                              \
-    const ClassInfo* Type::static_class()                               \
-    {                                                                   \
-        static const ClassInfo cls{#Type, Type::Super::static_class()}; \
-        return &cls;                                                    \
-    }
+DECLARE_REFLECTION(Scene, Object);

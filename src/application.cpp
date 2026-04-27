@@ -11,6 +11,8 @@
 #include <format>
 #include <print>
 #include <stdexcept>
+#include <algorithm>
+#include <cmath>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -104,97 +106,75 @@ void update_viewport_texture(
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void setup_dock_layout(ImGuiID dockspace_id)
-{
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-
-    ImGui::DockBuilderRemoveNode(dockspace_id);
-    ImGui::DockBuilderAddNode(
-      dockspace_id,
-      ImGuiDockNodeFlags_DockSpace);
-    ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
-
-    ImGuiID dock_main = dockspace_id;
-    ImGuiID dock_left = 0;
-    ImGuiID dock_right = 0;
-    ImGuiID dock_bottom = 0;
-
-    dock_left = ImGui::DockBuilderSplitNode(
-      dock_main,
-      ImGuiDir_Left,
-      0.20f,
-      nullptr,
-      &dock_main);
-
-    dock_right = ImGui::DockBuilderSplitNode(
-      dock_main,
-      ImGuiDir_Right,
-      0.25f,
-      nullptr,
-      &dock_main);
-
-    dock_bottom = ImGui::DockBuilderSplitNode(
-      dock_main,
-      ImGuiDir_Down,
-      0.25f,
-      nullptr,
-      &dock_main);
-
-    ImGui::DockBuilderDockWindow("Viewport", dock_main);
-    ImGui::DockBuilderDockWindow("Console", dock_bottom);
-    ImGui::DockBuilderDockWindow("Tools", dock_right);
-    ImGui::DockBuilderDockWindow("Inspector", dock_left);
-
-    ImGui::DockBuilderFinish(dockspace_id);
-}
-
-void draw_main_dockspace(
+void imgui_draw_viewport_panel(
+  Application& app,
+  RenderDevice& render_device,
+  Renderer& renderer,
+  Scene& scene,
+  Viewport& viewport,
+  float pixel_density,
+  GLuint& viewport_texture,
+  std::vector<std::string>& log_lines,
+  float& last_update_time,
   bool& running)
 {
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::Begin("Viewport");
 
-    ImGuiWindowFlags host_window_flags =
-      ImGuiWindowFlags_NoDocking
-      | ImGuiWindowFlags_NoTitleBar
-      | ImGuiWindowFlags_NoCollapse
-      | ImGuiWindowFlags_NoResize
-      | ImGuiWindowFlags_NoMove
-      | ImGuiWindowFlags_NoBringToFrontOnFocus
-      | ImGuiWindowFlags_NoNavFocus
-      | ImGuiWindowFlags_MenuBar;
+    ImVec2 avail = ImGui::GetContentRegionAvail();
 
-    ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
-    ImGui::SetNextWindowViewport(viewport->ID);
+    // ImGui sizes are logical units; rasterizer target should use pixels.
+    int viewport_w_px = std::max(1, static_cast<int>(std::round(avail.x * pixel_density)));
+    int viewport_h_px = std::max(1, static_cast<int>(std::round(avail.y * pixel_density)));
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0f, 0.0f});
-
-    ImGui::Begin("MainDockHost", nullptr, host_window_flags);
-    ImGui::PopStyleVar(3);
-
-    if(ImGui::BeginMenuBar())
+    // FIXME the dimensions should not come from the render device
+    if(viewport_w_px != render_device.get_width()
+       || viewport_h_px != render_device.get_height())
     {
-        if(ImGui::BeginMenu("File"))
+        viewport.camera.set_resolution(viewport_w_px, viewport_h_px);
+        render_device.resize(viewport_w_px, viewport_h_px);
+
+        destroy_viewport_texture(viewport_texture);
+
+        try
         {
-            if(ImGui::MenuItem("Quit", nullptr, false, true))
-            {
-                running = false;
-            }
-            ImGui::EndMenu();
+            viewport_texture = create_viewport_texture(
+              render_device.get_width(),
+              render_device.get_height());
+            log_lines.push_back(
+              std::format(
+                "[info] resized viewport to {}x{}",
+                render_device.get_width(),
+                render_device.get_height()));
         }
-        ImGui::EndMenuBar();
+        catch(const std::exception& e)
+        {
+            std::println(stderr, "{}", e.what());
+            running = false;
+        }
     }
 
-    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
-    ImGui::DockSpace(dockspace_id, ImVec2{0.0f, 0.0f});
-
-    static bool first_time = true;
-    if(first_time)
+    const float time_seconds = static_cast<float>(SDL_GetTicks()) / 1000.0f;
+    const float delta_time = time_seconds - last_update_time;
+    last_update_time = time_seconds;
+    if(delta_time > 0)
     {
-        setup_dock_layout(dockspace_id);
-        first_time = false;
+        app.tick(delta_time);
+    }
+
+    renderer.render(
+      scene,
+      viewport);
+
+    if(viewport_texture != 0)
+    {
+        update_viewport_texture(viewport_texture, render_device);
+
+        // Display at logical UI size, not pixel size.
+        ImGui::Image(
+          static_cast<ImTextureID>(viewport_texture),
+          avail,
+          ImVec2{0, 0},
+          ImVec2{1, 1});
     }
 
     ImGui::End();
@@ -294,140 +274,6 @@ void update_gears(
     gears[2]->set_transform(
       ml::matrices::translation(-3.1f, 4.2f, 0.f)
       * ml::matrices::rotation_z(-2.f * time - 25.f));
-}
-
-void imgui_draw_console(std::vector<std::string>& log_lines)
-{
-    ImGui::Begin("Console");
-
-    if(ImGui::Button("Clear"))
-    {
-        log_lines.clear();
-    }
-
-    ImGui::Separator();
-
-    ImGui::BeginChild(
-      "ConsoleScrollRegion",
-      ImVec2{0, 0},
-      false,
-      ImGuiWindowFlags_HorizontalScrollbar);
-    for(const std::string& line: log_lines)
-    {
-        ImGui::TextUnformatted(line.c_str());
-    }
-    if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-    {
-        ImGui::SetScrollHereY(1.0f);
-    }
-    ImGui::EndChild();
-
-    ImGui::End();
-}
-
-void imgui_draw_tools(
-  ImGuiIO& io,
-  RenderDevice& render_device,
-  Renderer& renderer,
-  Scene& scene,
-  Viewport& viewport,
-  float pixel_density,
-  int frame_index)
-{
-    ImGui::Begin("Tools");
-
-    if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        ImGui::Text(
-          "Framebuffer: %d x %d px",
-          render_device.get_width(),
-          render_device.get_height());
-        ImGui::Text("Window pixel density: %.2f", pixel_density);
-        ImGui::Text("Frame: %d", frame_index);
-        ImGui::Text("Scene time: %.1f s", scene.get_time());
-    }
-
-    if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        bool wireframe = viewport.draw_params.wireframe;
-        bool cull_face = viewport.draw_params.cull_face;
-        bool paused = scene.is_paused();
-
-        if(ImGui::Checkbox("Paused", &paused))
-        {
-            scene.set_paused(paused);
-        }
-
-        if(ImGui::Checkbox("Wireframe", &wireframe))
-        {
-            viewport.draw_params.wireframe = wireframe;
-        }
-
-        if(ImGui::Checkbox("Face Culling", &cull_face))
-        {
-            viewport.draw_params.cull_face = cull_face;
-        }
-    }
-
-    if(ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        ImGui::Text("FPS: %.1f", io.Framerate);
-        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
-        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
-    }
-
-    ImGui::End();
-}
-
-void imgui_draw_scene_inspector(
-  Scene& scene,
-  std::optional<ObjectId>& selected_object_id)
-{
-    ImGui::Begin("Inspector");
-
-    for(const auto& obj_ptr: scene.get_objects())
-    {
-        if(!obj_ptr)
-        {
-            continue;
-        }
-
-        Object& obj = *obj_ptr;
-        bool is_selected = (selected_object_id == obj.get_object_id());
-
-        const auto type_name = obj.get_class()->name;
-        std::string label =
-          std::format(
-            "{} ({})##{}",
-            obj.get_name(),
-            type_name,
-            obj.get_object_id().value);
-
-        ImGuiTreeNodeFlags flags =
-          ImGuiTreeNodeFlags_OpenOnArrow
-          | ImGuiTreeNodeFlags_OpenOnDoubleClick
-          | ImGuiTreeNodeFlags_SpanAvailWidth;
-
-        if(is_selected)
-        {
-            flags |= ImGuiTreeNodeFlags_Selected;
-        }
-
-        bool open = ImGui::TreeNodeEx(label.c_str(), flags);
-
-        if(ImGui::IsItemClicked())
-        {
-            selected_object_id = obj.get_object_id();
-        }
-
-        if(open)
-        {
-            ImGui::Text("ID: %u", obj.get_object_id().value);
-            ImGui::TreePop();
-        }
-    }
-
-    ImGui::End();
 }
 
 }    // namespace
@@ -610,79 +456,29 @@ void Application::run()
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        draw_main_dockspace(running);
-
-        ImGui::Begin("Viewport");
-
-        ImVec2 avail = ImGui::GetContentRegionAvail();
-
-        // ImGui sizes are logical units; rasterizer target should use pixels.
-        int viewport_w_px = std::max(1, static_cast<int>(std::round(avail.x * pixel_density)));
-        int viewport_h_px = std::max(1, static_cast<int>(std::round(avail.y * pixel_density)));
-
-        // FIXME the dimensions should not come from the render device
-        if(viewport_w_px != render_device->get_width()
-           || viewport_h_px != render_device->get_height())
-        {
-            viewport->camera.set_resolution(viewport_w_px, viewport_h_px);
-            render_device->resize(viewport_w_px, viewport_h_px);
-
-            destroy_viewport_texture(viewport_texture);
-
-            try
-            {
-                viewport_texture = create_viewport_texture(
-                  render_device->get_width(),
-                  render_device->get_height());
-                log_lines.push_back(
-                  std::format(
-                    "[info] resized viewport to {}x{}",
-                    render_device->get_width(),
-                    render_device->get_height()));
-            }
-            catch(const std::exception& e)
-            {
-                std::println(stderr, "{}", e.what());
-                running = false;
-            }
-        }
-
-        const float time_seconds = static_cast<float>(SDL_GetTicks()) / 1000.0f;
-        const float delta_time = time_seconds - last_update_time;
-        last_update_time = time_seconds;
-        if(delta_time > 0)
-        {
-            tick(delta_time);
-        }
-
-        renderer->render(
-          *scene,
-          *viewport);
-
-        if(viewport_texture != 0)
-        {
-            update_viewport_texture(viewport_texture, *render_device);
-
-            // Display at logical UI size, not pixel size.
-            ImGui::Image(
-              static_cast<ImTextureID>(viewport_texture),
-              avail,
-              ImVec2{0, 0},
-              ImVec2{1, 1});
-        }
-
-        ImGui::End();
-
-        imgui_draw_console(log_lines);
-        imgui_draw_tools(
-          io,
+        imgui_draw_main_dockspace(running);
+        imgui_draw_viewport_panel(
+          *this,
           *render_device,
           *renderer,
           *scene,
           *viewport,
           pixel_density,
-          frame_index);
-        imgui_draw_scene_inspector(*scene, selected_object_id);
+          viewport_texture,
+          log_lines,
+          last_update_time,
+          running);
+        imgui_draw_console_panel(log_lines);
+        imgui_draw_tools_panel(
+          *render_device,
+          *viewport,
+          *scene,
+          *renderer,
+          frame_index,
+          pixel_density,
+          io);
+        imgui_draw_scene_inspector_panel(*scene);
+        imgui_draw_class_inspector_panel();
 
         ImGui::Render();
 

@@ -304,11 +304,16 @@ GearGeometry make_gear(
  * Gear object.
  */
 
-DEFINE_CLASS(Gear);
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+
+DEFINE_REFLECTION(Gear);
+
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 Gear::Gear(
   const GearParameters& params)
-: Object{
+: Reflected<Gear, Object>{
+    Gear::static_class(),
     std::vector{
       RenderData{
         .mesh_handle = params.inner.mesh_handle,
@@ -317,4 +322,10 @@ Gear::Gear(
         .mesh_handle = params.outer.mesh_handle,
         .material_handle = params.outer.material_handle}}}
 {
+}
+
+void Gear::register_properties(
+  [[maybe_unused]] reflect::ClassInfo& class_info)
+{
+    // No properties to register.
 }

@@ -68,7 +68,7 @@ add_library(imgui STATIC
     ${imgui_src_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_src_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_src_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_src_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_src_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
     ${imgui_src_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
     ${imgui_src_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
@@ -89,7 +89,10 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/reflection/builtin_properties.cpp
+    src/reflection/class_registry.cpp
     src/scene/gear.cpp
+    src/scene/object.cpp
     src/scene/scene.cpp
     src/application.cpp
     src/imgui.cpp

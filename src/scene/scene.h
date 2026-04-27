@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * A scene description.
+ * Scene description.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -26,7 +26,7 @@ class Scene
     std::vector<std::unique_ptr<Object>> objects;
 
     /** object id tracking. */
-    std::unordered_map<const ClassInfo*, uint32_t> next_ids;
+    std::unordered_map<const reflect::ClassInfo*, uint32_t> next_ids;
 
     /** scene light. */
     Light light;
@@ -68,7 +68,7 @@ public:
         objects.emplace_back(std::move(obj));
 
         // set object id and name,
-        const ClassInfo* class_info = T::static_class();
+        const auto* class_info = T::static_class();
         uint32_t object_id = ++next_ids[class_info];
 
         ptr->set_object_id(make_object_id(object_id));
@@ -82,6 +82,11 @@ public:
     }
 
     const std::vector<std::unique_ptr<Object>>& get_objects() const
+    {
+        return objects;
+    }
+
+    std::vector<std::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

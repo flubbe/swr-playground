@@ -1,15 +1,200 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * ImGui support.
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
+#include <algorithm>
+#include <cfloat>
+#include <cmath>
+#include <format>
 #include <print>
 #include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <misc/cpp/imgui_stdlib.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "reflection/builtin_properties.h"
+#include "reflection/class_registry.h"
+#include "scene/scene.h"
 #include "imgui.h"
+#include "renderdevice.h"
+#include "renderer.h"
+#include "utils.h"
+#include "viewport.h"
 
 namespace
 {
+
+Object* g_selected_object = nullptr;                     // FIXME should not be global.
+const reflect::ClassInfo* g_selected_class = nullptr;    // FIXME should not be global.
+
+void validate_selected_object(Scene& scene) noexcept
+{
+    if(g_selected_object == nullptr)
+    {
+        return;
+    }
+
+    const auto& objects = scene.get_objects();
+    const bool found = std::ranges::any_of(
+      objects,
+      [](const std::unique_ptr<Object>& object)
+      {
+          return object.get() == g_selected_object;
+      });
+    if(!found)
+    {
+        g_selected_object = nullptr;
+    }
+}
+
+void validate_selected_class() noexcept
+{
+    if(g_selected_class == nullptr)
+    {
+        return;
+    }
+
+    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    const auto it = std::ranges::find(
+      classes,
+      g_selected_class);
+    if(it == classes.end())
+    {
+        g_selected_class = nullptr;
+    }
+}
+
+bool class_matches_filter(
+  const reflect::ClassInfo* cls,
+  std::string_view filter)
+{
+    if(cls == nullptr)
+    {
+        return false;
+    }
+
+    if(filter.empty())
+    {
+        return true;
+    }
+
+    const std::string needle = to_lower_copy(std::string{filter});
+
+    return to_lower_copy(cls->module_name).contains(needle)
+           || to_lower_copy(cls->name).contains(needle)
+           || to_lower_copy(cls->qualified_name).contains(needle);
+}
+
+const char* property_flags_badge(const reflect::PropertyFlags flags) noexcept
+{
+    if((flags & reflect::PropertyFlags::ReadOnly) != reflect::PropertyFlags::None)
+    {
+        return "RO";
+    }
+    return "-";
+}
+
+using ClassChildrenMap = std::unordered_map<
+  const reflect::ClassInfo*,
+  std::vector<const reflect::ClassInfo*>>;
+
+bool class_tree_contains_match(
+  const reflect::ClassInfo* cls,
+  const ClassChildrenMap& children_by_parent,
+  std::string_view filter,
+  std::unordered_map<const reflect::ClassInfo*, bool>& memo)
+{
+    if(cls == nullptr)
+    {
+        return false;
+    }
+
+    const auto memo_it = memo.find(cls);
+    if(memo_it != memo.end())
+    {
+        return memo_it->second;
+    }
+
+    bool visible = class_matches_filter(cls, filter);
+    const auto children_it = children_by_parent.find(cls);
+    if(children_it != children_by_parent.end())
+    {
+        for(const auto* child: children_it->second)
+        {
+            visible = visible || class_tree_contains_match(child, children_by_parent, filter, memo);
+        }
+    }
+
+    memo.emplace(cls, visible);
+    return visible;
+}
+
+void draw_class_tree_node(
+  const reflect::ClassInfo* cls,
+  const ClassChildrenMap& children_by_parent,
+  std::string_view filter,
+  std::unordered_map<const reflect::ClassInfo*, bool>& visible_memo)
+{
+    if(cls == nullptr)
+    {
+        return;
+    }
+    if(!class_tree_contains_match(cls, children_by_parent, filter, visible_memo))
+    {
+        return;
+    }
+
+    const auto children_it = children_by_parent.find(cls);
+    const bool has_children = children_it != children_by_parent.end() && !children_it->second.empty();
+
+    ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_OpenOnArrow
+      | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if(!has_children)
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+    if(cls == g_selected_class)
+    {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    ImGui::PushID(cls);
+    const bool open = ImGui::TreeNodeEx(cls->qualified_name.c_str(), flags);
+    if(ImGui::IsItemClicked())
+    {
+        g_selected_class = cls;
+    }
+
+    if(open)
+    {
+        if(has_children)
+        {
+            for(const auto* child: children_it->second)
+            {
+                draw_class_tree_node(
+                  child,
+                  children_by_parent,
+                  filter,
+                  visible_memo);
+            }
+        }
+        ImGui::TreePop();
+    }
+
+    ImGui::PopID();
+}
 
 void apply_editor_theme()
 {
@@ -104,6 +289,270 @@ void load_fonts()
     io.FontGlobalScale = 1.0f;
 }
 
+void imgui_setup_dock_layout(ImGuiID dockspace_id)
+{
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGui::DockBuilderRemoveNode(dockspace_id);
+    ImGui::DockBuilderAddNode(
+      dockspace_id,
+      ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+    ImGuiID dock_main = dockspace_id;
+    ImGuiID dock_left = 0;
+    ImGuiID dock_right = 0;
+    ImGuiID dock_bottom = 0;
+
+    dock_left = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Left,
+      0.27f,
+      nullptr,
+      &dock_main);
+    dock_right = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Right,
+      0.25f,
+      nullptr,
+      &dock_main);
+    dock_bottom = ImGui::DockBuilderSplitNode(
+      dock_main,
+      ImGuiDir_Down,
+      0.25f, nullptr,
+      &dock_main);
+
+    ImGui::DockBuilderDockWindow("Viewport", dock_main);
+    ImGui::DockBuilderDockWindow("Console", dock_bottom);
+    ImGui::DockBuilderDockWindow("Tools", dock_right);
+    ImGui::DockBuilderDockWindow("Scene Inspector", dock_left);
+    ImGui::DockBuilderDockWindow("Class Inspector", dock_left);
+
+    ImGui::DockBuilderFinish(dockspace_id);
+}
+
+class ImGuiPropertyRenderer : public reflect::PropertyVisitor
+{
+public:
+    void visit(reflect::IntProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text("%d", property.get_value());
+            return;
+        }
+
+        int value = property.get_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragInt(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   property.get_min_value(),
+                                   property.get_max_value())
+                               : ImGui::DragInt(
+                                   "##value",
+                                   &value,
+                                   property.get_speed());
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(reflect::UIntProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text("%u", property.get_value());
+            return;
+        }
+
+        std::uint32_t value = property.get_value();
+        const std::uint32_t min_value = property.get_min_value();
+        const std::uint32_t max_value = property.get_max_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragScalar(
+                                   "##value",
+                                   ImGuiDataType_U32,
+                                   &value,
+                                   property.get_speed(),
+                                   &min_value,
+                                   &max_value,
+                                   "%u")
+                               : ImGui::DragScalar(
+                                   "##value",
+                                   ImGuiDataType_U32,
+                                   &value,
+                                   property.get_speed(),
+                                   nullptr,
+                                   nullptr,
+                                   "%u");
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(reflect::FloatProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::Text(property.get_format(), property.get_value());
+            return;
+        }
+
+        float value = property.get_value();
+        const bool changed = property.has_limits_enabled()
+                               ? ImGui::DragFloat(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   property.get_min_value(),
+                                   property.get_max_value(),
+                                   property.get_format())
+                               : ImGui::DragFloat(
+                                   "##value",
+                                   &value,
+                                   property.get_speed(),
+                                   0.0f,
+                                   0.0f,
+                                   property.get_format());
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(reflect::BoolProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::TextUnformatted(property.get_value() ? "true" : "false");
+            return;
+        }
+
+        bool value = property.get_value();
+        if(ImGui::Checkbox("##value", &value))
+        {
+            property.set_value(value);
+        }
+    }
+
+    void visit(reflect::StringProperty& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        if(property.is_read_only())
+        {
+            ImGui::TextUnformatted(property.get_value().c_str());
+            return;
+        }
+
+        std::string value = property.get_value();
+        if(value.size() > property.get_max_length())
+        {
+            value.resize(property.get_max_length());
+        }
+
+        if(ImGui::InputText("##value", &value))
+        {
+            if(value.size() > property.get_max_length())
+            {
+                value.resize(property.get_max_length());
+            }
+            property.set_value(value);
+        }
+    }
+
+    void visit(reflect::Mat4Property& property) override
+    {
+        if(!property.has_value())
+        {
+            ImGui::TextUnformatted("<null>");
+            return;
+        }
+
+        ml::mat4x4 value = property.get_value();
+        bool changed = false;
+
+        for(int row = 0; row < 4; ++row)
+        {
+            float row_values[4] = {
+              value.rows[row].x,
+              value.rows[row].y,
+              value.rows[row].z,
+              value.rows[row].w};
+
+            const bool row_changed = property.is_read_only()
+                                       ? false
+                                       : ([&]()
+                                          {
+                                           ImGui::PushItemWidth(-FLT_MIN);
+                                           const bool changed = ImGui::DragFloat4(
+                                             std::format("##row{}", row).c_str(),
+                                             row_values,
+                                             0.01f,
+                                             0.0f,
+                                             0.0f,
+                                             "%.3f");
+                                           ImGui::PopItemWidth();
+                                           return changed; })();
+
+            if(property.is_read_only())
+            {
+                ImGui::Text(
+                  "[%.3f %.3f %.3f %.3f]",
+                  row_values[0],
+                  row_values[1],
+                  row_values[2],
+                  row_values[3]);
+            }
+            else if(row_changed)
+            {
+                value.rows[row].x = row_values[0];
+                value.rows[row].y = row_values[1];
+                value.rows[row].z = row_values[2];
+                value.rows[row].w = row_values[3];
+                changed = true;
+            }
+        }
+
+        if(changed)
+        {
+            property.set_value(value);
+        }
+    }
+};
+
 }    // namespace
 
 bool imgui_init(
@@ -142,4 +591,455 @@ void imgui_shutdown()
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
+}
+
+void imgui_draw_main_dockspace(bool& running)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGuiWindowFlags host_window_flags =
+      ImGuiWindowFlags_NoDocking
+      | ImGuiWindowFlags_NoTitleBar
+      | ImGuiWindowFlags_NoCollapse
+      | ImGuiWindowFlags_NoResize
+      | ImGuiWindowFlags_NoMove
+      | ImGuiWindowFlags_NoBringToFrontOnFocus
+      | ImGuiWindowFlags_NoNavFocus
+      | ImGuiWindowFlags_MenuBar;
+
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0f, 0.0f});
+
+    ImGui::Begin("MainDockHost", nullptr, host_window_flags);
+    ImGui::PopStyleVar(3);
+
+    if(ImGui::BeginMenuBar())
+    {
+        if(ImGui::BeginMenu("File"))
+        {
+            if(ImGui::MenuItem("Quit", nullptr, false, true))
+            {
+                running = false;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+    ImGui::DockSpace(dockspace_id, ImVec2{0.0f, 0.0f});
+
+    static bool first_time = true;
+    if(first_time)
+    {
+        imgui_setup_dock_layout(dockspace_id);
+        first_time = false;
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_console_panel(std::vector<std::string>& log_lines)
+{
+    ImGui::Begin("Console");
+
+    if(ImGui::Button("Clear"))
+    {
+        log_lines.clear();
+    }
+
+    ImGui::Separator();
+
+    ImGui::BeginChild("ConsoleScrollRegion", ImVec2{0, 0}, false, ImGuiWindowFlags_HorizontalScrollbar);
+    for(const std::string& line: log_lines)
+    {
+        ImGui::TextUnformatted(line.c_str());
+    }
+    if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+    {
+        ImGui::SetScrollHereY(1.0f);
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+void imgui_draw_tools_panel(
+  RenderDevice& render_device,
+  Viewport& viewport,
+  Scene& scene,
+  Renderer& renderer,
+  int frame_index,
+  float pixel_density,
+  const ImGuiIO& io)
+{
+    ImGui::Begin("Tools");
+
+    if(ImGui::CollapsingHeader("Viewport", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text(
+          "Framebuffer: %d x %d px",
+          render_device.get_width(),
+          render_device.get_height());
+        ImGui::Text("Window pixel density: %.2f", pixel_density);
+        ImGui::Text("Frame: %d", frame_index);
+        ImGui::Text("Scene time: %.1f s", scene.get_time());
+    }
+
+    if(ImGui::CollapsingHeader("Rasterizer", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        bool wireframe = viewport.draw_params.wireframe;
+        bool cull_face = viewport.draw_params.cull_face;
+        bool paused = scene.is_paused();
+
+        if(ImGui::Checkbox("Paused", &paused))
+        {
+            scene.set_paused(paused);
+        }
+
+        if(ImGui::Checkbox("Wireframe", &wireframe))
+        {
+            viewport.draw_params.wireframe = wireframe;
+        }
+
+        if(ImGui::Checkbox("Face Culling", &cull_face))
+        {
+            viewport.draw_params.cull_face = cull_face;
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("FPS: %.1f", io.Framerate);
+        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
+        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_scene_inspector_panel(Scene& scene)
+{
+    ImGui::Begin("Scene Inspector");
+    validate_selected_object(scene);
+
+    auto& objects = scene.get_objects();
+    if(objects.empty())
+    {
+        ImGui::TextUnformatted("No objects in scene.");
+    }
+    else
+    {
+        for(auto& object: objects)
+        {
+            const auto* class_info = object->get_class();
+            const std::string type_name = class_info != nullptr
+                                            ? std::string{class_info->name}
+                                            : std::string{"Unknown"};
+            const std::string object_header = std::format(
+              "{} ({}.{})##{}",
+              object->get_name(),
+              class_info->module_name,
+              type_name,
+              object->get_object_id().value);
+
+            ImGuiTreeNodeFlags header_flags =
+              ImGuiTreeNodeFlags_DefaultOpen
+              | ImGuiTreeNodeFlags_SpanAvailWidth;
+            if(object.get() == g_selected_object)
+            {
+                header_flags |= ImGuiTreeNodeFlags_Selected;
+            }
+
+            if(ImGui::CollapsingHeader(object_header.c_str(), header_flags))
+            {
+                const std::string table_id = std::format(
+                  "ObjectProperties##{}",
+                  object->get_object_id().value);
+                const ImGuiTableFlags table_flags =
+                  ImGuiTableFlags_BordersInnerV
+                  | ImGuiTableFlags_BordersOuter
+                  | ImGuiTableFlags_RowBg
+                  | ImGuiTableFlags_SizingFixedFit;
+
+                if(ImGui::BeginTable(table_id.c_str(), 2, table_flags))
+                {
+                    ImGui::TableSetupColumn(
+                      "Property",
+                      ImGuiTableColumnFlags_WidthFixed,
+                      80.0f);
+                    ImGui::TableSetupColumn(
+                      "Value",
+                      ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableHeadersRow();
+
+                    auto& properties = object->get_properties();
+                    ImGuiPropertyRenderer property_renderer;
+                    for(std::size_t i = 0; i < properties.size(); ++i)
+                    {
+                        auto* property = properties[i].get();
+                        if(property == nullptr)
+                        {
+                            continue;
+                        }
+
+                        ImGui::PushID(static_cast<int>(i));
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextUnformatted(property->get_label().c_str());
+                        if(ImGui::IsItemHovered())
+                        {
+                            ImGui::SetTooltip("%s", property->get_name().c_str());
+                        }
+                        ImGui::TableSetColumnIndex(1);
+                        property->accept(property_renderer);
+                        ImGui::PopID();
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+
+            if(ImGui::IsItemClicked())
+            {
+                g_selected_object = object.get();
+            }
+        }
+    }
+
+    ImGui::End();
+}
+
+void imgui_draw_class_inspector_panel()
+{
+    ImGui::Begin("Class Inspector");
+    validate_selected_class();
+
+    static std::string filter_text;
+    std::string filter = to_lower_copy(filter_text);
+
+    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    if(classes.empty())
+    {
+        ImGui::TextUnformatted("No reflected classes registered.");
+        ImGui::End();
+        return;
+    }
+
+    std::unordered_set<const reflect::ClassInfo*> known_classes{
+      classes.begin(),
+      classes.end()};
+    ClassChildrenMap children_by_parent;
+    std::vector<const reflect::ClassInfo*> roots;
+    roots.reserve(classes.size());
+
+    for(const auto* cls: classes)
+    {
+        if(cls == nullptr)
+        {
+            continue;
+        }
+
+        const bool has_known_parent =
+          cls->super != nullptr
+          && known_classes.contains(cls->super);
+        if(has_known_parent)
+        {
+            children_by_parent[cls->super].push_back(cls);
+        }
+        else
+        {
+            roots.push_back(cls);
+        }
+    }
+
+    for(auto& [_, children]: children_by_parent)
+    {
+        std::ranges::sort(
+          children,
+          [](const reflect::ClassInfo* a, const reflect::ClassInfo* b)
+          {
+              if(a->qualified_name != b->qualified_name)
+              {
+                  return a->qualified_name < b->qualified_name;
+              }
+              return a->root_tag < b->root_tag;
+          });
+    }
+    std::ranges::sort(
+      roots,
+      [](const reflect::ClassInfo* a, const reflect::ClassInfo* b)
+      {
+          if(a->qualified_name != b->qualified_name)
+          {
+              return a->qualified_name < b->qualified_name;
+          }
+          return a->root_tag < b->root_tag;
+      });
+
+    if(g_selected_class == nullptr)
+    {
+        g_selected_class = roots.front();
+    }
+
+    ImGui::InputTextWithHint("##class-filter", "Filter classes...", &filter_text);
+    ImGui::SeparatorText("Hierarchy");
+
+    const float avail_h = ImGui::GetContentRegionAvail().y;
+    const float hierarchy_h = std::max(150.0f, avail_h * 0.42f);
+
+    ImGui::BeginChild("ClassHierarchy", ImVec2{0, hierarchy_h}, true);
+    std::unordered_map<const reflect::ClassInfo*, bool> visible_memo;
+    bool any_visible = false;
+    for(const auto* root: roots)
+    {
+        if(class_tree_contains_match(root, children_by_parent, filter, visible_memo))
+        {
+            any_visible = true;
+            draw_class_tree_node(
+              root,
+              children_by_parent,
+              filter,
+              visible_memo);
+        }
+    }
+    if(!any_visible)
+    {
+        ImGui::TextDisabled("No classes match filter.");
+    }
+    ImGui::EndChild();
+
+    ImGui::SeparatorText("Details");
+    ImGui::BeginChild("ClassDetails", ImVec2{0, 0}, true);
+
+    if(g_selected_class == nullptr)
+    {
+        ImGui::TextUnformatted("Select a class from the hierarchy.");
+    }
+    else
+    {
+        const auto* cls = g_selected_class;
+        const auto child_count_it = children_by_parent.find(cls);
+        const std::size_t child_count =
+          child_count_it != children_by_parent.end()
+            ? child_count_it->second.size()
+            : 0;
+
+        ImGui::Text("%s", cls->qualified_name.c_str());
+        ImGui::Separator();
+        ImGui::Text("Module: %s", cls->module_name.c_str());
+        ImGui::Text("Name: %s", cls->name.c_str());
+        ImGui::Text("Size: %zu bytes", cls->size);
+        ImGui::Text(
+          "Parent: %s",
+          cls->super != nullptr
+            ? cls->super->qualified_name.c_str()
+            : "<none>");
+        ImGui::Text("Children: %zu", child_count);
+        ImGui::Text("Root Tag: %p", cls->root_tag);
+
+        ImGui::SeparatorText("Properties");
+
+        std::vector<const reflect::ClassInfo*> class_chain;
+        for(const auto* p = cls; p != nullptr; p = p->super)
+        {
+            class_chain.push_back(p);
+        }
+
+        const float pad = ImGui::GetStyle().CellPadding.x * 2.0f;
+        float label_col_width = ImGui::CalcTextSize("Label").x + pad;
+        float name_col_width = ImGui::CalcTextSize("Name").x + pad;
+        float flags_col_width = ImGui::CalcTextSize("Flags").x + pad;
+        float origin_col_width = ImGui::CalcTextSize("Origin").x + pad;
+
+        for(const auto* origin: class_chain | std::views::reverse)
+        {
+            origin_col_width = std::max(
+              origin_col_width,
+              ImGui::CalcTextSize(origin->qualified_name.c_str()).x + pad);
+
+            for(auto* descriptor = origin->first_property.get();
+                descriptor != nullptr;
+                descriptor = descriptor->next.get())
+            {
+                label_col_width = std::max(
+                  label_col_width,
+                  ImGui::CalcTextSize(descriptor->label.c_str()).x + pad);
+                name_col_width = std::max(
+                  name_col_width,
+                  ImGui::CalcTextSize(descriptor->name.c_str()).x + pad);
+                flags_col_width = std::max(
+                  flags_col_width,
+                  ImGui::CalcTextSize(property_flags_badge(descriptor->flags)).x + pad);
+            }
+        }
+
+        const ImGuiTableFlags property_table_flags =
+          ImGuiTableFlags_BordersInnerV
+          | ImGuiTableFlags_BordersOuter
+          | ImGuiTableFlags_RowBg
+          | ImGuiTableFlags_Resizable
+          | ImGuiTableFlags_SizingFixedFit
+          | ImGuiTableFlags_ScrollX;
+
+        if(ImGui::BeginTable("ClassProperties", 4, property_table_flags))
+        {
+            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, label_col_width);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, name_col_width);
+            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, flags_col_width);
+            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthFixed, origin_col_width);
+            ImGui::TableHeadersRow();
+
+            for(const auto* origin: class_chain | std::views::reverse)
+            {
+                for(auto* descriptor = origin->first_property.get();
+                    descriptor != nullptr;
+                    descriptor = descriptor->next.get())
+                {
+                    ImGui::PushID(descriptor);
+                    ImGui::TableNextRow();
+
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted(descriptor->label.c_str());
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(descriptor->name.c_str());
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
+
+                    ImGui::TableSetColumnIndex(3);
+                    ImGui::TextUnformatted(origin->qualified_name.c_str());
+
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+Object* imgui_get_selected_object() noexcept
+{
+    return g_selected_object;
+}
+
+void imgui_set_selected_object(Object* object) noexcept
+{
+    g_selected_object = object;
+}
+
+void imgui_clear_selected_object() noexcept
+{
+    g_selected_object = nullptr;
 }

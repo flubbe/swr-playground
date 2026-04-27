@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Viewport Framebuffer.
+ * Render device.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
