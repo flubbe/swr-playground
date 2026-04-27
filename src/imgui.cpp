@@ -336,29 +336,29 @@ class ImGuiPropertyRenderer : public reflect::PropertyVisitor
 public:
     void visit(reflect::Property& property) override
     {
-        if(property.is_type<reflect::IntProperty>())
+        if(auto* p = property.try_as<reflect::IntProperty>())
         {
-            render_int(static_cast<reflect::IntProperty&>(property));
+            render_int(*p);
         }
-        else if(property.is_type<reflect::UIntProperty>())
+        else if(auto* p = property.try_as<reflect::UIntProperty>())
         {
-            render_uint(static_cast<reflect::UIntProperty&>(property));
+            render_uint(*p);
         }
-        else if(property.is_type<reflect::FloatProperty>())
+        else if(auto* p = property.try_as<reflect::FloatProperty>())
         {
-            render_float(static_cast<reflect::FloatProperty&>(property));
+            render_float(*p);
         }
-        else if(property.is_type<reflect::BoolProperty>())
+        else if(auto* p = property.try_as<reflect::BoolProperty>())
         {
-            render_bool(static_cast<reflect::BoolProperty&>(property));
+            render_bool(*p);
         }
-        else if(property.is_type<reflect::StringProperty>())
+        else if(auto* p = property.try_as<reflect::StringProperty>())
         {
-            render_string(static_cast<reflect::StringProperty&>(property));
+            render_string(*p);
         }
-        else if(property.is_type<reflect::Mat4Property>())
+        else if(auto* p = property.try_as<reflect::Mat4Property>())
         {
-            render_mat4(static_cast<reflect::Mat4Property&>(property));
+            render_mat4(*p);
         }
         else
         {

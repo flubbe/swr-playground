@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -124,6 +125,60 @@ public:
     bool is_type() const noexcept
     {
         return get_type_tag() == detail::property_type_tag<T>();
+    }
+
+    /**
+     * Try to cast this property to `T`
+     *
+     * @returns A pointer to `T` if the types match, and `nullptr` otherwise.
+     */
+    template<typename T>
+    T* try_as() noexcept
+    {
+        if(!is_type<T>())
+        {
+            return nullptr;
+        }
+        return static_cast<T*>(this);
+    }
+
+    /**
+     * Try to cast this property to `T`
+     *
+     * @returns A pointer to `T` if the types match, and `nullptr` otherwise.
+     */
+    template<typename T>
+    const T* try_as() const noexcept
+    {
+        if(!is_type<T>())
+        {
+            return nullptr;
+        }
+        return static_cast<const T*>(this);
+    }
+
+    /**
+     * Cast this property to `T`.
+     *
+     * @note Requires `is_type<T>() == true`. Only checked in debug builds.
+     */
+    template<typename T>
+    T& as() noexcept
+    {
+        assert(is_type<T>());
+        return *static_cast<T*>(this);
+    }
+
+    /**
+     * Cast this property to `T`.
+     *
+     * @note Requires `is_type<T>() == true`. Only checked in debug builds.
+     */
+    template<typename T>
+    const T& as() const noexcept
+    {
+        assert(is_type<T>());
+        return *static_cast<const T*>(this);
     }
 
     /** Visitor acceptor. */
