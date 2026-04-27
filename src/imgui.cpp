@@ -334,7 +334,40 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
 class ImGuiPropertyRenderer : public reflect::PropertyVisitor
 {
 public:
-    void visit(reflect::IntProperty& property) override
+    void visit(reflect::Property& property) override
+    {
+        if(property.is_type<reflect::IntProperty>())
+        {
+            render_int(static_cast<reflect::IntProperty&>(property));
+        }
+        else if(property.is_type<reflect::UIntProperty>())
+        {
+            render_uint(static_cast<reflect::UIntProperty&>(property));
+        }
+        else if(property.is_type<reflect::FloatProperty>())
+        {
+            render_float(static_cast<reflect::FloatProperty&>(property));
+        }
+        else if(property.is_type<reflect::BoolProperty>())
+        {
+            render_bool(static_cast<reflect::BoolProperty&>(property));
+        }
+        else if(property.is_type<reflect::StringProperty>())
+        {
+            render_string(static_cast<reflect::StringProperty&>(property));
+        }
+        else if(property.is_type<reflect::Mat4Property>())
+        {
+            render_mat4(static_cast<reflect::Mat4Property&>(property));
+        }
+        else
+        {
+            ImGui::TextUnformatted("<unsupported property type>");
+        }
+    }
+
+private:
+    static void render_int(reflect::IntProperty& property)
     {
         if(!property.has_value())
         {
@@ -366,7 +399,7 @@ public:
         }
     }
 
-    void visit(reflect::UIntProperty& property) override
+    static void render_uint(reflect::UIntProperty& property)
     {
         if(!property.has_value())
         {
@@ -380,9 +413,9 @@ public:
             return;
         }
 
-        std::uint32_t value = property.get_value();
-        const std::uint32_t min_value = property.get_min_value();
-        const std::uint32_t max_value = property.get_max_value();
+        unsigned int value = property.get_value();
+        const unsigned int min_value = property.get_min_value();
+        const unsigned int max_value = property.get_max_value();
         const bool changed = property.has_limits_enabled()
                                ? ImGui::DragScalar(
                                    "##value",
@@ -406,7 +439,7 @@ public:
         }
     }
 
-    void visit(reflect::FloatProperty& property) override
+    static void render_float(reflect::FloatProperty& property)
     {
         if(!property.has_value())
         {
@@ -442,7 +475,7 @@ public:
         }
     }
 
-    void visit(reflect::BoolProperty& property) override
+    static void render_bool(reflect::BoolProperty& property)
     {
         if(!property.has_value())
         {
@@ -463,7 +496,7 @@ public:
         }
     }
 
-    void visit(reflect::StringProperty& property) override
+    static void render_string(reflect::StringProperty& property)
     {
         if(!property.has_value())
         {
@@ -493,7 +526,7 @@ public:
         }
     }
 
-    void visit(reflect::Mat4Property& property) override
+    static void render_mat4(reflect::Mat4Property& property)
     {
         if(!property.has_value())
         {

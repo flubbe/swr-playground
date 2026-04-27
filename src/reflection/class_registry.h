@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <string_view>
@@ -23,6 +24,7 @@ namespace reflect
 
 namespace detail
 {
+
 /**
  * Get a tag for a type.
  *

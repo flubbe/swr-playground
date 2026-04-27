@@ -14,8 +14,6 @@
 #include <string>
 #include <string_view>
 
-#include "ml/all.h"
-
 #include "except.h"
 #include "traits.h"
 
@@ -31,7 +29,24 @@ class UIntProperty;
 class FloatProperty;
 class BoolProperty;
 class StringProperty;
-class Mat4Property;
+class Property;
+
+namespace detail
+{
+
+/**
+ * Get a tag for a property type.
+ *
+ * @note The tag is a unique memory address.
+ */
+template<typename T>
+const void* property_type_tag() noexcept
+{
+    static const int tag = 0;
+    return &tag;
+}
+
+}    // namespace detail
 
 /** Visitor interface for properties. */
 class PropertyVisitor
@@ -40,23 +55,8 @@ public:
     /** Virtual destructor. */
     virtual ~PropertyVisitor() = default;
 
-    /** Visit an integer property. */
-    virtual void visit(IntProperty& property) = 0;
-
-    /** Visit an unsigned integer property. */
-    virtual void visit(UIntProperty& property) = 0;
-
-    /** Visit a floating-point property. */
-    virtual void visit(FloatProperty& property) = 0;
-
-    /** Visit a boolean property. */
-    virtual void visit(BoolProperty& property) = 0;
-
-    /** Visit a string property. */
-    virtual void visit(StringProperty& property) = 0;
-
-    /** Visit a 4x4 matrix property. */
-    virtual void visit(Mat4Property& property) = 0;
+    /** Visit a property. */
+    virtual void visit(Property& property) = 0;
 };
 
 /** Base class for all properties. */
@@ -114,6 +114,16 @@ public:
     bool is_read_only() const noexcept
     {
         return (get_flags() & PropertyFlags::ReadOnly) != PropertyFlags::None;
+    }
+
+    /** Return the runtime type tag for this property class. */
+    virtual const void* get_type_tag() const noexcept = 0;
+
+    /** Whether this property is of type `T`. */
+    template<typename T>
+    bool is_type() const noexcept
+    {
+        return get_type_tag() == detail::property_type_tag<T>();
     }
 
     /** Visitor acceptor. */

@@ -105,6 +105,11 @@ float IntProperty::get_speed() const noexcept
     return speed;
 }
 
+const void* IntProperty::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<IntProperty>();
+}
+
 void IntProperty::accept(PropertyVisitor& visitor)
 {
     visitor.visit(*this);
@@ -183,6 +188,11 @@ unsigned int UIntProperty::get_max_value() const noexcept
 float UIntProperty::get_speed() const noexcept
 {
     return speed;
+}
+
+const void* UIntProperty::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<UIntProperty>();
 }
 
 void UIntProperty::accept(PropertyVisitor& visitor)
@@ -274,6 +284,11 @@ const char* FloatProperty::get_format() const noexcept
     return format;
 }
 
+const void* FloatProperty::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<FloatProperty>();
+}
+
 void FloatProperty::accept(PropertyVisitor& visitor)
 {
     visitor.visit(*this);
@@ -308,6 +323,11 @@ bool BoolProperty::set_value(bool in_value) noexcept
 
     *value = in_value;
     return true;
+}
+
+const void* BoolProperty::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<BoolProperty>();
 }
 
 void BoolProperty::accept(PropertyVisitor& visitor)
@@ -354,6 +374,11 @@ std::size_t StringProperty::get_max_length() const noexcept
     return max_length;
 }
 
+const void* StringProperty::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<StringProperty>();
+}
+
 void StringProperty::accept(PropertyVisitor& visitor)
 {
     visitor.visit(*this);
@@ -388,6 +413,11 @@ bool Mat4Property::set_value(const ml::mat4x4& in_value) noexcept
 
     *value = in_value;
     return true;
+}
+
+const void* Mat4Property::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<Mat4Property>();
 }
 
 void Mat4Property::accept(PropertyVisitor& visitor)

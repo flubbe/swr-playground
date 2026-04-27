@@ -12,6 +12,8 @@
 
 #include <cstddef>
 
+#include "ml/all.h"
+
 #include "property.h"
 
 namespace reflect
@@ -51,6 +53,7 @@ public:
     int get_min_value() const noexcept;
     int get_max_value() const noexcept;
     float get_speed() const noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
@@ -89,6 +92,7 @@ public:
     unsigned int get_min_value() const noexcept;
     unsigned int get_max_value() const noexcept;
     float get_speed() const noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
@@ -131,6 +135,7 @@ public:
     float get_max_value() const noexcept;
     float get_speed() const noexcept;
     const char* get_format() const noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
@@ -150,6 +155,7 @@ public:
     bool has_value() const noexcept;
     bool get_value() const noexcept;
     bool set_value(bool in_value) noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
@@ -172,6 +178,7 @@ public:
     const std::string& get_value() const noexcept;
     bool set_value(std::string_view in_value);
     std::size_t get_max_length() const noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
@@ -191,6 +198,7 @@ public:
     bool has_value() const noexcept;
     const ml::mat4x4& get_value() const noexcept;
     bool set_value(const ml::mat4x4& in_value) noexcept;
+    const void* get_type_tag() const noexcept override;
 
     void accept(PropertyVisitor& visitor) override;
 };
