@@ -7,6 +7,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
+set(SWR_PLAYGROUND_BUILD_TESTING ON)
+if(DEFINED BUILD_TESTING)
+    set(SWR_PLAYGROUND_BUILD_TESTING ${BUILD_TESTING})
+endif()
+
+# Keep third-party dependency tests disabled.
+set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
+
 find_package(OpenGL REQUIRED)
 
 #
@@ -129,4 +137,22 @@ if(MSVC)
     target_compile_options(swr_playground PRIVATE /W4)
 else()
     target_compile_options(swr_playground PRIVATE -Wall -Wextra)
+endif()
+
+# Enable this project's tests (and CTest) after dependency setup.
+set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)
+include(CTest)
+
+if(BUILD_TESTING)
+    #
+    # GoogleTest
+    #
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.17.0
+    )
+    FetchContent_MakeAvailable(googletest)
+
+    add_subdirectory(test)
 endif()

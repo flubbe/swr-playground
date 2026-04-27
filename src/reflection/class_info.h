@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 #include "property.h"
 
@@ -54,6 +55,48 @@ struct ClassInfo
 
     /** Linked list of registered properties for this class. */
     std::unique_ptr<PropertyDescriptor> first_property;
+
+    /**
+     * Find a registered property descriptor by internal property name.
+     *
+     * @param property_name Internal property name (`DescriptorBase::name`).
+     * @returns Returns the first matching descriptor, or `nullptr` if not found.
+     */
+    PropertyDescriptor* find_property(std::string_view property_name) noexcept
+    {
+        for(auto* descriptor = first_property.get();
+            descriptor != nullptr;
+            descriptor = descriptor->next.get())
+        {
+            if(descriptor->name == property_name)
+            {
+                return descriptor;
+            }
+        }
+
+        return nullptr;
+    }
+
+    /**
+     * Find a registered property descriptor by internal property name.
+     *
+     * @param property_name Internal property name (`DescriptorBase::name`).
+     * @returns Returns the first matching descriptor, or `nullptr` if not found.
+     */
+    const PropertyDescriptor* find_property(std::string_view property_name) const noexcept
+    {
+        for(const auto* descriptor = first_property.get();
+            descriptor != nullptr;
+            descriptor = descriptor->next.get())
+        {
+            if(descriptor->name == property_name)
+            {
+                return descriptor;
+            }
+        }
+
+        return nullptr;
+    }
 
     /**
      * Check if this class is a child of another class.

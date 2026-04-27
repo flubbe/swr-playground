@@ -376,6 +376,12 @@ protected:
 public:
     using Root = Base;
 
+    /** Default property registration hook (no-op). */
+    static void register_properties(
+      [[maybe_unused]] ClassInfo& class_info)
+    {
+    }
+
     /** Default constructor. */
     ReflectRoot() = default;
 
