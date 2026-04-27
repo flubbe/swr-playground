@@ -89,11 +89,10 @@ struct AutoClassRegistrar;
 template<
   typename Root,
   typename T>
+    requires std::derived_from<T, Root>
+             && std::default_initializable<T>
 void* factory()
 {
-    static_assert(
-      std::is_base_of_v<Root, T>,
-      "T must inherit from root type");
     return static_cast<Root*>(new T{});
 }
 
@@ -104,12 +103,10 @@ void* factory()
  * @param instance The instance to destroy.
  */
 template<typename Root>
+    requires std::has_virtual_destructor_v<Root>
 void destroy(
   void* instance)
 {
-    static_assert(
-      std::has_virtual_destructor_v<Root>,
-      "Root must have a virtual destructor");
     delete static_cast<Root*>(instance);
 }
 
@@ -283,24 +280,13 @@ struct TypeReflection;
 template<
   typename Root,
   typename T>
+    requires requires {
+        { TypeReflection<Root, T>::module_name } -> std::convertible_to<std::string_view>;
+        { TypeReflection<Root, T>::class_name } -> std::convertible_to<std::string_view>;
+        { TypeReflection<Root, T>::register_properties } -> std::convertible_to<ClassInfo::PropertyRegisterFn>;
+    }
 struct StaticClassRegistration
 {
-    static_assert(
-      std::is_convertible_v<
-        decltype(TypeReflection<Root, T>::module_name),
-        std::string_view>,
-      "TypeReflection<T>::module_name must be convertible to std::string_view");
-    static_assert(
-      std::is_convertible_v<
-        decltype(TypeReflection<Root, T>::class_name),
-        std::string_view>,
-      "TypeReflection<T>::class_name must be convertible to std::string_view");
-    static_assert(
-      std::is_same_v<
-        decltype(TypeReflection<Root, T>::register_properties),
-        const ClassInfo::PropertyRegisterFn>,
-      "TypeReflection<T>::register_properties must be PropertyRegisterFn");
-
     ClassInfo storage{};
     detail::PendingClassRegistration registration{
       .module_name = TypeReflection<Root, T>::module_name,
