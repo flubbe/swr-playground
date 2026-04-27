@@ -8,11 +8,16 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#pragma once
+
+#include <cstddef>
+
 #include "property.h"
 
 namespace reflect
 {
 
+/** Built-in reflected integer property. */
 class IntProperty : public Property
 {
     int* value{nullptr};
@@ -50,6 +55,7 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+/** Built-in reflected unsigned integer property. */
 class UIntProperty : public Property
 {
     unsigned int* value{nullptr};
@@ -87,6 +93,7 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+/** Built-in reflected floating-point property. */
 class FloatProperty : public Property
 {
     float* value{nullptr};
@@ -128,6 +135,7 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+/** Built-in reflected boolean property. */
 class BoolProperty : public Property
 {
     bool* value{nullptr};
@@ -146,6 +154,7 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+/** Built-in reflected string property. */
 class StringProperty : public Property
 {
     std::string* value{nullptr};
@@ -167,6 +176,7 @@ public:
     void accept(PropertyVisitor& visitor) override;
 };
 
+/** Built-in reflected 4x4 matrix property. */
 class Mat4Property : public Property
 {
     ml::mat4x4* value{nullptr};
@@ -189,7 +199,7 @@ template<>
 struct PropertyFactory<int>
 {
     static std::unique_ptr<Property> construct(
-      std::string name,
+      std::string_view name,
       std::string_view label,
       int& value,
       PropertyFlags flags)
@@ -203,12 +213,12 @@ struct PropertyFactory<int>
 };
 
 template<>
-struct PropertyFactory<std::uint32_t>
+struct PropertyFactory<unsigned int>
 {
     static std::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
-      std::uint32_t& value,
+      unsigned int& value,
       PropertyFlags flags)
     {
         return std::make_unique<UIntProperty>(

@@ -113,7 +113,7 @@ void IntProperty::accept(PropertyVisitor& visitor)
 UIntProperty::UIntProperty(
   std::string name,
   std::string label,
-  std::uint32_t* value,
+  unsigned int* value,
   PropertyFlags flags,
   float speed)
 : Property{std::move(name), std::move(label), flags}
@@ -125,9 +125,9 @@ UIntProperty::UIntProperty(
 UIntProperty::UIntProperty(
   std::string name,
   std::string label,
-  std::uint32_t* value,
-  std::uint32_t min_value,
-  std::uint32_t max_value,
+  unsigned int* value,
+  unsigned int min_value,
+  unsigned int max_value,
   PropertyFlags flags,
   float speed)
 : Property{std::move(name), std::move(label), flags}
@@ -144,12 +144,12 @@ bool UIntProperty::has_value() const noexcept
     return value != nullptr;
 }
 
-std::uint32_t UIntProperty::get_value() const noexcept
+unsigned int UIntProperty::get_value() const noexcept
 {
     return value != nullptr ? *value : 0;
 }
 
-bool UIntProperty::set_value(std::uint32_t in_value) noexcept
+bool UIntProperty::set_value(unsigned int in_value) noexcept
 {
     if(value == nullptr || is_read_only())
     {
@@ -170,12 +170,12 @@ bool UIntProperty::has_limits_enabled() const noexcept
     return has_limits;
 }
 
-std::uint32_t UIntProperty::get_min_value() const noexcept
+unsigned int UIntProperty::get_min_value() const noexcept
 {
     return min_value;
 }
 
-std::uint32_t UIntProperty::get_max_value() const noexcept
+unsigned int UIntProperty::get_max_value() const noexcept
 {
     return max_value;
 }
