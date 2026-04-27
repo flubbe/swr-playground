@@ -21,6 +21,8 @@
 namespace reflect
 {
 
+namespace detail
+{
 /**
  * Get a tag for a type.
  *
@@ -74,10 +76,61 @@ struct PendingClassNode
     PendingClassNode* next{nullptr};
 };
 
+/** Automatic class registration helper. Executed during static initialization. */
+struct AutoClassRegistrar;
+
+/**
+ * Factory for `T`.
+ *
+ * @tparam Root Root type for the class hierarchy.
+ * @tparam T The type to construct.
+ * @returns Returns a new (type-erased) instance of `T`.
+ */
+template<
+  typename Root,
+  typename T>
+void* factory()
+{
+    static_assert(
+      std::is_base_of_v<Root, T>,
+      "T must inherit from root type");
+    return static_cast<Root*>(new T{});
+}
+
+/**
+ * Destroy an instance of a child class of `Root`.
+ *
+ * @tparam Root Root type for the class hierarchy.
+ * @param instance The instance to destroy.
+ */
+template<typename Root>
+void destroy(
+  void* instance)
+{
+    static_assert(
+      std::has_virtual_destructor_v<Root>,
+      "Root must have a virtual destructor");
+    delete static_cast<Root*>(instance);
+}
+
+/** Return a type's super class or `nullptr` if there is none. */
+template<typename T>
+ClassInfo* super_class_info() noexcept
+{
+    if constexpr(requires { typename T::Super; })
+    {
+        return T::Super::static_class();
+    }
+
+    return nullptr;
+}
+
+}    // namespace detail
+
 /** Reflection system. */
 class ReflectionSystem
 {
-    friend struct AutoClassRegistrar;
+    friend struct detail::AutoClassRegistrar;
 
     /**
      * Add a class to the pending registration list.
@@ -85,7 +138,7 @@ class ReflectionSystem
      * @param node The class info inside a class node.
      */
     static void add_pending(
-      PendingClassNode* node) noexcept;
+      detail::PendingClassNode* node) noexcept;
 
 public:
     /**
@@ -135,7 +188,7 @@ public:
     {
         return find_class(
           qualified_name,
-          root_type_tag<Root>());
+          detail::root_type_tag<Root>());
     }
 
     /**
@@ -163,7 +216,7 @@ public:
     {
         return unregister_class(
           qualified_name,
-          root_type_tag<Root>());
+          detail::root_type_tag<Root>());
     }
 
     /**
@@ -187,7 +240,7 @@ public:
 };
 
 /** Automatic class registration helper. Executed during static initialization. */
-struct AutoClassRegistrar
+struct detail::AutoClassRegistrar
 {
     /**
      * Register a class node.
@@ -195,57 +248,11 @@ struct AutoClassRegistrar
      * @param node The node to add.
      */
     explicit AutoClassRegistrar(
-      PendingClassNode* node) noexcept
+      detail::PendingClassNode* node) noexcept
     {
         ReflectionSystem::add_pending(node);
     }
 };
-
-/**
- * Factory for `T`.
- *
- * @tparam Root Root type for the class hierarchy.
- * @tparam T The type to construct.
- * @returns Returns a new (type-erased) instance of `T`.
- */
-template<
-  typename Root,
-  typename T>
-void* factory()
-{
-    static_assert(
-      std::is_base_of_v<Root, T>,
-      "T must inherit from root type");
-    return static_cast<Root*>(new T{});
-}
-
-/**
- * Destroy an instance of a child class of `Root`.
- *
- * @tparam Root Root type for the class hierarchy.
- * @param instance The instance to destroy.
- */
-template<typename Root>
-void destroy(
-  void* instance)
-{
-    static_assert(
-      std::has_virtual_destructor_v<Root>,
-      "Root must have a virtual destructor");
-    delete static_cast<Root*>(instance);
-}
-
-/** Return a type's super class or `nullptr` if there is none. */
-template<typename T>
-ClassInfo* super_class_info() noexcept
-{
-    if constexpr(requires { typename T::Super; })
-    {
-        return T::Super::static_class();
-    }
-
-    return nullptr;
-}
 
 /** Templated reflection type entry. */
 template<
@@ -281,20 +288,20 @@ struct StaticClassRegistration
       "TypeReflection<T>::register_properties must be PropertyRegisterFn");
 
     ClassInfo storage{};
-    PendingClassRegistration registration{
+    detail::PendingClassRegistration registration{
       .module_name = TypeReflection<Root, T>::module_name,
       .name = TypeReflection<Root, T>::class_name,
       .size = sizeof(T),
       .storage = &storage,
-      .super = super_class_info<T>(),
-      .root_tag = root_type_tag<Root>(),
-      .factory = &factory<Root, T>,
-      .destroy = &destroy<Root>,
+      .super = detail::super_class_info<T>(),
+      .root_tag = detail::root_type_tag<Root>(),
+      .factory = &detail::factory<Root, T>,
+      .destroy = &detail::destroy<Root>,
       .register_properties = TypeReflection<Root, T>::register_properties};
-    PendingClassNode node{
+    detail::PendingClassNode node{
       .reg = &registration,
       .next = nullptr};
-    AutoClassRegistrar registrar{&node};
+    detail::AutoClassRegistrar registrar{&node};
 };
 
 /** Return the static class registration for a type. */
@@ -533,7 +540,7 @@ void register_property(
       std::string{name},
       std::string{label},
       flags,
-      &construct_member_erased<MemberPtr>,
+      &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property));
     class_info.first_property = std::move(descriptor);
 }

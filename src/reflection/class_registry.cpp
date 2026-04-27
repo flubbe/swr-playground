@@ -25,9 +25,9 @@ using ClassMap = std::unordered_multimap<
   const reflect::ClassInfo*>;
 
 /** Head of pending class linked list. */
-reflect::PendingClassNode*& pending_head() noexcept
+reflect::detail::PendingClassNode*& pending_head() noexcept
 {
-    static reflect::PendingClassNode* head = nullptr;
+    static reflect::detail::PendingClassNode* head = nullptr;
     return head;
 }
 
@@ -110,7 +110,7 @@ namespace reflect
 {
 
 void ReflectionSystem::add_pending(
-  PendingClassNode* node) noexcept
+  detail::PendingClassNode* node) noexcept
 {
     node->next = pending_head();
     pending_head() = node;
@@ -137,11 +137,11 @@ void ReflectionSystem::process_pending_registrations()
 
     while(pending_head() != nullptr)
     {
-        PendingClassNode* node = pending_head();
+        detail::PendingClassNode* node = pending_head();
         pending_head() = node->next;
         node->next = nullptr;
 
-        const PendingClassRegistration* reg = node->reg;
+        const detail::PendingClassRegistration* reg = node->reg;
         if(reg == nullptr
            || reg->storage == nullptr)
         {

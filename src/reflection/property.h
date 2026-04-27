@@ -223,6 +223,9 @@ struct UnwrapType
     }
 };
 
+namespace detail
+{
+
 /**
  * Convenience alias for the class type that owns a member pointer.
  *
@@ -237,8 +240,8 @@ using MemberClassType =
 /**
  * Construct a property and bind it to a member.
  *
- * @note `obj` has to be an instance of the class defined by `MemberPtr`, which is checked via the `is_a`
- *       method on the instance.
+ * @note `obj` is statically typed as `MemberClassType<MemberPtr>&`, so
+ *       type-correctness is enforced by the call site at compile time.
  *
  * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
  *
@@ -247,8 +250,6 @@ using MemberClassType =
  * @param label Display name / label (e.g. for UI/editor).
  * @param flags Static property flags.
  * @returns A unique pointer to the constructed property.
- *
- * @throws `instance_error` If `obj` is not an instance of the required class.
  */
 template<auto MemberPtr>
 std::unique_ptr<Property> construct_member(
@@ -275,8 +276,9 @@ std::unique_ptr<Property> construct_member(
 /**
  * Construct a property and bind it to a member, with erased object type.
  *
- * @note `obj` has to be a pointer to an instance of the class defined by `MemberPtr`, which is checked via the `is_a`
- *       method on the instance.
+ * @note Internal helper used by property descriptors.
+ * @note Precondition: `obj` points to an instance of
+ *       `MemberClassType<MemberPtr>`. The cast from `void*` is unchecked.
  *
  * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
  *
@@ -286,7 +288,7 @@ std::unique_ptr<Property> construct_member(
  * @param flags Static property flags.
  * @return A unique pointer to the constructed property.
  *
- * @throws `instance_error` If `obj` is not a pointer to an instance of the required class.
+ * @throws `instance_error` If `obj` is `nullptr`.
  */
 template<auto MemberPtr>
 std::unique_ptr<Property> construct_member_erased(
@@ -300,11 +302,13 @@ std::unique_ptr<Property> construct_member_erased(
         throw instance_error{"null object instance for property construction"};
     }
 
-    return construct_member<MemberPtr>(
+    return detail::construct_member<MemberPtr>(
       *static_cast<MemberClassType<MemberPtr>*>(obj),
       name,
       label,
       flags);
 }
+
+}    // namespace detail
 
 }    // namespace reflect
