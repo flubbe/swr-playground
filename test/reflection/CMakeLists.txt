@@ -1,4 +1,6 @@
 add_executable(reflection_tests
+    class_info_tests.cpp
+    builtin_property_tests.cpp
     reflection_tests.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
@@ -20,4 +22,3 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(reflection_tests)
-

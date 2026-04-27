@@ -54,8 +54,8 @@ struct PendingClassRegistration
     /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
 
-    /** The super class. */
-    ClassInfo* super{nullptr};
+    /** Lazy resolver for the super class. */
+    ClassInfo::SuperResolverFn resolve_super{nullptr};
 
     /** Root hierarchy marker for this class. */
     const void* root_tag{nullptr};
@@ -116,11 +116,18 @@ void destroy(
 
 /** Return a type's super class or `nullptr` if there is none. */
 template<typename T>
-ClassInfo* super_class_info() noexcept
+const ClassInfo* resolve_super_class() noexcept
+{
+    return T::Super::static_class();
+}
+
+/** Return a type's super-class resolver or `nullptr` if there is none. */
+template<typename T>
+ClassInfo::SuperResolverFn super_class_resolver() noexcept
 {
     if constexpr(requires { typename T::Super; })
     {
-        return T::Super::static_class();
+        return &resolve_super_class<T>;
     }
 
     return nullptr;
@@ -133,6 +140,7 @@ ClassInfo* super_class_info() noexcept
  *
  * Thread safety:
  * - This API is not internally synchronized.
+ * - Exception: `ClassInfo::get_super()` performs its own synchronization.
  * - Callers may provide external synchronization when using it from multiple
  *   threads (for example around concurrent DLL loading/registration).
  */
@@ -297,7 +305,7 @@ struct StaticClassRegistration
       .name = TypeReflection<Root, T>::class_name,
       .size = sizeof(T),
       .storage = &storage,
-      .super = detail::super_class_info<T>(),
+      .resolve_super = detail::super_class_resolver<T>(),
       .root_tag = detail::root_type_tag<Root>(),
       .factory = &detail::factory<Root, T>,
       .destroy = &detail::destroy<Root>,
@@ -385,7 +393,7 @@ protected:
         std::vector<const reflect::ClassInfo*> class_chain;
 
         // Gather class chain so base class properties come first.
-        for(const auto* cls = get_class(); cls != nullptr; cls = cls->super)
+        for(const auto* cls = get_class(); cls != nullptr; cls = cls->get_super())
         {
             class_chain.push_back(cls);
         }

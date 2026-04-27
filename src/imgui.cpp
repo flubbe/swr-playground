@@ -817,12 +817,13 @@ void imgui_draw_class_inspector_panel()
             continue;
         }
 
+        const auto* parent = cls->get_super();
         const bool has_known_parent =
-          cls->super != nullptr
-          && known_classes.contains(cls->super);
+          parent != nullptr
+          && known_classes.contains(parent);
         if(has_known_parent)
         {
-            children_by_parent[cls->super].push_back(cls);
+            children_by_parent[parent].push_back(cls);
         }
         else
         {
@@ -909,8 +910,8 @@ void imgui_draw_class_inspector_panel()
         ImGui::Text("Size: %zu bytes", cls->size);
         ImGui::Text(
           "Parent: %s",
-          cls->super != nullptr
-            ? cls->super->qualified_name.c_str()
+          cls->get_super() != nullptr
+            ? cls->get_super()->qualified_name.c_str()
             : "<none>");
         ImGui::Text("Children: %zu", child_count);
         ImGui::Text("Root Tag: %p", cls->root_tag);
@@ -918,7 +919,7 @@ void imgui_draw_class_inspector_panel()
         ImGui::SeparatorText("Properties");
 
         std::vector<const reflect::ClassInfo*> class_chain;
-        for(const auto* p = cls; p != nullptr; p = p->super)
+        for(const auto* p = cls; p != nullptr; p = p->get_super())
         {
             class_chain.push_back(p);
         }

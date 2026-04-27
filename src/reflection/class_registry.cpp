@@ -164,7 +164,8 @@ void ReflectionSystem::process_pending_registrations()
           "{}.{}",
           reg->module_name,
           reg->name);
-        cls.super = reg->super;
+        cls.super = nullptr;
+        cls.resolve_super = reg->resolve_super;
         cls.root_tag = reg->root_tag;
         cls.size = reg->size;
         cls.factory = reg->factory;
