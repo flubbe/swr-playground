@@ -127,7 +127,14 @@ ClassInfo* super_class_info() noexcept
 
 }    // namespace detail
 
-/** Reflection system. */
+/**
+ * Reflection system.
+ *
+ * Thread safety:
+ * - This API is not internally synchronized.
+ * - Callers may provide external synchronization when using it from multiple
+ *   threads (for example around concurrent DLL loading/registration).
+ */
 class ReflectionSystem
 {
     friend struct detail::AutoClassRegistrar;
@@ -142,10 +149,15 @@ class ReflectionSystem
 
 public:
     /**
-     * Enable/disable automatic class registration. Useful when loading dynamic libraries.
-     * Registration is enabled by default.
+     * Enable/disable automatic queuing of class registrations.
      *
-     * @param enabled Whether to enable automatic registration.
+     * When enabled (default), static registrars append classes to the pending
+     * list during static initialization. Call `process_pending_registrations()`
+     * to finalize and publish them.
+     *
+     * To finalize, disable auto-registration first, then process pending entries.
+     *
+     * @param enabled Whether to enable automatic queuing.
      */
     static void allow_auto_registration(
       bool enabled) noexcept;
@@ -154,8 +166,10 @@ public:
     static bool is_auto_registration_allowed() noexcept;
 
     /**
-     * Process all pending registrations. Needs to be called after
-     * automatic registration ended, e.g. after dynamic library loading.
+     * Process all queued registrations and publish them to the class registry.
+     *
+     * Call this only after disabling automatic queuing via
+     * `allow_auto_registration(false)`, e.g. once dynamic library loading ended.
      *
      * @throws Throws `std::runtime_error` if called while automatic registration is enabled.
      * @throws Throws `std::runtime_error` if the registration data is invalid.
@@ -239,7 +253,7 @@ public:
     static void clear();
 };
 
-/** Automatic class registration helper. Executed during static initialization. */
+/** Automatic class registration helper. Queues entries during static initialization. */
 struct detail::AutoClassRegistrar
 {
     /**
