@@ -10,16 +10,7 @@
 
 #include "builtin_properties.h"
 
-namespace
-{
-
-const std::string& empty_string()
-{
-    static const std::string k_empty{};
-    return k_empty;
-}
-
-}    // namespace
+#include <stdexcept>
 
 namespace reflect
 {
@@ -34,21 +25,20 @@ IntProperty::IntProperty(
 , value{value}
 , speed{speed}
 {
-}
-
-bool IntProperty::has_value() const noexcept
-{
-    return value != nullptr;
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"IntProperty requires non-null value pointer"};
+    }
 }
 
 int IntProperty::get_value() const noexcept
 {
-    return value != nullptr ? *value : 0;
+    return *value;
 }
 
 bool IntProperty::set_value(int in_value) noexcept
 {
-    if(value == nullptr || is_read_only())
+    if(is_read_only())
     {
         return false;
     }
@@ -67,11 +57,6 @@ const void* IntProperty::get_type_tag() const noexcept
     return detail::property_type_tag<IntProperty>();
 }
 
-void IntProperty::accept(PropertyVisitor& visitor)
-{
-    visitor.visit(*this);
-}
-
 UIntProperty::UIntProperty(
   std::string name,
   std::string label,
@@ -82,21 +67,20 @@ UIntProperty::UIntProperty(
 , value{value}
 , speed{speed}
 {
-}
-
-bool UIntProperty::has_value() const noexcept
-{
-    return value != nullptr;
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"UIntProperty requires non-null value pointer"};
+    }
 }
 
 unsigned int UIntProperty::get_value() const noexcept
 {
-    return value != nullptr ? *value : 0;
+    return *value;
 }
 
 bool UIntProperty::set_value(unsigned int in_value) noexcept
 {
-    if(value == nullptr || is_read_only())
+    if(is_read_only())
     {
         return false;
     }
@@ -115,11 +99,6 @@ const void* UIntProperty::get_type_tag() const noexcept
     return detail::property_type_tag<UIntProperty>();
 }
 
-void UIntProperty::accept(PropertyVisitor& visitor)
-{
-    visitor.visit(*this);
-}
-
 FloatProperty::FloatProperty(
   std::string name,
   std::string label,
@@ -132,21 +111,20 @@ FloatProperty::FloatProperty(
 , speed{speed}
 , format{format}
 {
-}
-
-bool FloatProperty::has_value() const noexcept
-{
-    return value != nullptr;
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"FloatProperty requires non-null value pointer"};
+    }
 }
 
 float FloatProperty::get_value() const noexcept
 {
-    return value != nullptr ? *value : 0.0f;
+    return *value;
 }
 
 bool FloatProperty::set_value(float in_value) noexcept
 {
-    if(value == nullptr || is_read_only())
+    if(is_read_only())
     {
         return false;
     }
@@ -170,11 +148,6 @@ const void* FloatProperty::get_type_tag() const noexcept
     return detail::property_type_tag<FloatProperty>();
 }
 
-void FloatProperty::accept(PropertyVisitor& visitor)
-{
-    visitor.visit(*this);
-}
-
 BoolProperty::BoolProperty(
   std::string name,
   std::string label,
@@ -183,21 +156,20 @@ BoolProperty::BoolProperty(
 : Property{std::move(name), std::move(label), flags}
 , value{value}
 {
-}
-
-bool BoolProperty::has_value() const noexcept
-{
-    return value != nullptr;
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"BoolProperty requires non-null value pointer"};
+    }
 }
 
 bool BoolProperty::get_value() const noexcept
 {
-    return value != nullptr ? *value : false;
+    return *value;
 }
 
 bool BoolProperty::set_value(bool in_value) noexcept
 {
-    if(value == nullptr || is_read_only())
+    if(is_read_only())
     {
         return false;
     }
@@ -211,11 +183,6 @@ const void* BoolProperty::get_type_tag() const noexcept
     return detail::property_type_tag<BoolProperty>();
 }
 
-void BoolProperty::accept(PropertyVisitor& visitor)
-{
-    visitor.visit(*this);
-}
-
 StringProperty::StringProperty(
   std::string name,
   std::string label,
@@ -226,21 +193,20 @@ StringProperty::StringProperty(
 , value{value}
 , max_length{max_length}
 {
-}
-
-bool StringProperty::has_value() const noexcept
-{
-    return value != nullptr;
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"StringProperty requires non-null value pointer"};
+    }
 }
 
 const std::string& StringProperty::get_value() const noexcept
 {
-    return value != nullptr ? *value : empty_string();
+    return *value;
 }
 
 bool StringProperty::set_value(std::string_view in_value)
 {
-    if(value == nullptr || is_read_only())
+    if(is_read_only())
     {
         return false;
     }
@@ -258,11 +224,6 @@ std::size_t StringProperty::get_max_length() const noexcept
 const void* StringProperty::get_type_tag() const noexcept
 {
     return detail::property_type_tag<StringProperty>();
-}
-
-void StringProperty::accept(PropertyVisitor& visitor)
-{
-    visitor.visit(*this);
 }
 
 }    // namespace reflect

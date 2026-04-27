@@ -182,7 +182,10 @@ public:
     }
 
     /** Visitor acceptor. */
-    virtual void accept(PropertyVisitor& visitor) = 0;
+    void accept(PropertyVisitor& visitor)
+    {
+        visitor.visit(*this);
+    }
 };
 
 /** Base class for property descriptors. */

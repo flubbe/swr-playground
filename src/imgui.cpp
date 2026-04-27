@@ -370,12 +370,6 @@ public:
 private:
     static void render_int(reflect::IntProperty& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         if(property.is_read_only())
         {
             ImGui::Text("%d", property.get_value());
@@ -395,12 +389,6 @@ private:
 
     static void render_uint(reflect::UIntProperty& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         if(property.is_read_only())
         {
             ImGui::Text("%u", property.get_value());
@@ -424,12 +412,6 @@ private:
 
     static void render_float(reflect::FloatProperty& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         if(property.is_read_only())
         {
             ImGui::Text(property.get_format(), property.get_value());
@@ -452,12 +434,6 @@ private:
 
     static void render_bool(reflect::BoolProperty& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         if(property.is_read_only())
         {
             ImGui::TextUnformatted(property.get_value() ? "true" : "false");
@@ -473,12 +449,6 @@ private:
 
     static void render_string(reflect::StringProperty& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         if(property.is_read_only())
         {
             ImGui::TextUnformatted(property.get_value().c_str());
@@ -503,12 +473,6 @@ private:
 
     static void render_mat4(reflect::Mat4Property& property)
     {
-        if(!property.has_value())
-        {
-            ImGui::TextUnformatted("<null>");
-            return;
-        }
-
         ml::mat4x4 value = property.get_value();
         bool changed = false;
 

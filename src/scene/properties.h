@@ -23,18 +23,33 @@ class Mat4Property : public Property
     ml::mat4x4* value{nullptr};
 
 public:
+    /**
+     * Construct a 4x4 matrix property.
+     *
+     * @param name Internal property name.
+     * @param label Display name.
+     * @param value Pointer to the reflected value.
+     * @param flags Property flags.
+     * @throws `std::invalid_argument` if `value` is `nullptr`.
+     */
     Mat4Property(
       std::string name,
       std::string label,
       ml::mat4x4* value,
       PropertyFlags flags = PropertyFlags::None);
 
-    bool has_value() const noexcept;
-    const ml::mat4x4& get_value() const noexcept;
-    bool set_value(const ml::mat4x4& in_value) noexcept;
     const void* get_type_tag() const noexcept override;
 
-    void accept(PropertyVisitor& visitor) override;
+    /** Return the current value. */
+    const ml::mat4x4& get_value() const noexcept;
+
+    /**
+     * Set the current value.
+     *
+     * @param in_value New value.
+     * @returns `true` if written, `false` if read-only.
+     */
+    bool set_value(const ml::mat4x4& in_value) noexcept;
 };
 
 template<>
