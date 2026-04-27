@@ -21,9 +21,6 @@ namespace reflect
 class IntProperty : public Property
 {
     int* value{nullptr};
-    int min_value{0};
-    int max_value{0};
-    bool has_limits{false};
     float speed{1.0f};
 
 public:
@@ -34,22 +31,10 @@ public:
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
-    IntProperty(
-      std::string name,
-      std::string label,
-      int* value,
-      int min_value,
-      int max_value,
-      PropertyFlags flags = PropertyFlags::None,
-      float speed = 1.0f);
-
     bool has_value() const noexcept;
     int get_value() const noexcept;
     bool set_value(int in_value) noexcept;
 
-    bool has_limits_enabled() const noexcept;
-    int get_min_value() const noexcept;
-    int get_max_value() const noexcept;
     float get_speed() const noexcept;
     const void* get_type_tag() const noexcept override;
 
@@ -60,9 +45,6 @@ public:
 class UIntProperty : public Property
 {
     unsigned int* value{nullptr};
-    unsigned int min_value{0};
-    unsigned int max_value{0};
-    bool has_limits{false};
     float speed{1.0f};
 
 public:
@@ -73,22 +55,10 @@ public:
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
-    UIntProperty(
-      std::string name,
-      std::string label,
-      unsigned int* value,
-      unsigned int min_value,
-      unsigned int max_value,
-      PropertyFlags flags = PropertyFlags::None,
-      float speed = 1.0f);
-
     bool has_value() const noexcept;
     unsigned int get_value() const noexcept;
     bool set_value(unsigned int in_value) noexcept;
 
-    bool has_limits_enabled() const noexcept;
-    unsigned int get_min_value() const noexcept;
-    unsigned int get_max_value() const noexcept;
     float get_speed() const noexcept;
     const void* get_type_tag() const noexcept override;
 
@@ -99,9 +69,6 @@ public:
 class FloatProperty : public Property
 {
     float* value{nullptr};
-    float min_value{0.0f};
-    float max_value{0.0f};
-    bool has_limits{false};
     float speed{0.01f};
     const char* format{"%.3f"};
 
@@ -114,23 +81,10 @@ public:
       float speed = 0.01f,
       const char* format = "%.3f");
 
-    FloatProperty(
-      std::string name,
-      std::string label,
-      float* value,
-      float min_value,
-      float max_value,
-      PropertyFlags flags = PropertyFlags::None,
-      float speed = 0.01f,
-      const char* format = "%.3f");
-
     bool has_value() const noexcept;
     float get_value() const noexcept;
     bool set_value(float in_value) noexcept;
 
-    bool has_limits_enabled() const noexcept;
-    float get_min_value() const noexcept;
-    float get_max_value() const noexcept;
     float get_speed() const noexcept;
     const char* get_format() const noexcept;
     const void* get_type_tag() const noexcept override;

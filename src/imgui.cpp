@@ -383,17 +383,10 @@ private:
         }
 
         int value = property.get_value();
-        const bool changed = property.has_limits_enabled()
-                               ? ImGui::DragInt(
-                                   "##value",
-                                   &value,
-                                   property.get_speed(),
-                                   property.get_min_value(),
-                                   property.get_max_value())
-                               : ImGui::DragInt(
-                                   "##value",
-                                   &value,
-                                   property.get_speed());
+        const bool changed = ImGui::DragInt(
+          "##value",
+          &value,
+          property.get_speed());
         if(changed)
         {
             property.set_value(value);
@@ -415,25 +408,14 @@ private:
         }
 
         unsigned int value = property.get_value();
-        const unsigned int min_value = property.get_min_value();
-        const unsigned int max_value = property.get_max_value();
-        const bool changed = property.has_limits_enabled()
-                               ? ImGui::DragScalar(
-                                   "##value",
-                                   ImGuiDataType_U32,
-                                   &value,
-                                   property.get_speed(),
-                                   &min_value,
-                                   &max_value,
-                                   "%u")
-                               : ImGui::DragScalar(
-                                   "##value",
-                                   ImGuiDataType_U32,
-                                   &value,
-                                   property.get_speed(),
-                                   nullptr,
-                                   nullptr,
-                                   "%u");
+        const bool changed = ImGui::DragScalar(
+          "##value",
+          ImGuiDataType_U32,
+          &value,
+          property.get_speed(),
+          nullptr,
+          nullptr,
+          "%u");
         if(changed)
         {
             property.set_value(value);
@@ -455,21 +437,13 @@ private:
         }
 
         float value = property.get_value();
-        const bool changed = property.has_limits_enabled()
-                               ? ImGui::DragFloat(
-                                   "##value",
-                                   &value,
-                                   property.get_speed(),
-                                   property.get_min_value(),
-                                   property.get_max_value(),
-                                   property.get_format())
-                               : ImGui::DragFloat(
-                                   "##value",
-                                   &value,
-                                   property.get_speed(),
-                                   0.0f,
-                                   0.0f,
-                                   property.get_format());
+        const bool changed = ImGui::DragFloat(
+          "##value",
+          &value,
+          property.get_speed(),
+          0.0f,
+          0.0f,
+          property.get_format());
         if(changed)
         {
             property.set_value(value);

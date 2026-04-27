@@ -36,23 +36,6 @@ IntProperty::IntProperty(
 {
 }
 
-IntProperty::IntProperty(
-  std::string name,
-  std::string label,
-  int* value,
-  int min_value,
-  int max_value,
-  PropertyFlags flags,
-  float speed)
-: Property{std::move(name), std::move(label), flags}
-, value{value}
-, min_value{min_value}
-, max_value{max_value}
-, has_limits{true}
-, speed{speed}
-{
-}
-
 bool IntProperty::has_value() const noexcept
 {
     return value != nullptr;
@@ -70,28 +53,8 @@ bool IntProperty::set_value(int in_value) noexcept
         return false;
     }
 
-    if(has_limits)
-    {
-        in_value = std::clamp(in_value, min_value, max_value);
-    }
-
     *value = in_value;
     return true;
-}
-
-bool IntProperty::has_limits_enabled() const noexcept
-{
-    return has_limits;
-}
-
-int IntProperty::get_min_value() const noexcept
-{
-    return min_value;
-}
-
-int IntProperty::get_max_value() const noexcept
-{
-    return max_value;
 }
 
 float IntProperty::get_speed() const noexcept
@@ -121,23 +84,6 @@ UIntProperty::UIntProperty(
 {
 }
 
-UIntProperty::UIntProperty(
-  std::string name,
-  std::string label,
-  unsigned int* value,
-  unsigned int min_value,
-  unsigned int max_value,
-  PropertyFlags flags,
-  float speed)
-: Property{std::move(name), std::move(label), flags}
-, value{value}
-, min_value{min_value}
-, max_value{max_value}
-, has_limits{true}
-, speed{speed}
-{
-}
-
 bool UIntProperty::has_value() const noexcept
 {
     return value != nullptr;
@@ -155,28 +101,8 @@ bool UIntProperty::set_value(unsigned int in_value) noexcept
         return false;
     }
 
-    if(has_limits)
-    {
-        in_value = std::clamp(in_value, min_value, max_value);
-    }
-
     *value = in_value;
     return true;
-}
-
-bool UIntProperty::has_limits_enabled() const noexcept
-{
-    return has_limits;
-}
-
-unsigned int UIntProperty::get_min_value() const noexcept
-{
-    return min_value;
-}
-
-unsigned int UIntProperty::get_max_value() const noexcept
-{
-    return max_value;
 }
 
 float UIntProperty::get_speed() const noexcept
@@ -208,25 +134,6 @@ FloatProperty::FloatProperty(
 {
 }
 
-FloatProperty::FloatProperty(
-  std::string name,
-  std::string label,
-  float* value,
-  float min_value,
-  float max_value,
-  PropertyFlags flags,
-  float speed,
-  const char* format)
-: Property{std::move(name), std::move(label), flags}
-, value{value}
-, min_value{min_value}
-, max_value{max_value}
-, has_limits{true}
-, speed{speed}
-, format{format}
-{
-}
-
 bool FloatProperty::has_value() const noexcept
 {
     return value != nullptr;
@@ -244,28 +151,8 @@ bool FloatProperty::set_value(float in_value) noexcept
         return false;
     }
 
-    if(has_limits)
-    {
-        in_value = std::clamp(in_value, min_value, max_value);
-    }
-
     *value = in_value;
     return true;
-}
-
-bool FloatProperty::has_limits_enabled() const noexcept
-{
-    return has_limits;
-}
-
-float FloatProperty::get_min_value() const noexcept
-{
-    return min_value;
-}
-
-float FloatProperty::get_max_value() const noexcept
-{
-    return max_value;
 }
 
 float FloatProperty::get_speed() const noexcept
