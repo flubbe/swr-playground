@@ -16,27 +16,8 @@ public:
     std::string root_name{"root"};
 };
 
-class TestChild : public reflect::Reflected<TestChild, TestRoot>
-{
-public:
-    static void register_properties(reflect::ClassInfo& class_info);
-
-    bool enabled{true};
-};
-
 DECLARE_REFLECTION(Test, TestRoot);
-DECLARE_REFLECTION(Test, TestChild);
-
-class EmptyRoot : public reflect::ReflectRoot<EmptyRoot>
-{
-};
-
-class EmptyChild : public reflect::Reflected<EmptyChild, EmptyRoot>
-{
-};
-
-DECLARE_REFLECTION(Test, EmptyRoot);
-DECLARE_REFLECTION(Test, EmptyChild);
+DEFINE_REFLECTION(TestRoot);
 
 void TestRoot::register_properties(reflect::ClassInfo& class_info)
 {
@@ -51,6 +32,17 @@ void TestRoot::register_properties(reflect::ClassInfo& class_info)
       "Root Name");
 }
 
+class TestChild : public reflect::Reflected<TestChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    bool enabled{true};
+};
+
+DECLARE_REFLECTION(Test, TestChild);
+DEFINE_REFLECTION(TestChild);
+
 void TestChild::register_properties(reflect::ClassInfo& class_info)
 {
     reflect::register_property<&TestChild::enabled>(
@@ -58,11 +50,6 @@ void TestChild::register_properties(reflect::ClassInfo& class_info)
       "enabled",
       "Enabled");
 }
-
-DEFINE_REFLECTION(TestRoot);
-DEFINE_REFLECTION(TestChild);
-DEFINE_REFLECTION(EmptyRoot);
-DEFINE_REFLECTION(EmptyChild);
 
 namespace
 {
@@ -89,6 +76,25 @@ TEST(ReflectionSystemTests, ProcessPendingRequiresDisabledAutoRegistration)
       reflect::ReflectionSystem::process_pending_registrations(),
       std::runtime_error);
     reflect::ReflectionSystem::allow_auto_registration(false);
+}
+
+TEST(ReflectionSystemTests, StaticClassReturnsStablePointer)
+{
+    ensure_reflection_ready();
+
+    EXPECT_EQ(TestRoot::static_class(), TestRoot::static_class());
+    EXPECT_EQ(TestChild::static_class(), TestChild::static_class());
+}
+
+TEST(ReflectionSystemTests, InstanceClassMatchesStaticClass)
+{
+    ensure_reflection_ready();
+
+    TestRoot root;
+    TestChild child;
+
+    EXPECT_EQ(root.get_class(), TestRoot::static_class());
+    EXPECT_EQ(child.get_class(), TestChild::static_class());
 }
 
 TEST(ReflectionSystemTests, FindsClassesAndSupportsHierarchyQueries)
@@ -140,6 +146,19 @@ TEST(ReflectionSystemTests, ConstructsRegisteredPropertyFromDescriptor)
     EXPECT_FALSE(child.enabled);
 }
 
+TEST(ReflectionSystemTests, DerivedClassFirstPropertyContainsOnlyLocalProperties)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = TestChild::static_class();
+
+    ASSERT_NE(cls, nullptr);
+    ASSERT_NE(cls->first_property, nullptr);
+
+    EXPECT_EQ(cls->first_property->name, "enabled");
+    EXPECT_EQ(cls->first_property->next, nullptr);
+}
+
 TEST(ReflectionSystemTests, FindsPropertyDescriptorsByInternalName)
 {
     ensure_reflection_ready();
@@ -164,7 +183,90 @@ TEST(ReflectionSystemTests, FindsPropertyDescriptorsByInternalName)
     EXPECT_EQ(enabled_descriptor->name, "enabled");
 }
 
-TEST(ReflectionSystemTests, UsesDefaultNoOpPropertyRegistrationWhenNotDefined)
+TEST(ReflectionSystemTests, FindsInheritedPropertyDescriptorsByInternalName)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* child_cls =
+      reflect::ReflectionSystem::find_class<TestRoot>("Test.TestChild");
+
+    ASSERT_NE(child_cls, nullptr);
+
+    const reflect::PropertyDescriptor* inherited =
+      child_cls->find_property("root_value");
+
+    ASSERT_NE(inherited, nullptr);
+    EXPECT_EQ(inherited, TestRoot::static_class()->first_property.get());
+    EXPECT_EQ(inherited->name, "root_value");
+    EXPECT_EQ(inherited->label, "Root Value");
+}
+
+TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInstance)
+{
+    ensure_reflection_ready();
+
+    TestChild child;
+    const reflect::ClassInfo* child_cls =
+      reflect::ReflectionSystem::find_class<TestRoot>("Test.TestChild");
+
+    ASSERT_NE(child_cls, nullptr);
+    ASSERT_TRUE(child_cls->is_a(TestRoot::static_class()));
+
+    const reflect::PropertyDescriptor* descriptor =
+      child_cls->find_property("root_name");
+
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->construct, nullptr);
+
+    auto property = descriptor->construct(
+      &child,
+      descriptor->name,
+      descriptor->label,
+      descriptor->flags);
+
+    ASSERT_NE(property, nullptr);
+    ASSERT_TRUE(property->is_type<reflect::StringProperty>());
+
+    auto& string_property = property->as<reflect::StringProperty>();
+    EXPECT_EQ(string_property.get_value(), "root");
+}
+
+TEST(ReflectionSystemTests, PreservesRegistrationOrderWithinClass)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = TestRoot::static_class();
+
+    ASSERT_NE(cls, nullptr);
+    ASSERT_NE(cls->first_property, nullptr);
+
+    EXPECT_EQ(cls->first_property->name, "root_value");
+    ASSERT_NE(cls->first_property->next, nullptr);
+    EXPECT_EQ(cls->first_property->next->name, "root_name");
+    EXPECT_EQ(cls->first_property->next->next, nullptr);
+}
+
+class EmptyRoot : public reflect::ReflectRoot<EmptyRoot>
+{
+};
+
+DECLARE_REFLECTION(Test, EmptyRoot);
+DEFINE_REFLECTION(EmptyRoot);
+
+class EmptyChild : public reflect::Reflected<EmptyChild, EmptyRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo&);
+};
+
+DECLARE_REFLECTION(Test, EmptyChild);
+DEFINE_REFLECTION(EmptyChild);
+
+void EmptyChild::register_properties(reflect::ClassInfo&)
+{
+}
+
+TEST(ReflectionSystemTests, SupportsExplicitEmptyPropertyRegistration)
 {
     ensure_reflection_ready();
 
@@ -178,6 +280,42 @@ TEST(ReflectionSystemTests, UsesDefaultNoOpPropertyRegistrationWhenNotDefined)
     EXPECT_EQ(root_cls->first_property, nullptr);
     EXPECT_EQ(child_cls->first_property, nullptr);
     EXPECT_TRUE(child_cls->is_a(root_cls));
+}
+
+TEST(ReflectionSystemTests, RootCanOmitPropertyRegistration)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* root_cls = EmptyRoot::static_class();
+
+    ASSERT_NE(root_cls, nullptr);
+    EXPECT_EQ(root_cls->first_property, nullptr);
+}
+
+class EmptyRegisteredChild : public reflect::Reflected<EmptyRegisteredChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo&);
+};
+
+DECLARE_REFLECTION(Test, EmptyRegisteredChild);
+DEFINE_REFLECTION(EmptyRegisteredChild);
+
+void EmptyRegisteredChild::register_properties(reflect::ClassInfo&)
+{
+}
+
+TEST(ReflectionSystemTests, EmptyChildFindsInheritedPropertiesWithoutCopyingThem)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = EmptyRegisteredChild::static_class();
+
+    ASSERT_NE(cls, nullptr);
+    EXPECT_EQ(cls->first_property, nullptr);
+    EXPECT_NE(cls->find_property("root_value"), nullptr);
+    EXPECT_NE(cls->find_property("root_name"), nullptr);
+    EXPECT_EQ(cls->find_property("missing_property"), nullptr);
 }
 
 TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnNullObject)
@@ -199,6 +337,40 @@ TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnNullObject)
         descriptor->label,
         descriptor->flags),
       reflect::instance_error);
+}
+
+class ShadowChild : public reflect::Reflected<ShadowChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo&);
+
+    int root_value{100};
+};
+
+DECLARE_REFLECTION(Test, ShadowChild);
+DEFINE_REFLECTION(ShadowChild);
+
+void ShadowChild::register_properties(reflect::ClassInfo& class_info)
+{
+    reflect::register_property<&ShadowChild::root_value>(
+      class_info,
+      "root_value",
+      "Shadowed Root Value");
+}
+
+TEST(ReflectionSystemTests, FindPropertyPrefersMostDerivedDescriptor)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = ShadowChild::static_class();
+    ASSERT_NE(cls, nullptr);
+
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("root_value");
+
+    ASSERT_NE(descriptor, nullptr);
+    EXPECT_EQ(descriptor->label, "Shadowed Root Value");
+    EXPECT_EQ(descriptor, cls->first_property.get());
 }
 
 TEST(BuiltinPropertyTests, ConstructorsRejectNullValuePointers)

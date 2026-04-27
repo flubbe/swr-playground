@@ -80,18 +80,23 @@ struct ClassInfo
     /**
      * Find a registered property descriptor by internal property name.
      *
-     * @param property_name Internal property name (`DescriptorBase::name`).
-     * @returns Returns the first matching descriptor, or `nullptr` if not found.
+     * Searches this class first, then walks through superclasses.
+     *
+     * @param property_name Internal property name (`PropertyDescriptor::name`).
+     * @returns The first matching descriptor, or `nullptr` if not found.
      */
     const PropertyDescriptor* find_property(std::string_view property_name) const noexcept
     {
-        for(const auto* descriptor = first_property.get();
-            descriptor != nullptr;
-            descriptor = descriptor->next.get())
+        for(const auto* cls = this; cls != nullptr; cls = cls->super)
         {
-            if(descriptor->name == property_name)
+            for(const auto* descriptor = cls->first_property.get();
+                descriptor != nullptr;
+                descriptor = descriptor->next.get())
             {
-                return descriptor;
+                if(descriptor->name == property_name)
+                {
+                    return descriptor;
+                }
             }
         }
 
