@@ -1,6 +1,8 @@
 #include <stdexcept>
 #include <string>
 #include <functional>
+#include <cstdint>
+#include <memory>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -715,6 +717,13 @@ TEST(ReflectionSystemTests, ConstructsRegisteredPropertyFromDescriptor)
 
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
+    EXPECT_EQ(property->get_size(), sizeof(bool));
+    EXPECT_EQ(property->get_alignment(), alignof(bool));
+    EXPECT_EQ(
+      property->get_offset(),
+      static_cast<std::size_t>(
+        reinterpret_cast<std::uintptr_t>(std::addressof(child.enabled))
+        - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
     reflect::BoolProperty& bool_property = property->as<reflect::BoolProperty>();
     EXPECT_TRUE(bool_property.get_value());
     EXPECT_TRUE(bool_property.set_value(false));
@@ -801,6 +810,13 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInsta
 
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::StringProperty>());
+    EXPECT_EQ(property->get_size(), sizeof(std::string));
+    EXPECT_EQ(property->get_alignment(), alignof(std::string));
+    EXPECT_EQ(
+      property->get_offset(),
+      static_cast<std::size_t>(
+        reinterpret_cast<std::uintptr_t>(std::addressof(child.root_name))
+        - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
 
     auto& string_property = property->as<reflect::StringProperty>();
     EXPECT_EQ(string_property.get_value(), "root");

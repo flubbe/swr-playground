@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -83,6 +84,15 @@ class Property
     /** Display name. */
     std::string label;
 
+    /** Byte size of the reflected value type. */
+    std::size_t size{0};
+
+    /** Byte offset of the reflected value from the owning object base. */
+    std::size_t offset{0};
+
+    /** Alignment of the reflected value type in bytes. */
+    std::size_t alignment{0};
+
     /** Property flags. */
     PropertyFlags flags{PropertyFlags::None};
 
@@ -97,9 +107,15 @@ public:
     Property(
       std::string name,
       std::string label,
+      std::size_t size,
+      std::size_t offset,
+      std::size_t alignment,
       PropertyFlags flags = PropertyFlags::None)
     : name{std::move(name)}
     , label{std::move(label)}
+    , size{size}
+    , offset{offset}
+    , alignment{alignment}
     , flags{flags}
     {
     }
@@ -117,6 +133,24 @@ public:
     const std::string& get_label() const noexcept
     {
         return label;
+    }
+
+    /** Byte size of the reflected value type. */
+    std::size_t get_size() const noexcept
+    {
+        return size;
+    }
+
+    /** Byte offset of the reflected value from the owning object base. */
+    std::size_t get_offset() const noexcept
+    {
+        return offset;
+    }
+
+    /** Alignment of the reflected value type in bytes. */
+    std::size_t get_alignment() const noexcept
+    {
+        return alignment;
     }
 
     /** Property flags. */
@@ -283,7 +317,7 @@ struct PropertyDescriptor : DescriptorBase
  * Maps a C++ value type to a concrete `Property` implementation.
  *
  * Specialize this template for each reflected value type and provide:
- * `static std::unique_ptr<Property> construct(std::string_view, std::string_view, T&, PropertyFlags)`.
+ * `static std::unique_ptr<Property> construct(std::string_view, std::string_view, T&, std::size_t, PropertyFlags)`.
  */
 template<typename T>
 struct PropertyFactory;
@@ -347,11 +381,16 @@ std::unique_ptr<Property> construct_member(
 
     using MemberTraits = UnwrapType<MemberType>;
     using UnwrappedType = typename MemberTraits::Type;
+    UnwrappedType& unwrapped_value = MemberTraits::get(value);
+    const std::size_t property_offset = static_cast<std::size_t>(
+      reinterpret_cast<std::uintptr_t>(std::addressof(unwrapped_value))
+      - reinterpret_cast<std::uintptr_t>(std::addressof(obj)));
 
     return PropertyFactory<UnwrappedType>::construct(
       name,
       label,
-      MemberTraits::get(value),
+      unwrapped_value,
+      property_offset,
       flags);
 }
 

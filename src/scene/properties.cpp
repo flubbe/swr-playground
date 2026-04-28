@@ -18,9 +18,16 @@ namespace reflect
 Mat4Property::Mat4Property(
   std::string name,
   std::string label,
-  ml::mat4x4* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 {
     if(value == nullptr)
@@ -29,12 +36,12 @@ Mat4Property::Mat4Property(
     }
 }
 
-const ml::mat4x4& Mat4Property::get_value() const noexcept
+const Mat4Property::Type& Mat4Property::get_value() const noexcept
 {
     return *value;
 }
 
-bool Mat4Property::set_value(const ml::mat4x4& in_value) noexcept
+bool Mat4Property::set_value(const Type& in_value) noexcept
 {
     if(is_read_only())
     {

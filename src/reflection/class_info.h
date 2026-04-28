@@ -136,7 +136,6 @@ struct ClassInfo
         }
         return false;
     }
-
 };
 
 }    // namespace reflect

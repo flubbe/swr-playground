@@ -20,8 +20,12 @@ namespace reflect
 /** Built-in reflected integer property. */
 class IntProperty : public Property
 {
+public:
+    using Type = int;
+
+private:
     /** Pointer to the reflected value. */
-    int* value{nullptr};
+    Type* value{nullptr};
 
     /** UI drag speed. */
     float speed{1.0f};
@@ -33,6 +37,7 @@ public:
      * @param name Internal property name.
      * @param label Display name.
      * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
      * @param flags Property flags.
      * @param speed UI drag speed.
      * @throws `std::invalid_argument` if `value` is `nullptr`.
@@ -40,14 +45,15 @@ public:
     IntProperty(
       std::string name,
       std::string label,
-      int* value,
+      Type* value,
+      std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
-    int get_value() const noexcept;
+    Type get_value() const noexcept;
 
     /**
      * Set the current value.
@@ -55,7 +61,7 @@ public:
      * @param in_value New value.
      * @returns `true` if written, `false` if read-only.
      */
-    bool set_value(int in_value) noexcept;
+    bool set_value(Type in_value) noexcept;
 
     /** Return the UI drag speed. */
     float get_speed() const noexcept;
@@ -64,8 +70,12 @@ public:
 /** Built-in reflected unsigned integer property. */
 class UIntProperty : public Property
 {
+public:
+    using Type = unsigned int;
+
+private:
     /** Pointer to the reflected value. */
-    unsigned int* value{nullptr};
+    Type* value{nullptr};
 
     /** UI drag speed. */
     float speed{1.0f};
@@ -77,6 +87,7 @@ public:
      * @param name Internal property name.
      * @param label Display name.
      * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
      * @param flags Property flags.
      * @param speed UI drag speed.
      * @throws `std::invalid_argument` if `value` is `nullptr`.
@@ -84,14 +95,15 @@ public:
     UIntProperty(
       std::string name,
       std::string label,
-      unsigned int* value,
+      Type* value,
+      std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f);
 
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
-    unsigned int get_value() const noexcept;
+    Type get_value() const noexcept;
 
     /**
      * Set the current value.
@@ -99,7 +111,7 @@ public:
      * @param in_value New value.
      * @returns `true` if written, `false` if read-only.
      */
-    bool set_value(unsigned int in_value) noexcept;
+    bool set_value(Type in_value) noexcept;
 
     /** Return the UI drag speed. */
     float get_speed() const noexcept;
@@ -108,8 +120,12 @@ public:
 /** Built-in reflected floating-point property. */
 class FloatProperty : public Property
 {
+public:
+    using Type = float;
+
+private:
     /** Pointer to the reflected value. */
-    float* value{nullptr};
+    Type* value{nullptr};
 
     /** UI drag speed. */
     float speed{0.01f};
@@ -124,6 +140,7 @@ public:
      * @param name Internal property name.
      * @param label Display name.
      * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
      * @param flags Property flags.
      * @param speed UI drag speed.
      * @param format UI display format.
@@ -132,7 +149,8 @@ public:
     FloatProperty(
       std::string name,
       std::string label,
-      float* value,
+      Type* value,
+      std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 0.01f,
       const char* format = "%.3f");
@@ -140,7 +158,7 @@ public:
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
-    float get_value() const noexcept;
+    Type get_value() const noexcept;
 
     /**
      * Set the current value.
@@ -148,7 +166,7 @@ public:
      * @param in_value New value.
      * @returns `true` if written, `false` if read-only.
      */
-    bool set_value(float in_value) noexcept;
+    bool set_value(Type in_value) noexcept;
 
     /** Return the UI drag speed. */
     float get_speed() const noexcept;
@@ -160,8 +178,12 @@ public:
 /** Built-in reflected boolean property. */
 class BoolProperty : public Property
 {
+public:
+    using Type = bool;
+
+private:
     /** Pointer to the reflected value. */
-    bool* value{nullptr};
+    Type* value{nullptr};
 
 public:
     /**
@@ -170,19 +192,21 @@ public:
      * @param name Internal property name.
      * @param label Display name.
      * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
      * @param flags Property flags.
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     BoolProperty(
       std::string name,
       std::string label,
-      bool* value,
+      Type* value,
+      std::size_t offset,
       PropertyFlags flags = PropertyFlags::None);
 
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
-    bool get_value() const noexcept;
+    Type get_value() const noexcept;
 
     /**
      * Set the current value.
@@ -190,14 +214,18 @@ public:
      * @param in_value New value.
      * @returns `true` if written, `false` if read-only.
      */
-    bool set_value(bool in_value) noexcept;
+    bool set_value(Type in_value) noexcept;
 };
 
 /** Built-in reflected string property. */
 class StringProperty : public Property
 {
+public:
+    using Type = std::string;
+
+private:
     /** Pointer to the reflected value. */
-    std::string* value{nullptr};
+    Type* value{nullptr};
 
     /** Maximum accepted string length. */
     std::size_t max_length{256};
@@ -209,6 +237,7 @@ public:
      * @param name Internal property name.
      * @param label Display name.
      * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
      * @param flags Property flags.
      * @param max_length Maximum accepted string length.
      * @throws `std::invalid_argument` if `value` is `nullptr`.
@@ -216,14 +245,15 @@ public:
     StringProperty(
       std::string name,
       std::string label,
-      std::string* value,
+      Type* value,
+      std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       std::size_t max_length = 256);
 
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
-    const std::string& get_value() const noexcept;
+    const Type& get_value() const noexcept;
 
     /**
      * Set the current value.
@@ -244,12 +274,14 @@ struct PropertyFactory<int>
       std::string_view name,
       std::string_view label,
       int& value,
+      std::size_t offset,
       PropertyFlags flags)
     {
         return std::make_unique<IntProperty>(
           std::string{name},
           std::string{label},
           &value,
+          offset,
           flags);
     }
 };
@@ -261,12 +293,14 @@ struct PropertyFactory<unsigned int>
       std::string_view name,
       std::string_view label,
       unsigned int& value,
+      std::size_t offset,
       PropertyFlags flags)
     {
         return std::make_unique<UIntProperty>(
           std::string{name},
           std::string{label},
           &value,
+          offset,
           flags);
     }
 };
@@ -278,12 +312,14 @@ struct PropertyFactory<float>
       std::string_view name,
       std::string_view label,
       float& value,
+      std::size_t offset,
       PropertyFlags flags)
     {
         return std::make_unique<FloatProperty>(
           std::string{name},
           std::string{label},
           &value,
+          offset,
           flags);
     }
 };
@@ -295,12 +331,14 @@ struct PropertyFactory<bool>
       std::string_view name,
       std::string_view label,
       bool& value,
+      std::size_t offset,
       PropertyFlags flags)
     {
         return std::make_unique<BoolProperty>(
           std::string{name},
           std::string{label},
           &value,
+          offset,
           flags);
     }
 };
@@ -312,12 +350,14 @@ struct PropertyFactory<std::string>
       std::string_view name,
       std::string_view label,
       std::string& value,
+      std::size_t offset,
       PropertyFlags flags)
     {
         return std::make_unique<StringProperty>(
           std::string{name},
           std::string{label},
           &value,
+          offset,
           flags);
     }
 };

@@ -18,10 +18,17 @@ namespace reflect
 IntProperty::IntProperty(
   std::string name,
   std::string label,
-  int* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 , speed{speed}
 {
@@ -31,12 +38,12 @@ IntProperty::IntProperty(
     }
 }
 
-int IntProperty::get_value() const noexcept
+IntProperty::Type IntProperty::get_value() const noexcept
 {
     return *value;
 }
 
-bool IntProperty::set_value(int in_value) noexcept
+bool IntProperty::set_value(Type in_value) noexcept
 {
     if(is_read_only())
     {
@@ -60,10 +67,17 @@ const void* IntProperty::get_type_tag() const noexcept
 UIntProperty::UIntProperty(
   std::string name,
   std::string label,
-  unsigned int* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags,
   float speed)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 , speed{speed}
 {
@@ -73,12 +87,12 @@ UIntProperty::UIntProperty(
     }
 }
 
-unsigned int UIntProperty::get_value() const noexcept
+UIntProperty::Type UIntProperty::get_value() const noexcept
 {
     return *value;
 }
 
-bool UIntProperty::set_value(unsigned int in_value) noexcept
+bool UIntProperty::set_value(Type in_value) noexcept
 {
     if(is_read_only())
     {
@@ -102,11 +116,18 @@ const void* UIntProperty::get_type_tag() const noexcept
 FloatProperty::FloatProperty(
   std::string name,
   std::string label,
-  float* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags,
   float speed,
   const char* format)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 , speed{speed}
 , format{format}
@@ -117,12 +138,12 @@ FloatProperty::FloatProperty(
     }
 }
 
-float FloatProperty::get_value() const noexcept
+FloatProperty::Type FloatProperty::get_value() const noexcept
 {
     return *value;
 }
 
-bool FloatProperty::set_value(float in_value) noexcept
+bool FloatProperty::set_value(Type in_value) noexcept
 {
     if(is_read_only())
     {
@@ -151,9 +172,16 @@ const void* FloatProperty::get_type_tag() const noexcept
 BoolProperty::BoolProperty(
   std::string name,
   std::string label,
-  bool* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 {
     if(value == nullptr)
@@ -162,12 +190,12 @@ BoolProperty::BoolProperty(
     }
 }
 
-bool BoolProperty::get_value() const noexcept
+BoolProperty::Type BoolProperty::get_value() const noexcept
 {
     return *value;
 }
 
-bool BoolProperty::set_value(bool in_value) noexcept
+bool BoolProperty::set_value(Type in_value) noexcept
 {
     if(is_read_only())
     {
@@ -186,10 +214,17 @@ const void* BoolProperty::get_type_tag() const noexcept
 StringProperty::StringProperty(
   std::string name,
   std::string label,
-  std::string* value,
+  Type* value,
+  std::size_t offset,
   PropertyFlags flags,
   std::size_t max_length)
-: Property{std::move(name), std::move(label), flags}
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
 , value{value}
 , max_length{max_length}
 {
@@ -199,7 +234,7 @@ StringProperty::StringProperty(
     }
 }
 
-const std::string& StringProperty::get_value() const noexcept
+const StringProperty::Type& StringProperty::get_value() const noexcept
 {
     return *value;
 }
