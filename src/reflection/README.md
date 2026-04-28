@@ -55,9 +55,10 @@ class Object : public reflect::ReflectRoot<Object>
 {
 public:
     int id{0};
+
     static void register_properties(reflect::ClassInfo& ci)
     {
-        reflect::register_property<&Object::id>(ci, "id", "ID");
+        reflect::register_property<&Object::id>(ci, "id", "Object ID");
     }
 };
 
