@@ -287,7 +287,7 @@ TEST(ReflectionSystemTests, InstanceClassMatchesStaticClass)
     EXPECT_EQ(child.get_class(), TestChild::static_class());
 }
 
-TEST(ReflectionSystemTests, LazySuperResolutionMatchesBetweenStaticAndInstanceClass)
+TEST(ReflectionSystemTests, SuperClassMatchesBetweenStaticAndInstanceClass)
 {
     ensure_reflection_ready();
 

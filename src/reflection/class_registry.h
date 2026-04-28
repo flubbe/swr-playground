@@ -54,7 +54,7 @@ struct PendingClassRegistration
     /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
 
-    /** Lazy resolver for the super class. */
+    /** Resolver used to determine the super class during registration finalization. */
     ClassInfo::SuperResolverFn resolve_super{nullptr};
 
     /** Root hierarchy marker for this class. */
@@ -140,7 +140,6 @@ ClassInfo::SuperResolverFn super_class_resolver() noexcept
  *
  * Thread safety:
  * - This API is not internally synchronized.
- * - Exception: `ClassInfo::get_super()` performs its own synchronization.
  * - Callers may provide external synchronization when using it from multiple
  *   threads (for example around concurrent DLL loading/registration).
  */

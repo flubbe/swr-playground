@@ -19,6 +19,74 @@
 namespace
 {
 
+/** DFS visit state used while resolving super-class links. */
+enum class VisitState : std::uint8_t
+{
+    Unvisited, /**< Not yet visited in DFS. */
+    Visiting,  /**< Currently being visited in DFS. */
+    Visited    /**< Already visited in DFS. */
+};
+
+/**
+ * Resolve and cache a class' direct super-class pointer.
+ *
+ * This performs a DFS over the current registration batch to eagerly resolve
+ * all transitive super links and detect cycles.
+ *
+ * @param cls Class to resolve.
+ * @param batch Map of classes in the current registration batch.
+ * @param visit_states DFS state per class for cycle detection.
+ * @returns The resolved direct super class, or `nullptr`.
+ *
+ * @throws Throws a `std::runtime_error` on circular super-class resolution.
+ */
+const reflect::ClassInfo* resolve_super_eager(
+  reflect::ClassInfo* cls,
+  const std::unordered_map<const reflect::ClassInfo*, reflect::ClassInfo*>& batch,
+  std::unordered_map<const reflect::ClassInfo*, VisitState>& visit_states)
+{
+    if(cls == nullptr)
+    {
+        return nullptr;
+    }
+
+    const auto state_it = visit_states.find(cls);
+    if(state_it != visit_states.end())
+    {
+        if(state_it->second == VisitState::Visiting)
+        {
+            throw std::runtime_error{
+              std::format(
+                "Circular super-class resolution for class '{}'",
+                cls->qualified_name)};
+        }
+        if(state_it->second == VisitState::Visited)
+        {
+            return cls->super;
+        }
+    }
+
+    visit_states[cls] = VisitState::Visiting;
+
+    const reflect::ClassInfo* resolved_super = nullptr;
+    if(cls->resolve_super != nullptr)
+    {
+        resolved_super = cls->resolve_super();
+        if(const auto it = batch.find(resolved_super);
+           it != batch.end())
+        {
+            resolve_super_eager(
+              it->second,
+              batch,
+              visit_states);
+        }
+    }
+
+    cls->super = resolved_super;
+    visit_states[cls] = VisitState::Visited;
+    return resolved_super;
+}
+
 /** Class registry type, mapping qualified names to class metadata. */
 using ClassMap = std::unordered_multimap<
   std::string,
@@ -135,6 +203,7 @@ void ReflectionSystem::process_pending_registrations()
           "ReflectionSystem::process_pending_registrations called while auto registration is enabled"};
     }
 
+    std::vector<ClassInfo*> newly_registered;
     while(pending_head() != nullptr)
     {
         detail::PendingClassNode* node = pending_head();
@@ -181,6 +250,28 @@ void ReflectionSystem::process_pending_registrations()
         }
 
         register_class(cls);
+        newly_registered.push_back(&cls);
+    }
+
+    // Resolve super-class links for the new batch. We do this eagerly in a separate pass with cycle detection,
+    // to ensure that all super links are resolved before any object construction happens.
+
+    std::unordered_map<const ClassInfo*, VisitState> visit_states;
+    std::unordered_map<const ClassInfo*, ClassInfo*> batch;
+    batch.reserve(newly_registered.size());
+    for(ClassInfo* cls: newly_registered)
+    {
+        batch.emplace(
+          cls,
+          cls);
+    }
+    visit_states.reserve(newly_registered.size());
+    for(ClassInfo* cls: newly_registered)
+    {
+        resolve_super_eager(
+          cls,
+          batch,
+          visit_states);
     }
 }
 

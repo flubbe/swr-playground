@@ -10,13 +10,9 @@
 
 #pragma once
 
-#include <condition_variable>
 #include <cstddef>
-#include <mutex>
-#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 
 #include "property.h"
 
@@ -27,8 +23,8 @@ namespace reflect
  * Class info for RTTI-style object queries and editor metadata.
  *
  * Thread safety:
- * - `get_super()` is internally synchronized for concurrent lazy resolution.
- * - Other mutable fields are not internally synchronized.
+ * - This type does not provide internal synchronization.
+ * - Callers must provide external synchronization when mutating/iterating concurrently.
  */
 struct ClassInfo
 {
@@ -36,13 +32,6 @@ struct ClassInfo
     using DestroyFn = void (*)(void*);
     using PropertyRegisterFn = void (*)(ClassInfo&);
     using SuperResolverFn = const ClassInfo* (*)();
-
-    enum class SuperState
-    {
-        Unresolved,
-        Resolving,
-        Resolved
-    };
 
     /** Module name of the class. */
     std::string module_name;
@@ -57,9 +46,9 @@ struct ClassInfo
     std::size_t size{0};
 
     /** Super-class info. */
-    mutable const ClassInfo* super{nullptr};
+    const ClassInfo* super{nullptr};
 
-    /** Lazy resolver for `super`. */
+    /** Super-class resolver used during registration finalization. */
     SuperResolverFn resolve_super{nullptr};
 
     /** Root hierarchy marker for this class. */
@@ -77,80 +66,10 @@ struct ClassInfo
     /** Linked list of registered properties for this class. */
     std::unique_ptr<PropertyDescriptor> first_property;
 
-    /**
-     * Get this class' super class.
-     *
-     * The result is resolved lazily via `resolve_super` and cached in `super`.
-     * This function is safe for concurrent calls.
-     *
-     * @throws Throws a `std::runtime_error` on circular super-class resolution.
-     */
+    /** Get this class' direct super class. Returns `nullptr` if there is none. */
     const ClassInfo* get_super() const
     {
-        std::unique_lock lock{super_mutex};
-
-        for(;;)
-        {
-            if(super_state == SuperState::Resolved)
-            {
-                return super;
-            }
-
-            if(super_state == SuperState::Unresolved)
-            {
-                if(resolve_super == nullptr)
-                {
-                    super_state = SuperState::Resolved;
-                    return super;
-                }
-
-                super_state = SuperState::Resolving;
-                super_resolving_thread = std::this_thread::get_id();
-                break;
-            }
-
-            if(super_resolving_thread == std::this_thread::get_id())
-            {
-                throw std::runtime_error{
-                  std::format(
-                    "Circular super-class resolution for class '{}'",
-                    qualified_name)};
-            }
-
-            super_cv.wait(
-              lock,
-              [this]
-              {
-                  return super_state != SuperState::Resolving;
-              });
-        }
-
-        const SuperResolverFn resolver = resolve_super;
-        lock.unlock();
-
-        const ClassInfo* resolved_super = nullptr;
-        try
-        {
-            resolved_super = resolver();
-        }
-        catch(...)
-        {
-            lock.lock();
-            super_state = SuperState::Unresolved;
-            super_resolving_thread = std::thread::id{};
-            lock.unlock();
-            super_cv.notify_all();
-            throw;
-        }
-
-        lock.lock();
-        super = resolved_super;
-        super_state = SuperState::Resolved;
-        super_resolving_thread = std::thread::id{};
-        lock.unlock();
-        super_cv.notify_all();
-
-        return resolved_super;
+        return super;
     }
 
     /**
@@ -218,18 +137,6 @@ struct ClassInfo
         return false;
     }
 
-private:
-    /** Synchronizes lazy super-class resolution. */
-    mutable std::mutex super_mutex;
-
-    /** Notifies waiters when super-class resolution completes. */
-    mutable std::condition_variable super_cv;
-
-    /** Current super-class resolution state. */
-    mutable SuperState super_state{SuperState::Unresolved};
-
-    /** Thread currently resolving the super class (for re-entrancy/cycle detection). */
-    mutable std::thread::id super_resolving_thread{};
 };
 
 }    // namespace reflect
