@@ -101,6 +101,7 @@ add_executable(swr_playground
     src/reflection/class_registry.cpp
     src/scene/camera.cpp
     src/scene/gear.cpp
+    src/scene/light.cpp
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp

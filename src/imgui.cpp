@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <format>
@@ -361,6 +362,10 @@ public:
         {
             render_mat4(*p);
         }
+        else if(auto* p = property.try_as<reflect::Vec4Property>())
+        {
+            render_vec4(*p);
+        }
         else
         {
             ImGui::TextUnformatted("<unsupported property type>");
@@ -426,7 +431,7 @@ private:
           0.0f,
           0.0f,
           property.get_format());
-        if(changed)
+        if(changed || ImGui::IsItemDeactivatedAfterEdit())
         {
             property.set_value(value);
         }
@@ -521,6 +526,33 @@ private:
         if(changed)
         {
             property.set_value(value);
+        }
+    }
+
+    static void render_vec4(reflect::Vec4Property& property)
+    {
+        ml::vec4 value = property.get_value();
+        float components[4] = {value.x, value.y, value.z, value.w};
+
+        if(property.is_read_only())
+        {
+            ImGui::Text(
+              "[%.3f %.3f %.3f %.3f]",
+              components[0],
+              components[1],
+              components[2],
+              components[3]);
+            return;
+        }
+
+        if(ImGui::DragFloat4("##value", components, 0.01f, 0.0f, 0.0f, "%.3f"))
+        {
+            property.set_value(
+              ml::vec4{
+                components[0],
+                components[1],
+                components[2],
+                components[3]});
         }
     }
 };
@@ -924,11 +956,61 @@ void imgui_draw_class_inspector_panel()
             class_chain.push_back(p);
         }
 
+        std::unordered_map<const reflect::PropertyDescriptor*, std::array<std::size_t, 3>>
+          layout_by_descriptor;
+        if(cls->factory != nullptr && cls->destroy != nullptr)
+        {
+            void* instance = cls->factory();
+            if(instance != nullptr)
+            {
+                for(const auto* origin: class_chain | std::views::reverse)
+                {
+                    for(auto* descriptor = origin->first_property.get();
+                        descriptor != nullptr;
+                        descriptor = descriptor->next.get())
+                    {
+                        if(descriptor->construct == nullptr)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            auto property = descriptor->construct(
+                              instance,
+                              descriptor->name,
+                              descriptor->label,
+                              descriptor->flags);
+                            if(property == nullptr)
+                            {
+                                continue;
+                            }
+
+                            layout_by_descriptor.emplace(
+                              descriptor,
+                              std::array{
+                                property->get_size(),
+                                property->get_offset(),
+                                property->get_alignment()});
+                        }
+                        catch(...)
+                        {
+                            // Metadata probe is best-effort in the inspector.
+                        }
+                    }
+                }
+                cls->destroy(instance);
+            }
+        }
+
         const float pad = ImGui::GetStyle().CellPadding.x * 2.0f;
         float label_col_width = ImGui::CalcTextSize("Label").x + pad;
         float name_col_width = ImGui::CalcTextSize("Name").x + pad;
         float flags_col_width = ImGui::CalcTextSize("Flags").x + pad;
         float origin_col_width = ImGui::CalcTextSize("Origin").x + pad;
+        float size_col_width = ImGui::CalcTextSize("Size").x + pad;
+        float offset_col_width = ImGui::CalcTextSize("Offset").x + pad;
+        float align_col_width = ImGui::CalcTextSize("Align").x + pad;
 
         for(const auto* origin: class_chain | std::views::reverse)
         {
@@ -949,6 +1031,35 @@ void imgui_draw_class_inspector_panel()
                 flags_col_width = std::max(
                   flags_col_width,
                   ImGui::CalcTextSize(property_flags_badge(descriptor->flags)).x + pad);
+
+                const auto layout_it = layout_by_descriptor.find(descriptor);
+                if(layout_it != layout_by_descriptor.end())
+                {
+                    const std::string size_text = std::format("{}", layout_it->second[0]);
+                    const std::string offset_text = std::format("{}", layout_it->second[1]);
+                    const std::string align_text = std::format("{}", layout_it->second[2]);
+                    size_col_width = std::max(
+                      size_col_width,
+                      ImGui::CalcTextSize(size_text.c_str()).x + pad);
+                    offset_col_width = std::max(
+                      offset_col_width,
+                      ImGui::CalcTextSize(offset_text.c_str()).x + pad);
+                    align_col_width = std::max(
+                      align_col_width,
+                      ImGui::CalcTextSize(align_text.c_str()).x + pad);
+                }
+                else
+                {
+                    size_col_width = std::max(
+                      size_col_width,
+                      ImGui::CalcTextSize("n/a").x + pad);
+                    offset_col_width = std::max(
+                      offset_col_width,
+                      ImGui::CalcTextSize("n/a").x + pad);
+                    align_col_width = std::max(
+                      align_col_width,
+                      ImGui::CalcTextSize("n/a").x + pad);
+                }
             }
         }
 
@@ -960,11 +1071,14 @@ void imgui_draw_class_inspector_panel()
           | ImGuiTableFlags_SizingFixedFit
           | ImGuiTableFlags_ScrollX;
 
-        if(ImGui::BeginTable("ClassProperties", 4, property_table_flags))
+        if(ImGui::BeginTable("ClassProperties", 7, property_table_flags))
         {
             ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, label_col_width);
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, name_col_width);
             ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, flags_col_width);
+            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, size_col_width);
+            ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthFixed, offset_col_width);
+            ImGui::TableSetupColumn("Align", ImGuiTableColumnFlags_WidthFixed, align_col_width);
             ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthFixed, origin_col_width);
             ImGui::TableHeadersRow();
 
@@ -987,6 +1101,37 @@ void imgui_draw_class_inspector_panel()
                     ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
 
                     ImGui::TableSetColumnIndex(3);
+                    const auto layout_it = layout_by_descriptor.find(descriptor);
+                    if(layout_it != layout_by_descriptor.end())
+                    {
+                        ImGui::Text("%zu", layout_it->second[0]);
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted("n/a");
+                    }
+
+                    ImGui::TableSetColumnIndex(4);
+                    if(layout_it != layout_by_descriptor.end())
+                    {
+                        ImGui::Text("%zu", layout_it->second[1]);
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted("n/a");
+                    }
+
+                    ImGui::TableSetColumnIndex(5);
+                    if(layout_it != layout_by_descriptor.end())
+                    {
+                        ImGui::Text("%zu", layout_it->second[2]);
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted("n/a");
+                    }
+
+                    ImGui::TableSetColumnIndex(6);
                     ImGui::TextUnformatted(origin->qualified_name.c_str());
 
                     ImGui::PopID();

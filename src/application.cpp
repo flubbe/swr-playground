@@ -231,6 +231,11 @@ GearParameters create_gear_resources(
         .mesh_handle = outer_mesh,
         .material_handle = flat_material,
       },
+      .inner_radius = p.inner_radius,
+      .outer_radius = p.outer_radius,
+      .width = p.width,
+      .teeth = p.teeth,
+      .tooth_depth = p.tooth_depth,
     };
 }
 
@@ -274,6 +279,58 @@ void update_gears(
     gears[2]->set_transform(
       ml::matrices::translation(-3.1f, 4.2f, 0.f)
       * ml::matrices::rotation_z(-2.f * time - 25.f));
+}
+
+void rebuild_gear_mesh_if_needed(
+  RenderDevice& device,
+  Object* object)
+{
+    auto* gear = dynamic_cast<Gear*>(object);
+    if(gear == nullptr || !gear->needs_rebuild())
+    {
+        return;
+    }
+
+    const int teeth = std::max(3, gear->get_teeth());
+
+    const auto old_meshes = gear->get_meshes();
+    if(old_meshes.size() != 2)
+    {
+        return;
+    }
+
+    auto geom = make_gear(
+      gear->get_inner_radius(),
+      gear->get_outer_radius(),
+      gear->get_width(),
+      teeth,
+      gear->get_tooth_depth());
+
+    const std::uint32_t new_inner_mesh = device.create_mesh(
+      std::move(geom.inner_indices),
+      std::move(geom.inner_vertices),
+      std::move(geom.inner_normals));
+    const std::uint32_t new_outer_mesh = device.create_mesh(
+      std::move(geom.outer_indices),
+      std::move(geom.outer_vertices),
+      std::move(geom.outer_normals));
+
+    const std::uint32_t old_inner_mesh = old_meshes[0].mesh_handle;
+    const std::uint32_t old_outer_mesh = old_meshes[1].mesh_handle;
+
+    gear->set_meshes(
+      std::vector{
+        RenderData{
+          .mesh_handle = new_inner_mesh,
+          .material_handle = old_meshes[0].material_handle},
+        RenderData{
+          .mesh_handle = new_outer_mesh,
+          .material_handle = old_meshes[1].material_handle}});
+
+    device.delete_mesh(old_inner_mesh);
+    device.delete_mesh(old_outer_mesh);
+
+    gear->mark_rebuilt();
 }
 
 }    // namespace
@@ -497,5 +554,9 @@ void Application::run()
 void Application::tick(float delta_time)
 {
     scene->tick(delta_time);
+    for(auto* object: gear_objs)
+    {
+        rebuild_gear_mesh_if_needed(*render_device, object);
+    }
     update_gears(gear_objs, scene->get_time());
 }

@@ -95,4 +95,9 @@ public:
     {
         return light;
     }
+
+    Light& get_light()
+    {
+        return light;
+    }
 };

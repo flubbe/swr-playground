@@ -15,6 +15,48 @@
 namespace reflect
 {
 
+Vec4Property::Vec4Property(
+  std::string name,
+  std::string label,
+  Type* value,
+  std::size_t offset,
+  PropertyFlags flags)
+: Property{
+    std::move(name),
+    std::move(label),
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags}
+, value{value}
+{
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"Vec4Property requires non-null value pointer"};
+    }
+}
+
+const Vec4Property::Type& Vec4Property::get_value() const noexcept
+{
+    return *value;
+}
+
+bool Vec4Property::set_value(const Type& in_value) noexcept
+{
+    if(is_read_only())
+    {
+        return false;
+    }
+
+    *value = in_value;
+    return true;
+}
+
+const void* Vec4Property::get_type_tag() const noexcept
+{
+    return detail::property_type_tag<Vec4Property>();
+}
+
 Mat4Property::Mat4Property(
   std::string name,
   std::string label,

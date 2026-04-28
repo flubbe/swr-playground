@@ -11,9 +11,20 @@
 #pragma once
 
 #include "ml/all.h"
+#include "object.h"
 
-struct Light
+class Light : public reflect::Reflected<Light, Object>
 {
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
     /** light position. */
     ml::vec4 position{5.0f, 5.0f, 10.0f, 0.0f};
+
+    Light()
+    : reflect::Reflected<Light, Object>{Light::static_class()}
+    {
+    }
 };
+
+DECLARE_REFLECTION(Scene, Light);

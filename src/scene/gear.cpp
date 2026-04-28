@@ -9,7 +9,9 @@
  */
 
 #include <numbers>
+#include <cmath>
 
+#include "reflection/builtin_properties.h"
 #include "gear.h"
 #include "renderdevice.h"
 
@@ -321,11 +323,63 @@ Gear::Gear(
       RenderData{
         .mesh_handle = params.outer.mesh_handle,
         .material_handle = params.outer.material_handle}}}
+, inner_radius{params.inner_radius}
+, outer_radius{params.outer_radius}
+, width{params.width}
+, teeth{params.teeth}
+, tooth_depth{params.tooth_depth}
+, built_inner_radius{params.inner_radius}
+, built_outer_radius{params.outer_radius}
+, built_width{params.width}
+, built_teeth{params.teeth}
+, built_tooth_depth{params.tooth_depth}
 {
 }
 
-void Gear::register_properties(
-  [[maybe_unused]] reflect::ClassInfo& class_info)
+bool Gear::needs_rebuild() const noexcept
 {
-    // No properties to register.
+    const auto changed_float = [](float a, float b) noexcept
+    {
+        return std::fabs(a - b) > 1e-6f;
+    };
+
+    return changed_float(inner_radius, built_inner_radius)
+           || changed_float(outer_radius, built_outer_radius)
+           || changed_float(width, built_width)
+           || teeth != built_teeth
+           || changed_float(tooth_depth, built_tooth_depth);
+}
+
+void Gear::mark_rebuilt() noexcept
+{
+    built_inner_radius = inner_radius;
+    built_outer_radius = outer_radius;
+    built_width = width;
+    built_teeth = teeth;
+    built_tooth_depth = tooth_depth;
+}
+
+void Gear::register_properties(
+  reflect::ClassInfo& class_info)
+{
+    reflect::register_property<&Gear::inner_radius>(
+      class_info,
+      "inner_radius",
+      "Inner Radius");
+    reflect::register_property<&Gear::outer_radius>(
+      class_info,
+      "outer_radius",
+      "Outer Radius");
+    reflect::register_property<&Gear::width>(
+      class_info,
+      "width",
+      "Width");
+    reflect::register_property<&Gear::teeth>(
+      class_info,
+      "teeth",
+      "Teeth");
+    reflect::register_property<&Gear::tooth_depth>(
+      class_info,
+      "tooth_depth",
+      "Tooth Depth");
 }
