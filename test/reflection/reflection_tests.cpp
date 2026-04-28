@@ -1,5 +1,7 @@
 #include <stdexcept>
 #include <string>
+#include <functional>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -51,6 +53,19 @@ void TestChild::register_properties(reflect::ClassInfo& class_info)
       "Enabled");
 }
 
+class TestGrandChild : public reflect::Reflected<TestGrandChild, TestChild>
+{
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+};
+
+DECLARE_REFLECTION(Test, TestGrandChild);
+DEFINE_REFLECTION(TestGrandChild);
+
+void TestGrandChild::register_properties([[maybe_unused]] reflect::ClassInfo& class_info)
+{
+}
+
 namespace
 {
 
@@ -69,6 +84,56 @@ struct RuntimeRootDuplicate
 struct RuntimeRootUnregister
 {
 };
+
+struct RuntimeRootSuper
+{
+};
+
+struct RuntimeRootInvalid
+{
+};
+
+struct RuntimeRootClear
+{
+};
+
+const reflect::ClassInfo* g_cycle_self = nullptr;
+const reflect::ClassInfo* g_cycle_a = nullptr;
+const reflect::ClassInfo* g_cycle_b = nullptr;
+const reflect::ClassInfo* g_chain_super_a = nullptr;
+const reflect::ClassInfo* g_chain_super_b = nullptr;
+int g_throwing_resolver_calls = 0;
+
+const reflect::ClassInfo* resolve_cycle_self()
+{
+    return g_cycle_self;
+}
+
+const reflect::ClassInfo* resolve_cycle_a()
+{
+    return g_cycle_b;
+}
+
+const reflect::ClassInfo* resolve_cycle_b()
+{
+    return g_cycle_a;
+}
+
+const reflect::ClassInfo* resolve_throw_once()
+{
+    ++g_throwing_resolver_calls;
+    throw std::runtime_error("Synthetic resolver failure");
+}
+
+const reflect::ClassInfo* resolve_chain_super_a()
+{
+    return g_chain_super_a;
+}
+
+const reflect::ClassInfo* resolve_chain_super_b()
+{
+    return g_chain_super_b;
+}
 
 void ensure_reflection_ready()
 {
@@ -200,6 +265,190 @@ TEST(ReflectionSystemTests, RejectsDuplicateQualifiedNameWithinSameRoot)
       reflect::detail::root_type_tag<RuntimeRootDuplicate>());
 }
 
+TEST(ReflectionSystemTests, ResolvesSuperClassChainDuringPendingProcessing)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo class_a_storage{};
+    reflect::ClassInfo class_b_storage{};
+    reflect::ClassInfo class_c_storage{};
+    g_chain_super_a = &class_a_storage;
+    g_chain_super_b = &class_b_storage;
+
+    reflect::detail::PendingClassRegistration reg_a{
+      .module_name = "RuntimeSuper",
+      .name = "A",
+      .size = sizeof(int),
+      .storage = &class_a_storage,
+      .resolve_super = nullptr,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassRegistration reg_b{
+      .module_name = "RuntimeSuper",
+      .name = "B",
+      .size = sizeof(int),
+      .storage = &class_b_storage,
+      .resolve_super = &resolve_chain_super_a,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassRegistration reg_c{
+      .module_name = "RuntimeSuper",
+      .name = "C",
+      .size = sizeof(int),
+      .storage = &class_c_storage,
+      .resolve_super = &resolve_chain_super_b,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+
+    reflect::detail::PendingClassNode node_a{.reg = &reg_a, .next = nullptr};
+    reflect::detail::PendingClassNode node_b{.reg = &reg_b, .next = nullptr};
+    reflect::detail::PendingClassNode node_c{.reg = &reg_c, .next = nullptr};
+
+    reflect::detail::AutoClassRegistrar registrar_a{&node_a};
+    reflect::detail::AutoClassRegistrar registrar_b{&node_b};
+    reflect::detail::AutoClassRegistrar registrar_c{&node_c};
+
+    EXPECT_NO_THROW(reflect::ReflectionSystem::process_pending_registrations());
+
+    EXPECT_EQ(class_a_storage.get_super(), nullptr);
+    EXPECT_EQ(class_b_storage.get_super(), &class_a_storage);
+    EXPECT_EQ(class_c_storage.get_super(), &class_b_storage);
+
+    reflect::ReflectionSystem::unregister_module("RuntimeSuper");
+    g_chain_super_a = nullptr;
+    g_chain_super_b = nullptr;
+}
+
+TEST(ReflectionSystemTests, RejectsDirectCircularSuperClassDuringPendingProcessing)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo class_storage{};
+
+    g_cycle_self = &class_storage;
+    reflect::detail::PendingClassRegistration reg{
+      .module_name = "RuntimeCycle",
+      .name = "Self",
+      .size = sizeof(int),
+      .storage = &class_storage,
+      .resolve_super = &resolve_cycle_self,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node{.reg = &reg, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&node};
+
+    EXPECT_THROW(
+      reflect::ReflectionSystem::process_pending_registrations(),
+      std::runtime_error);
+
+    g_cycle_self = nullptr;
+    reflect::ReflectionSystem::unregister_module("RuntimeCycle");
+}
+
+TEST(ReflectionSystemTests, RejectsIndirectCircularSuperClassDuringPendingProcessing)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo class_a_storage{};
+    reflect::ClassInfo class_b_storage{};
+
+    g_cycle_a = &class_a_storage;
+    g_cycle_b = &class_b_storage;
+
+    reflect::detail::PendingClassRegistration reg_a{
+      .module_name = "RuntimeCycle2",
+      .name = "A",
+      .size = sizeof(int),
+      .storage = &class_a_storage,
+      .resolve_super = &resolve_cycle_a,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassRegistration reg_b{
+      .module_name = "RuntimeCycle2",
+      .name = "B",
+      .size = sizeof(int),
+      .storage = &class_b_storage,
+      .resolve_super = &resolve_cycle_b,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node_a{.reg = &reg_a, .next = nullptr};
+    reflect::detail::PendingClassNode node_b{.reg = &reg_b, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar_a{&node_a};
+    reflect::detail::AutoClassRegistrar registrar_b{&node_b};
+
+    EXPECT_THROW(
+      reflect::ReflectionSystem::process_pending_registrations(),
+      std::runtime_error);
+
+    g_cycle_a = nullptr;
+    g_cycle_b = nullptr;
+    reflect::ReflectionSystem::unregister_module("RuntimeCycle2");
+}
+
+TEST(ReflectionSystemTests, PropagatesSuperResolverFailureDuringPendingProcessing)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo class_storage{};
+    g_throwing_resolver_calls = 0;
+
+    reflect::detail::PendingClassRegistration reg{
+      .module_name = "RuntimeThrow",
+      .name = "Throwing",
+      .size = sizeof(int),
+      .storage = &class_storage,
+      .resolve_super = &resolve_throw_once,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node{.reg = &reg, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&node};
+
+    EXPECT_THROW(
+      reflect::ReflectionSystem::process_pending_registrations(),
+      std::runtime_error);
+    EXPECT_EQ(g_throwing_resolver_calls, 1);
+
+    reflect::ReflectionSystem::unregister_module("RuntimeThrow");
+}
+
+TEST(ReflectionSystemTests, SupportsSuperResolvedToAlreadyRegisteredClass)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo child_storage{};
+    reflect::detail::PendingClassRegistration child_reg{
+      .module_name = "RuntimeSuperRef",
+      .name = "Child",
+      .size = sizeof(int),
+      .storage = &child_storage,
+      .resolve_super = []() -> const reflect::ClassInfo* { return TestRoot::static_class(); },
+      .root_tag = reflect::detail::root_type_tag<TestRoot>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode child_node{.reg = &child_reg, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&child_node};
+
+    EXPECT_NO_THROW(reflect::ReflectionSystem::process_pending_registrations());
+    EXPECT_EQ(child_storage.get_super(), TestRoot::static_class());
+
+    reflect::ReflectionSystem::unregister_module("RuntimeSuperRef");
+}
+
 TEST(ReflectionSystemTests, UnregisterClassAndModuleRemoveExpectedEntries)
 {
     ensure_reflection_ready();
@@ -266,6 +515,77 @@ TEST(ReflectionSystemTests, UnregisterClassAndModuleRemoveExpectedEntries)
         "RuntimeUnregister.ClassB",
         reflect::detail::root_type_tag<RuntimeRootUnregister>()),
       nullptr);
+}
+
+TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullRegistrationPointer)
+{
+    ensure_reflection_ready();
+
+    reflect::detail::PendingClassNode node{
+      .reg = nullptr,
+      .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&node};
+
+    EXPECT_THROW(
+      reflect::ReflectionSystem::process_pending_registrations(),
+      std::runtime_error);
+}
+
+TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullStoragePointer)
+{
+    ensure_reflection_ready();
+
+    reflect::detail::PendingClassRegistration reg{
+      .module_name = "RuntimeInvalid",
+      .name = "NoStorage",
+      .size = sizeof(int),
+      .storage = nullptr,
+      .resolve_super = nullptr,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootInvalid>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node{.reg = &reg, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&node};
+
+    EXPECT_THROW(
+      reflect::ReflectionSystem::process_pending_registrations(),
+      std::runtime_error);
+}
+
+TEST(ReflectionSystemTests, FindClassReturnsNullForWrongRootTag)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* found = reflect::ReflectionSystem::find_class(
+      "Test.TestRoot",
+      reflect::detail::root_type_tag<RuntimeRootA>());
+    EXPECT_EQ(found, nullptr);
+}
+
+TEST(ReflectionSystemTests, GetRegisteredClassesReturnsSortedSnapshot)
+{
+    ensure_reflection_ready();
+
+    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    ASSERT_FALSE(classes.empty());
+
+    for(std::size_t i = 1; i < classes.size(); ++i)
+    {
+        ASSERT_NE(classes[i - 1], nullptr);
+        ASSERT_NE(classes[i], nullptr);
+        const auto& prev = classes[i - 1];
+        const auto& curr = classes[i];
+
+        if(prev->qualified_name == curr->qualified_name)
+        {
+            EXPECT_TRUE(std::less<>{}(prev->root_tag, curr->root_tag));
+        }
+        else
+        {
+            EXPECT_LT(prev->qualified_name, curr->qualified_name);
+        }
+    }
 }
 
 TEST(ReflectionSystemTests, StaticClassReturnsStablePointer)
@@ -460,6 +780,28 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInsta
     EXPECT_EQ(string_property.get_value(), "root");
 }
 
+TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForGrandChildInstance)
+{
+    ensure_reflection_ready();
+
+    TestGrandChild grand_child;
+    const reflect::ClassInfo* cls = TestGrandChild::static_class();
+    ASSERT_NE(cls, nullptr);
+
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("root_name");
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->construct, nullptr);
+
+    auto property = descriptor->construct(
+      &grand_child,
+      descriptor->name,
+      descriptor->label,
+      descriptor->flags);
+    ASSERT_NE(property, nullptr);
+    ASSERT_TRUE(property->is_type<reflect::StringProperty>());
+}
+
 TEST(ReflectionSystemTests, PreservesRegistrationOrderWithinClass)
 {
     ensure_reflection_ready();
@@ -600,4 +942,58 @@ TEST(ReflectionSystemTests, FindPropertyPrefersMostDerivedDescriptor)
     ASSERT_NE(descriptor, nullptr);
     EXPECT_EQ(descriptor->label, "Shadowed Root Value");
     EXPECT_EQ(descriptor, cls->first_property.get());
+}
+
+TEST(ReflectionSystemTests, ClearRemovesAllClassesAndAllowsReRegistration)
+{
+    ensure_reflection_ready();
+
+    reflect::ClassInfo class_storage{};
+    reflect::detail::PendingClassRegistration reg{
+      .module_name = "RuntimeClear",
+      .name = "TempClass",
+      .size = sizeof(int),
+      .storage = &class_storage,
+      .resolve_super = nullptr,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootClear>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node{.reg = &reg, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar{&node};
+    EXPECT_NO_THROW(reflect::ReflectionSystem::process_pending_registrations());
+    ASSERT_NE(
+      reflect::ReflectionSystem::find_class(
+        "RuntimeClear.TempClass",
+        reflect::detail::root_type_tag<RuntimeRootClear>()),
+      nullptr);
+
+    reflect::ReflectionSystem::clear();
+    EXPECT_EQ(
+      reflect::ReflectionSystem::find_class(
+        "RuntimeClear.TempClass",
+        reflect::detail::root_type_tag<RuntimeRootClear>()),
+      nullptr);
+
+    reflect::ClassInfo class_storage2{};
+    reflect::detail::PendingClassRegistration reg2{
+      .module_name = "RuntimeClear",
+      .name = "TempClass",
+      .size = sizeof(int),
+      .storage = &class_storage2,
+      .resolve_super = nullptr,
+      .root_tag = reflect::detail::root_type_tag<RuntimeRootClear>(),
+      .factory = nullptr,
+      .destroy = nullptr,
+      .register_properties = nullptr};
+    reflect::detail::PendingClassNode node2{.reg = &reg2, .next = nullptr};
+    reflect::detail::AutoClassRegistrar registrar2{&node2};
+    EXPECT_NO_THROW(reflect::ReflectionSystem::process_pending_registrations());
+    EXPECT_NE(
+      reflect::ReflectionSystem::find_class(
+        "RuntimeClear.TempClass",
+        reflect::detail::root_type_tag<RuntimeRootClear>()),
+      nullptr);
+
+    reflect::ReflectionSystem::unregister_module("RuntimeClear");
 }
