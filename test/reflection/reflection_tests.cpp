@@ -66,6 +66,32 @@ void TestGrandChild::register_properties([[maybe_unused]] reflect::ClassInfo& cl
 {
 }
 
+class NonReflectedBase
+{
+public:
+    virtual ~NonReflectedBase() = default;
+    std::uint32_t sentinel{0xA5A5A5A5u};
+};
+
+class OffsetChild : public NonReflectedBase, public reflect::Reflected<OffsetChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    bool local_flag{false};
+};
+
+DECLARE_REFLECTION(Test, OffsetChild);
+DEFINE_REFLECTION(OffsetChild);
+
+void OffsetChild::register_properties(reflect::ClassInfo& class_info)
+{
+    reflect::register_property<&OffsetChild::local_flag>(
+      class_info,
+      "local_flag",
+      "Local Flag");
+}
+
 namespace
 {
 
@@ -802,6 +828,36 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForGrandChildIn
     ASSERT_TRUE(property->is_type<reflect::StringProperty>());
 }
 
+TEST(ReflectionSystemTests, ErasedConstructHandlesPointerAdjustmentForMultipleInheritance)
+{
+    ensure_reflection_ready();
+
+    OffsetChild obj;
+    const reflect::ClassInfo* cls = OffsetChild::static_class();
+    ASSERT_NE(cls, nullptr);
+
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("local_flag");
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->construct, nullptr);
+
+    // The erased pointer is expected to be a Root-subobject pointer.
+    void* erased_obj = static_cast<TestRoot*>(&obj);
+    auto property = descriptor->construct(
+      erased_obj,
+      descriptor->name,
+      descriptor->label,
+      descriptor->flags);
+    ASSERT_NE(property, nullptr);
+    ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
+
+    auto& bool_property = property->as<reflect::BoolProperty>();
+    EXPECT_FALSE(bool_property.get_value());
+    EXPECT_TRUE(bool_property.set_value(true));
+    EXPECT_TRUE(obj.local_flag);
+    EXPECT_EQ(obj.sentinel, 0xA5A5A5A5u);
+}
+
 TEST(ReflectionSystemTests, PreservesRegistrationOrderWithinClass)
 {
     ensure_reflection_ready();
@@ -904,6 +960,28 @@ TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnNullObject)
     EXPECT_THROW(
       descriptor->construct(
         nullptr,
+        descriptor->name,
+        descriptor->label,
+        descriptor->flags),
+      reflect::instance_error);
+}
+
+TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnObjectOfWrongType)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* child_cls = TestChild::static_class();
+    ASSERT_NE(child_cls, nullptr);
+    ASSERT_NE(child_cls->first_property, nullptr);
+
+    const reflect::PropertyDescriptor* descriptor = child_cls->first_property.get();
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->construct, nullptr);
+
+    TestRoot wrong_object;
+    EXPECT_THROW(
+      descriptor->construct(
+        &wrong_object,
         descriptor->name,
         descriptor->label,
         descriptor->flags),

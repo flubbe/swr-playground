@@ -36,6 +36,20 @@ namespace detail
 {
 
 /**
+ * Concept for validating that a `Root` type supports `is_a(Owner::static_class())` for a given `Owner` type.
+ *
+ * @tparam Root The Root type to check.
+ * @tparam Owner The Owner type whose static_class() is checked against Root's is_a
+ */
+template<
+  typename Root,
+  typename Owner>
+concept RootSupportsIsA =
+  requires(Root* p) {
+      p->is_a(Owner::static_class());
+  };
+
+/**
  * Get a tag for a property type.
  *
  * @note The tag is a unique memory address.
@@ -345,8 +359,10 @@ std::unique_ptr<Property> construct_member(
  * Construct a property and bind it to a member, with erased object type.
  *
  * @note Internal helper used by property descriptors.
- * @note Precondition: `obj` points to an instance of
- *       `MemberClassType<MemberPtr>`. The cast from `void*` is unchecked.
+ * @note Performs runtime type validation via the reflection hierarchy.
+ *       If `obj` is not compatible with the member owner type, construction fails.
+ * @note For reflected owner types, `obj` must be an erased pointer to the
+ *       corresponding `Root` subobject.
  *
  * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
  *
@@ -357,6 +373,7 @@ std::unique_ptr<Property> construct_member(
  * @return A unique pointer to the constructed property.
  *
  * @throws `instance_error` If `obj` is `nullptr`.
+ * @throws `instance_error` If `obj` does not point to a compatible owner type.
  */
 template<auto MemberPtr>
 std::unique_ptr<Property> construct_member_erased(
@@ -370,8 +387,30 @@ std::unique_ptr<Property> construct_member_erased(
         throw instance_error{"null object instance for property construction"};
     }
 
+    using OwnerType = MemberClassType<MemberPtr>;
+    OwnerType* owner_obj = nullptr;
+    if constexpr(requires { typename OwnerType::Root; })
+    {
+        using RootType = typename OwnerType::Root;
+        static_assert(
+          RootSupportsIsA<RootType, OwnerType>,
+          "OwnerType::Root must provide is_a(const ClassInfo*) for runtime type validation.");
+
+        RootType* root_obj = static_cast<RootType*>(obj);
+        if(!root_obj->is_a(OwnerType::static_class()))
+        {
+            throw instance_error{"object instance type mismatch for property construction"};
+        }
+        // Cast through RootType so inheritance pointer adjustment is applied correctly.
+        owner_obj = static_cast<OwnerType*>(root_obj);
+    }
+    else
+    {
+        owner_obj = static_cast<OwnerType*>(obj);
+    }
+
     return detail::construct_member<MemberPtr>(
-      *static_cast<MemberClassType<MemberPtr>*>(obj),
+      *owner_obj,
       name,
       label,
       flags);
