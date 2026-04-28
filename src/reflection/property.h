@@ -16,6 +16,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 
 #include "except.h"
 #include "traits.h"
@@ -47,6 +49,63 @@ struct PropertyConstraint
      */
     virtual const void* get_type_tag() const noexcept = 0;
 };
+
+/** Base class for property default value metadata. */
+struct PropertyDefault
+{
+    /** Virtual destructor. */
+    virtual ~PropertyDefault() = default;
+
+    /**
+     * Return the runtime type tag for this default class.
+     *
+     * @note The tag is a unique memory address for the concrete type.
+     */
+    virtual const void* get_type_tag() const noexcept = 0;
+};
+
+/**
+ * Typed default value metadata.
+ *
+ * @tparam T Default value type.
+ */
+template<typename T>
+struct TypedDefault : PropertyDefault
+{
+    /** Default value type. */
+    using ValueType = T;
+
+    /** Default value. */
+    T value;
+
+    /**
+     * Construct a typed default value.
+     *
+     * @param value Default value.
+     */
+    explicit TypedDefault(T value)
+    : value{std::move(value)}
+    {
+    }
+
+    /** Return the runtime type tag for this default class. */
+    const void* get_type_tag() const noexcept override;
+};
+
+/**
+ * Create typed default metadata from a value.
+ *
+ * @tparam T Default value type.
+ * @param value Default value.
+ * @returns Shared metadata pointer containing `TypedDefault<T>`.
+ */
+template<typename T>
+std::shared_ptr<const PropertyDefault> default_of(T&& value)
+{
+    using DefaultType = std::remove_cvref_t<T>;
+    return std::make_shared<TypedDefault<DefaultType>>(
+      std::forward<T>(value));
+}
 
 /**
  * Numeric range constraint metadata.
@@ -111,6 +170,12 @@ template<typename T>
 const void* RangeConstraint<T>::get_type_tag() const noexcept
 {
     return detail::type_tag<RangeConstraint<T>>();
+}
+
+template<typename T>
+const void* TypedDefault<T>::get_type_tag() const noexcept
+{
+    return detail::type_tag<TypedDefault<T>>();
 }
 
 /** Visitor interface for properties. */
@@ -347,6 +412,9 @@ struct DescriptorBase
     /** Optional typed constraint metadata. */
     std::shared_ptr<const PropertyConstraint> constraint;
 
+    /** Optional typed default value metadata. */
+    std::shared_ptr<const PropertyDefault> default_value;
+
     /**
      * Construct a property descriptor.
      *
@@ -354,16 +422,19 @@ struct DescriptorBase
      * @param label Display name / label (e.g. for UI/editor).
      * @param flags Static property flags.
      * @param constraint Optional constraint for the property values.
+     * @param default_value Optional default value for the property.
      */
     DescriptorBase(
       std::string name,
       std::string label,
       const PropertyFlags flags,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr,
+      std::shared_ptr<const PropertyDefault> default_value = nullptr)
     : name{std::move(name)}
     , label{std::move(label)}
     , flags{flags}
     , constraint{std::move(constraint)}
+    , default_value{std::move(default_value)}
     {
     }
 
@@ -371,6 +442,33 @@ struct DescriptorBase
     bool is_read_only() const noexcept
     {
         return (flags & PropertyFlags::ReadOnly) != PropertyFlags::None;
+    }
+
+    /** Optional typed default value metadata. */
+    const std::shared_ptr<const PropertyDefault>& get_default_value() const noexcept
+    {
+        return default_value;
+    }
+
+    /**
+     * Try to retrieve default metadata as `TypedDefault<T>`.
+     *
+     * @tparam T Default value type.
+     * @returns A pointer to `TypedDefault<T>` if the stored default exists and
+     *          matches exactly, otherwise `nullptr`.
+     */
+    template<typename T>
+    const TypedDefault<T>* try_get_default() const noexcept
+    {
+        if(default_value == nullptr)
+        {
+            return nullptr;
+        }
+        if(default_value->get_type_tag() != detail::type_tag<TypedDefault<T>>())
+        {
+            return nullptr;
+        }
+        return static_cast<const TypedDefault<T>*>(default_value.get());
     }
 };
 
@@ -400,6 +498,7 @@ struct PropertyDescriptor : DescriptorBase
      * @param construct Function pointer for constructing the property.
      * @param next Pointer to the next property descriptor in the descriptor linked list.
      * @param contraint Optional constraint for the property values.
+     * @param default_value Optional default value metadata.
      */
     PropertyDescriptor(
       std::string name,
@@ -407,12 +506,14 @@ struct PropertyDescriptor : DescriptorBase
       const PropertyFlags flags,
       ConstructFn construct,
       std::unique_ptr<PropertyDescriptor> next,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr,
+      std::shared_ptr<const PropertyDefault> default_value = nullptr)
     : DescriptorBase{
         std::move(name),
         std::move(label),
         flags,
-        std::move(constraint)}
+        std::move(constraint),
+        std::move(default_value)}
     , construct{construct}
     , next{std::move(next)}
     {
@@ -432,14 +533,14 @@ struct PropertyFactory;
  * Type adapter used before property construction.
  *
  * By default, keeps `T` unchanged and returns the input reference.
- * Specialize to expose an underlying reflected type (e.g. wrappers/IDs) via `Type` and `get`.
+ * Specialize to expose an underlying reflected type (e.g. wrappers/IDs) via `ValueType` and `get`.
  */
 template<typename T>
 struct UnwrapType
 {
-    using Type = T;
+    using ValueType = T;
 
-    static Type& get(T& value) noexcept
+    static ValueType& get(T& value) noexcept
     {
         return value;
     }
@@ -487,7 +588,7 @@ std::unique_ptr<Property> construct_member(
     MemberType& value = obj.*MemberPtr;
 
     using MemberTraits = UnwrapType<MemberType>;
-    using UnwrappedType = typename MemberTraits::Type;
+    using UnwrappedType = typename MemberTraits::ValueType;
     UnwrappedType& unwrapped_value = MemberTraits::get(value);
     const std::size_t property_offset = static_cast<std::size_t>(
       reinterpret_cast<std::uintptr_t>(std::addressof(unwrapped_value))

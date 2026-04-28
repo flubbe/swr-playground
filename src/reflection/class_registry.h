@@ -661,11 +661,16 @@ void register_property(
       std::string{label},
       flags,
       &detail::construct_member_erased<MemberPtr>,
-      std::move(class_info.first_property));
+      std::move(class_info.first_property),
+      nullptr,
+      nullptr);
     class_info.first_property = std::move(descriptor);
 }
 
 template<auto MemberPtr, typename Constraint>
+    requires std::is_base_of_v<
+      PropertyConstraint,
+      std::remove_cvref_t<Constraint>>
 void register_property(
   ClassInfo& class_info,
   std::string_view name,
@@ -675,7 +680,7 @@ void register_property(
 {
     using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
     using MemberType = typename MemberPtrTraits::MemberType;
-    using UnwrappedType = typename UnwrapType<MemberType>::Type;
+    using UnwrappedType = typename UnwrapType<MemberType>::ValueType;
     using ConstraintType = std::remove_cvref_t<Constraint>;
     static_assert(
       std::is_base_of_v<PropertyConstraint, ConstraintType>,
@@ -694,7 +699,8 @@ void register_property(
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
-      std::make_shared<ConstraintType>(std::move(constraint)));
+      std::make_shared<ConstraintType>(std::move(constraint)),
+      nullptr);
     class_info.first_property = std::move(descriptor);
 }
 
@@ -712,7 +718,162 @@ void register_property(
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
-      std::move(constraint));
+      std::move(constraint),
+      nullptr);
+    class_info.first_property = std::move(descriptor);
+}
+
+/**
+ * Register a data member as a reflected property with a typed default value.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param class_info Class metadata to append the property to.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ * @param default_value Typed default value for descriptor metadata.
+ */
+template<auto MemberPtr, typename DefaultValue>
+    requires(!std::is_base_of_v<
+             PropertyConstraint,
+             std::remove_cvref_t<DefaultValue>>)
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  DefaultValue default_value)
+{
+    using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
+    using MemberType = typename MemberPtrTraits::MemberType;
+    using UnwrappedType = typename UnwrapType<MemberType>::ValueType;
+    using DefaultType = std::remove_cvref_t<DefaultValue>;
+    static_assert(
+      std::is_same_v<UnwrappedType, DefaultType>,
+      "Default value type must match the reflected member type.");
+
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      nullptr,
+      std::make_shared<TypedDefault<DefaultType>>(std::move(default_value)));
+    class_info.first_property = std::move(descriptor);
+}
+
+/**
+ * Register a data member as a reflected property with typed constraint and typed default metadata.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param class_info Class metadata to append the property to.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ * @param constraint Constraint metadata for the property values.
+ * @param default_value Typed default value for descriptor metadata.
+ */
+template<auto MemberPtr, typename Constraint, typename DefaultValue>
+    requires std::is_base_of_v<
+      PropertyConstraint,
+      std::remove_cvref_t<Constraint>>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  Constraint constraint,
+  DefaultValue default_value)
+{
+    using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
+    using MemberType = typename MemberPtrTraits::MemberType;
+    using UnwrappedType = typename UnwrapType<MemberType>::ValueType;
+    using ConstraintType = std::remove_cvref_t<Constraint>;
+    using DefaultType = std::remove_cvref_t<DefaultValue>;
+    static_assert(
+      std::is_same_v<UnwrappedType, DefaultType>,
+      "Default value type must match the reflected member type.");
+    if constexpr(requires { typename ConstraintType::ValueType; })
+    {
+        using ConstraintValueType = typename ConstraintType::ValueType;
+        static_assert(
+          std::is_same_v<UnwrappedType, ConstraintValueType>,
+          "Typed constraints with ValueType must match the reflected member type.");
+    }
+
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      std::make_shared<ConstraintType>(std::move(constraint)),
+      std::make_shared<TypedDefault<DefaultType>>(std::move(default_value)));
+    class_info.first_property = std::move(descriptor);
+}
+
+/**
+ * Register a data member as a reflected property with shared constraint/default metadata.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param class_info Class metadata to append the property to.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ * @param constraint Shared constraint metadata.
+ * @param default_value Shared default value metadata.
+ */
+template<auto MemberPtr>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  std::shared_ptr<const PropertyConstraint> constraint,
+  std::shared_ptr<const PropertyDefault> default_value)
+{
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      std::move(constraint),
+      std::move(default_value));
+    class_info.first_property = std::move(descriptor);
+}
+
+/**
+ * Register a data member as a reflected property with shared default metadata.
+ *
+ * @tparam MemberPtr Pointer to member (e.g. `&Class::member`).
+ *
+ * @param class_info Class metadata to append the property to.
+ * @param name Internal property name.
+ * @param label Display name / label (e.g. for UI/editor).
+ * @param flags Static property flags.
+ * @param default_value Shared default value metadata.
+ */
+template<auto MemberPtr>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  std::shared_ptr<const PropertyDefault> default_value)
+{
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      nullptr,
+      std::move(default_value));
     class_info.first_property = std::move(descriptor);
 }
 

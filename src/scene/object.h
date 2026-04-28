@@ -48,9 +48,9 @@ namespace reflect
 template<>
 struct UnwrapType<ObjectId>
 {
-    using Type = unsigned int;
+    using ValueType = unsigned int;
 
-    static Type& get(ObjectId& value) noexcept
+    static ValueType& get(ObjectId& value) noexcept
     {
         return value.value;
     }

@@ -155,6 +155,42 @@ void RangeConstrainedChild::register_properties(reflect::ClassInfo& class_info)
       range);
 }
 
+class DefaultedChild : public reflect::Reflected<DefaultedChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    int defaulted_value{11};
+    float ranged_defaulted_value{0.75f};
+};
+
+DECLARE_REFLECTION(Test, DefaultedChild);
+DEFINE_REFLECTION(DefaultedChild);
+
+void DefaultedChild::register_properties(reflect::ClassInfo& class_info)
+{
+    reflect::register_property<&DefaultedChild::defaulted_value>(
+      class_info,
+      "defaulted_value",
+      "Defaulted Value",
+      reflect::PropertyFlags::None,
+      reflect::default_of(42));
+
+    reflect::RangeConstraint<float> range{};
+    range.min = 0.0f;
+    range.max = 1.0f;
+    range.step = 0.05f;
+    range.clamp = true;
+
+    reflect::register_property<&DefaultedChild::ranged_defaulted_value>(
+      class_info,
+      "ranged_defaulted_value",
+      "Ranged Defaulted Value",
+      reflect::PropertyFlags::None,
+      range,
+      0.5f);
+}
+
 namespace
 {
 
@@ -1149,6 +1185,60 @@ TEST(ReflectionSystemTests, ConstructedIntPropertyClampsToRange)
 
     EXPECT_TRUE(int_property->set_value(100));
     EXPECT_EQ(instance.constrained_teeth, 50);
+}
+
+TEST(ReflectionSystemTests, DescriptorCarriesTypedDefaultMetadata)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = DefaultedChild::static_class();
+    ASSERT_NE(cls, nullptr);
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("defaulted_value");
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->get_default_value(), nullptr);
+
+    const auto* typed_default = descriptor->try_get_default<int>();
+    ASSERT_NE(typed_default, nullptr);
+    EXPECT_EQ(typed_default->value, 42);
+}
+
+TEST(ReflectionSystemTests, DescriptorDefaultLookupRequiresExactType)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = DefaultedChild::static_class();
+    ASSERT_NE(cls, nullptr);
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("defaulted_value");
+    ASSERT_NE(descriptor, nullptr);
+
+    EXPECT_EQ(descriptor->try_get_default<float>(), nullptr);
+}
+
+TEST(ReflectionSystemTests, DescriptorCanCarryConstraintAndDefaultMetadata)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = DefaultedChild::static_class();
+    ASSERT_NE(cls, nullptr);
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("ranged_defaulted_value");
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->constraint, nullptr);
+    ASSERT_NE(descriptor->get_default_value(), nullptr);
+
+    const auto* range = static_cast<const reflect::RangeConstraint<float>*>(
+      descriptor->constraint.get());
+    ASSERT_NE(range, nullptr);
+    ASSERT_TRUE(range->min.has_value());
+    ASSERT_TRUE(range->max.has_value());
+    EXPECT_FLOAT_EQ(*range->min, 0.0f);
+    EXPECT_FLOAT_EQ(*range->max, 1.0f);
+
+    const auto* typed_default = descriptor->try_get_default<float>();
+    ASSERT_NE(typed_default, nullptr);
+    EXPECT_FLOAT_EQ(typed_default->value, 0.5f);
 }
 
 class ShadowChild : public reflect::Reflected<ShadowChild, TestRoot>

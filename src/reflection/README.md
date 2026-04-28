@@ -35,6 +35,10 @@ Properties are registered by member pointer:
 
 - `register_property<&Type::member>(class_info, "name", "Label", flags)`.
 - `register_property<&Type::member>(class_info, "name", "Label", flags, constraint)`.
+- `register_property<&Type::member>(class_info, "name", "Label", flags, default_value)`.
+- `register_property<&Type::member>(class_info, "name", "Label", flags, constraint, default_value)`.
+- `register_property<&Type::member>(class_info, "name", "Label", flags, shared_default)`.
+- `register_property<&Type::member>(class_info, "name", "Label", flags, shared_constraint, shared_default)`.
 
 This appends a `PropertyDescriptor` containing a construction function. At object initialization, descriptors are materialized into concrete `Property` objects.
 Descriptors are registered in declaration order (the registration list is reversed once during finalization).
@@ -48,6 +52,13 @@ Each `Property` stores:
   - `size`
   - `offset` (from owning object base)
   - `alignment`
+
+Each `PropertyDescriptor` stores:
+
+- internal name and display label
+- flags
+- optional typed constraint metadata (`std::shared_ptr<const PropertyConstraint>`)
+- optional typed default metadata (`std::shared_ptr<const PropertyDefault>`)
 
 Built-in property classes compute static `size`/`alignment` from their `Type` alias and receive `offset` from descriptor construction.
 
@@ -63,6 +74,15 @@ For built-in numeric properties (`int`, `unsigned int`, `float`), range constrai
 
 - out-of-range values are rejected when `clamp == false`
 - out-of-range values are clamped to `min`/`max` when `clamp == true`
+
+## Defaults
+
+`PropertyDefault` is the base metadata type for descriptor-level defaults.
+
+- `TypedDefault<T>` stores a typed default value.
+- `DescriptorBase::try_get_default<T>()` provides exact-type retrieval at runtime.
+- `register_property` validates typed defaults at compile time (default type must match the reflected member type).
+- `default_of(value)` builds shared default metadata (`std::shared_ptr<const PropertyDefault>`).
 
 ## Minimal Usage
 
