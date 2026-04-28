@@ -54,7 +54,7 @@ bool Vec4Property::set_value(const Type& in_value) noexcept
 
 const void* Vec4Property::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<Vec4Property>();
+    return detail::type_tag<Vec4Property>();
 }
 
 Mat4Property::Mat4Property(
@@ -96,7 +96,7 @@ bool Mat4Property::set_value(const Type& in_value) noexcept
 
 const void* Mat4Property::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<Mat4Property>();
+    return detail::type_tag<Mat4Property>();
 }
 
 }    // namespace reflect

@@ -10,6 +10,7 @@
 
 #include "builtin_properties.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace reflect
@@ -21,16 +22,23 @@ IntProperty::IntProperty(
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
-  float speed)
+  float speed,
+  std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     std::move(name),
     std::move(label),
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    constraint}
 , value{value}
 , speed{speed}
+, range_constraint{
+    try_get_range_constraint<Type>() != nullptr
+      ? std::optional<RangeConstraint<Type>>{
+          *try_get_range_constraint<Type>()}
+      : std::nullopt}
 {
     if(value == nullptr)
     {
@@ -50,6 +58,26 @@ bool IntProperty::set_value(Type in_value) noexcept
         return false;
     }
 
+    if(range_constraint.has_value())
+    {
+        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->min;
+        }
+        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->max;
+        }
+    }
+
     *value = in_value;
     return true;
 }
@@ -61,7 +89,7 @@ float IntProperty::get_speed() const noexcept
 
 const void* IntProperty::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<IntProperty>();
+    return detail::type_tag<IntProperty>();
 }
 
 UIntProperty::UIntProperty(
@@ -70,16 +98,23 @@ UIntProperty::UIntProperty(
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
-  float speed)
+  float speed,
+  std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     std::move(name),
     std::move(label),
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    constraint}
 , value{value}
 , speed{speed}
+, range_constraint{
+    try_get_range_constraint<Type>() != nullptr
+      ? std::optional<RangeConstraint<Type>>{
+          *try_get_range_constraint<Type>()}
+      : std::nullopt}
 {
     if(value == nullptr)
     {
@@ -99,6 +134,26 @@ bool UIntProperty::set_value(Type in_value) noexcept
         return false;
     }
 
+    if(range_constraint.has_value())
+    {
+        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->min;
+        }
+        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->max;
+        }
+    }
+
     *value = in_value;
     return true;
 }
@@ -110,7 +165,7 @@ float UIntProperty::get_speed() const noexcept
 
 const void* UIntProperty::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<UIntProperty>();
+    return detail::type_tag<UIntProperty>();
 }
 
 FloatProperty::FloatProperty(
@@ -120,17 +175,24 @@ FloatProperty::FloatProperty(
   std::size_t offset,
   PropertyFlags flags,
   float speed,
-  const char* format)
+  const char* format,
+  std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     std::move(name),
     std::move(label),
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    constraint}
 , value{value}
 , speed{speed}
 , format{format}
+, range_constraint{
+    try_get_range_constraint<Type>() != nullptr
+      ? std::optional<RangeConstraint<Type>>{
+          *try_get_range_constraint<Type>()}
+      : std::nullopt}
 {
     if(value == nullptr)
     {
@@ -150,6 +212,26 @@ bool FloatProperty::set_value(Type in_value) noexcept
         return false;
     }
 
+    if(range_constraint.has_value())
+    {
+        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->min;
+        }
+        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        {
+            if(!range_constraint->clamp)
+            {
+                return false;
+            }
+            in_value = *range_constraint->max;
+        }
+    }
+
     *value = in_value;
     return true;
 }
@@ -166,7 +248,7 @@ const char* FloatProperty::get_format() const noexcept
 
 const void* FloatProperty::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<FloatProperty>();
+    return detail::type_tag<FloatProperty>();
 }
 
 BoolProperty::BoolProperty(
@@ -174,14 +256,16 @@ BoolProperty::BoolProperty(
   std::string label,
   Type* value,
   std::size_t offset,
-  PropertyFlags flags)
+  PropertyFlags flags,
+  std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     std::move(name),
     std::move(label),
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    std::move(constraint)}
 , value{value}
 {
     if(value == nullptr)
@@ -208,7 +292,7 @@ bool BoolProperty::set_value(Type in_value) noexcept
 
 const void* BoolProperty::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<BoolProperty>();
+    return detail::type_tag<BoolProperty>();
 }
 
 StringProperty::StringProperty(
@@ -217,14 +301,16 @@ StringProperty::StringProperty(
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
-  std::size_t max_length)
+  std::size_t max_length,
+  std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     std::move(name),
     std::move(label),
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    std::move(constraint)}
 , value{value}
 , max_length{max_length}
 {
@@ -258,7 +344,7 @@ std::size_t StringProperty::get_max_length() const noexcept
 
 const void* StringProperty::get_type_tag() const noexcept
 {
-    return detail::property_type_tag<StringProperty>();
+    return detail::type_tag<StringProperty>();
 }
 
 }    // namespace reflect

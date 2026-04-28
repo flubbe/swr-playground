@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 #include "property.h"
 
@@ -30,6 +31,8 @@ private:
     /** UI drag speed. */
     float speed{1.0f};
 
+    std::optional<RangeConstraint<Type>> range_constraint;
+
 public:
     /**
      * Construct an integer property.
@@ -48,7 +51,8 @@ public:
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
-      float speed = 1.0f);
+      float speed = 1.0f,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -80,6 +84,8 @@ private:
     /** UI drag speed. */
     float speed{1.0f};
 
+    std::optional<RangeConstraint<Type>> range_constraint;
+
 public:
     /**
      * Construct an unsigned integer property.
@@ -98,7 +104,8 @@ public:
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
-      float speed = 1.0f);
+      float speed = 1.0f,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -133,6 +140,8 @@ private:
     /** UI display format. */
     const char* format{"%.3f"};
 
+    std::optional<RangeConstraint<Type>> range_constraint;
+
 public:
     /**
      * Construct a floating-point property.
@@ -153,7 +162,8 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 0.01f,
-      const char* format = "%.3f");
+      const char* format = "%.3f",
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -201,7 +211,8 @@ public:
       std::string label,
       Type* value,
       std::size_t offset,
-      PropertyFlags flags = PropertyFlags::None);
+      PropertyFlags flags = PropertyFlags::None,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -248,7 +259,8 @@ public:
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
-      std::size_t max_length = 256);
+      std::size_t max_length = 256,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -275,14 +287,17 @@ struct PropertyFactory<int>
       std::string_view label,
       int& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<IntProperty>(
           std::string{name},
           std::string{label},
           &value,
           offset,
-          flags);
+          flags,
+          1.0f,
+          constraint);
     }
 };
 
@@ -294,14 +309,17 @@ struct PropertyFactory<unsigned int>
       std::string_view label,
       unsigned int& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<UIntProperty>(
           std::string{name},
           std::string{label},
           &value,
           offset,
-          flags);
+          flags,
+          1.0f,
+          constraint);
     }
 };
 
@@ -313,14 +331,18 @@ struct PropertyFactory<float>
       std::string_view label,
       float& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<FloatProperty>(
           std::string{name},
           std::string{label},
           &value,
           offset,
-          flags);
+          flags,
+          0.01f,
+          "%.3f",
+          constraint);
     }
 };
 
@@ -332,14 +354,16 @@ struct PropertyFactory<bool>
       std::string_view label,
       bool& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<BoolProperty>(
           std::string{name},
           std::string{label},
           &value,
           offset,
-          flags);
+          flags,
+          constraint);
     }
 };
 
@@ -351,14 +375,17 @@ struct PropertyFactory<std::string>
       std::string_view label,
       std::string& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<StringProperty>(
           std::string{name},
           std::string{label},
           &value,
           offset,
-          flags);
+          flags,
+          256,
+          constraint);
     }
 };
 

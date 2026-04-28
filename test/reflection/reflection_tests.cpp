@@ -75,7 +75,8 @@ public:
     std::uint32_t sentinel{0xA5A5A5A5u};
 };
 
-class OffsetChild : public NonReflectedBase, public reflect::Reflected<OffsetChild, TestRoot>
+class OffsetChild : public NonReflectedBase
+, public reflect::Reflected<OffsetChild, TestRoot>
 {
 public:
     static void register_properties(reflect::ClassInfo& class_info);
@@ -92,6 +93,66 @@ void OffsetChild::register_properties(reflect::ClassInfo& class_info)
       class_info,
       "local_flag",
       "Local Flag");
+}
+
+class ConstrainedChild : public reflect::Reflected<ConstrainedChild, TestRoot>
+{
+public:
+    struct CustomConstraint : reflect::PropertyConstraint
+    {
+        int marker{0};
+
+        const void* get_type_tag() const noexcept override
+        {
+            return reflect::detail::type_tag<CustomConstraint>();
+        }
+    };
+
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    int constrained_value{5};
+};
+
+DECLARE_REFLECTION(Test, ConstrainedChild);
+DEFINE_REFLECTION(ConstrainedChild);
+
+void ConstrainedChild::register_properties(reflect::ClassInfo& class_info)
+{
+    auto custom = std::make_shared<CustomConstraint>();
+    custom->marker = 77;
+    reflect::register_property<&ConstrainedChild::constrained_value>(
+      class_info,
+      "constrained_value",
+      "Constrained Value",
+      reflect::PropertyFlags::None,
+      std::static_pointer_cast<const reflect::PropertyConstraint>(custom));
+}
+
+class RangeConstrainedChild : public reflect::Reflected<RangeConstrainedChild, TestRoot>
+{
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    int constrained_teeth{10};
+};
+
+DECLARE_REFLECTION(Test, RangeConstrainedChild);
+DEFINE_REFLECTION(RangeConstrainedChild);
+
+void RangeConstrainedChild::register_properties(reflect::ClassInfo& class_info)
+{
+    reflect::RangeConstraint<int> range{};
+    range.min = 5;
+    range.max = 50;
+    range.step = 1;
+    range.clamp = true;
+
+    reflect::register_property<&RangeConstrainedChild::constrained_teeth>(
+      class_info,
+      "constrained_teeth",
+      "Constrained Teeth",
+      reflect::PropertyFlags::None,
+      range);
 }
 
 namespace
@@ -178,7 +239,7 @@ void ensure_reflection_ready()
 
 }    // namespace
 
-TEST(ReflectionSystemTests, ProcessPendingRequiresDisabledAutoRegistration)
+TEST(ReflectionSystemTests, PendingNeedsAutoRegOff)
 {
     reflect::ReflectionSystem::allow_auto_registration(true);
     EXPECT_THROW(
@@ -187,7 +248,7 @@ TEST(ReflectionSystemTests, ProcessPendingRequiresDisabledAutoRegistration)
     reflect::ReflectionSystem::allow_auto_registration(false);
 }
 
-TEST(ReflectionSystemTests, SupportsSameQualifiedNameAcrossDifferentRoots)
+TEST(ReflectionSystemTests, AllowsSameNameAcrossRoots)
 {
     ensure_reflection_ready();
 
@@ -245,7 +306,7 @@ TEST(ReflectionSystemTests, SupportsSameQualifiedNameAcrossDifferentRoots)
       reflect::detail::root_type_tag<RuntimeRootB>()));
 }
 
-TEST(ReflectionSystemTests, RejectsDuplicateQualifiedNameWithinSameRoot)
+TEST(ReflectionSystemTests, RejectsDuplicateNameInRoot)
 {
     ensure_reflection_ready();
 
@@ -293,7 +354,7 @@ TEST(ReflectionSystemTests, RejectsDuplicateQualifiedNameWithinSameRoot)
       reflect::detail::root_type_tag<RuntimeRootDuplicate>());
 }
 
-TEST(ReflectionSystemTests, ResolvesSuperClassChainDuringPendingProcessing)
+TEST(ReflectionSystemTests, ResolvesSuperChain)
 {
     ensure_reflection_ready();
 
@@ -353,7 +414,7 @@ TEST(ReflectionSystemTests, ResolvesSuperClassChainDuringPendingProcessing)
     g_chain_super_b = nullptr;
 }
 
-TEST(ReflectionSystemTests, RejectsDirectCircularSuperClassDuringPendingProcessing)
+TEST(ReflectionSystemTests, RejectsDirectSuperCycle)
 {
     ensure_reflection_ready();
 
@@ -381,7 +442,7 @@ TEST(ReflectionSystemTests, RejectsDirectCircularSuperClassDuringPendingProcessi
     reflect::ReflectionSystem::unregister_module("RuntimeCycle");
 }
 
-TEST(ReflectionSystemTests, RejectsIndirectCircularSuperClassDuringPendingProcessing)
+TEST(ReflectionSystemTests, RejectsIndirectSuperCycle)
 {
     ensure_reflection_ready();
 
@@ -425,7 +486,7 @@ TEST(ReflectionSystemTests, RejectsIndirectCircularSuperClassDuringPendingProces
     reflect::ReflectionSystem::unregister_module("RuntimeCycle2");
 }
 
-TEST(ReflectionSystemTests, PropagatesSuperResolverFailureDuringPendingProcessing)
+TEST(ReflectionSystemTests, PropagatesSuperResolverError)
 {
     ensure_reflection_ready();
 
@@ -453,7 +514,7 @@ TEST(ReflectionSystemTests, PropagatesSuperResolverFailureDuringPendingProcessin
     reflect::ReflectionSystem::unregister_module("RuntimeThrow");
 }
 
-TEST(ReflectionSystemTests, SupportsSuperResolvedToAlreadyRegisteredClass)
+TEST(ReflectionSystemTests, AllowsRegisteredResolvedSuper)
 {
     ensure_reflection_ready();
 
@@ -463,7 +524,8 @@ TEST(ReflectionSystemTests, SupportsSuperResolvedToAlreadyRegisteredClass)
       .name = "Child",
       .size = sizeof(int),
       .storage = &child_storage,
-      .resolve_super = []() -> const reflect::ClassInfo* { return TestRoot::static_class(); },
+      .resolve_super = []() -> const reflect::ClassInfo*
+      { return TestRoot::static_class(); },
       .root_tag = reflect::detail::root_type_tag<TestRoot>(),
       .factory = nullptr,
       .destroy = nullptr,
@@ -477,7 +539,7 @@ TEST(ReflectionSystemTests, SupportsSuperResolvedToAlreadyRegisteredClass)
     reflect::ReflectionSystem::unregister_module("RuntimeSuperRef");
 }
 
-TEST(ReflectionSystemTests, UnregisterClassAndModuleRemoveExpectedEntries)
+TEST(ReflectionSystemTests, UnregisterRemovesEntries)
 {
     ensure_reflection_ready();
 
@@ -545,7 +607,7 @@ TEST(ReflectionSystemTests, UnregisterClassAndModuleRemoveExpectedEntries)
       nullptr);
 }
 
-TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullRegistrationPointer)
+TEST(ReflectionSystemTests, RejectsPendingWithNullReg)
 {
     ensure_reflection_ready();
 
@@ -559,7 +621,7 @@ TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullRegistratio
       std::runtime_error);
 }
 
-TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullStoragePointer)
+TEST(ReflectionSystemTests, RejectsPendingWithNullStorage)
 {
     ensure_reflection_ready();
 
@@ -581,7 +643,7 @@ TEST(ReflectionSystemTests, RejectsInvalidPendingRegistrationWithNullStoragePoin
       std::runtime_error);
 }
 
-TEST(ReflectionSystemTests, FindClassReturnsNullForWrongRootTag)
+TEST(ReflectionSystemTests, FindClassWrongRootReturnsNull)
 {
     ensure_reflection_ready();
 
@@ -591,7 +653,7 @@ TEST(ReflectionSystemTests, FindClassReturnsNullForWrongRootTag)
     EXPECT_EQ(found, nullptr);
 }
 
-TEST(ReflectionSystemTests, GetRegisteredClassesReturnsSortedSnapshot)
+TEST(ReflectionSystemTests, RegisteredClassesAreSorted)
 {
     ensure_reflection_ready();
 
@@ -616,7 +678,7 @@ TEST(ReflectionSystemTests, GetRegisteredClassesReturnsSortedSnapshot)
     }
 }
 
-TEST(ReflectionSystemTests, StaticClassReturnsStablePointer)
+TEST(ReflectionSystemTests, StaticClassIsStable)
 {
     ensure_reflection_ready();
 
@@ -624,7 +686,7 @@ TEST(ReflectionSystemTests, StaticClassReturnsStablePointer)
     EXPECT_EQ(TestChild::static_class(), TestChild::static_class());
 }
 
-TEST(ReflectionSystemTests, InstanceClassMatchesStaticClass)
+TEST(ReflectionSystemTests, InstanceClassMatchesStatic)
 {
     ensure_reflection_ready();
 
@@ -635,7 +697,7 @@ TEST(ReflectionSystemTests, InstanceClassMatchesStaticClass)
     EXPECT_EQ(child.get_class(), TestChild::static_class());
 }
 
-TEST(ReflectionSystemTests, SuperClassMatchesBetweenStaticAndInstanceClass)
+TEST(ReflectionSystemTests, SuperMatchesStaticAndInstance)
 {
     ensure_reflection_ready();
 
@@ -654,7 +716,7 @@ TEST(ReflectionSystemTests, SuperClassMatchesBetweenStaticAndInstanceClass)
     EXPECT_EQ(static_super, instance_super);
 }
 
-TEST(ReflectionSystemTests, FactoryAndDestroyCreateAndDestroyDerivedInstance)
+TEST(ReflectionSystemTests, FactoryDestroyDerivedInstance)
 {
     ensure_reflection_ready();
 
@@ -674,7 +736,7 @@ TEST(ReflectionSystemTests, FactoryAndDestroyCreateAndDestroyDerivedInstance)
     child_cls->destroy(raw_instance);
 }
 
-TEST(ReflectionSystemTests, FindsClassesAndSupportsHierarchyQueries)
+TEST(ReflectionSystemTests, FindClassAndIsASupport)
 {
     ensure_reflection_ready();
 
@@ -696,7 +758,7 @@ TEST(ReflectionSystemTests, FindsClassesAndSupportsHierarchyQueries)
     EXPECT_TRUE(child.is_a<TestChild>());
 }
 
-TEST(ReflectionSystemTests, ConstructsRegisteredPropertyFromDescriptor)
+TEST(ReflectionSystemTests, ConstructsPropertyFromDescriptor)
 {
     ensure_reflection_ready();
 
@@ -713,7 +775,8 @@ TEST(ReflectionSystemTests, ConstructsRegisteredPropertyFromDescriptor)
       &child,
       descriptor->name,
       descriptor->label,
-      descriptor->flags);
+      descriptor->flags,
+      descriptor->constraint);
 
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
@@ -730,7 +793,7 @@ TEST(ReflectionSystemTests, ConstructsRegisteredPropertyFromDescriptor)
     EXPECT_FALSE(child.enabled);
 }
 
-TEST(ReflectionSystemTests, DerivedClassFirstPropertyContainsOnlyLocalProperties)
+TEST(ReflectionSystemTests, DerivedFirstPropertyIsLocalOnly)
 {
     ensure_reflection_ready();
 
@@ -743,7 +806,7 @@ TEST(ReflectionSystemTests, DerivedClassFirstPropertyContainsOnlyLocalProperties
     EXPECT_EQ(cls->first_property->next, nullptr);
 }
 
-TEST(ReflectionSystemTests, FindsPropertyDescriptorsByInternalName)
+TEST(ReflectionSystemTests, FindsDescriptorByName)
 {
     ensure_reflection_ready();
 
@@ -767,7 +830,7 @@ TEST(ReflectionSystemTests, FindsPropertyDescriptorsByInternalName)
     EXPECT_EQ(enabled_descriptor->name, "enabled");
 }
 
-TEST(ReflectionSystemTests, FindsInheritedPropertyDescriptorsByInternalName)
+TEST(ReflectionSystemTests, FindsInheritedDescriptorByName)
 {
     ensure_reflection_ready();
 
@@ -785,7 +848,7 @@ TEST(ReflectionSystemTests, FindsInheritedPropertyDescriptorsByInternalName)
     EXPECT_EQ(inherited->label, "Root Value");
 }
 
-TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInstance)
+TEST(ReflectionSystemTests, InheritedDescriptorConstructsDerived)
 {
     ensure_reflection_ready();
 
@@ -806,7 +869,8 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInsta
       &child,
       descriptor->name,
       descriptor->label,
-      descriptor->flags);
+      descriptor->flags,
+      descriptor->constraint);
 
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::StringProperty>());
@@ -822,7 +886,7 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForDerivedInsta
     EXPECT_EQ(string_property.get_value(), "root");
 }
 
-TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForGrandChildInstance)
+TEST(ReflectionSystemTests, InheritedDescriptorConstructsGrandChild)
 {
     ensure_reflection_ready();
 
@@ -839,12 +903,13 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsPropertyForGrandChildIn
       &grand_child,
       descriptor->name,
       descriptor->label,
-      descriptor->flags);
+      descriptor->flags,
+      descriptor->constraint);
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::StringProperty>());
 }
 
-TEST(ReflectionSystemTests, ErasedConstructHandlesPointerAdjustmentForMultipleInheritance)
+TEST(ReflectionSystemTests, ErasedConstructAdjustsMultiInheritance)
 {
     ensure_reflection_ready();
 
@@ -863,7 +928,8 @@ TEST(ReflectionSystemTests, ErasedConstructHandlesPointerAdjustmentForMultipleIn
       erased_obj,
       descriptor->name,
       descriptor->label,
-      descriptor->flags);
+      descriptor->flags,
+      descriptor->constraint);
     ASSERT_NE(property, nullptr);
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
 
@@ -874,7 +940,7 @@ TEST(ReflectionSystemTests, ErasedConstructHandlesPointerAdjustmentForMultipleIn
     EXPECT_EQ(obj.sentinel, 0xA5A5A5A5u);
 }
 
-TEST(ReflectionSystemTests, PreservesRegistrationOrderWithinClass)
+TEST(ReflectionSystemTests, PreservesPropertyRegistrationOrder)
 {
     ensure_reflection_ready();
 
@@ -909,7 +975,7 @@ void EmptyChild::register_properties(reflect::ClassInfo&)
 {
 }
 
-TEST(ReflectionSystemTests, SupportsExplicitEmptyPropertyRegistration)
+TEST(ReflectionSystemTests, SupportsExplicitEmptyProps)
 {
     ensure_reflection_ready();
 
@@ -925,7 +991,7 @@ TEST(ReflectionSystemTests, SupportsExplicitEmptyPropertyRegistration)
     EXPECT_TRUE(child_cls->is_a(root_cls));
 }
 
-TEST(ReflectionSystemTests, RootCanOmitPropertyRegistration)
+TEST(ReflectionSystemTests, RootCanOmitProps)
 {
     ensure_reflection_ready();
 
@@ -948,7 +1014,7 @@ void EmptyRegisteredChild::register_properties(reflect::ClassInfo&)
 {
 }
 
-TEST(ReflectionSystemTests, EmptyChildFindsInheritedPropertiesWithoutCopyingThem)
+TEST(ReflectionSystemTests, EmptyChildFindsInheritedProps)
 {
     ensure_reflection_ready();
 
@@ -961,7 +1027,7 @@ TEST(ReflectionSystemTests, EmptyChildFindsInheritedPropertiesWithoutCopyingThem
     EXPECT_EQ(cls->find_property("missing_property"), nullptr);
 }
 
-TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnNullObject)
+TEST(ReflectionSystemTests, DescriptorConstructNullThrows)
 {
     ensure_reflection_ready();
 
@@ -978,11 +1044,12 @@ TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnNullObject)
         nullptr,
         descriptor->name,
         descriptor->label,
-        descriptor->flags),
+        descriptor->flags,
+        descriptor->constraint),
       reflect::instance_error);
 }
 
-TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnObjectOfWrongType)
+TEST(ReflectionSystemTests, DescriptorConstructWrongTypeThrows)
 {
     ensure_reflection_ready();
 
@@ -1000,8 +1067,88 @@ TEST(ReflectionSystemTests, ConstructDescriptorThrowsOnObjectOfWrongType)
         &wrong_object,
         descriptor->name,
         descriptor->label,
-        descriptor->flags),
+        descriptor->flags,
+        descriptor->constraint),
       reflect::instance_error);
+}
+
+TEST(ReflectionSystemTests, DescriptorAndPropertyCarryConstraint)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = ConstrainedChild::static_class();
+    ASSERT_NE(cls, nullptr);
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("constrained_value");
+    ASSERT_NE(descriptor, nullptr);
+    ASSERT_NE(descriptor->constraint, nullptr);
+
+    const auto* descriptor_constraint_base = descriptor->constraint.get();
+    ASSERT_NE(descriptor_constraint_base, nullptr);
+    ASSERT_EQ(
+      descriptor_constraint_base->get_type_tag(),
+      reflect::detail::type_tag<ConstrainedChild::CustomConstraint>());
+    const auto* descriptor_constraint =
+      static_cast<const ConstrainedChild::CustomConstraint*>(
+        descriptor_constraint_base);
+    ASSERT_NE(descriptor_constraint, nullptr);
+    EXPECT_EQ(descriptor_constraint->marker, 77);
+
+    ConstrainedChild instance;
+    auto property = descriptor->construct(
+      &instance,
+      descriptor->name,
+      descriptor->label,
+      descriptor->flags,
+      descriptor->constraint);
+    ASSERT_NE(property, nullptr);
+
+    const auto* property_constraint =
+      property->try_get_constraint<ConstrainedChild::CustomConstraint>();
+    ASSERT_NE(property_constraint, nullptr);
+    EXPECT_EQ(property_constraint->marker, 77);
+}
+
+TEST(ReflectionSystemTests, ConstructedIntPropertyClampsToRange)
+{
+    ensure_reflection_ready();
+
+    const reflect::ClassInfo* cls = RangeConstrainedChild::static_class();
+    ASSERT_NE(cls, nullptr);
+    const reflect::PropertyDescriptor* descriptor =
+      cls->find_property("constrained_teeth");
+    ASSERT_NE(descriptor, nullptr);
+
+    const auto* descriptor_constraint_base = descriptor->constraint.get();
+    ASSERT_NE(descriptor_constraint_base, nullptr);
+    ASSERT_EQ(
+      descriptor_constraint_base->get_type_tag(),
+      reflect::detail::type_tag<reflect::RangeConstraint<int>>());
+    const auto* descriptor_range =
+      static_cast<const reflect::RangeConstraint<int>*>(
+        descriptor_constraint_base);
+    ASSERT_TRUE(descriptor_range->min.has_value());
+    ASSERT_TRUE(descriptor_range->max.has_value());
+    ASSERT_TRUE(descriptor_range->clamp);
+    EXPECT_EQ(*descriptor_range->min, 5);
+    EXPECT_EQ(*descriptor_range->max, 50);
+
+    RangeConstrainedChild instance;
+    auto property = descriptor->construct(
+      &instance,
+      descriptor->name,
+      descriptor->label,
+      descriptor->flags,
+      descriptor->constraint);
+    ASSERT_NE(property, nullptr);
+    auto* int_property = property->try_as<reflect::IntProperty>();
+    ASSERT_NE(int_property, nullptr);
+
+    EXPECT_TRUE(int_property->set_value(1));
+    EXPECT_EQ(instance.constrained_teeth, 5);
+
+    EXPECT_TRUE(int_property->set_value(100));
+    EXPECT_EQ(instance.constrained_teeth, 50);
 }
 
 class ShadowChild : public reflect::Reflected<ShadowChild, TestRoot>
@@ -1023,7 +1170,7 @@ void ShadowChild::register_properties(reflect::ClassInfo& class_info)
       "Shadowed Root Value");
 }
 
-TEST(ReflectionSystemTests, FindPropertyPrefersMostDerivedDescriptor)
+TEST(ReflectionSystemTests, FindPropertyPrefersDerived)
 {
     ensure_reflection_ready();
 
@@ -1038,7 +1185,7 @@ TEST(ReflectionSystemTests, FindPropertyPrefersMostDerivedDescriptor)
     EXPECT_EQ(descriptor, cls->first_property.get());
 }
 
-TEST(ReflectionSystemTests, ClearRemovesAllClassesAndAllowsReRegistration)
+TEST(ReflectionSystemTests, ClearThenReregisterWorks)
 {
     ensure_reflection_ready();
 

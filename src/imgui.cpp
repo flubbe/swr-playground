@@ -13,6 +13,7 @@
 #include <cfloat>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <print>
 #include <stdexcept>
 #include <unordered_map>
@@ -382,13 +383,41 @@ private:
         }
 
         int value = property.get_value();
+        const auto* range = property.try_get_range_constraint<int>();
+        int min_value = 0;
+        int max_value = 0;
+        const int* min_ptr = nullptr;
+        const int* max_ptr = nullptr;
+        if(range != nullptr)
+        {
+            if(range->min.has_value())
+            {
+                min_value = *range->min;
+                min_ptr = &min_value;
+            }
+            if(range->max.has_value())
+            {
+                max_value = *range->max;
+                max_ptr = &max_value;
+            }
+        }
+        const float speed = (range != nullptr && range->step.has_value())
+                              ? static_cast<float>(*range->step)
+                              : property.get_speed();
+        const int drag_min = (min_ptr != nullptr) ? *min_ptr : std::numeric_limits<int>::min();
+        const int drag_max = (max_ptr != nullptr) ? *max_ptr : std::numeric_limits<int>::max();
         const bool changed = ImGui::DragInt(
           "##value",
           &value,
-          property.get_speed());
+          speed,
+          drag_min,
+          drag_max,
+          "%d",
+          ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
             property.set_value(value);
+            value = property.get_value();
         }
     }
 
@@ -401,17 +430,39 @@ private:
         }
 
         unsigned int value = property.get_value();
+        const auto* range = property.try_get_range_constraint<unsigned int>();
+        unsigned int min_value = 0;
+        unsigned int max_value = 0;
+        const void* min_ptr = nullptr;
+        const void* max_ptr = nullptr;
+        if(range != nullptr)
+        {
+            if(range->min.has_value())
+            {
+                min_value = *range->min;
+                min_ptr = &min_value;
+            }
+            if(range->max.has_value())
+            {
+                max_value = *range->max;
+                max_ptr = &max_value;
+            }
+        }
         const bool changed = ImGui::DragScalar(
           "##value",
           ImGuiDataType_U32,
           &value,
-          property.get_speed(),
-          nullptr,
-          nullptr,
-          "%u");
+          (range != nullptr && range->step.has_value())
+            ? static_cast<float>(*range->step)
+            : property.get_speed(),
+          min_ptr,
+          max_ptr,
+          "%u",
+          ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
             property.set_value(value);
+            value = property.get_value();
         }
     }
 
@@ -424,16 +475,40 @@ private:
         }
 
         float value = property.get_value();
+        const auto* range = property.try_get_range_constraint<float>();
+        float min_value = 0.0f;
+        float max_value = 0.0f;
+        const float* min_ptr = nullptr;
+        const float* max_ptr = nullptr;
+        if(range != nullptr)
+        {
+            if(range->min.has_value())
+            {
+                min_value = *range->min;
+                min_ptr = &min_value;
+            }
+            if(range->max.has_value())
+            {
+                max_value = *range->max;
+                max_ptr = &max_value;
+            }
+        }
+        const float drag_min = (min_ptr != nullptr) ? *min_ptr : -std::numeric_limits<float>::max();
+        const float drag_max = (max_ptr != nullptr) ? *max_ptr : std::numeric_limits<float>::max();
         const bool changed = ImGui::DragFloat(
           "##value",
           &value,
-          property.get_speed(),
-          0.0f,
-          0.0f,
-          property.get_format());
+          (range != nullptr && range->step.has_value())
+            ? *range->step
+            : property.get_speed(),
+          drag_min,
+          drag_max,
+          property.get_format(),
+          ImGuiSliderFlags_AlwaysClamp);
         if(changed || ImGui::IsItemDeactivatedAfterEdit())
         {
             property.set_value(value);
+            value = property.get_value();
         }
     }
 
@@ -980,7 +1055,8 @@ void imgui_draw_class_inspector_panel()
                               instance,
                               descriptor->name,
                               descriptor->label,
-                              descriptor->flags);
+                              descriptor->flags,
+                              descriptor->constraint);
                             if(property == nullptr)
                             {
                                 continue;

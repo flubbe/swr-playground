@@ -285,13 +285,22 @@ void rebuild_gear_mesh_if_needed(
   RenderDevice& device,
   Object* object)
 {
-    auto* gear = dynamic_cast<Gear*>(object);
-    if(gear == nullptr || !gear->needs_rebuild())
+    auto* gear = static_cast<Gear*>(object);
+    if(gear == nullptr)
     {
         return;
     }
 
-    const int teeth = std::max(3, gear->get_teeth());
+    gear->clamp_runtime_parameters();
+    if(!gear->needs_rebuild())
+    {
+        return;
+    }
+
+    const int teeth = std::clamp(
+      gear->get_teeth(),
+      gear_limits::min_teeth,
+      gear_limits::max_teeth);
 
     const auto old_meshes = gear->get_meshes();
     if(old_meshes.size() != 2)
@@ -306,29 +315,24 @@ void rebuild_gear_mesh_if_needed(
       teeth,
       gear->get_tooth_depth());
 
-    const std::uint32_t new_inner_mesh = device.create_mesh(
+    const std::uint32_t old_inner_mesh = old_meshes[0].mesh_handle;
+    const std::uint32_t old_outer_mesh = old_meshes[1].mesh_handle;
+
+    const bool inner_updated = device.update_mesh(
+      old_inner_mesh,
       std::move(geom.inner_indices),
       std::move(geom.inner_vertices),
       std::move(geom.inner_normals));
-    const std::uint32_t new_outer_mesh = device.create_mesh(
+    const bool outer_updated = device.update_mesh(
+      old_outer_mesh,
       std::move(geom.outer_indices),
       std::move(geom.outer_vertices),
       std::move(geom.outer_normals));
 
-    const std::uint32_t old_inner_mesh = old_meshes[0].mesh_handle;
-    const std::uint32_t old_outer_mesh = old_meshes[1].mesh_handle;
-
-    gear->set_meshes(
-      std::vector{
-        RenderData{
-          .mesh_handle = new_inner_mesh,
-          .material_handle = old_meshes[0].material_handle},
-        RenderData{
-          .mesh_handle = new_outer_mesh,
-          .material_handle = old_meshes[1].material_handle}});
-
-    device.delete_mesh(old_inner_mesh);
-    device.delete_mesh(old_outer_mesh);
+    if(!inner_updated || !outer_updated)
+    {
+        return;
+    }
 
     gear->mark_rebuilt();
 }

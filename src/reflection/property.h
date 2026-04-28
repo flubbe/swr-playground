@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cassert>
+#include <optional>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -33,8 +34,62 @@ class BoolProperty;
 class StringProperty;
 class Property;
 
+/** Base class for property constraint metadata. */
+struct PropertyConstraint
+{
+    /** Virtual destructor. */
+    virtual ~PropertyConstraint() = default;
+
+    /**
+     * Return the runtime type tag for this constraint class.
+     *
+     * @note The tag is a unique memory address for the concrete type.
+     */
+    virtual const void* get_type_tag() const noexcept = 0;
+};
+
+/**
+ * Numeric range constraint metadata.
+ *
+ * @tparam T Constrained value type.
+ */
+template<typename T>
+struct RangeConstraint : PropertyConstraint
+{
+    /** Constrained value type. */
+    using ValueType = T;
+
+    /** Optional minimum accepted value (inclusive). */
+    std::optional<T> min;
+
+    /** Optional maximum accepted value (inclusive). */
+    std::optional<T> max;
+
+    /** Optional UI step / increment hint. */
+    std::optional<T> step;
+
+    /** Whether values outside the range should be clamped instead of rejected. */
+    bool clamp{false};
+
+    /** Return the runtime type tag for this constraint class. */
+    const void* get_type_tag() const noexcept override;
+};
+
 namespace detail
 {
+
+/**
+ * Get a runtime tag for a type.
+ *
+ * @tparam T Type to tag.
+ * @returns A unique memory address associated with `T`.
+ */
+template<typename T>
+const void* type_tag() noexcept
+{
+    static const int tag = 0;
+    return &tag;
+}
 
 /**
  * Concept for validating that a `Root` type supports `is_a(Owner::static_class())` for a given `Owner` type.
@@ -50,19 +105,13 @@ concept RootSupportsIsA =
       p->is_a(Owner::static_class());
   };
 
-/**
- * Get a tag for a property type.
- *
- * @note The tag is a unique memory address.
- */
-template<typename T>
-const void* property_type_tag() noexcept
-{
-    static const int tag = 0;
-    return &tag;
-}
-
 }    // namespace detail
+
+template<typename T>
+const void* RangeConstraint<T>::get_type_tag() const noexcept
+{
+    return detail::type_tag<RangeConstraint<T>>();
+}
 
 /** Visitor interface for properties. */
 class PropertyVisitor
@@ -96,6 +145,9 @@ class Property
     /** Property flags. */
     PropertyFlags flags{PropertyFlags::None};
 
+    /** Optional typed constraint metadata. */
+    std::shared_ptr<const PropertyConstraint> constraint{nullptr};
+
 public:
     /**
      * Construct a property.
@@ -110,13 +162,15 @@ public:
       std::size_t size,
       std::size_t offset,
       std::size_t alignment,
-      PropertyFlags flags = PropertyFlags::None)
+      PropertyFlags flags = PropertyFlags::None,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
     : name{std::move(name)}
     , label{std::move(label)}
     , size{size}
     , offset{offset}
     , alignment{alignment}
     , flags{flags}
+    , constraint{std::move(constraint)}
     {
     }
 
@@ -159,6 +213,48 @@ public:
         return flags;
     }
 
+    /** Optional typed constraint metadata. */
+    const std::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
+    {
+        return constraint;
+    }
+
+    /**
+     * Try to retrieve constraint metadata as `T`.
+     *
+     * @tparam T Constraint type.
+     * @returns A pointer to `T` if the stored constraint exists and matches exactly, otherwise `nullptr`.
+     */
+    template<typename T>
+    const T* try_get_constraint() const noexcept
+    {
+        static_assert(
+          std::is_base_of_v<PropertyConstraint, T>,
+          "T must derive from PropertyConstraint.");
+        if(constraint == nullptr)
+        {
+            return nullptr;
+        }
+        if(constraint->get_type_tag() != detail::type_tag<T>())
+        {
+            return nullptr;
+        }
+        return static_cast<const T*>(constraint.get());
+    }
+
+    /**
+     * Try to retrieve numeric range constraint metadata for value type `T`.
+     *
+     * @tparam T Constrained value type used by `RangeConstraint<T>`.
+     * @returns A pointer to `RangeConstraint<T>` if the stored constraint exists and matches exactly,
+     *          otherwise `nullptr`.
+     */
+    template<typename T>
+    const RangeConstraint<T>* try_get_range_constraint() const noexcept
+    {
+        return try_get_constraint<RangeConstraint<T>>();
+    }
+
     /** Whether the property is read-only. */
     bool is_read_only() const noexcept
     {
@@ -172,7 +268,7 @@ public:
     template<typename T>
     bool is_type() const noexcept
     {
-        return get_type_tag() == detail::property_type_tag<T>();
+        return get_type_tag() == detail::type_tag<T>();
     }
 
     /**
@@ -248,20 +344,26 @@ struct DescriptorBase
     /** Property flags. */
     PropertyFlags flags;
 
+    /** Optional typed constraint metadata. */
+    std::shared_ptr<const PropertyConstraint> constraint;
+
     /**
      * Construct a property descriptor.
      *
      * @param name Internal property name.
      * @param label Display name / label (e.g. for UI/editor).
      * @param flags Static property flags.
+     * @param constraint Optional constraint for the property values.
      */
     DescriptorBase(
       std::string name,
       std::string label,
-      const PropertyFlags flags)
+      const PropertyFlags flags,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
     : name{std::move(name)}
     , label{std::move(label)}
     , flags{flags}
+    , constraint{std::move(constraint)}
     {
     }
 
@@ -280,7 +382,8 @@ struct PropertyDescriptor : DescriptorBase
       void*,
       std::string_view,
       std::string_view,
-      PropertyFlags);
+      PropertyFlags,
+      const std::shared_ptr<const PropertyConstraint>&);
 
     /** Function pointer for constructing the property. */
     ConstructFn construct;
@@ -296,17 +399,20 @@ struct PropertyDescriptor : DescriptorBase
      * @param flags Static property flags.
      * @param construct Function pointer for constructing the property.
      * @param next Pointer to the next property descriptor in the descriptor linked list.
+     * @param contraint Optional constraint for the property values.
      */
     PropertyDescriptor(
       std::string name,
       std::string label,
       const PropertyFlags flags,
       ConstructFn construct,
-      std::unique_ptr<PropertyDescriptor> next)
+      std::unique_ptr<PropertyDescriptor> next,
+      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
     : DescriptorBase{
         std::move(name),
         std::move(label),
-        flags}
+        flags,
+        std::move(constraint)}
     , construct{construct}
     , next{std::move(next)}
     {
@@ -372,7 +478,8 @@ std::unique_ptr<Property> construct_member(
   MemberClassType<MemberPtr>& obj,
   std::string_view name,
   std::string_view label,
-  PropertyFlags flags)
+  PropertyFlags flags,
+  const std::shared_ptr<const PropertyConstraint>& constraint)
 {
     using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
     using MemberType = typename MemberPtrTraits::MemberType;
@@ -391,7 +498,8 @@ std::unique_ptr<Property> construct_member(
       label,
       unwrapped_value,
       property_offset,
-      flags);
+      flags,
+      constraint);
 }
 
 /**
@@ -409,6 +517,7 @@ std::unique_ptr<Property> construct_member(
  * @param name Internal property name.
  * @param label Display name / label (e.g. for UI/editor).
  * @param flags Static property flags.
+ * @param constraint Constraint for the property values.
  * @return A unique pointer to the constructed property.
  *
  * @throws `instance_error` If `obj` is `nullptr`.
@@ -419,7 +528,8 @@ std::unique_ptr<Property> construct_member_erased(
   void* obj,
   std::string_view name,
   std::string_view label,
-  PropertyFlags flags)
+  PropertyFlags flags,
+  const std::shared_ptr<const PropertyConstraint>& constraint)
 {
     if(obj == nullptr)
     {
@@ -452,7 +562,8 @@ std::unique_ptr<Property> construct_member_erased(
       *owner_obj,
       name,
       label,
-      flags);
+      flags,
+      constraint);
 }
 
 }    // namespace detail

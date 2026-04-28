@@ -418,7 +418,8 @@ protected:
                     this,
                     descriptor->name,
                     descriptor->label,
-                    descriptor->flags));
+                    descriptor->flags,
+                    descriptor->constraint));
             }
         }
     }
@@ -661,6 +662,57 @@ void register_property(
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property));
+    class_info.first_property = std::move(descriptor);
+}
+
+template<auto MemberPtr, typename Constraint>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  Constraint constraint)
+{
+    using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
+    using MemberType = typename MemberPtrTraits::MemberType;
+    using UnwrappedType = typename UnwrapType<MemberType>::Type;
+    using ConstraintType = std::remove_cvref_t<Constraint>;
+    static_assert(
+      std::is_base_of_v<PropertyConstraint, ConstraintType>,
+      "Constraint must derive from PropertyConstraint.");
+    if constexpr(requires { typename ConstraintType::ValueType; })
+    {
+        using ConstraintValueType = typename ConstraintType::ValueType;
+        static_assert(
+          std::is_same_v<UnwrappedType, ConstraintValueType>,
+          "Typed constraints with ValueType must match the reflected member type.");
+    }
+
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      std::make_shared<ConstraintType>(std::move(constraint)));
+    class_info.first_property = std::move(descriptor);
+}
+
+template<auto MemberPtr>
+void register_property(
+  ClassInfo& class_info,
+  std::string_view name,
+  std::string_view label,
+  PropertyFlags flags,
+  std::shared_ptr<const PropertyConstraint> constraint)
+{
+    auto descriptor = std::make_unique<PropertyDescriptor>(
+      std::string{name},
+      std::string{label},
+      flags,
+      &detail::construct_member_erased<MemberPtr>,
+      std::move(class_info.first_property),
+      std::move(constraint));
     class_info.first_property = std::move(descriptor);
 }
 

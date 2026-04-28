@@ -83,6 +83,30 @@ std::uint32_t RenderDevice::create_mesh(
     return mesh_id;
 }
 
+bool RenderDevice::update_mesh(
+  std::uint32_t handle,
+  std::vector<std::uint32_t> indices,
+  std::vector<ml::vec4> vertices,
+  std::vector<ml::vec4> normals)
+{
+    auto it = meshes.find(handle);
+    if(it == meshes.end())
+    {
+        return false;
+    }
+
+    swr::DeleteAttributeBuffer(it->second.normals_handle);
+    swr::DeleteAttributeBuffer(it->second.vertices_handle);
+
+    it->second.vertices_handle = swr::CreateAttributeBuffer(vertices);
+    it->second.normals_handle = swr::CreateAttributeBuffer(normals);
+    it->second.indices = std::move(indices);
+    it->second.vertices = std::move(vertices);
+    it->second.normals = std::move(normals);
+
+    return true;
+}
+
 void RenderDevice::delete_mesh(std::uint32_t handle)
 {
     auto it = meshes.find(handle);

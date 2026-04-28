@@ -107,7 +107,8 @@ struct PropertyFactory<ml::vec4>
       std::string_view label,
       Vec4Property::Type& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>&)
     {
         return std::make_unique<Vec4Property>(
           std::string{name},
@@ -126,7 +127,8 @@ struct PropertyFactory<ml::mat4x4>
       std::string_view label,
       Mat4Property::Type& value,
       std::size_t offset,
-      PropertyFlags flags)
+      PropertyFlags flags,
+      const std::shared_ptr<const PropertyConstraint>&)
     {
         return std::make_unique<Mat4Property>(
           std::string{name},

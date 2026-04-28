@@ -24,6 +24,22 @@ struct GearGeometry
     std::vector<std::uint32_t> outer_indices;
 };
 
+struct gear_limits
+{
+    static constexpr float min_outer_radius = 0.01f;
+    static constexpr float max_outer_radius = 100.f;
+    static constexpr float min_inner_radius = 0.0f;
+    static constexpr float max_inner_radius = 100.f;
+    static constexpr float min_width = 0.01f;
+    static constexpr float max_width = 100.f;
+    static constexpr float radius_epsilon = 0.001f;
+    static constexpr float depth_epsilon = 0.001f;
+    static constexpr int min_teeth = 5;
+    static constexpr int max_teeth = 200;
+    static constexpr float min_tooth_depth = 0.01f;
+    static constexpr float max_tooth_depth = 10.0f;
+};
+
 GearGeometry make_gear(
   float inner_radius,
   float outer_radius,
@@ -65,6 +81,8 @@ public:
     }
 
     explicit Gear(const GearParameters& params);
+
+    void clamp_runtime_parameters() noexcept;
 
     [[nodiscard]]
     bool needs_rebuild() const noexcept;
