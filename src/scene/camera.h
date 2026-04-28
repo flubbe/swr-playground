@@ -1,10 +1,20 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * Camera model.
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
 #pragma once
 
 #include "ml/all.h"
 
 #include "object.h"
 
-class Camera : public Object
+class Camera : public reflect::Reflected<Camera, Object>
 {
     /** Sensor width. */
     int width{0};
@@ -27,6 +37,8 @@ protected:
     }
 
 public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
     Camera() = default;
 
     Camera(int width, int height)
@@ -48,3 +60,5 @@ public:
         update();
     }
 };
+
+DECLARE_REFLECTION(Scene, Camera);

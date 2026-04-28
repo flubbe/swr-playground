@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * A render device.
+ * Render device.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -143,6 +143,12 @@ public:
      */
 
     std::uint32_t create_mesh(
+      std::vector<std::uint32_t> indices,
+      std::vector<ml::vec4> vertices,
+      std::vector<ml::vec4> normals);
+
+    bool update_mesh(
+      std::uint32_t handle,
       std::vector<std::uint32_t> indices,
       std::vector<ml::vec4> vertices,
       std::vector<ml::vec4> normals);

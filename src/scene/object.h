@@ -10,9 +10,16 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "ml/all.h"
+
+#include "reflection/class_registry.h"
+#include "reflection/property.h"
 
 struct RenderData
 {
@@ -20,28 +27,9 @@ struct RenderData
     std::uint32_t material_handle{0};
 };
 
-/** Class info for RTTI-style object queries. */
-struct ClassInfo
-{
-    std::string_view name;
-    const ClassInfo* parent = nullptr;
-
-    bool is_a(const ClassInfo* other) const
-    {
-        for(auto p = this; p != nullptr; p = p->parent)
-        {
-            if(p == other)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-};
-
 struct ObjectId
 {
-    std::uint32_t value = 0;
+    unsigned int value = 0;
 
     bool operator==(const ObjectId& other) const noexcept
     {
@@ -53,15 +41,45 @@ struct ObjectId
     }
 };
 
+// Property support.
+
+namespace reflect
+{
+
+template<>
+struct UnwrapType<ObjectId>
+{
+    using ValueType = unsigned int;
+
+    static ValueType& get(ObjectId& value) noexcept
+    {
+        return value.value;
+    }
+};
+
+}    // namespace reflect
+
 inline ObjectId make_object_id(std::uint32_t value)
 {
     return {value};
 }
 
 class Object
+: public reflect::ReflectRoot<Object>
 {
-    /** RTTI-style type info. */
-    ClassInfo class_info;
+private:
+    /** meshes. */
+    std::vector<RenderData> mesh_handles;
+
+protected:
+    /** per-instance baseline snapshot object. */
+    std::unique_ptr<Object> snapshot;
+
+public:
+    static void register_properties(reflect::ClassInfo& class_info);
+
+    /** object transformation matrix. */
+    ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** object id. */
     ObjectId object_id{0};
@@ -69,122 +87,129 @@ class Object
     /** object name. */
     std::string name;
 
-    /** object transformation matrix. */
-    ml::mat4x4 transform{ml::mat4x4::identity()};
+protected:
+    Object(
+      const reflect::ClassInfo* class_info,
+      std::vector<RenderData> mesh_handles = {})
+    : reflect::ReflectRoot<Object>{class_info}
+    , mesh_handles{std::move(mesh_handles)}
+    {
+    }
 
-    /** meshes. */
-    std::vector<RenderData> mesh_handles;
+    void set_class_info(const reflect::ClassInfo* class_info) noexcept
+    {
+        this->class_info = class_info;
+    }
 
 public:
-    /** default constructor. */
-    Object() = default;
+    /** Default constructor. */
+    Object()
+    : reflect::ReflectRoot<Object>{Object::static_class()}
+    {
+    }
 
-    /** default destructor. */
+    /** Default destructor. */
     virtual ~Object() = default;
 
     /** initialize the object with a mesh. */
     Object(
       std::vector<RenderData> mesh_handles)
-    : mesh_handles{std::move(mesh_handles)}
+    : Object{
+        Object::static_class(),
+        std::move(mesh_handles)}
     {
     }
 
-    /** move data. */
+    /** Move constructor. */
     Object(Object&& other)
-    : class_info{other.class_info}
+    : reflect::ReflectRoot<Object>{std::move(other)}
+    , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
-    , mesh_handles{std::move(other.mesh_handles)}
     {
+        other.class_info = nullptr;
     }
 
-    Object(const Object&) = default;
-    Object& operator=(const Object&) = default;
+    Object(const Object&) = delete;
+    Object& operator=(const Object&) = delete;
 
     Object& operator=(Object&& other)
     {
-        class_info = other.class_info;
+        static_cast<ReflectRoot<Object>&>(*this) = std::move(other);
+
+        mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
         name = std::move(other.name);
-        mesh_handles = std::move(other.mesh_handles);
 
         return *this;
     }
 
+    /** Return the object id. */
     ObjectId get_object_id() const noexcept
     {
         return object_id;
     }
 
+    /**
+     * Set the object id.
+     *
+     * @param object_id The new object id.
+     */
     void set_object_id(ObjectId object_id) noexcept
     {
         this->object_id = object_id;
     }
 
+    /** Get the object's name. */
     const std::string& get_name() const noexcept
     {
         return name;
     }
 
+    /**
+     * Set the object's name.
+     *
+     * @param object_name The new object name.
+     */
     void set_name(std::string object_name)
     {
         name = std::move(object_name);
     }
 
-    virtual const ClassInfo* get_class() const
-    {
-        return static_class();
-    }
-
-    static const ClassInfo* static_class()
-    {
-        static const ClassInfo cls{
-          .name = "Object",
-          .parent = nullptr};
-        return &cls;
-    }
-
-    template<typename T>
-    bool is_a() const
-    {
-        return get_class()->is_a(T::static_class());
-    }
-
-    bool is_a(const ClassInfo* cls) const
-    {
-        return get_class()->is_a(cls);
-    }
-
-    /** release all data. */
+    /** Release all data. */
     virtual void release()
     {
     }
 
-    /** set the mesh. */
+    /**
+     * Set the mesh.
+     *
+     * @param handles The new mesh handles.
+     */
     void set_meshes(std::vector<RenderData> handles)
     {
         mesh_handles = std::move(handles);
     }
 
-    /** clear the mesh. */
+    /** Clear the mesh. */
     void clear_mesh()
     {
         mesh_handles.clear();
     }
 
-    /** get the mesh handle. */
+    /** Get the mesh handle. */
     const std::vector<RenderData>& get_meshes() const
     {
         return mesh_handles;
     }
 
-    /** whether the object is drawable. */
+    /** Whether the object is drawable. */
     virtual bool is_drawable() const
     {
         return !mesh_handles.empty();
     }
 
-    /** update the object. */
+    /** Update the object. */
     virtual void tick(
       [[maybe_unused]] float delta_time)
     {
@@ -201,20 +226,36 @@ public:
     {
         return transform;
     }
+
+    /*
+     * Snapshots.
+     */
+
+    /** Capture current reflected values as this instance's reset baseline. */
+    void capture_snapshot();
+
+    /**
+     * Return whether a reflected property has a captured reset baseline.
+     *
+     * @param property_name Name of the property.
+     * @returns `true` if the property has a snapshot.
+     */
+    bool has_property_snapshot(std::string_view property_name) const;
+
+    /**
+     * Reset one reflected property to its captured baseline value.
+     *
+     * @param property_name Name of the property.
+     * @returns `true` if the property was reset to a snapshot.
+     */
+    bool reset_property_to_snapshot(std::string_view property_name);
+
+    /**
+     * Reset all properties to their snapshot.
+     *
+     * @returns `true` if all properties were reset.
+     */
+    bool reset_to_snapshot();
 };
 
-#define DECLARE_CLASS(Type, Base)               \
-public:                                         \
-    using Super = Base;                         \
-    static const ClassInfo* static_class();     \
-    const ClassInfo* get_class() const override \
-    {                                           \
-        return Type::static_class();            \
-    }
-
-#define DEFINE_CLASS(Type)                                              \
-    const ClassInfo* Type::static_class()                               \
-    {                                                                   \
-        static const ClassInfo cls{#Type, Type::Super::static_class()}; \
-        return &cls;                                                    \
-    }
+DECLARE_REFLECTION(Scene, Object);

@@ -7,6 +7,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
+set(SWR_PLAYGROUND_BUILD_TESTING ON)
+if(DEFINED BUILD_TESTING)
+    set(SWR_PLAYGROUND_BUILD_TESTING ${BUILD_TESTING})
+endif()
+
+# Keep third-party dependency tests disabled.
+set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
+
 find_package(OpenGL REQUIRED)
 
 #
@@ -68,7 +76,7 @@ add_library(imgui STATIC
     ${imgui_src_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_src_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_src_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_src_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_src_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
     ${imgui_src_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
     ${imgui_src_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
 )
@@ -89,7 +97,13 @@ target_link_libraries(imgui PUBLIC
 # Playground executable
 #
 add_executable(swr_playground
+    src/reflection/builtin_properties.cpp
+    src/reflection/class_registry.cpp
+    src/scene/camera.cpp
     src/scene/gear.cpp
+    src/scene/light.cpp
+    src/scene/object.cpp
+    src/scene/properties.cpp
     src/scene/scene.cpp
     src/application.cpp
     src/imgui.cpp
@@ -125,4 +139,22 @@ if(MSVC)
     target_compile_options(swr_playground PRIVATE /W4)
 else()
     target_compile_options(swr_playground PRIVATE -Wall -Wextra)
+endif()
+
+# Enable this project's tests (and CTest) after dependency setup.
+set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)
+include(CTest)
+
+if(BUILD_TESTING)
+    #
+    # GoogleTest
+    #
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.17.0
+    )
+    FetchContent_MakeAvailable(googletest)
+
+    add_subdirectory(test)
 endif()
