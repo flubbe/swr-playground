@@ -34,19 +34,35 @@ Each registration contributes a `PendingClassRegistration`. `ReflectionSystem::p
 Properties are registered by member pointer:
 
 - `register_property<&Type::member>(class_info, "name", "Label", flags)`.
+- `register_property<&Type::member>(class_info, "name", "Label", flags, constraint)`.
 
 This appends a `PropertyDescriptor` containing a construction function. At object initialization, descriptors are materialized into concrete `Property` objects.
+Descriptors are registered in declaration order (the registration list is reversed once during finalization).
 
 Each `Property` stores:
 
 - internal name and display label
 - flags
+- optional typed constraint metadata (`std::shared_ptr<const PropertyConstraint>`)
 - memory layout metadata for the reflected value:
   - `size`
   - `offset` (from owning object base)
   - `alignment`
 
 Built-in property classes compute static `size`/`alignment` from their `Type` alias and receive `offset` from descriptor construction.
+
+## Constraints
+
+`PropertyConstraint` is the base metadata type for value constraints.
+
+- `RangeConstraint<T>` supports optional inclusive `min`/`max`, optional `step`, and `clamp`.
+- `Property::try_get_constraint<T>()` / `try_get_range_constraint<T>()` provide exact-type retrieval at runtime.
+- `register_property` validates typed constraints at compile time (`Constraint::ValueType` must match the reflected member type when present).
+
+For built-in numeric properties (`int`, `unsigned int`, `float`), range constraints are enforced in `set_value(...)`:
+
+- out-of-range values are rejected when `clamp == false`
+- out-of-range values are clamped to `min`/`max` when `clamp == true`
 
 ## Minimal Usage
 
@@ -75,3 +91,8 @@ int main()
       reflect::ReflectionSystem::find_class<Object>("Core.Object");
 }
 ```
+
+## Notes
+
+- `ClassInfo::find_property(...)` supports lookup by internal property name (const overload walks super classes).
+- `ReflectionSystem::find_class(...)` is root-scoped, allowing the same qualified class name in different root hierarchies.
