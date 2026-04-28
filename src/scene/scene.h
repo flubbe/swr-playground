@@ -77,6 +77,7 @@ public:
             "{}_{}",
             class_info->name,
             object_id));
+        ptr->capture_snapshot();
 
         return ptr;
     }

@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "ml/all.h"
@@ -70,6 +71,10 @@ private:
     /** meshes. */
     std::vector<RenderData> mesh_handles;
 
+protected:
+    /** per-instance baseline snapshot object. */
+    std::unique_ptr<Object> snapshot;
+
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
@@ -97,10 +102,10 @@ protected:
     }
 
 public:
-    /** default constructor. */
+    /** Default constructor. */
     Object() = default;
 
-    /** default destructor. */
+    /** Default destructor. */
     virtual ~Object() = default;
 
     /** initialize the object with a mesh. */
@@ -112,7 +117,7 @@ public:
     {
     }
 
-    /** move data. */
+    /** Move constructor. */
     Object(Object&& other)
     : reflect::ReflectRoot<Object>{std::move(other)}
     , mesh_handles{std::move(other.mesh_handles)}
@@ -136,56 +141,72 @@ public:
         return *this;
     }
 
+    /** Return the object id. */
     ObjectId get_object_id() const noexcept
     {
         return object_id;
     }
 
+    /**
+     * Set the object id.
+     *
+     * @param object_id The new object id.
+     */
     void set_object_id(ObjectId object_id) noexcept
     {
         this->object_id = object_id;
     }
 
+    /** Get the object's name. */
     const std::string& get_name() const noexcept
     {
         return name;
     }
 
+    /**
+     * Set the object's name.
+     *
+     * @param object_name The new object name.
+     */
     void set_name(std::string object_name)
     {
         name = std::move(object_name);
     }
 
-    /** release all data. */
+    /** Release all data. */
     virtual void release()
     {
     }
 
-    /** set the mesh. */
+    /**
+     * Set the mesh.
+     *
+     * @param handles The new mesh handles.
+     */
     void set_meshes(std::vector<RenderData> handles)
     {
         mesh_handles = std::move(handles);
     }
 
-    /** clear the mesh. */
+    /** Clear the mesh. */
     void clear_mesh()
     {
         mesh_handles.clear();
     }
 
-    /** get the mesh handle. */
+    /** Get the mesh handle. */
     const std::vector<RenderData>& get_meshes() const
     {
         return mesh_handles;
     }
 
-    /** whether the object is drawable. */
+    /** Whether the object is drawable. */
     virtual bool is_drawable() const
     {
         return !mesh_handles.empty();
     }
 
-    /** update the object. */
+    /** Update the object. */
     virtual void tick(
       [[maybe_unused]] float delta_time)
     {
@@ -202,6 +223,36 @@ public:
     {
         return transform;
     }
+
+    /*
+     * Snapshots.
+     */
+
+    /** Capture current reflected values as this instance's reset baseline. */
+    void capture_snapshot();
+
+    /**
+     * Return whether a reflected property has a captured reset baseline.
+     *
+     * @param property_name Name of the property.
+     * @returns `true` if the property has a snapshot.
+     */
+    bool has_property_snapshot(std::string_view property_name) const;
+
+    /**
+     * Reset one reflected property to its captured baseline value.
+     *
+     * @param property_name Name of the property.
+     * @returns `true` if the property was reset to a snapshot.
+     */
+    bool reset_property_to_snapshot(std::string_view property_name);
+
+    /**
+     * Reset all properties to their snapshot.
+     *
+     * @returns `true` if all properties were reset.
+     */
+    bool reset_to_snapshot();
 };
 
 DECLARE_REFLECTION(Scene, Object);

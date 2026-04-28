@@ -553,54 +553,58 @@ private:
 
     static void render_mat4(reflect::Mat4Property& property)
     {
-        ml::mat4x4 value = property.get_value();
-        bool changed = false;
-
-        for(int row = 0; row < 4; ++row)
+        if(ImGui::SmallButton("Edit..."))
         {
-            float row_values[4] = {
-              value.rows[row].x,
-              value.rows[row].y,
-              value.rows[row].z,
-              value.rows[row].w};
-
-            const bool row_changed = property.is_read_only()
-                                       ? false
-                                       : ([&]()
-                                          {
-                                           ImGui::PushItemWidth(-FLT_MIN);
-                                           const bool changed = ImGui::DragFloat4(
-                                             std::format("##row{}", row).c_str(),
-                                             row_values,
-                                             0.01f,
-                                             0.0f,
-                                             0.0f,
-                                             "%.3f");
-                                           ImGui::PopItemWidth();
-                                           return changed; })();
-
-            if(property.is_read_only())
-            {
-                ImGui::Text(
-                  "[%.3f %.3f %.3f %.3f]",
-                  row_values[0],
-                  row_values[1],
-                  row_values[2],
-                  row_values[3]);
-            }
-            else if(row_changed)
-            {
-                value.rows[row].x = row_values[0];
-                value.rows[row].y = row_values[1];
-                value.rows[row].z = row_values[2];
-                value.rows[row].w = row_values[3];
-                changed = true;
-            }
+            ImGui::OpenPopup("Mat4Editor");
         }
 
-        if(changed)
+        if(ImGui::BeginPopup("Mat4Editor"))
         {
-            property.set_value(value);
+            static ml::mat4x4 edit_value = ml::mat4x4::identity();
+            if(ImGui::IsWindowAppearing())
+            {
+                edit_value = property.get_value();
+            }
+
+            for(int row = 0; row < 4; ++row)
+            {
+                float row_values[4] = {
+                  edit_value.rows[row].x,
+                  edit_value.rows[row].y,
+                  edit_value.rows[row].z,
+                  edit_value.rows[row].w};
+                ImGui::PushID(row);
+                ImGui::PushItemWidth(260.0f);
+                const bool row_changed = ImGui::DragFloat4(
+                  "##row",
+                  row_values,
+                  0.01f,
+                  0.0f,
+                  0.0f,
+                  "%.3f");
+                ImGui::PopItemWidth();
+                ImGui::PopID();
+                if(row_changed)
+                {
+                    edit_value.rows[row].x = row_values[0];
+                    edit_value.rows[row].y = row_values[1];
+                    edit_value.rows[row].z = row_values[2];
+                    edit_value.rows[row].w = row_values[3];
+                }
+            }
+
+            if(ImGui::Button("Apply"))
+            {
+                property.set_value(edit_value);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("Cancel"))
+            {
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::EndPopup();
         }
     }
 
@@ -846,7 +850,7 @@ void imgui_draw_scene_inspector_panel(Scene& scene)
                   | ImGuiTableFlags_RowBg
                   | ImGuiTableFlags_SizingFixedFit;
 
-                if(ImGui::BeginTable(table_id.c_str(), 2, table_flags))
+                if(ImGui::BeginTable(table_id.c_str(), 3, table_flags))
                 {
                     ImGui::TableSetupColumn(
                       "Property",
@@ -855,6 +859,10 @@ void imgui_draw_scene_inspector_panel(Scene& scene)
                     ImGui::TableSetupColumn(
                       "Value",
                       ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn(
+                      "Action",
+                      ImGuiTableColumnFlags_WidthFixed,
+                      56.0f);
                     ImGui::TableHeadersRow();
 
                     auto& properties = object->get_properties();
@@ -875,8 +883,18 @@ void imgui_draw_scene_inspector_panel(Scene& scene)
                         {
                             ImGui::SetTooltip("%s", property->get_name().c_str());
                         }
+                        const bool can_reset =
+                          !property->is_read_only()
+                          && object->has_property_snapshot(property->get_name());
                         ImGui::TableSetColumnIndex(1);
                         property->accept(property_renderer);
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::BeginDisabled(!can_reset);
+                        if(ImGui::SmallButton("Reset"))
+                        {
+                            object->reset_property_to_snapshot(property->get_name());
+                        }
+                        ImGui::EndDisabled();
                         ImGui::PopID();
                     }
 
