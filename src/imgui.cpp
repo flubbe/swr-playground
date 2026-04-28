@@ -108,6 +108,95 @@ const char* property_flags_badge(const reflect::PropertyFlags flags) noexcept
     return "-";
 }
 
+std::string descriptor_constraint_summary(const reflect::PropertyDescriptor& descriptor)
+{
+    if(descriptor.constraint == nullptr)
+    {
+        return "<none>";
+    }
+
+    const auto* base = descriptor.constraint.get();
+    if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<int>>())
+    {
+        const auto* r = static_cast<const reflect::RangeConstraint<int>*>(base);
+        return std::format(
+          "range<int> min={} max={} step={} clamp={}",
+          r->min.has_value() ? std::format("{}", *r->min) : std::string{"-"},
+          r->max.has_value() ? std::format("{}", *r->max) : std::string{"-"},
+          r->step.has_value() ? std::format("{}", *r->step) : std::string{"-"},
+          r->clamp ? "true" : "false");
+    }
+    if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<unsigned int>>())
+    {
+        const auto* r = static_cast<const reflect::RangeConstraint<unsigned int>*>(base);
+        return std::format(
+          "range<uint> min={} max={} step={} clamp={}",
+          r->min.has_value() ? std::format("{}", *r->min) : std::string{"-"},
+          r->max.has_value() ? std::format("{}", *r->max) : std::string{"-"},
+          r->step.has_value() ? std::format("{}", *r->step) : std::string{"-"},
+          r->clamp ? "true" : "false");
+    }
+    if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<float>>())
+    {
+        const auto* r = static_cast<const reflect::RangeConstraint<float>*>(base);
+        return std::format(
+          "range<float> min={} max={} step={} clamp={}",
+          r->min.has_value() ? std::format("{:.3f}", *r->min) : std::string{"-"},
+          r->max.has_value() ? std::format("{:.3f}", *r->max) : std::string{"-"},
+          r->step.has_value() ? std::format("{:.3f}", *r->step) : std::string{"-"},
+          r->clamp ? "true" : "false");
+    }
+
+    return "<custom>";
+}
+
+std::string descriptor_default_summary(const reflect::PropertyDescriptor& descriptor)
+{
+    if(descriptor.get_default_value() == nullptr)
+    {
+        return "<none>";
+    }
+    if(const auto* d = descriptor.try_get_default<int>())
+    {
+        return std::format("int {}", d->value);
+    }
+    if(const auto* d = descriptor.try_get_default<unsigned int>())
+    {
+        return std::format("uint {}", d->value);
+    }
+    if(const auto* d = descriptor.try_get_default<float>())
+    {
+        return std::format("float {:.3f}", d->value);
+    }
+    if(const auto* d = descriptor.try_get_default<bool>())
+    {
+        return std::format("bool {}", d->value ? "true" : "false");
+    }
+    if(const auto* d = descriptor.try_get_default<std::string>())
+    {
+        return std::format("string \"{}\"", d->value);
+    }
+    if(const auto* d = descriptor.try_get_default<ml::vec4>())
+    {
+        return std::format(
+          "vec4 [{:.3f} {:.3f} {:.3f} {:.3f}]",
+          d->value.x,
+          d->value.y,
+          d->value.z,
+          d->value.w);
+    }
+    if(const auto* d = descriptor.try_get_default<ml::mat4x4>())
+    {
+        return std::format(
+          "mat4 diag [{:.3f} {:.3f} {:.3f} {:.3f}]",
+          d->value.rows[0].x,
+          d->value.rows[1].y,
+          d->value.rows[2].z,
+          d->value.rows[3].w);
+    }
+    return "<custom>";
+}
+
 using ClassChildrenMap = std::unordered_map<
   const reflect::ClassInfo*,
   std::vector<const reflect::ClassInfo*>>;
@@ -1042,6 +1131,9 @@ void imgui_draw_class_inspector_panel()
         ImGui::Text("Root Tag: %p", cls->root_tag);
 
         ImGui::SeparatorText("Properties");
+        const float class_details_avail_h = ImGui::GetContentRegionAvail().y;
+        const float properties_area_h = std::max(220.0f, class_details_avail_h * 0.65f);
+        ImGui::BeginChild("ClassPropertiesArea", ImVec2{0, properties_area_h}, true);
 
         std::vector<const reflect::ClassInfo*> class_chain;
         for(const auto* p = cls; p != nullptr; p = p->get_super())
@@ -1097,66 +1189,6 @@ void imgui_draw_class_inspector_panel()
             }
         }
 
-        const float pad = ImGui::GetStyle().CellPadding.x * 2.0f;
-        float label_col_width = ImGui::CalcTextSize("Label").x + pad;
-        float name_col_width = ImGui::CalcTextSize("Name").x + pad;
-        float flags_col_width = ImGui::CalcTextSize("Flags").x + pad;
-        float origin_col_width = ImGui::CalcTextSize("Origin").x + pad;
-        float size_col_width = ImGui::CalcTextSize("Size").x + pad;
-        float offset_col_width = ImGui::CalcTextSize("Offset").x + pad;
-        float align_col_width = ImGui::CalcTextSize("Align").x + pad;
-
-        for(const auto* origin: class_chain | std::views::reverse)
-        {
-            origin_col_width = std::max(
-              origin_col_width,
-              ImGui::CalcTextSize(origin->qualified_name.c_str()).x + pad);
-
-            for(auto* descriptor = origin->first_property.get();
-                descriptor != nullptr;
-                descriptor = descriptor->next.get())
-            {
-                label_col_width = std::max(
-                  label_col_width,
-                  ImGui::CalcTextSize(descriptor->label.c_str()).x + pad);
-                name_col_width = std::max(
-                  name_col_width,
-                  ImGui::CalcTextSize(descriptor->name.c_str()).x + pad);
-                flags_col_width = std::max(
-                  flags_col_width,
-                  ImGui::CalcTextSize(property_flags_badge(descriptor->flags)).x + pad);
-
-                const auto layout_it = layout_by_descriptor.find(descriptor);
-                if(layout_it != layout_by_descriptor.end())
-                {
-                    const std::string size_text = std::format("{}", layout_it->second[0]);
-                    const std::string offset_text = std::format("{}", layout_it->second[1]);
-                    const std::string align_text = std::format("{}", layout_it->second[2]);
-                    size_col_width = std::max(
-                      size_col_width,
-                      ImGui::CalcTextSize(size_text.c_str()).x + pad);
-                    offset_col_width = std::max(
-                      offset_col_width,
-                      ImGui::CalcTextSize(offset_text.c_str()).x + pad);
-                    align_col_width = std::max(
-                      align_col_width,
-                      ImGui::CalcTextSize(align_text.c_str()).x + pad);
-                }
-                else
-                {
-                    size_col_width = std::max(
-                      size_col_width,
-                      ImGui::CalcTextSize("n/a").x + pad);
-                    offset_col_width = std::max(
-                      offset_col_width,
-                      ImGui::CalcTextSize("n/a").x + pad);
-                    align_col_width = std::max(
-                      align_col_width,
-                      ImGui::CalcTextSize("n/a").x + pad);
-                }
-            }
-        }
-
         const ImGuiTableFlags property_table_flags =
           ImGuiTableFlags_BordersInnerV
           | ImGuiTableFlags_BordersOuter
@@ -1165,15 +1197,13 @@ void imgui_draw_class_inspector_panel()
           | ImGuiTableFlags_SizingFixedFit
           | ImGuiTableFlags_ScrollX;
 
-        if(ImGui::BeginTable("ClassProperties", 7, property_table_flags))
+        static std::unordered_set<const reflect::PropertyDescriptor*> expanded_rows;
+        if(ImGui::BeginTable("ClassProperties", 4, property_table_flags))
         {
-            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, label_col_width);
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, name_col_width);
-            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, flags_col_width);
-            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, size_col_width);
-            ImGui::TableSetupColumn("Offset", ImGuiTableColumnFlags_WidthFixed, offset_col_width);
-            ImGui::TableSetupColumn("Align", ImGuiTableColumnFlags_WidthFixed, align_col_width);
-            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthFixed, origin_col_width);
+            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 180.0f);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 160.0f);
+            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+            ImGui::TableSetupColumn("Details", ImGuiTableColumnFlags_WidthFixed, 72.0f);
             ImGui::TableHeadersRow();
 
             for(const auto* origin: class_chain | std::views::reverse)
@@ -1195,38 +1225,51 @@ void imgui_draw_class_inspector_panel()
                     ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
 
                     ImGui::TableSetColumnIndex(3);
-                    const auto layout_it = layout_by_descriptor.find(descriptor);
-                    if(layout_it != layout_by_descriptor.end())
+                    const bool expanded = expanded_rows.contains(descriptor);
+                    if(ImGui::SmallButton(expanded ? "Hide" : "Show"))
                     {
-                        ImGui::Text("%zu", layout_it->second[0]);
-                    }
-                    else
-                    {
-                        ImGui::TextUnformatted("n/a");
-                    }
-
-                    ImGui::TableSetColumnIndex(4);
-                    if(layout_it != layout_by_descriptor.end())
-                    {
-                        ImGui::Text("%zu", layout_it->second[1]);
-                    }
-                    else
-                    {
-                        ImGui::TextUnformatted("n/a");
+                        if(expanded)
+                        {
+                            expanded_rows.erase(descriptor);
+                        }
+                        else
+                        {
+                            expanded_rows.insert(descriptor);
+                        }
                     }
 
-                    ImGui::TableSetColumnIndex(5);
-                    if(layout_it != layout_by_descriptor.end())
+                    if(expanded_rows.contains(descriptor))
                     {
-                        ImGui::Text("%zu", layout_it->second[2]);
-                    }
-                    else
-                    {
-                        ImGui::TextUnformatted("n/a");
-                    }
+                        const auto layout_it = layout_by_descriptor.find(descriptor);
+                        const std::string layout_value =
+                          layout_it != layout_by_descriptor.end()
+                            ? std::format(
+                                "size={} offset={} align={}",
+                                layout_it->second[0],
+                                layout_it->second[1],
+                                layout_it->second[2])
+                            : std::string{"size=n/a offset=n/a align=n/a"};
+                        const std::string details_text = std::format(
+                          "Origin: {}\nLayout: {}\nDefault: {}\nConstraint: {}",
+                          origin->qualified_name,
+                          layout_value,
+                          descriptor_default_summary(*descriptor),
+                          descriptor_constraint_summary(*descriptor));
 
-                    ImGui::TableSetColumnIndex(6);
-                    ImGui::TextUnformatted(origin->qualified_name.c_str());
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextDisabled("Details");
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{8.0f, 3.0f});
+                        ImGui::PushTextWrapPos(0.0f);
+                        ImGui::TextUnformatted(details_text.c_str());
+                        ImGui::PopTextWrapPos();
+                        ImGui::PopStyleVar();
+                        ImGui::TableSetColumnIndex(3);
+                        ImGui::TextUnformatted("");
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::TextUnformatted("");
+                    }
 
                     ImGui::PopID();
                 }
@@ -1234,6 +1277,7 @@ void imgui_draw_class_inspector_panel()
 
             ImGui::EndTable();
         }
+        ImGui::EndChild();
     }
 
     ImGui::EndChild();
