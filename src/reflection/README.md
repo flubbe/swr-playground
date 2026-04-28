@@ -63,5 +63,14 @@ public:
 
 DECLARE_REFLECTION(Core, Object);
 DEFINE_REFLECTION(Object);
-```
 
+int main()
+{
+    // Finalize queued static registrations before class lookup/usage.
+    reflect::ReflectionSystem::allow_auto_registration(false);
+    reflect::ReflectionSystem::process_pending_registrations();
+
+    const reflect::ClassInfo* cls =
+      reflect::ReflectionSystem::find_class<Object>("Core.Object");
+}
+```
