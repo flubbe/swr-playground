@@ -103,7 +103,10 @@ protected:
 
 public:
     /** Default constructor. */
-    Object() = default;
+    Object()
+    : reflect::ReflectRoot<Object>{Object::static_class()}
+    {
+    }
 
     /** Default destructor. */
     virtual ~Object() = default;
