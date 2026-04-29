@@ -28,6 +28,7 @@ Each registration contributes a `PendingClassRegistration`. `ReflectionSystem::p
 - `static_class()` returns static metadata for the type.
 - `get_class()` returns metadata for an instance.
 - `is_a(...)` supports hierarchy checks.
+- `try_cast<T>(...)` and `cast<T>(...)` provide runtime-checked downcasts within a reflected hierarchy.
 
 ## Property Model
 
