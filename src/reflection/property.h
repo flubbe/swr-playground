@@ -160,8 +160,22 @@ template<
   typename Root,
   typename Owner>
 concept RootSupportsIsA =
-  requires(Root* p) {
-      p->is_a(Owner::static_class());
+  requires(const Root* p) {
+      { p->is_a(Owner::static_class()) } -> std::same_as<bool>;
+  };
+
+/**
+ * Concept for validating that a `Root` type supports `is_a<T>()` for a given `Target` type.
+ *
+ * @tparam Root The Root type to check.
+ * @tparam Target The typed target checked via `is_a<Target>()`.
+ */
+template<
+  typename Root,
+  typename Target>
+concept RootSupportsTypedIsA =
+  requires(const Root* p) {
+      { p->template is_a<Target>() } -> std::same_as<bool>;
   };
 
 }    // namespace detail

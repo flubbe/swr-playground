@@ -1,7 +1,8 @@
 add_executable(reflection_tests
-    class_info_tests.cpp
-    builtin_property_tests.cpp
-    reflection_tests.cpp
+    test_class_info.cpp
+    test_builtin_property.cpp
+    test_cast.cpp
+    test_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
 )

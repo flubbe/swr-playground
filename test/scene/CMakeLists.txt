@@ -1,5 +1,5 @@
 add_executable(object_tests
-    object_snapshot_tests.cpp
+    test_object_snapshot.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
