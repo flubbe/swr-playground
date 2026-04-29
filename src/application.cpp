@@ -57,8 +57,8 @@ GLuint create_viewport_texture(
     }
 
     glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -123,8 +123,8 @@ void imgui_draw_viewport_panel(
     ImVec2 avail = ImGui::GetContentRegionAvail();
 
     // ImGui sizes are logical units; rasterizer target should use pixels.
-    int viewport_w_px = std::max(1, static_cast<int>(std::round(avail.x * pixel_density)));
-    int viewport_h_px = std::max(1, static_cast<int>(std::round(avail.y * pixel_density)));
+    int viewport_w_px = std::max(1, static_cast<int>(std::round(avail.x)));
+    int viewport_h_px = std::max(1, static_cast<int>(std::round(avail.y)));
 
     // FIXME the dimensions should not come from the render device
     if(viewport_w_px != render_device.get_width()
