@@ -399,7 +399,7 @@ void imgui_setup_dock_layout(ImGuiID dockspace_id)
     dock_left = ImGui::DockBuilderSplitNode(
       dock_main,
       ImGuiDir_Left,
-      0.27f,
+      0.32f,
       nullptr,
       &dock_main);
     dock_right = ImGui::DockBuilderSplitNode(
@@ -1131,9 +1131,7 @@ void imgui_draw_class_inspector_panel()
         ImGui::Text("Root Tag: %p", cls->root_tag);
 
         ImGui::SeparatorText("Properties");
-        const float class_details_avail_h = ImGui::GetContentRegionAvail().y;
-        const float properties_area_h = std::max(220.0f, class_details_avail_h * 0.65f);
-        ImGui::BeginChild("ClassPropertiesArea", ImVec2{0, properties_area_h}, true);
+        const float properties_area_h = ImGui::GetContentRegionAvail().y;
 
         std::vector<const reflect::ClassInfo*> class_chain;
         for(const auto* p = cls; p != nullptr; p = p->get_super())
@@ -1189,93 +1187,238 @@ void imgui_draw_class_inspector_panel()
             }
         }
 
+        std::vector<std::pair<const reflect::PropertyDescriptor*, const reflect::ClassInfo*>> property_rows;
+        for(const auto* origin: class_chain | std::views::reverse)
+        {
+            for(auto* descriptor = origin->first_property.get();
+                descriptor != nullptr;
+                descriptor = descriptor->next.get())
+            {
+                property_rows.emplace_back(descriptor, origin);
+            }
+        }
+
+        static const reflect::PropertyDescriptor* selected_property = nullptr;
+        static const reflect::ClassInfo* selected_property_origin = nullptr;
+        const auto selected_it = std::ranges::find_if(
+          property_rows,
+          [&](const auto& row)
+          {
+              return row.first == selected_property;
+          });
+        if(selected_it == property_rows.end())
+        {
+            selected_property = property_rows.empty() ? nullptr : property_rows.front().first;
+            selected_property_origin = property_rows.empty() ? nullptr : property_rows.front().second;
+        }
+
+        const float line_h = ImGui::GetTextLineHeightWithSpacing();
+        const float property_table_min_h = line_h * 7.0f;  // Header + ~5 rows with padding.
+        const float detail_panel_min_h = line_h * 7.5f;    // ~6 detail entries with padding.
+        const float split_gap_h = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
+        const float usable_h = std::max(0.0f, properties_area_h - split_gap_h);
+        const float property_table_max_h =
+          std::max(property_table_min_h, usable_h - detail_panel_min_h);
+        const float property_table_h = std::clamp(
+          usable_h * 0.54f,
+          property_table_min_h,
+          property_table_max_h);
+        ImGui::BeginChild("ClassPropertiesTableArea", ImVec2{0, property_table_h}, true);
+
         const ImGuiTableFlags property_table_flags =
           ImGuiTableFlags_BordersInnerV
           | ImGuiTableFlags_BordersOuter
           | ImGuiTableFlags_RowBg
           | ImGuiTableFlags_Resizable
           | ImGuiTableFlags_SizingFixedFit
+          | ImGuiTableFlags_ScrollY
           | ImGuiTableFlags_ScrollX;
-
-        static std::unordered_set<const reflect::PropertyDescriptor*> expanded_rows;
-        if(ImGui::BeginTable("ClassProperties", 4, property_table_flags))
+        if(ImGui::BeginTable(
+             "ClassProperties",
+             4,
+             property_table_flags,
+             ImVec2{-FLT_MIN, -FLT_MIN}))
         {
-            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 180.0f);
-            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 160.0f);
-            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-            ImGui::TableSetupColumn("Details", ImGuiTableColumnFlags_WidthFixed, 72.0f);
+            ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+            ImGui::TableSetupColumn("Flags", ImGuiTableColumnFlags_WidthFixed, 24.0f);
+            ImGui::TableSetupColumn("Origin", ImGuiTableColumnFlags_WidthStretch, 1.0f);
             ImGui::TableHeadersRow();
 
-            for(const auto* origin: class_chain | std::views::reverse)
+            for(const auto& [descriptor, origin]: property_rows)
             {
-                for(auto* descriptor = origin->first_property.get();
-                    descriptor != nullptr;
-                    descriptor = descriptor->next.get())
+                ImGui::PushID(descriptor);
+                ImGui::TableNextRow();
+
+                ImGui::TableSetColumnIndex(0);
+                const bool is_selected = selected_property == descriptor;
+                if(ImGui::Selectable(
+                     descriptor->label.c_str(),
+                     is_selected,
+                     ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap))
                 {
-                    ImGui::PushID(descriptor);
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::TextUnformatted(descriptor->label.c_str());
-
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::TextUnformatted(descriptor->name.c_str());
-
-                    ImGui::TableSetColumnIndex(2);
-                    ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
-
-                    ImGui::TableSetColumnIndex(3);
-                    const bool expanded = expanded_rows.contains(descriptor);
-                    if(ImGui::SmallButton(expanded ? "Hide" : "Show"))
-                    {
-                        if(expanded)
-                        {
-                            expanded_rows.erase(descriptor);
-                        }
-                        else
-                        {
-                            expanded_rows.insert(descriptor);
-                        }
-                    }
-
-                    if(expanded_rows.contains(descriptor))
-                    {
-                        const auto layout_it = layout_by_descriptor.find(descriptor);
-                        const std::string layout_value =
-                          layout_it != layout_by_descriptor.end()
-                            ? std::format(
-                                "size={} offset={} align={}",
-                                layout_it->second[0],
-                                layout_it->second[1],
-                                layout_it->second[2])
-                            : std::string{"size=n/a offset=n/a align=n/a"};
-                        const std::string details_text = std::format(
-                          "Origin: {}\nLayout: {}\nDefault: {}\nConstraint: {}",
-                          origin->qualified_name,
-                          layout_value,
-                          descriptor_default_summary(*descriptor),
-                          descriptor_constraint_summary(*descriptor));
-
-                        ImGui::TableNextRow();
-                        ImGui::TableSetColumnIndex(0);
-                        ImGui::TextDisabled("Details");
-                        ImGui::TableSetColumnIndex(1);
-                        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{8.0f, 3.0f});
-                        ImGui::PushTextWrapPos(0.0f);
-                        ImGui::TextUnformatted(details_text.c_str());
-                        ImGui::PopTextWrapPos();
-                        ImGui::PopStyleVar();
-                        ImGui::TableSetColumnIndex(3);
-                        ImGui::TextUnformatted("");
-                        ImGui::TableSetColumnIndex(2);
-                        ImGui::TextUnformatted("");
-                    }
-
-                    ImGui::PopID();
+                    selected_property = descriptor;
+                    selected_property_origin = origin;
                 }
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::TextUnformatted(descriptor->name.c_str());
+
+                ImGui::TableSetColumnIndex(2);
+                ImGui::TextUnformatted(property_flags_badge(descriptor->flags));
+
+                ImGui::TableSetColumnIndex(3);
+                ImGui::TextUnformatted(origin->qualified_name.c_str());
+
+                ImGui::PopID();
             }
 
             ImGui::EndTable();
+        }
+        ImGui::EndChild();
+
+        ImGui::SeparatorText("Selected Property");
+        ImGui::BeginChild("ClassPropertyDetailsArea", ImVec2{0, 0}, true);
+        if(selected_property == nullptr || selected_property_origin == nullptr)
+        {
+            ImGui::TextDisabled("Select a property to inspect metadata.");
+        }
+        else
+        {
+            const auto layout_it = layout_by_descriptor.find(selected_property);
+            const bool has_layout = layout_it != layout_by_descriptor.end();
+
+            if(ImGui::BeginTable(
+                 "SelectedPropertyList",
+                 2,
+                 ImGuiTableFlags_BordersInnerV
+                 | ImGuiTableFlags_BordersOuter
+                 | ImGuiTableFlags_RowBg
+                 | ImGuiTableFlags_SizingStretchProp
+                 | ImGuiTableFlags_ScrollY,
+                 ImVec2{-FLT_MIN, -FLT_MIN}))
+            {
+                ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 96.0f);
+                ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+                auto draw_detail_row = [](const char* key, const std::string& value)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted(key);
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::PushTextWrapPos(0.0f);
+                    ImGui::TextUnformatted(value.c_str());
+                    ImGui::PopTextWrapPos();
+                };
+
+                draw_detail_row("Label", selected_property->label);
+                draw_detail_row("Name", selected_property->name);
+                draw_detail_row("Origin", selected_property_origin->qualified_name);
+                draw_detail_row("Flags", property_flags_badge(selected_property->flags));
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted("Layout");
+                ImGui::TableSetColumnIndex(1);
+                if(ImGui::BeginTable(
+                     "SelectedPropertyLayout",
+                     2,
+                     ImGuiTableFlags_BordersInnerV
+                     | ImGuiTableFlags_BordersOuter
+                     | ImGuiTableFlags_SizingStretchProp))
+                {
+                    ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed, 68.0f);
+                    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted("Size");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[0]).c_str() : "n/a");
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted("Offset");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[1]).c_str() : "n/a");
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted("Align");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[2]).c_str() : "n/a");
+                    ImGui::EndTable();
+                }
+                draw_detail_row("Default", descriptor_default_summary(*selected_property));
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::TextUnformatted("Constraint");
+                ImGui::TableSetColumnIndex(1);
+                if(ImGui::BeginTable(
+                     "SelectedPropertyConstraint",
+                     2,
+                     ImGuiTableFlags_BordersInnerV
+                     | ImGuiTableFlags_BordersOuter
+                     | ImGuiTableFlags_SizingStretchProp))
+                {
+                    ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed, 68.0f);
+                    ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+                    const auto draw_constraint_row = [](const char* key, const std::string& value)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::TextUnformatted(key);
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::TextUnformatted(value.c_str());
+                    };
+
+                    if(selected_property->constraint == nullptr)
+                    {
+                        draw_constraint_row("Type", "<none>");
+                    }
+                    else
+                    {
+                        const auto* base = selected_property->constraint.get();
+                        if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<int>>())
+                        {
+                            const auto* r = static_cast<const reflect::RangeConstraint<int>*>(base);
+                            draw_constraint_row("Type", "range<int>");
+                            draw_constraint_row("Min", r->min.has_value() ? std::format("{}", *r->min) : "-");
+                            draw_constraint_row("Max", r->max.has_value() ? std::format("{}", *r->max) : "-");
+                            draw_constraint_row("Step", r->step.has_value() ? std::format("{}", *r->step) : "-");
+                            draw_constraint_row("Clamp", r->clamp ? "true" : "false");
+                        }
+                        else if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<unsigned int>>())
+                        {
+                            const auto* r = static_cast<const reflect::RangeConstraint<unsigned int>*>(base);
+                            draw_constraint_row("Type", "range<uint>");
+                            draw_constraint_row("Min", r->min.has_value() ? std::format("{}", *r->min) : "-");
+                            draw_constraint_row("Max", r->max.has_value() ? std::format("{}", *r->max) : "-");
+                            draw_constraint_row("Step", r->step.has_value() ? std::format("{}", *r->step) : "-");
+                            draw_constraint_row("Clamp", r->clamp ? "true" : "false");
+                        }
+                        else if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<float>>())
+                        {
+                            const auto* r = static_cast<const reflect::RangeConstraint<float>*>(base);
+                            draw_constraint_row("Type", "range<float>");
+                            draw_constraint_row("Min", r->min.has_value() ? std::format("{:.3f}", *r->min) : "-");
+                            draw_constraint_row("Max", r->max.has_value() ? std::format("{:.3f}", *r->max) : "-");
+                            draw_constraint_row("Step", r->step.has_value() ? std::format("{:.3f}", *r->step) : "-");
+                            draw_constraint_row("Clamp", r->clamp ? "true" : "false");
+                        }
+                        else
+                        {
+                            draw_constraint_row("Type", "<custom>");
+                            draw_constraint_row("Value", descriptor_constraint_summary(*selected_property));
+                        }
+                    }
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::EndTable();
+            }
         }
         ImGui::EndChild();
     }
