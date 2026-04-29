@@ -44,6 +44,16 @@ GearGeometry make_gear(
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
     std::vector<std::uint32_t> ib;
+    const std::size_t teeth_count = static_cast<std::size_t>(teeth);
+
+    // Outer geometry exact capacities:
+    // vertices/normals = (4t + 2) front/back faces + 8t front/back tooth sides + 16t outward quads
+    //                  = 26t + 2
+    // indices          = 12t front/back faces + 12t front/back tooth sides + 36t outward quads
+    //                  = 60t
+    vb.reserve(26 * teeth_count + 2);
+    nb.reserve(26 * teeth_count + 2);
+    ib.reserve(60 * teeth_count);
 
     /* draw front face */
     for(int i = 0; i <= teeth; ++i)
@@ -263,6 +273,9 @@ GearGeometry make_gear(
     vb.clear();
     nb.clear();
     ib.clear();
+    vb.reserve(2 * (teeth_count + 1));
+    nb.reserve(2 * (teeth_count + 1));
+    ib.reserve(6 * teeth_count);
 
     /* draw inside radius cylinder */
     for(int i = 0; i <= teeth; i++)

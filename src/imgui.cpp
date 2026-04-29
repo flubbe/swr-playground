@@ -1001,6 +1001,21 @@ void imgui_draw_scene_inspector_panel(Scene& scene)
     ImGui::End();
 }
 
+struct ClassInspectorCache
+{
+    const reflect::ClassInfo* cls{nullptr};
+    std::vector<const reflect::ClassInfo*> class_chain;
+    std::unordered_map<
+      const reflect::PropertyDescriptor*,
+      std::array<std::size_t, 3>>
+      layout_by_descriptor;
+    std::vector<
+      std::pair<
+        const reflect::PropertyDescriptor*,
+        const reflect::ClassInfo*>>
+      property_rows;
+};
+
 void imgui_draw_class_inspector_panel()
 {
     ImGui::Begin("Class Inspector");
@@ -1133,70 +1148,79 @@ void imgui_draw_class_inspector_panel()
         ImGui::SeparatorText("Properties");
         const float properties_area_h = ImGui::GetContentRegionAvail().y;
 
-        std::vector<const reflect::ClassInfo*> class_chain;
-        for(const auto* p = cls; p != nullptr; p = p->get_super())
-        {
-            class_chain.push_back(p);
-        }
+        static ClassInspectorCache cache;
 
-        std::unordered_map<const reflect::PropertyDescriptor*, std::array<std::size_t, 3>>
-          layout_by_descriptor;
-        if(cls->factory != nullptr && cls->destroy != nullptr)
+        if(cache.cls != cls)
         {
-            void* instance = cls->factory();
-            if(instance != nullptr)
+            cache.cls = cls;
+            cache.class_chain.clear();
+            cache.layout_by_descriptor.clear();
+            cache.property_rows.clear();
+
+            for(const auto* p = cls; p != nullptr; p = p->get_super())
             {
-                for(const auto* origin: class_chain | std::views::reverse)
-                {
-                    for(auto* descriptor = origin->first_property.get();
-                        descriptor != nullptr;
-                        descriptor = descriptor->next.get())
-                    {
-                        if(descriptor->construct == nullptr)
-                        {
-                            continue;
-                        }
+                cache.class_chain.push_back(p);
+            }
 
-                        try
+            for(const auto* origin: cache.class_chain | std::views::reverse)
+            {
+                for(auto* descriptor = origin->first_property.get();
+                    descriptor != nullptr;
+                    descriptor = descriptor->next.get())
+                {
+                    cache.property_rows.emplace_back(descriptor, origin);
+                }
+            }
+
+            if(cls->factory != nullptr && cls->destroy != nullptr)
+            {
+                void* instance = cls->factory();
+                if(instance != nullptr)
+                {
+                    for(const auto* origin: cache.class_chain | std::views::reverse)
+                    {
+                        for(auto* descriptor = origin->first_property.get();
+                            descriptor != nullptr;
+                            descriptor = descriptor->next.get())
                         {
-                            auto property = descriptor->construct(
-                              instance,
-                              descriptor->name,
-                              descriptor->label,
-                              descriptor->flags,
-                              descriptor->constraint);
-                            if(property == nullptr)
+                            if(descriptor->construct == nullptr)
                             {
                                 continue;
                             }
 
-                            layout_by_descriptor.emplace(
-                              descriptor,
-                              std::array{
-                                property->get_size(),
-                                property->get_offset(),
-                                property->get_alignment()});
-                        }
-                        catch(...)
-                        {
-                            // Metadata probe is best-effort in the inspector.
+                            try
+                            {
+                                auto property = descriptor->construct(
+                                  instance,
+                                  descriptor->name,
+                                  descriptor->label,
+                                  descriptor->flags,
+                                  descriptor->constraint);
+                                if(property == nullptr)
+                                {
+                                    continue;
+                                }
+
+                                cache.layout_by_descriptor.emplace(
+                                  descriptor,
+                                  std::array{
+                                    property->get_size(),
+                                    property->get_offset(),
+                                    property->get_alignment()});
+                            }
+                            catch(...)
+                            {
+                                // Metadata probe is best-effort in the inspector.
+                            }
                         }
                     }
+                    cls->destroy(instance);
                 }
-                cls->destroy(instance);
             }
         }
 
-        std::vector<std::pair<const reflect::PropertyDescriptor*, const reflect::ClassInfo*>> property_rows;
-        for(const auto* origin: class_chain | std::views::reverse)
-        {
-            for(auto* descriptor = origin->first_property.get();
-                descriptor != nullptr;
-                descriptor = descriptor->next.get())
-            {
-                property_rows.emplace_back(descriptor, origin);
-            }
-        }
+        const auto& layout_by_descriptor = cache.layout_by_descriptor;
+        const auto& property_rows = cache.property_rows;
 
         static const reflect::PropertyDescriptor* selected_property = nullptr;
         static const reflect::ClassInfo* selected_property_origin = nullptr;
@@ -1213,8 +1237,8 @@ void imgui_draw_class_inspector_panel()
         }
 
         const float line_h = ImGui::GetTextLineHeightWithSpacing();
-        const float property_table_min_h = line_h * 7.0f;  // Header + ~5 rows with padding.
-        const float detail_panel_min_h = line_h * 7.5f;    // ~6 detail entries with padding.
+        const float property_table_min_h = line_h * 7.0f;    // Header + ~5 rows with padding.
+        const float detail_panel_min_h = line_h * 7.5f;      // ~6 detail entries with padding.
         const float split_gap_h = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
         const float usable_h = std::max(0.0f, properties_area_h - split_gap_h);
         const float property_table_max_h =
@@ -1292,10 +1316,10 @@ void imgui_draw_class_inspector_panel()
                  "SelectedPropertyList",
                  2,
                  ImGuiTableFlags_BordersInnerV
-                 | ImGuiTableFlags_BordersOuter
-                 | ImGuiTableFlags_RowBg
-                 | ImGuiTableFlags_SizingStretchProp
-                 | ImGuiTableFlags_ScrollY,
+                   | ImGuiTableFlags_BordersOuter
+                   | ImGuiTableFlags_RowBg
+                   | ImGuiTableFlags_SizingStretchProp
+                   | ImGuiTableFlags_ScrollY,
                  ImVec2{-FLT_MIN, -FLT_MIN}))
             {
                 ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 96.0f);
@@ -1324,8 +1348,8 @@ void imgui_draw_class_inspector_panel()
                      "SelectedPropertyLayout",
                      2,
                      ImGuiTableFlags_BordersInnerV
-                     | ImGuiTableFlags_BordersOuter
-                     | ImGuiTableFlags_SizingStretchProp))
+                       | ImGuiTableFlags_BordersOuter
+                       | ImGuiTableFlags_SizingStretchProp))
                 {
                     ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed, 68.0f);
                     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
@@ -1338,15 +1362,15 @@ void imgui_draw_class_inspector_panel()
 
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::TextUnformatted("Offset");
-                    ImGui::TableSetColumnIndex(1);
-                    ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[1]).c_str() : "n/a");
-
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0);
                     ImGui::TextUnformatted("Align");
                     ImGui::TableSetColumnIndex(1);
                     ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[2]).c_str() : "n/a");
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::TextUnformatted("Offset");
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[1]).c_str() : "n/a");
                     ImGui::EndTable();
                 }
                 draw_detail_row("Default", descriptor_default_summary(*selected_property));
@@ -1358,8 +1382,8 @@ void imgui_draw_class_inspector_panel()
                      "SelectedPropertyConstraint",
                      2,
                      ImGuiTableFlags_BordersInnerV
-                     | ImGuiTableFlags_BordersOuter
-                     | ImGuiTableFlags_SizingStretchProp))
+                       | ImGuiTableFlags_BordersOuter
+                       | ImGuiTableFlags_SizingStretchProp))
                 {
                     ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed, 68.0f);
                     ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);

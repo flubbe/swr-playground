@@ -143,15 +143,15 @@ public:
      */
 
     std::uint32_t create_mesh(
-      std::vector<std::uint32_t> indices,
-      std::vector<ml::vec4> vertices,
-      std::vector<ml::vec4> normals);
+      const std::vector<std::uint32_t>& indices,
+      const std::vector<ml::vec4>& vertices,
+      const std::vector<ml::vec4>& normals);
 
     bool update_mesh(
       std::uint32_t handle,
-      std::vector<std::uint32_t> indices,
-      std::vector<ml::vec4> vertices,
-      std::vector<ml::vec4> normals);
+      const std::vector<std::uint32_t>& indices,
+      const std::vector<ml::vec4>& vertices,
+      const std::vector<ml::vec4>& normals);
 
     void delete_mesh(std::uint32_t handle);
 

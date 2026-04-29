@@ -67,25 +67,24 @@ inline ObjectId make_object_id(std::uint32_t value)
 class Object
 : public reflect::ReflectRoot<Object>
 {
-private:
-    /** meshes. */
-    std::vector<RenderData> mesh_handles;
-
-protected:
-    /** per-instance baseline snapshot object. */
-    std::unique_ptr<Object> snapshot;
-
 public:
     static void register_properties(reflect::ClassInfo& class_info);
-
-    /** object transformation matrix. */
-    ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** object id. */
     ObjectId object_id{0};
 
     /** object name. */
     std::string name;
+
+    /** object transformation matrix. */
+    ml::mat4x4 transform{ml::mat4x4::identity()};
+
+protected:
+    /** per-instance baseline snapshot object. */
+    std::unique_ptr<Object> snapshot;
+
+    /** meshes. */
+    std::vector<RenderData> mesh_handles;
 
 protected:
     Object(
@@ -123,9 +122,9 @@ public:
     /** Move constructor. */
     Object(Object&& other)
     : reflect::ReflectRoot<Object>{std::move(other)}
-    , mesh_handles{std::move(other.mesh_handles)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
+    , mesh_handles{std::move(other.mesh_handles)}
     {
         other.class_info = nullptr;
     }

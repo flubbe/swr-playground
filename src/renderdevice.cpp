@@ -60,9 +60,9 @@ void RenderDevice::resize(int width, int height)
 }
 
 std::uint32_t RenderDevice::create_mesh(
-  std::vector<std::uint32_t> indices,
-  std::vector<ml::vec4> vertices,
-  std::vector<ml::vec4> normals)
+  const std::vector<std::uint32_t>& indices,
+  const std::vector<ml::vec4>& vertices,
+  const std::vector<ml::vec4>& normals)
 {
     std::uint32_t mesh_id = 0;
     while(meshes.contains(mesh_id))
@@ -74,10 +74,10 @@ std::uint32_t RenderDevice::create_mesh(
     std::uint32_t normals_handle = swr::CreateAttributeBuffer(normals);
 
     meshes.insert({mesh_id,
-                   {.indices = std::move(indices),
-                    .vertices = std::move(vertices),
+                   {.indices = indices,
+                    .vertices = vertices,
                     .vertices_handle = vertices_handle,
-                    .normals = std::move(normals),
+                    .normals = normals,
                     .normals_handle = normals_handle}});
 
     return mesh_id;
@@ -85,9 +85,9 @@ std::uint32_t RenderDevice::create_mesh(
 
 bool RenderDevice::update_mesh(
   std::uint32_t handle,
-  std::vector<std::uint32_t> indices,
-  std::vector<ml::vec4> vertices,
-  std::vector<ml::vec4> normals)
+  const std::vector<std::uint32_t>& indices,
+  const std::vector<ml::vec4>& vertices,
+  const std::vector<ml::vec4>& normals)
 {
     auto it = meshes.find(handle);
     if(it == meshes.end())
@@ -100,9 +100,9 @@ bool RenderDevice::update_mesh(
 
     it->second.vertices_handle = swr::CreateAttributeBuffer(vertices);
     it->second.normals_handle = swr::CreateAttributeBuffer(normals);
-    it->second.indices = std::move(indices);
-    it->second.vertices = std::move(vertices);
-    it->second.normals = std::move(normals);
+    it->second.indices = indices;
+    it->second.vertices = vertices;
+    it->second.normals = normals;
 
     return true;
 }
