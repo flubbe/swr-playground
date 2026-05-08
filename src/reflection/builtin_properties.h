@@ -31,6 +31,7 @@ private:
     /** UI drag speed. */
     float speed{1.0f};
 
+    /** Optional range constraint. */
     std::optional<RangeConstraint<Type>> range_constraint;
 
 public:
@@ -84,6 +85,7 @@ private:
     /** UI drag speed. */
     float speed{1.0f};
 
+    /** Optional range constraint. */
     std::optional<RangeConstraint<Type>> range_constraint;
 
 public:
@@ -140,6 +142,7 @@ private:
     /** UI display format. */
     const char* format{"%.3f"};
 
+    /** Optional range constraint. */
     std::optional<RangeConstraint<Type>> range_constraint;
 
 public:

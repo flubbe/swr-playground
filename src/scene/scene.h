@@ -58,6 +58,11 @@ public:
     void clear();
     void tick(float delta_time);
 
+    Camera* find_camera(ObjectId id);
+    const Camera* find_camera(ObjectId id) const;
+    std::vector<Camera*> get_cameras();
+    std::vector<const Camera*> get_cameras() const;
+
     template<typename T, typename... Args>
         requires(
           std::is_base_of_v<Object, T>)

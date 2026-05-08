@@ -21,8 +21,8 @@
 
 #include "scene/gear.h"
 #include "scene/scene.h"
+#include "ui/imgui.h"
 #include "application.h"
-#include "imgui.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "shader_cache.h"
@@ -129,7 +129,7 @@ void imgui_draw_viewport_panel(
     if(viewport_w_px != render_device.get_width()
        || viewport_h_px != render_device.get_height())
     {
-        viewport.camera.set_resolution(viewport_w_px, viewport_h_px);
+        viewport.set_resolution(viewport_w_px, viewport_h_px);
         render_device.resize(viewport_w_px, viewport_h_px);
 
         destroy_viewport_texture(viewport_texture);
@@ -174,6 +174,28 @@ void imgui_draw_viewport_panel(
           avail,
           ImVec2{0, 0},
           ImVec2{1, 1});
+
+        if(viewport.show_camera_name_overlay)
+        {
+            std::string camera_name = "Local Camera";
+            if(viewport.camera_source == ViewportCameraSource::SceneCamera)
+            {
+                const Camera* scene_camera = scene.find_camera(viewport.scene_camera_id);
+                camera_name = scene_camera != nullptr
+                                ? scene_camera->get_name()
+                                : std::string{"Missing Camera"};
+            }
+
+            const std::string label = std::format("[{}]", camera_name);
+            const ImVec2 viewport_min = ImGui::GetItemRectMin();
+            const ImVec2 text_pos = ImVec2{
+              viewport_min.x + 8.0f,
+              viewport_min.y + 6.0f};
+            ImGui::GetWindowDrawList()->AddText(
+              text_pos,
+              IM_COL32(235, 235, 235, 255),
+              label.c_str());
+        }
     }
 
     ImGui::End();
@@ -389,7 +411,7 @@ void Application::setup_viewport()
     view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
     view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
 
-    viewport->camera.set_transform(view);
+    viewport->local_camera.set_transform(view);
 }
 
 Application::Application(
@@ -419,9 +441,9 @@ Application::Application(
 
     SDL_GL_SetSwapInterval(1);
 
-    if(!imgui_init(window, gl_context))
+    if(!imgui::init(window, gl_context))
     {
-        throw std::runtime_error{"imgui_init failed."};
+        throw std::runtime_error{"imgui::init failed."};
     }
 
     pixel_density = SDL_GetWindowPixelDensity(window);
@@ -438,7 +460,7 @@ Application::Application(
 
 Application::~Application()
 {
-    imgui_shutdown();
+    imgui::shutdown();
 
     destroy_viewport_texture(viewport_texture);
 
@@ -475,6 +497,9 @@ void Application::initialize(
     viewport_texture = create_viewport_texture(
       render_device.get_width(),
       render_device.get_height());
+    viewport.set_resolution(
+      render_device.get_width(),
+      render_device.get_height());
 
     setup_scene();
     setup_viewport();
@@ -498,6 +523,7 @@ void Application::run()
     float last_update_time = static_cast<float>(SDL_GetTicks()) / 1000.0f;
 
     ImGuiIO& io = ImGui::GetIO();
+    imgui::State ui_state;
 
     while(running)
     {
@@ -516,7 +542,7 @@ void Application::run()
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        imgui_draw_main_dockspace(running);
+        imgui::draw_main_dockspace(running);
         imgui_draw_viewport_panel(
           *this,
           *render_device,
@@ -527,8 +553,8 @@ void Application::run()
           log_lines,
           last_update_time,
           running);
-        imgui_draw_console_panel(log_lines);
-        imgui_draw_tools_panel(
+        imgui::draw_console_panel(log_lines);
+        imgui::draw_tools_panel(
           *render_device,
           *viewport,
           *scene,
@@ -536,8 +562,8 @@ void Application::run()
           frame_index,
           pixel_density,
           io);
-        imgui_draw_scene_inspector_panel(*scene);
-        imgui_draw_class_inspector_panel();
+        imgui::draw_scene_inspector_panel(ui_state, *scene);
+        imgui::draw_class_inspector_panel(ui_state);
 
         ImGui::Render();
 

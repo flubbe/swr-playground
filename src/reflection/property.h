@@ -665,6 +665,7 @@ std::unique_ptr<Property> construct_member_erased(
         {
             throw instance_error{"object instance type mismatch for property construction"};
         }
+
         // Cast through RootType so inheritance pointer adjustment is applied correctly.
         owner_obj = static_cast<OwnerType*>(root_obj);
     }

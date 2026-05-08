@@ -106,8 +106,12 @@ add_executable(swr_playground
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/ui/class_inspector.cpp
+    src/ui/console.cpp
+    src/ui/imgui.cpp
+    src/ui/scene_inspector.cpp
+    src/ui/tools.cpp
     src/application.cpp
-    src/imgui.cpp
     src/main.cpp
     src/platform.cpp
     src/renderdevice.cpp

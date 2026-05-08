@@ -16,49 +16,21 @@
 
 class Camera : public reflect::Reflected<Camera, Object>
 {
-    /** Sensor width. */
-    int width{0};
+    /** Vertical field-of-view in radians. */
+    float fov_y{static_cast<float>(M_PI) / 8.f};
 
-    /** Sensor height. */
-    int height{0};
+    /** Near clip plane. */
+    float near_plane{5.f};
 
-    /** projection matrix. */
-    ml::mat4x4 proj;
-
-protected:
-    void update()
-    {
-        // set projection matrix.
-        proj = ml::matrices::perspective_projection(
-          static_cast<float>(width) / static_cast<float>(height),
-          static_cast<float>(M_PI) / 8,
-          5.f,
-          60.f);
-    }
+    /** Far clip plane. */
+    float far_plane{60.f};
 
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
     Camera() = default;
 
-    Camera(int width, int height)
-    : width{width}
-    , height{height}
-    {
-        update();
-    }
-
-    const ml::mat4x4& get_projection_matrix() const
-    {
-        return proj;
-    }
-
-    void set_resolution(int in_width, int in_height)
-    {
-        width = in_width;
-        height = in_height;
-        update();
-    }
+    ml::mat4x4 get_projection_matrix(float aspect_ratio) const;
 };
 
 DECLARE_REFLECTION(Scene, Camera);

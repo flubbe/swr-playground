@@ -25,7 +25,16 @@ void Renderer::render(
       viewport.draw_params.wireframe,
       viewport.draw_params.cull_face);
 
-    auto view = viewport.camera.get_transform();
+    const Camera* active_camera = &viewport.local_camera;
+    if(viewport.camera_source == ViewportCameraSource::SceneCamera)
+    {
+        if(const Camera* scene_camera = scene.find_camera(viewport.scene_camera_id))
+        {
+            active_camera = scene_camera;
+        }
+    }
+
+    auto view = active_camera->get_transform();
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w) * scene.get_light().position;
 
     for(const auto& obj: scene.get_objects())
@@ -41,7 +50,7 @@ void Renderer::render(
         for(const auto& mesh: meshes)
         {
             device.bind_material(mesh.material_handle);
-            device.bind_uniforms({.proj = viewport.camera.get_projection_matrix(),
+            device.bind_uniforms({.proj = active_camera->get_projection_matrix(viewport.get_aspect_ratio()),
                                   .view = obj_view,
                                   .light_dir = light_dir}
 

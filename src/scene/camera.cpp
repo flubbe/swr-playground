@@ -20,16 +20,30 @@ DEFINE_REFLECTION(Camera)
 
 void Camera::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&Camera::width>(
+    reflect::register_property<&Camera::fov_y>(
       class_info,
-      "width",
-      "Width");
-    reflect::register_property<&Camera::height>(
+      "fov_y",
+      "FOV Y (rad)");
+    reflect::register_property<&Camera::near_plane>(
       class_info,
-      "height",
-      "Height");
-    reflect::register_property<&Camera::proj>(
+      "near_plane",
+      "Near Plane");
+    reflect::register_property<&Camera::far_plane>(
       class_info,
-      "proj",
-      "Projection Matrix");
+      "far_plane",
+      "Far Plane");
+}
+
+ml::mat4x4 Camera::get_projection_matrix(float aspect_ratio) const
+{
+    if(aspect_ratio <= 0.f)
+    {
+        aspect_ratio = 1.f;
+    }
+
+    return ml::matrices::perspective_projection(
+      aspect_ratio,
+      fov_y,
+      near_plane,
+      far_plane);
 }

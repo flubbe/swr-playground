@@ -34,7 +34,10 @@ IntProperty::IntProperty(
     constraint}
 , value{value}
 , speed{speed}
-, range_constraint{try_get_range_constraint<Type>() != nullptr ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()} : std::nullopt}
+, range_constraint{
+    try_get_range_constraint<Type>() != nullptr
+      ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()}
+      : std::nullopt}
 {
     if(value == nullptr)
     {
@@ -56,7 +59,8 @@ bool IntProperty::set_value(Type in_value) noexcept
 
     if(range_constraint.has_value())
     {
-        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        if(range_constraint->min.has_value()
+           && in_value < *range_constraint->min)
         {
             if(!range_constraint->clamp)
             {
@@ -64,7 +68,8 @@ bool IntProperty::set_value(Type in_value) noexcept
             }
             in_value = *range_constraint->min;
         }
-        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        if(range_constraint->max.has_value()
+           && in_value > *range_constraint->max)
         {
             if(!range_constraint->clamp)
             {
@@ -106,7 +111,10 @@ UIntProperty::UIntProperty(
     constraint}
 , value{value}
 , speed{speed}
-, range_constraint{try_get_range_constraint<Type>() != nullptr ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()} : std::nullopt}
+, range_constraint{
+    try_get_range_constraint<Type>() != nullptr
+      ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()}
+      : std::nullopt}
 {
     if(value == nullptr)
     {

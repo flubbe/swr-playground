@@ -16,6 +16,12 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
+#include "reflection/class_info.h"
+
+/*
+ * Forward declarations.
+ */
+
 struct ImGuiIO;
 class RenderDevice;
 class Renderer;
@@ -23,19 +29,34 @@ class Scene;
 class Object;
 struct Viewport;
 
+namespace imgui
+{
+
+/** UI state. */
+struct State
+{
+    /** Currently selected scene object in the scene inspector. */
+    Object* selected_scene_object = nullptr;
+
+    /** Currently selected class in the class inspector. */
+    const reflect::ClassInfo* selected_class = nullptr;
+};
+
 /** Set up ImGui. */
-bool imgui_init(
+bool init(
   SDL_Window* window,
   SDL_GLContext context);
 
 /** Shut down ImGui. */
-void imgui_shutdown();
+void shutdown();
 
-void imgui_draw_main_dockspace(bool& running);
+void draw_main_dockspace(
+  bool& running);
 
-void imgui_draw_console_panel(std::vector<std::string>& log_lines);
+void draw_console_panel(
+  std::vector<std::string>& log_lines);
 
-void imgui_draw_tools_panel(
+void draw_tools_panel(
   RenderDevice& render_device,
   Viewport& viewport,
   Scene& scene,
@@ -44,9 +65,11 @@ void imgui_draw_tools_panel(
   float pixel_density,
   const ImGuiIO& io);
 
-void imgui_draw_scene_inspector_panel(Scene& scene);
-void imgui_draw_class_inspector_panel();
+void draw_scene_inspector_panel(
+  State& ui_state,
+  Scene& scene);
 
-Object* imgui_get_selected_object() noexcept;
-void imgui_set_selected_object(Object* object) noexcept;
-void imgui_clear_selected_object() noexcept;
+void draw_class_inspector_panel(
+  State& ui_state);
+
+}    // namespace imgui
