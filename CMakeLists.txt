@@ -53,11 +53,12 @@ set(SWR_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
 set(SWR_BUILD_APP OFF CACHE BOOL "" FORCE)
 set(SWR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
 
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 7df418f
+    GIT_TAG 55180f7
 )
 FetchContent_MakeAvailable(swr_src)
 
