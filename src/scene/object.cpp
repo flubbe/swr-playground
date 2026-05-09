@@ -192,7 +192,12 @@ bool Object::reset_property_to_snapshot(std::string_view property_name)
     {
         return false;
     }
-    return copy_property_by_name(*this, *snapshot, property_name);
+    const bool changed = copy_property_by_name(*this, *snapshot, property_name);
+    if(changed)
+    {
+        on_properties_changed();
+    }
+    return changed;
 }
 
 bool Object::reset_to_snapshot()

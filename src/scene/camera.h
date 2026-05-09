@@ -25,12 +25,21 @@ class Camera : public reflect::Reflected<Camera, Object>
     /** Far clip plane. */
     float far_plane{60.f};
 
+    // FIXME clean up.
+    float cached_aspect_ratio{1.f};
+    float cached_fov_y{0.f};
+    float cached_near_plane{0.f};
+    float cached_far_plane{0.f};
+    ml::mat4x4 cached_projection{};
+
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
-    Camera() = default;
+    Camera();
 
-    ml::mat4x4 get_projection_matrix(float aspect_ratio) const;
+    void on_properties_changed() override;
+    void update_projection_matrix(float aspect_ratio);
+    ml::mat4x4 get_projection_matrix() const;
 };
 
 DECLARE_REFLECTION(Scene, Camera);

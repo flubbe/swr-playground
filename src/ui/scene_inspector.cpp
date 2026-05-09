@@ -47,36 +47,43 @@ void validate_selected_object(
 
 class ImGuiPropertyRenderer : public reflect::PropertyVisitor
 {
+    Object& object;
+
 public:
+    explicit ImGuiPropertyRenderer(Object& object)
+    : object{object}
+    {
+    }
+
     void visit(reflect::Property& property) override
     {
         if(auto* p = property.try_as<reflect::IntProperty>())
         {
-            render_int(*p);
+            render_int(*p, object);
         }
         else if(auto* p = property.try_as<reflect::UIntProperty>())
         {
-            render_uint(*p);
+            render_uint(*p, object);
         }
         else if(auto* p = property.try_as<reflect::FloatProperty>())
         {
-            render_float(*p);
+            render_float(*p, object);
         }
         else if(auto* p = property.try_as<reflect::BoolProperty>())
         {
-            render_bool(*p);
+            render_bool(*p, object);
         }
         else if(auto* p = property.try_as<reflect::StringProperty>())
         {
-            render_string(*p);
+            render_string(*p, object);
         }
         else if(auto* p = property.try_as<reflect::Mat4Property>())
         {
-            render_mat4(*p);
+            render_mat4(*p, object);
         }
         else if(auto* p = property.try_as<reflect::Vec4Property>())
         {
-            render_vec4(*p);
+            render_vec4(*p, object);
         }
         else
         {
@@ -85,7 +92,7 @@ public:
     }
 
 private:
-    static void render_int(reflect::IntProperty& property)
+    static void render_int(reflect::IntProperty& property, Object& object)
     {
         if(property.is_read_only())
         {
@@ -134,12 +141,15 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
-            property.set_value(value);
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
             value = property.get_value();
         }
     }
 
-    static void render_uint(reflect::UIntProperty& property)
+    static void render_uint(reflect::UIntProperty& property, Object& object)
     {
         if(property.is_read_only())
         {
@@ -179,12 +189,15 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
-            property.set_value(value);
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
             value = property.get_value();
         }
     }
 
-    static void render_float(reflect::FloatProperty& property)
+    static void render_float(reflect::FloatProperty& property, Object& object)
     {
         if(property.is_read_only())
         {
@@ -231,12 +244,15 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed || ImGui::IsItemDeactivatedAfterEdit())
         {
-            property.set_value(value);
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
             value = property.get_value();
         }
     }
 
-    static void render_bool(reflect::BoolProperty& property)
+    static void render_bool(reflect::BoolProperty& property, Object& object)
     {
         if(property.is_read_only())
         {
@@ -247,11 +263,14 @@ private:
         bool value = property.get_value();
         if(ImGui::Checkbox("##value", &value))
         {
-            property.set_value(value);
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
         }
     }
 
-    static void render_string(reflect::StringProperty& property)
+    static void render_string(reflect::StringProperty& property, Object& object)
     {
         if(property.is_read_only())
         {
@@ -271,11 +290,14 @@ private:
             {
                 value.resize(property.get_max_length());
             }
-            property.set_value(value);
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
         }
     }
 
-    static void render_mat4(reflect::Mat4Property& property)
+    static void render_mat4(reflect::Mat4Property& property, Object& object)
     {
         if(ImGui::SmallButton("Edit..."))
         {
@@ -319,7 +341,10 @@ private:
 
             if(ImGui::Button("Apply"))
             {
-                property.set_value(edit_value);
+                if(property.set_value(edit_value))
+                {
+                    object.on_properties_changed();
+                }
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -332,7 +357,7 @@ private:
         }
     }
 
-    static void render_vec4(reflect::Vec4Property& property)
+    static void render_vec4(reflect::Vec4Property& property, Object& object)
     {
         ml::vec4 value = property.get_value();
         float components[4] = {value.x, value.y, value.z, value.w};
@@ -350,12 +375,15 @@ private:
 
         if(ImGui::DragFloat4("##value", components, 0.01f, 0.0f, 0.0f, "%.3f"))
         {
-            property.set_value(
-              ml::vec4{
-                components[0],
-                components[1],
-                components[2],
-                components[3]});
+            if(property.set_value(
+                 ml::vec4{
+                   components[0],
+                   components[1],
+                   components[2],
+                   components[3]}))
+            {
+                object.on_properties_changed();
+            }
         }
     }
 };
@@ -428,7 +456,7 @@ void draw_scene_inspector_panel(
                     ImGui::TableHeadersRow();
 
                     auto& properties = object->get_properties();
-                    ImGuiPropertyRenderer property_renderer;
+                    ImGuiPropertyRenderer property_renderer{*object};
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {
                         auto* property = properties[i].get();

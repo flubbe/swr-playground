@@ -214,6 +214,11 @@ public:
     {
     }
 
+    /** Called after one or more reflected properties have been modified. */
+    virtual void on_properties_changed()
+    {
+    }
+
     /** Set the transformation matrix. */
     void set_transform(ml::mat4x4 m)
     {

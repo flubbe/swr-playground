@@ -35,6 +35,7 @@ public:
     }
 
     void render(
-      const Scene& scene,
-      const Viewport& viewport);
+      Scene& scene,         // FIXME make const again?
+      Viewport& viewport    // FIXME make const again?
+    );
 };
