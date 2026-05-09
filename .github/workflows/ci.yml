@@ -54,7 +54,7 @@ jobs:
       - name: Run tests
         run: |
           ctest --test-dir "${{ github.workspace }}/build" \
-          -C "${{ env.BUILD_TYPE }}" \
-          --output-on-failure \
-          --no-tests=error \
-          --verbose
+            -C "${{ env.BUILD_TYPE }}" \
+            --output-on-failure \
+            --no-tests=error \
+            --verbose
