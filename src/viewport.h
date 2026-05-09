@@ -20,11 +20,55 @@ struct DrawParameters
     bool cull_face{true};
 };
 
-struct Viewport
+class Viewport
 {
+    /** Local viewport camera. */
     Camera local_camera;
-    ViewportCameraSource camera_source{ViewportCameraSource::LocalCamera};
-    ObjectId scene_camera_id{0};
+
+    /** Active camera. If `nullptr`, the local camera is used. */
+    std::optional<ObjectId> scene_camera_id;
+
+public:
+    Viewport() = default;
+    Viewport(const Viewport&) = delete;
+    Viewport(Viewport&&) = default;
+
+    Viewport& operator=(const Viewport&) = delete;
+    Viewport& operator=(Viewport&&) = default;
+
+    /** Get the viewport camera. Falls back to the local camera if the scene camera cannot be found. */
+    Camera& get_camera(Scene& scene)
+    {
+        if(scene_camera_id.has_value())
+        {
+            if(Camera* camera = scene.find_camera(scene_camera_id.value()))
+            {
+                return *camera;
+            }
+        }
+
+        return local_camera;
+    }
+
+    /** Get the viewport-local camera. */
+    Camera& get_local_camera()
+    {
+        return local_camera;
+    }
+
+    /** Whether we are using a viewport-local camera. Does not check if a scene camera exists in the scene. */
+    bool is_local_camera() const
+    {
+        return !scene_camera_id.has_value();
+    }
+
+    /** Whether we are using a scene camera. Does not check if a scene camera exists in the scene. */
+    bool is_scene_camera() const
+    {
+        return !is_local_camera();
+    }
+
+    // TODO clean up.
     bool show_camera_name_overlay{true};
     DrawParameters draw_params;
     int width{1};

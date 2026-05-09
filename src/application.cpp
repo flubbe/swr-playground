@@ -178,12 +178,9 @@ void imgui_draw_viewport_panel(
         if(viewport.show_camera_name_overlay)
         {
             std::string camera_name = "Local Camera";
-            if(viewport.camera_source == ViewportCameraSource::SceneCamera)
+            if(viewport.is_scene_camera())
             {
-                const Camera* scene_camera = scene.find_camera(viewport.scene_camera_id);
-                camera_name = scene_camera != nullptr
-                                ? scene_camera->get_name()
-                                : std::string{"Missing Camera"};
+                camera_name = viewport.get_camera(scene).get_name();
             }
 
             const std::string label = std::format("[{}]", camera_name);
@@ -411,7 +408,7 @@ void Application::setup_viewport()
     view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
     view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
 
-    viewport->local_camera.set_transform(view);
+    viewport->get_local_camera().set_transform(view);
 }
 
 Application::Application(

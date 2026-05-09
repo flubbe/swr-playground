@@ -22,7 +22,7 @@ class RenderDevice;
 class Renderer;
 class Scene;
 class ShaderCache;
-struct Viewport;
+class Viewport;
 
 namespace shader
 {

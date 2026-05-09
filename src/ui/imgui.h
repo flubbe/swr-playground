@@ -27,7 +27,7 @@ class RenderDevice;
 class Renderer;
 class Scene;
 class Object;
-struct Viewport;
+class Viewport;
 
 namespace imgui
 {

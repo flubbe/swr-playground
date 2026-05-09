@@ -25,19 +25,13 @@ void Renderer::render(
       viewport.draw_params.wireframe,
       viewport.draw_params.cull_face);
 
-    Camera* active_camera = &viewport.local_camera;
-    if(viewport.camera_source == ViewportCameraSource::SceneCamera)
-    {
-        if(Camera* scene_camera = scene.find_camera(viewport.scene_camera_id))
-        {
-            active_camera = scene_camera;
-        }
-    }
+    Camera& active_camera = viewport.get_camera(scene);
 
-    active_camera->update_projection_matrix(viewport.get_aspect_ratio());
-    auto view = active_camera->get_transform();
-    auto projection = active_camera->get_projection_matrix();
-    auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w) * scene.get_light().position;
+    active_camera.update_projection_matrix(viewport.get_aspect_ratio());
+    auto view = active_camera.get_transform();
+    auto projection = active_camera.get_projection_matrix();
+    auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)
+                     * scene.get_light().position;
 
     for(const auto& obj: scene.get_objects())
     {

@@ -12,7 +12,7 @@
 
 class Scene;
 class Camera;
-struct Viewport;
+class Viewport;
 class RenderDevice;
 
 class Renderer
