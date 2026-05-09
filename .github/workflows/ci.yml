@@ -56,5 +56,4 @@ jobs:
           ctest --test-dir "${{ github.workspace }}/build" \
             -C "${{ env.BUILD_TYPE }}" \
             --output-on-failure \
-            --no-tests=error \
-            --verbose
+            --no-tests=error
