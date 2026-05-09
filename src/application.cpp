@@ -178,7 +178,7 @@ void imgui_draw_viewport_panel(
         if(viewport.show_camera_name_overlay)
         {
             std::string camera_name = "Local Camera";
-            if(viewport.is_scene_camera())
+            if(viewport.get_camera_type() == ViewportCameraType::Scene)
             {
                 camera_name = viewport.get_camera(scene).get_name();
             }
@@ -285,7 +285,7 @@ public:
 
 /** re-calculate the gear transformations. */
 void update_gears(
-  std::array<Object*, 3>& gears,
+  std::array<Gear*, 3>& gears,
   float time)
 {
     gears[0]->set_transform(
@@ -301,9 +301,8 @@ void update_gears(
 
 void rebuild_gear_mesh_if_needed(
   RenderDevice& device,
-  Object* object)
+  Gear* gear)
 {
-    auto* gear = static_cast<Gear*>(object);
     if(gear == nullptr)
     {
         return;
@@ -579,9 +578,9 @@ void Application::run()
 void Application::tick(float delta_time)
 {
     scene->tick(delta_time);
-    for(auto* object: gear_objs)
+    for(auto* gear: gear_objs)
     {
-        rebuild_gear_mesh_if_needed(*render_device, object);
+        rebuild_gear_mesh_if_needed(*render_device, gear);
     }
     update_gears(gear_objs, scene->get_time());
 }

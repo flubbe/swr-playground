@@ -17,6 +17,7 @@
 #include <SDL3/SDL_opengl.h>
 
 class Camera;
+class Gear;
 class Object;
 class RenderDevice;
 class Renderer;
@@ -56,7 +57,7 @@ class Application
     GLuint viewport_texture = 0;
 
     // demo scene.
-    std::array<Object*, 3> gear_objs = {nullptr, nullptr, nullptr};
+    std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
 
 protected:
     void setup_scene();

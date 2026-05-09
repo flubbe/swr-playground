@@ -5,12 +5,6 @@
 #include "scene/camera.h"
 #include "scene/object.h"
 
-enum class ViewportCameraSource
-{
-    LocalCamera,
-    SceneCamera
-};
-
 struct DrawParameters
 {
     /** Whether to render a wireframe view. */
@@ -18,6 +12,13 @@ struct DrawParameters
 
     /** Whether to apply face culling. */
     bool cull_face{true};
+};
+
+/** Viewport camera type. */
+enum class ViewportCameraType : std::uint8_t
+{
+    Local, /** Viewport controls the camera. */
+    Scene  /** Scene update controls the camera. */
 };
 
 class Viewport
@@ -56,16 +57,14 @@ public:
         return local_camera;
     }
 
-    /** Whether we are using a viewport-local camera. Does not check if a scene camera exists in the scene. */
-    bool is_local_camera() const
+    /** Return the camera type for this viewport. Does not check if a scene camera exists in the scene. */
+    ViewportCameraType get_camera_type() const
     {
-        return !scene_camera_id.has_value();
-    }
-
-    /** Whether we are using a scene camera. Does not check if a scene camera exists in the scene. */
-    bool is_scene_camera() const
-    {
-        return !is_local_camera();
+        if(scene_camera_id.has_value())
+        {
+            return ViewportCameraType::Scene;
+        }
+        return ViewportCameraType::Local;
     }
 
     // TODO clean up.
