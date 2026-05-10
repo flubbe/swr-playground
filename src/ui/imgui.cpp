@@ -198,6 +198,59 @@ void shutdown()
     ImGui::DestroyContext();
 }
 
+/**
+ * Helper for deferring ImGui window focus requests across multiple frames.
+ *
+ * This exists primarily for docked windows created through the DockBuilder API.
+ * Newly-created docked windows are not always focusable or activatable on the
+ * same frame that the dock layout is constructed, so a delayed focus request
+ * is often required to reliably select the intended tab.
+ *
+ * The helper repeatedly calls `ImGui::SetWindowFocus()` for a small number of
+ * frames, which works around docking initialization timing issues.
+ *
+ * Remarks:
+ * - This selects/focuses the target window tab indirectly via keyboard focus.
+ * - The required frame count is heuristic; 1-2 frames is usually sufficient.
+ * - Intended mainly for one-shot initialization behavior.
+ */
+struct DeferredWindowFocus
+{
+    /** Name of the target ImGui window. */
+    const char* window = nullptr;
+
+    /**  Remaining frames during which focus should be requested. */
+    int frames = 0;
+
+    /**
+     * Request focus for a window over the next `frame_count` frames.
+     *
+     * Repeated focus requests improve reliability for newly-created docked
+     * windows whose tabs may not yet be fully initialized.
+     */
+    void request(
+      const char* name,
+      int frame_count = 2)
+    {
+        window = name;
+        frames = frame_count;
+    }
+
+    /**
+     * Call once per frame.
+     *
+     * Applies deferred focus requests until the frame counter reaches zero.
+     */
+    void update()
+    {
+        if(frames > 0 && window)
+        {
+            ImGui::SetWindowFocus(window);
+            --frames;
+        }
+    }
+};
+
 void draw_main_dockspace(bool& running)
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -240,11 +293,16 @@ void draw_main_dockspace(bool& running)
     ImGui::DockSpace(dockspace_id, ImVec2{0.0f, 0.0f});
 
     static bool first_time = true;
+    static DeferredWindowFocus deferred_focus;
+
     if(first_time)
     {
         setup_dock_layout(dockspace_id);
+        deferred_focus.request("Scene Inspector", 2);
         first_time = false;
     }
+
+    deferred_focus.update();
 
     ImGui::End();
 }
