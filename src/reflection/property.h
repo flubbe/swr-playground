@@ -334,6 +334,23 @@ public:
         return try_get_constraint<RangeConstraint<T>>();
     }
 
+    /**
+     * Retrieve copied numeric range constraint metadata for `Type`.
+     *
+     * @tparam Type Constrained value type used by `RangeConstraint<Type>`.
+     * @returns A copied `RangeConstraint<Type>` if present, otherwise `std::nullopt`.
+     */
+    template<typename Type>
+    std::optional<RangeConstraint<Type>> range_constraint_from_metadata()
+    {
+        if(auto* constraint = try_get_range_constraint<Type>())
+        {
+            return *constraint;
+        }
+
+        return std::nullopt;
+    }
+
     /** Whether the property is read-only. */
     bool is_read_only() const noexcept
     {

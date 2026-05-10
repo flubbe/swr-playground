@@ -173,6 +173,8 @@ void imgui_draw_viewport_panel(
         app.tick(delta_time);
     }
 
+    viewport.update_active_camera_projection(scene);
+
     renderer.render(
       scene,
       viewport);

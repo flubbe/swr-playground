@@ -16,8 +16,8 @@
 #include "viewport.h"
 
 void Renderer::render(
-  Scene& scene,
-  Viewport& viewport)
+  const Scene& scene,
+  const Viewport& viewport)
 {
     auto render_start_time = std::chrono::steady_clock::now();
     const ViewportDisplaySettings& display = viewport.get_display_settings();
@@ -26,9 +26,7 @@ void Renderer::render(
       display.wireframe,
       display.cull_face);
 
-    Camera& active_camera = viewport.get_camera(scene);
-
-    active_camera.update_projection_matrix(viewport.get_aspect_ratio());
+    const Camera& active_camera = viewport.get_camera(scene);
     auto view = active_camera.get_transform();
     auto projection = active_camera.get_projection_matrix();
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)

@@ -34,10 +34,7 @@ IntProperty::IntProperty(
     constraint}
 , value{value}
 , speed{speed}
-, range_constraint{
-    try_get_range_constraint<Type>() != nullptr
-      ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()}
-      : std::nullopt}
+, range_constraint{range_constraint_from_metadata<Type>()}
 {
     if(value == nullptr)
     {
@@ -111,10 +108,7 @@ UIntProperty::UIntProperty(
     constraint}
 , value{value}
 , speed{speed}
-, range_constraint{
-    try_get_range_constraint<Type>() != nullptr
-      ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()}
-      : std::nullopt}
+, range_constraint{range_constraint_from_metadata<Type>()}
 {
     if(value == nullptr)
     {
@@ -188,7 +182,7 @@ FloatProperty::FloatProperty(
 , value{value}
 , speed{speed}
 , format{format}
-, range_constraint{try_get_range_constraint<Type>() != nullptr ? std::optional<RangeConstraint<Type>>{*try_get_range_constraint<Type>()} : std::nullopt}
+, range_constraint{range_constraint_from_metadata<Type>()}
 {
     if(value == nullptr)
     {

@@ -23,4 +23,3 @@ public:
       Scene& scene,
       float delta_time) = 0;
 };
-

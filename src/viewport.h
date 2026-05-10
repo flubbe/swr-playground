@@ -135,10 +135,33 @@ public:
         return local_camera;
     }
 
+    /** Get the active viewport camera (const). Falls back to local if scene camera cannot be found. */
+    const Camera& get_camera(const Scene& scene) const
+    {
+        if(const Camera* camera = try_get_scene_camera(scene))
+        {
+            return *camera;
+        }
+
+        return local_camera;
+    }
+
     /** Get the viewport-local camera. */
     Camera& get_local_camera()
     {
         return local_camera;
+    }
+
+    /** Get the viewport-local camera (const). */
+    const Camera& get_local_camera() const
+    {
+        return local_camera;
+    }
+
+    /** Ensure the active camera projection matches current viewport aspect ratio. */
+    void update_active_camera_projection(Scene& scene)
+    {
+        get_camera(scene).update_projection_matrix(get_aspect_ratio());
     }
 
     /** Return the active camera type for this viewport. */
