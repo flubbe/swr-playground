@@ -45,6 +45,19 @@ public:
     }
 };
 
+ml::mat4x4 make_default_editor_camera_transform()
+{
+    ml::mat4x4 view = ml::mat4x4::identity();
+    view *= ml::matrices::translation(0.f, 0.f, -40.f);
+
+    const ml::vec3 view_rotation = {20.f, 30.f, 0.f};
+    view *= ml::matrices::rotation_x(ml::to_radians(view_rotation.x));
+    view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
+    view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
+
+    return view;
+}
+
 GLuint create_viewport_texture(
   int width,
   int height)
@@ -175,23 +188,103 @@ void imgui_draw_viewport_panel(
           ImVec2{0, 0},
           ImVec2{1, 1});
 
-        if(viewport.show_camera_name_overlay)
+        if(viewport.is_camera_selector_overlay_enabled())
         {
-            std::string camera_name = "Local Camera";
-            if(viewport.get_camera_type() == ViewportCameraType::Scene)
+            const ViewportCameraType camera_type = viewport.get_camera_type(scene);
+            std::string camera_name = "Perspective";
+            if(camera_type == ViewportCameraType::Scene)
             {
                 camera_name = viewport.get_camera(scene).get_name();
             }
 
-            const std::string label = std::format("[{}]", camera_name);
+            const std::string label_left = "[";
+            const std::string label_name = camera_name;
+            const std::string label_right = "]";
+            const std::string label = label_left + label_name + label_right;
             const ImVec2 viewport_min = ImGui::GetItemRectMin();
             const ImVec2 text_pos = ImVec2{
               viewport_min.x + 8.0f,
               viewport_min.y + 6.0f};
-            ImGui::GetWindowDrawList()->AddText(
+
+            // Context-menu trigger area over camera label (right-click like DCC/CAD tools).
+            const ImVec2 label_size = ImGui::CalcTextSize(label.c_str());
+            ImGui::SetCursorScreenPos(text_pos);
+            ImGui::InvisibleButton("viewport_camera_overlay_menu_trigger", label_size);
+            const bool is_hovered = ImGui::IsItemHovered();
+            if(is_hovered)
+            {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            const ImU32 bracket_color = IM_COL32(235, 235, 235, 255);
+            const ImU32 name_color = is_hovered
+                                       ? IM_COL32(255, 224, 120, 255)
+                                       : bracket_color;
+            const ImVec2 left_size = ImGui::CalcTextSize(label_left.c_str());
+            const ImVec2 name_size = ImGui::CalcTextSize(label_name.c_str());
+
+            draw_list->AddText(
               text_pos,
-              IM_COL32(235, 235, 235, 255),
-              label.c_str());
+              bracket_color,
+              label_left.c_str());
+            draw_list->AddText(
+              ImVec2{text_pos.x + left_size.x, text_pos.y},
+              name_color,
+              label_name.c_str());
+            draw_list->AddText(
+              ImVec2{text_pos.x + left_size.x + name_size.x, text_pos.y},
+              bracket_color,
+              label_right.c_str());
+            if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            {
+                ImGui::OpenPopup("viewport_camera_overlay_menu");
+            }
+            if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
+            {
+                const bool using_local_camera =
+                  (viewport.get_camera_type(scene) == ViewportCameraType::Local);
+                if(ImGui::MenuItem("Perspective", nullptr, using_local_camera))
+                {
+                    viewport.use_local_camera();
+                }
+
+                ImGui::BeginDisabled(true);
+                ImGui::MenuItem("Orthographic", nullptr, false);
+                ImGui::EndDisabled();
+
+                const std::optional<ObjectId> selected_scene_camera_id =
+                  viewport.get_scene_camera_id();
+                const std::vector<Camera*> scene_cameras = scene.get_cameras();
+                if(ImGui::BeginMenu("Cameras"))
+                {
+                    for(const Camera* camera: scene_cameras)
+                    {
+                        const bool selected =
+                          selected_scene_camera_id.has_value()
+                          && selected_scene_camera_id.value() == camera->get_object_id()
+                          && viewport.get_camera_type(scene) == ViewportCameraType::Scene;
+                        if(ImGui::MenuItem(
+                             camera->get_name().c_str(),
+                             nullptr,
+                             selected))
+                        {
+                            viewport.use_scene_camera(camera->get_object_id());
+                        }
+                    }
+
+                    if(scene_cameras.empty())
+                    {
+                        ImGui::BeginDisabled(true);
+                        ImGui::MenuItem("<No Scene Cameras>");
+                        ImGui::EndDisabled();
+                    }
+
+                    ImGui::EndMenu();
+                }
+
+                ImGui::EndPopup();
+            }
         }
     }
 
@@ -390,6 +483,12 @@ void Application::setup_scene()
     {
         gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
     }
+
+    Camera* camera = scene->add_object<Camera>();
+    camera->set_transform(make_default_editor_camera_transform());
+    camera->set_name("Editor Camera");
+
+    viewport->use_scene_camera(camera->get_object_id());
 }
 
 void Application::setup_viewport()
@@ -399,15 +498,8 @@ void Application::setup_viewport()
         throw std::runtime_error{"Application not initialized."};
     }
 
-    ml::mat4x4 view = ml::mat4x4::identity();
-    view *= ml::matrices::translation(0.f, 0.f, -40.f);
-
-    ml::vec3 view_rotation = {20.f, 30.f, 0.f};
-    view *= ml::matrices::rotation_x(ml::to_radians(view_rotation.x));
-    view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
-    view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
-
-    viewport->get_local_camera().set_transform(view);
+    // Keep the local camera in sync as a fallback if the bound scene camera is removed.
+    viewport->get_local_camera().set_transform(make_default_editor_camera_transform());
 }
 
 Application::Application(
@@ -498,6 +590,7 @@ void Application::initialize(
       render_device.get_height());
 
     setup_scene();
+    scene.add_default_systems();
     setup_viewport();
 }
 

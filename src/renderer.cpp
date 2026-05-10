@@ -20,10 +20,11 @@ void Renderer::render(
   Viewport& viewport)
 {
     auto render_start_time = std::chrono::steady_clock::now();
+    const ViewportDisplaySettings& display = viewport.get_display_settings();
 
     device.begin_frame(
-      viewport.draw_params.wireframe,
-      viewport.draw_params.cull_face);
+      display.wireframe,
+      display.cull_face);
 
     Camera& active_camera = viewport.get_camera(scene);
 

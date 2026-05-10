@@ -46,8 +46,9 @@ void draw_tools_panel(
          "Rasterizer",
          ImGuiTreeNodeFlags_DefaultOpen))
     {
-        bool wireframe = viewport.draw_params.wireframe;
-        bool cull_face = viewport.draw_params.cull_face;
+        ViewportDisplaySettings display_settings = viewport.get_display_settings();
+        bool wireframe = display_settings.wireframe;
+        bool cull_face = display_settings.cull_face;
         bool paused = scene.is_paused();
 
         if(ImGui::Checkbox("Paused", &paused))
@@ -55,14 +56,23 @@ void draw_tools_panel(
             scene.set_paused(paused);
         }
 
+        bool update_display_settings = false;
+
         if(ImGui::Checkbox("Wireframe", &wireframe))
         {
-            viewport.draw_params.wireframe = wireframe;
+            display_settings.wireframe = wireframe;
+            update_display_settings = true;
         }
 
         if(ImGui::Checkbox("Face Culling", &cull_face))
         {
-            viewport.draw_params.cull_face = cull_face;
+            display_settings.cull_face = cull_face;
+            update_display_settings = true;
+        }
+
+        if(update_display_settings)
+        {
+            viewport.set_display_settings(display_settings);
         }
     }
 

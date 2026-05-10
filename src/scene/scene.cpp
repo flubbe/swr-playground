@@ -12,6 +12,25 @@
 #include "gear.h"
 #include "scene.h"
 
+namespace
+{
+
+class ObjectTickSystem final : public SceneSystem
+{
+public:
+    void tick(
+      Scene& scene,
+      float delta_time) override
+    {
+        for(auto& object: scene.get_objects())
+        {
+            object->tick(delta_time);
+        }
+    }
+};
+
+}    // namespace
+
 void Scene::clear()
 {
     for(auto& obj: objects)
@@ -24,11 +43,23 @@ void Scene::clear()
 
 void Scene::tick(float delta_time)
 {
-    if(!is_paused())
+    if(is_paused())
     {
-        // update scene time.
-        time += delta_time;
+        return;
     }
+
+    // update scene time.
+    time += delta_time;
+
+    for(auto& system: systems)
+    {
+        system->tick(*this, delta_time);
+    }
+}
+
+void Scene::add_default_systems()
+{
+    add_system<ObjectTickSystem>();
 }
 
 Camera* Scene::find_camera(ObjectId id)

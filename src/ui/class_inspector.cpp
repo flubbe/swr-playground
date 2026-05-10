@@ -379,7 +379,6 @@ void draw_class_inspector_panel(
     ImGui::EndChild();
 
     ImGui::SeparatorText("Details");
-    ImGui::BeginChild("ClassDetails", ImVec2{0, 0}, true);
 
     if(ui_state.selected_class == nullptr)
     {
@@ -408,8 +407,6 @@ void draw_class_inspector_panel(
         ImGui::Text("Root Tag: %p", cls->root_tag);
 
         ImGui::SeparatorText("Properties");
-        const float properties_area_h = ImGui::GetContentRegionAvail().y;
-
         static ClassInspectorCache cache;
 
         if(cache.cls != cls)
@@ -498,32 +495,17 @@ void draw_class_inspector_panel(
             selected_property_origin = property_rows.empty() ? nullptr : property_rows.front().second;
         }
 
-        const float line_h = ImGui::GetTextLineHeightWithSpacing();
-        const float property_table_min_h = line_h * 7.0f;    // Header + ~5 rows with padding.
-        const float detail_panel_min_h = line_h * 7.5f;      // ~6 detail entries with padding.
-        const float split_gap_h = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-        const float usable_h = std::max(0.0f, properties_area_h - split_gap_h);
-        const float property_table_max_h =
-          std::max(property_table_min_h, usable_h - detail_panel_min_h);
-        const float property_table_h = std::clamp(
-          usable_h * 0.54f,
-          property_table_min_h,
-          property_table_max_h);
-        ImGui::BeginChild("ClassPropertiesTableArea", ImVec2{0, property_table_h}, true);
-
         const ImGuiTableFlags property_table_flags =
           ImGuiTableFlags_BordersInnerV
           | ImGuiTableFlags_BordersOuter
           | ImGuiTableFlags_RowBg
           | ImGuiTableFlags_Resizable
           | ImGuiTableFlags_SizingFixedFit
-          | ImGuiTableFlags_ScrollY
           | ImGuiTableFlags_ScrollX;
         if(ImGui::BeginTable(
              "ClassProperties",
              4,
-             property_table_flags,
-             ImVec2{-FLT_MIN, -FLT_MIN}))
+             property_table_flags))
         {
             ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 80.0f);
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 80.0f);
@@ -561,10 +543,8 @@ void draw_class_inspector_panel(
 
             ImGui::EndTable();
         }
-        ImGui::EndChild();
 
         ImGui::SeparatorText("Selected Property");
-        ImGui::BeginChild("ClassPropertyDetailsArea", ImVec2{0, 0}, true);
         if(selected_property == nullptr || selected_property_origin == nullptr)
         {
             ImGui::TextDisabled("Select a property to inspect metadata.");
@@ -580,9 +560,7 @@ void draw_class_inspector_panel(
                  ImGuiTableFlags_BordersInnerV
                    | ImGuiTableFlags_BordersOuter
                    | ImGuiTableFlags_RowBg
-                   | ImGuiTableFlags_SizingStretchProp
-                   | ImGuiTableFlags_ScrollY,
-                 ImVec2{-FLT_MIN, -FLT_MIN}))
+                   | ImGuiTableFlags_SizingStretchProp))
             {
                 ImGui::TableSetupColumn("Field", ImGuiTableColumnFlags_WidthFixed, 96.0f);
                 ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
@@ -706,10 +684,7 @@ void draw_class_inspector_panel(
                 ImGui::EndTable();
             }
         }
-        ImGui::EndChild();
     }
-
-    ImGui::EndChild();
 
     ImGui::End();
 }

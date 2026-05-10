@@ -19,11 +19,15 @@
 #include "camera.h"
 #include "light.h"
 #include "object.h"
+#include "system.h"
 
 class Scene
 {
     /** scene objects. */
     std::vector<std::unique_ptr<Object>> objects;
+
+    /** scene update systems. */
+    std::vector<std::unique_ptr<SceneSystem>> systems;
 
     /** object id tracking. */
     std::unordered_map<const reflect::ClassInfo*, uint32_t> next_ids;
@@ -57,6 +61,7 @@ public:
 
     void clear();
     void tick(float delta_time);
+    void add_default_systems();
 
     Camera* find_camera(ObjectId id);
     const Camera* find_camera(ObjectId id) const;
@@ -84,6 +89,17 @@ public:
             object_id));
         ptr->capture_snapshot();
 
+        return ptr;
+    }
+
+    template<typename T, typename... Args>
+        requires(
+          std::is_base_of_v<SceneSystem, T>)
+    T* add_system(Args&&... args)
+    {
+        auto system = std::make_unique<T>(std::forward<Args>(args)...);
+        T* ptr = system.get();
+        systems.emplace_back(std::move(system));
         return ptr;
     }
 
