@@ -16,6 +16,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
+#include "ml/all.h"
+
 class Camera;
 class Gear;
 class Object;
@@ -24,6 +26,20 @@ class Renderer;
 class Scene;
 class ShaderCache;
 class Viewport;
+
+struct ViewportInputState
+{
+    bool viewport_hovered{false};
+    float mouse_delta_x{0.f};
+    float mouse_delta_y{0.f};
+};
+
+struct ViewportCameraControllerState
+{
+    ml::vec3 position{0.f, 0.f, 40.f};
+    float pitch_radians{ml::to_radians(20.f)};
+    float yaw_radians{ml::to_radians(30.f)};
+};
 
 namespace shader
 {
@@ -58,6 +74,9 @@ class Application
 
     // demo scene.
     std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
+
+    ViewportInputState viewport_input{};
+    ViewportCameraControllerState viewport_camera_controller{};
 
 protected:
     void setup_scene();

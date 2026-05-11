@@ -45,6 +45,17 @@ public:
     }
 };
 
+struct ViewportCameraControllerInput
+{
+    float move_forward{0.f};
+    float move_right{0.f};
+    float move_up{0.f};
+    float look_yaw{0.f};
+    float look_pitch{0.f};
+    bool fast_move{false};
+    bool active{false};
+};
+
 ml::mat4x4 make_default_editor_camera_transform()
 {
     ml::mat4x4 view = ml::mat4x4::identity();
@@ -56,6 +67,117 @@ ml::mat4x4 make_default_editor_camera_transform()
     view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
 
     return view;
+}
+
+ml::mat4x4 make_view_matrix(
+  const ViewportCameraControllerState& controller)
+{
+    ml::mat4x4 view = ml::mat4x4::identity();
+    view *= ml::matrices::translation(
+      -controller.position.x,
+      -controller.position.y,
+      -controller.position.z);
+    view *= ml::matrices::rotation_x(controller.pitch_radians);
+    view *= ml::matrices::rotation_y(controller.yaw_radians);
+    return view;
+}
+
+ViewportCameraControllerInput gather_viewport_camera_input(
+  const ViewportInputState& viewport_input,
+  const ImGuiIO& io)
+{
+    ViewportCameraControllerInput input{};
+
+    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
+    const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
+    if(!viewport_input.viewport_hovered || !right_mouse_down)
+    {
+        return input;
+    }
+
+    input.active = true;
+    input.look_yaw = viewport_input.mouse_delta_x;
+    input.look_pitch = viewport_input.mouse_delta_y;
+
+    const bool keyboard_blocked = io.WantCaptureKeyboard;
+    if(keyboard_blocked)
+    {
+        return input;
+    }
+
+    const bool* keys = SDL_GetKeyboardState(nullptr);
+    if(keys == nullptr)
+    {
+        return input;
+    }
+
+    if(keys[SDL_SCANCODE_W])
+    {
+        input.move_forward += 1.f;
+    }
+    if(keys[SDL_SCANCODE_S])
+    {
+        input.move_forward -= 1.f;
+    }
+    if(keys[SDL_SCANCODE_D])
+    {
+        input.move_right += 1.f;
+    }
+    if(keys[SDL_SCANCODE_A])
+    {
+        input.move_right -= 1.f;
+    }
+    if(keys[SDL_SCANCODE_E])
+    {
+        input.move_up += 1.f;
+    }
+    if(keys[SDL_SCANCODE_Q])
+    {
+        input.move_up -= 1.f;
+    }
+
+    input.fast_move = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+    return input;
+}
+
+void update_viewport_camera_controller(
+  ViewportCameraControllerState& controller,
+  const ViewportCameraControllerInput& input,
+  float delta_time)
+{
+    if(!input.active || delta_time <= 0.f)
+    {
+        return;
+    }
+
+    const float look_sensitivity = 0.0025f;
+    controller.yaw_radians += input.look_yaw * look_sensitivity;
+    controller.pitch_radians += input.look_pitch * look_sensitivity;
+    controller.pitch_radians = std::clamp(
+      controller.pitch_radians,
+      ml::to_radians(-89.f),
+      ml::to_radians(89.f));
+
+    const float base_speed = input.fast_move ? 20.f : 8.f;
+    const float move_distance = base_speed * delta_time;
+    const float cos_pitch = std::cos(controller.pitch_radians);
+    const float sin_pitch = std::sin(controller.pitch_radians);
+    const float cos_yaw = std::cos(controller.yaw_radians);
+    const float sin_yaw = std::sin(controller.yaw_radians);
+
+    const ml::vec3 forward = {
+      sin_yaw * cos_pitch,
+      -sin_pitch,
+      -cos_yaw * cos_pitch};
+    const ml::vec3 right = {
+      cos_yaw,
+      0.f,
+      sin_yaw};
+    const ml::vec3 up = {0.f, 1.f, 0.f};
+
+    controller.position += forward * (input.move_forward * move_distance);
+    controller.position += right * (input.move_right * move_distance);
+    controller.position += up * (input.move_up * move_distance);
 }
 
 GLuint create_viewport_texture(
@@ -128,7 +250,8 @@ void imgui_draw_viewport_panel(
   GLuint& viewport_texture,
   std::vector<std::string>& log_lines,
   float& last_update_time,
-  bool& running)
+  bool& running,
+  bool& viewport_hovered)
 {
     ImGui::Begin("Viewport");
 
@@ -189,6 +312,7 @@ void imgui_draw_viewport_panel(
           avail,
           ImVec2{0, 0},
           ImVec2{1, 1});
+        viewport_hovered = ImGui::IsItemHovered();
 
         if(viewport.is_camera_selector_overlay_enabled())
         {
@@ -492,7 +616,7 @@ void Application::setup_scene()
     camera->set_transform(make_default_editor_camera_transform());
     camera->set_name("Editor Camera");
 
-    viewport->use_scene_camera(camera->get_object_id());
+    viewport->use_local_camera();
 }
 
 void Application::setup_viewport()
@@ -503,7 +627,8 @@ void Application::setup_viewport()
     }
 
     // Keep the local camera in sync as a fallback if the bound scene camera is removed.
-    viewport->get_local_camera().set_transform(make_default_editor_camera_transform());
+    viewport->get_local_camera().set_transform(
+      make_view_matrix(viewport_camera_controller));
 }
 
 Application::Application(
@@ -620,6 +745,9 @@ void Application::run()
 
     while(running)
     {
+        viewport_input.mouse_delta_x = 0.f;
+        viewport_input.mouse_delta_y = 0.f;
+
         SDL_Event event;
         while(SDL_PollEvent(&event))
         {
@@ -628,6 +756,11 @@ void Application::run()
             if(event.type == SDL_EVENT_QUIT)
             {
                 running = false;
+            }
+            else if(event.type == SDL_EVENT_MOUSE_MOTION)
+            {
+                viewport_input.mouse_delta_x += event.motion.xrel;
+                viewport_input.mouse_delta_y += event.motion.yrel;
             }
         }
 
@@ -645,7 +778,8 @@ void Application::run()
           viewport_texture,
           log_lines,
           last_update_time,
-          running);
+          running,
+          viewport_input.viewport_hovered);
         imgui::draw_console_panel(log_lines);
         imgui::draw_tools_panel(
           *render_device,
@@ -674,6 +808,15 @@ void Application::run()
 
 void Application::tick(float delta_time)
 {
+    const ViewportCameraControllerInput controller_input =
+      gather_viewport_camera_input(viewport_input, ImGui::GetIO());
+    update_viewport_camera_controller(
+      viewport_camera_controller,
+      controller_input,
+      delta_time);
+    viewport->get_local_camera().set_transform(
+      make_view_matrix(viewport_camera_controller));
+
     scene->tick(delta_time);
     for(auto* gear: gear_objs)
     {
