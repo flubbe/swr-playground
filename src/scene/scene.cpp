@@ -64,11 +64,6 @@ void Scene::add_default_systems()
 
 Camera* Scene::find_camera(ObjectId id)
 {
-    if(id.value == 0)
-    {
-        return nullptr;
-    }
-
     for(auto& object: objects)
     {
         if(object->get_object_id() != id)
@@ -83,11 +78,6 @@ Camera* Scene::find_camera(ObjectId id)
 
 const Camera* Scene::find_camera(ObjectId id) const
 {
-    if(id.value == 0)
-    {
-        return nullptr;
-    }
-
     for(const auto& object: objects)
     {
         if(object->get_object_id() != id)

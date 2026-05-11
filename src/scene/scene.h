@@ -29,8 +29,11 @@ class Scene
     /** scene update systems. */
     std::vector<std::unique_ptr<SceneSystem>> systems;
 
+    /** automatic name tracking. */
+    std::unordered_map<const reflect::ClassInfo*, std::uint32_t> object_name_counters;
+
     /** object id tracking. */
-    std::unordered_map<const reflect::ClassInfo*, uint32_t> next_ids;
+    std::uint32_t next_id{0};
 
     /** scene light. */
     Light light;
@@ -78,15 +81,17 @@ public:
         objects.emplace_back(std::move(obj));
 
         // set object id and name,
+        std::uint32_t object_id = ++next_id;
+
         const auto* class_info = T::static_class();
-        uint32_t object_id = ++next_ids[class_info];
+        std::uint32_t name_counter = ++object_name_counters[class_info];
 
         ptr->set_object_id(make_object_id(object_id));
         ptr->set_name(
           std::format(
             "{}_{}",
             class_info->name,
-            object_id));
+            name_counter));
         ptr->capture_snapshot();
 
         return ptr;

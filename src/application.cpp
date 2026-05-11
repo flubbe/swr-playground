@@ -56,19 +56,6 @@ struct ViewportCameraControllerInput
     bool active{false};
 };
 
-ml::mat4x4 make_default_editor_camera_transform()
-{
-    ml::mat4x4 view = ml::mat4x4::identity();
-    view *= ml::matrices::translation(0.f, 0.f, -40.f);
-
-    const ml::vec3 view_rotation = {20.f, 30.f, 0.f};
-    view *= ml::matrices::rotation_x(ml::to_radians(view_rotation.x));
-    view *= ml::matrices::rotation_y(ml::to_radians(view_rotation.y));
-    view *= ml::matrices::rotation_z(ml::to_radians(view_rotation.z));
-
-    return view;
-}
-
 ml::mat4x4 make_view_matrix(
   const ViewportCameraControllerState& controller)
 {
@@ -384,10 +371,17 @@ void imgui_draw_viewport_panel(
                 const std::optional<ObjectId> selected_scene_camera_id =
                   viewport.get_scene_camera_id();
                 const std::vector<Camera*> scene_cameras = scene.get_cameras();
+
                 if(ImGui::BeginMenu("Cameras"))
                 {
+                    bool has_any_scene_camera = false;
                     for(const Camera* camera: scene_cameras)
                     {
+                        if(camera == nullptr)
+                        {
+                            continue;
+                        }
+                        has_any_scene_camera = true;
                         const bool selected =
                           selected_scene_camera_id.has_value()
                           && selected_scene_camera_id.value() == camera->get_object_id()
@@ -401,7 +395,7 @@ void imgui_draw_viewport_panel(
                         }
                     }
 
-                    if(scene_cameras.empty())
+                    if(!has_any_scene_camera)
                     {
                         ImGui::BeginDisabled(true);
                         ImGui::MenuItem("<No Scene Cameras>");
@@ -612,9 +606,14 @@ void Application::setup_scene()
         gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
     }
 
+    // Local viewport camera stays the modifiable camera.
+    viewport->get_local_camera().set_transform(
+      make_view_matrix(viewport_camera_controller));
+
     Camera* camera = scene->add_object<Camera>();
-    camera->set_transform(make_default_editor_camera_transform());
+    camera->set_transform(viewport->get_local_camera().get_transform());
     camera->set_name("Editor Camera");
+    camera->capture_snapshot();
 
     viewport->use_local_camera();
 }
