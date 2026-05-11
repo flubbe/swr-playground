@@ -213,6 +213,8 @@ void imgui_draw_viewport_panel(
             ImGui::SetCursorScreenPos(text_pos);
             ImGui::InvisibleButton("viewport_camera_overlay_menu_trigger", label_size);
             const bool is_hovered = ImGui::IsItemHovered();
+            const bool is_menu_open = ImGui::IsPopupOpen("viewport_camera_overlay_menu");
+            const bool is_active = is_hovered || is_menu_open;
             if(is_hovered)
             {
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
@@ -220,7 +222,7 @@ void imgui_draw_viewport_panel(
 
             ImDrawList* draw_list = ImGui::GetWindowDrawList();
             const ImU32 bracket_color = IM_COL32(235, 235, 235, 255);
-            const ImU32 name_color = is_hovered
+            const ImU32 name_color = is_active
                                        ? IM_COL32(255, 224, 120, 255)
                                        : bracket_color;
             const ImVec2 left_size = ImGui::CalcTextSize(label_left.c_str());
