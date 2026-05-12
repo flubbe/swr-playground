@@ -500,22 +500,6 @@ public:
     }
 };
 
-/** re-calculate the gear transformations. */
-void update_gears(
-  std::array<Gear*, 3>& gears,
-  float time)
-{
-    gears[0]->set_transform(
-      ml::matrices::translation(-3.f, -2.f, 0.f)
-      * ml::matrices::rotation_z(time));
-    gears[1]->set_transform(
-      ml::matrices::translation(3.1f, -2.f, 0.f)
-      * ml::matrices::rotation_z(-2.f * time - 9.f));
-    gears[2]->set_transform(
-      ml::matrices::translation(-3.1f, 4.2f, 0.f)
-      * ml::matrices::rotation_z(-2.f * time - 25.f));
-}
-
 void rebuild_gear_mesh_if_needed(
   RenderDevice& device,
   Gear* gear)
@@ -584,20 +568,32 @@ void Application::setup_scene()
     {
         GearBuildParams build;
         ml::mat4x4 transform;
+        ml::vec3 translation;
+        float angular_speed;
+        float phase_offset;
     };
 
     std::array<GearInit, 3> gears = {{
       {
         .build = {.color = {1, 0, 0, 1}, .inner_radius = 1.0f, .outer_radius = 4.0f, .width = 1.0f, .teeth = 20, .tooth_depth = 0.7f},
         .transform = ml::matrices::translation(-3.f, -2.f, 0.f),
+        .translation = {-3.f, -2.f, 0.f},
+        .angular_speed = 1.f,
+        .phase_offset = 0.f,
       },
       {
         .build = {.color = {0, 1, 0, 1}, .inner_radius = 0.5f, .outer_radius = 2.0f, .width = 2.0f, .teeth = 10, .tooth_depth = 0.7f},
         .transform = ml::matrices::translation(3.1f, -2.f, 0.f),
+        .translation = {3.1f, -2.f, 0.f},
+        .angular_speed = -2.f,
+        .phase_offset = -9.f,
       },
       {
         .build = {.color = {0, 0, 1, 1}, .inner_radius = 1.3f, .outer_radius = 2.0f, .width = 0.5f, .teeth = 10, .tooth_depth = 0.7f},
         .transform = ml::matrices::translation(-3.1f, 4.2f, 0.f),
+        .translation = {-3.1f, 4.2f, 0.f},
+        .angular_speed = -2.f,
+        .phase_offset = -25.f,
       },
     }};
 
@@ -606,6 +602,11 @@ void Application::setup_scene()
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
         gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
+        scene->set_spin_animation(
+          gear_objs[i]->get_object_id(),
+          {.translation = gears[i].translation,
+           .angular_speed = gears[i].angular_speed,
+           .phase_offset = gears[i].phase_offset});
     }
 
     // Local viewport camera stays the modifiable camera.
@@ -821,5 +822,4 @@ void Application::tick(float delta_time)
     {
         rebuild_gear_mesh_if_needed(*render_device, gear);
     }
-    update_gears(gear_objs, scene->get_time());
 }

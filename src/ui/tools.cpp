@@ -47,8 +47,8 @@ void draw_tools_panel(
          ImGuiTreeNodeFlags_DefaultOpen))
     {
         ViewportDisplaySettings display_settings = viewport.get_display_settings();
-        bool wireframe = display_settings.wireframe;
-        bool cull_face = display_settings.cull_face;
+        ViewportOverlaySettings overlay_settings = viewport.get_overlay_settings();
+
         bool paused = scene.is_paused();
 
         if(ImGui::Checkbox("Paused", &paused))
@@ -56,18 +56,28 @@ void draw_tools_panel(
             scene.set_paused(paused);
         }
 
+        bool update_overlay_settings = false;
+
+        if(ImGui::Checkbox("Grid", &overlay_settings.show_grid))
+        {
+            update_overlay_settings = true;
+        }
+
         bool update_display_settings = false;
 
-        if(ImGui::Checkbox("Wireframe", &wireframe))
+        if(ImGui::Checkbox("Wireframe", &display_settings.wireframe))
         {
-            display_settings.wireframe = wireframe;
             update_display_settings = true;
         }
 
-        if(ImGui::Checkbox("Face Culling", &cull_face))
+        if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))
         {
-            display_settings.cull_face = cull_face;
             update_display_settings = true;
+        }
+
+        if(update_overlay_settings)
+        {
+            viewport.set_overlay_settings(overlay_settings);
         }
 
         if(update_display_settings)

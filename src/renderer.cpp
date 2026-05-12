@@ -154,7 +154,7 @@ void Renderer::render(
      * viewport overlays.
      */
 
-    if(overlay_settings.show_grid || true)
+    if(overlay_settings.show_grid)
     {
         render_grid(
           camera);

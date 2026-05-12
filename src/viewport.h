@@ -23,7 +23,7 @@ struct ViewportOverlaySettings
     bool show_camera_selector{true};
 
     /** Whether to show a grid. */
-    bool show_grid{false};
+    bool show_grid{true};
 };
 
 /** Viewport render resolution in pixels. */

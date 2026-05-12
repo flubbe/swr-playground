@@ -12,14 +12,16 @@
 
 #include <memory>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #include "ml/all.h"
 
+#include "systems/system.h"
+#include "animation.h"
 #include "camera.h"
 #include "light.h"
 #include "object.h"
-#include "system.h"
 
 class Scene
 {
@@ -34,6 +36,12 @@ class Scene
 
     /** object id tracking. */
     std::uint32_t next_id{0};
+
+    /** per-object spin animations. */
+    std::unordered_map<ObjectId, SpinAnimation> spin_animations;
+
+    /** map object id into objects list. */
+    std::unordered_map<ObjectId, Object*> objects_by_id;
 
     /** scene light. */
     Light light;
@@ -64,7 +72,14 @@ public:
 
     void clear();
     void tick(float delta_time);
+
     void add_default_systems();
+
+    void set_spin_animation(ObjectId object_id, SpinAnimation animation);
+    void remove_spin_animation(ObjectId object_id);
+
+    Object* find_object(ObjectId id);
+    const Object* find_object(ObjectId id) const;
 
     Camera* find_camera(ObjectId id);
     const Camera* find_camera(ObjectId id) const;
@@ -93,6 +108,7 @@ public:
             class_info->name,
             name_counter));
         ptr->capture_snapshot();
+        objects_by_id.emplace(ptr->get_object_id(), ptr);
 
         return ptr;
     }
@@ -126,5 +142,15 @@ public:
     Light& get_light()
     {
         return light;
+    }
+
+    const std::unordered_map<ObjectId, SpinAnimation>& get_spin_animations() const
+    {
+        return spin_animations;
+    }
+
+    const std::unordered_map<ObjectId, Object*>& get_objects_by_id() const
+    {
+        return objects_by_id;
     }
 };

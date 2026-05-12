@@ -9,27 +9,10 @@
  */
 
 #include "reflection/cast.h"
+#include "systems/animation.h"
+#include "systems/object_tick.h"
 #include "gear.h"
 #include "scene.h"
-
-namespace
-{
-
-class ObjectTickSystem final : public SceneSystem
-{
-public:
-    void tick(
-      Scene& scene,
-      float delta_time) override
-    {
-        for(auto& object: scene.get_objects())
-        {
-            object->tick(delta_time);
-        }
-    }
-};
-
-}    // namespace
 
 void Scene::clear()
 {
@@ -39,6 +22,8 @@ void Scene::clear()
     }
 
     objects.clear();
+    objects_by_id.clear();
+    spin_animations.clear();
 }
 
 void Scene::tick(float delta_time)
@@ -60,6 +45,39 @@ void Scene::tick(float delta_time)
 void Scene::add_default_systems()
 {
     add_system<ObjectTickSystem>();
+    add_system<AnimationSystem>();
+}
+
+void Scene::set_spin_animation(
+  ObjectId object_id,
+  SpinAnimation animation)
+{
+    spin_animations[object_id] = animation;
+}
+
+void Scene::remove_spin_animation(ObjectId object_id)
+{
+    spin_animations.erase(object_id);
+}
+
+Object* Scene::find_object(ObjectId id)
+{
+    const auto object_it = objects_by_id.find(id);
+    if(object_it == objects_by_id.end())
+    {
+        return nullptr;
+    }
+    return object_it->second;
+}
+
+const Object* Scene::find_object(ObjectId id) const
+{
+    const auto object_it = objects_by_id.find(id);
+    if(object_it == objects_by_id.end())
+    {
+        return nullptr;
+    }
+    return object_it->second;
 }
 
 Camera* Scene::find_camera(ObjectId id)

@@ -29,7 +29,9 @@ struct RenderData
 
 struct ObjectId
 {
-    unsigned int value = 0;
+    using Type = unsigned int;
+
+    Type value = 0;
 
     bool operator==(const ObjectId& other) const noexcept
     {
@@ -40,6 +42,22 @@ struct ObjectId
         return !(*this == other);
     }
 };
+
+// std::hash support.
+
+namespace std
+{
+
+template<>
+struct hash<ObjectId>
+{
+    std::size_t operator()(const ObjectId& id) const noexcept
+    {
+        return std::hash<ObjectId::Type>{}(id.value);
+    }
+};
+
+}    // namespace std
 
 // Property support.
 
