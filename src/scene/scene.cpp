@@ -11,7 +11,6 @@
 #include "reflection/cast.h"
 #include "systems/animation.h"
 #include "systems/object_tick.h"
-#include "gear.h"
 #include "scene.h"
 
 void Scene::clear()
