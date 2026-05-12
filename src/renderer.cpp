@@ -15,20 +15,16 @@
 #include "scene/scene.h"
 #include "viewport.h"
 
-void Renderer::render(
+void Renderer::render_scene(
   const Scene& scene,
-  const Viewport& viewport)
+  const Camera& camera,
+  const ViewportDisplaySettings& display_settings)
 {
-    auto render_start_time = std::chrono::steady_clock::now();
-    const ViewportDisplaySettings& display = viewport.get_display_settings();
+    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
+                                  .cull_face = display_settings.cull_face});
 
-    device.begin_frame(
-      display.wireframe,
-      display.cull_face);
-
-    const Camera& active_camera = viewport.get_camera(scene);
-    auto view = active_camera.get_transform();
-    auto projection = active_camera.get_projection_matrix();
+    auto view = camera.get_transform();
+    auto projection = camera.get_projection_matrix();
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)
                      * scene.get_light().position;
 
@@ -53,6 +49,24 @@ void Renderer::render(
             device.draw_mesh(mesh.mesh_handle);
         }
     }
+}
+
+void Renderer::render(
+  const Scene& scene,
+  const Viewport& viewport)
+{
+    auto render_start_time = std::chrono::steady_clock::now();
+
+    const auto& display_settings = viewport.get_display_settings();
+
+    device.begin_frame();
+
+    const Camera& camera = viewport.get_camera(scene);
+
+    render_scene(
+      scene,
+      camera,
+      display_settings);
 
     device.end_frame();
 

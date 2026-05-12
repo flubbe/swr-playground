@@ -48,6 +48,22 @@ struct Uniforms
     ml::vec4 light_dir;
 };
 
+struct RasterizerState
+{
+    bool wireframe{false};
+    bool cull_face{true};
+
+    bool operator==(const RasterizerState& other) const
+    {
+        return wireframe == other.wireframe
+               && cull_face == other.cull_face;
+    }
+    bool operator!=(const RasterizerState& other) const
+    {
+        return !(*this == other);
+    }
+};
+
 class RenderDevice
 {
     /** framebuffer width. */
@@ -67,6 +83,9 @@ class RenderDevice
 
     /** materials. */
     std::unordered_map<std::uint32_t, Material> materials;
+
+    /** state cache. */
+    RasterizerState current_rasterizer_state;
 
 protected:
     void initialize()
@@ -164,25 +183,12 @@ public:
      * begin/end frame.
      */
 
-    void begin_frame(
-      bool wireframe,
-      bool cull_face)
+    void begin_frame()
     {
         swr::ClearColorBuffer();
         swr::ClearDepthBuffer();
 
         swr::SetState(swr::state::depth_test, true);
-
-        if(wireframe)
-        {
-            swr::SetPolygonMode(swr::polygon_mode::line);
-        }
-        else
-        {
-            swr::SetPolygonMode(swr::polygon_mode::fill);
-        }
-
-        swr::SetState(swr::state::cull_face, cull_face);
     }
 
     void end_frame()
@@ -194,6 +200,7 @@ public:
      * bindings.
      */
 
+    void bind_rasterizer_state(const RasterizerState& state);
     void bind_material(std::uint32_t handle);
     void bind_uniforms(const Uniforms& uniforms);
 

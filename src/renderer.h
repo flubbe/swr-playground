@@ -13,13 +13,19 @@
 class Scene;
 class Camera;
 class Viewport;
+struct ViewportDisplaySettings;
 class RenderDevice;
 
-class Renderer
+class Renderer final
 {
     RenderDevice& device;
 
     float render_time{0.f};
+
+    void render_scene(
+      const Scene& scene,
+      const Camera& camera,
+      const ViewportDisplaySettings& display_settings);
 
 public:
     explicit Renderer(

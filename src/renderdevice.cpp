@@ -16,7 +16,9 @@
 #include "scene/scene.h"
 #include "renderdevice.h"
 
-void RenderDevice::resize(int width, int height)
+void RenderDevice::resize(
+  int width,
+  int height)
 {
     width = std::max(1, width);
     height = std::max(1, height);
@@ -26,7 +28,7 @@ void RenderDevice::resize(int width, int height)
         context = swr::CreateOffscreenContext(width, height);
         if(!swr::MakeContextCurrent(context))
         {
-            throw std::runtime_error("MakeCurrentContext failed");
+            throw std::runtime_error{"MakeCurrentContext failed"};
         }
 
         swr::GetContextInfo(
@@ -136,7 +138,9 @@ std::uint32_t RenderDevice::create_material(
         ++material_id;
     }
 
-    materials.insert({material_id, {.shader = &shader, .shader_handle = shader_handle}});
+    materials.insert({material_id,
+                      {.shader = &shader,
+                       .shader_handle = shader_handle}});
     return material_id;
 }
 
@@ -151,6 +155,29 @@ void RenderDevice::delete_material(std::uint32_t handle)
     swr::UnregisterShader(it->second.shader_handle);
 
     materials.erase(it);
+}
+
+void RenderDevice::bind_rasterizer_state(
+  const RasterizerState& state)
+{
+    if(state == current_rasterizer_state)
+    {
+        return;
+    }
+    current_rasterizer_state = state;
+
+    if(current_rasterizer_state.wireframe)
+    {
+        swr::SetPolygonMode(swr::polygon_mode::line);
+    }
+    else
+    {
+        swr::SetPolygonMode(swr::polygon_mode::fill);
+    }
+
+    swr::SetState(
+      swr::state::cull_face,
+      current_rasterizer_state.cull_face);
 }
 
 void RenderDevice::bind_material(std::uint32_t handle)
