@@ -168,4 +168,58 @@ public:
     }
 };
 
+class ColorOnly : public swr::program<ColorOnly>
+{
+    ml::vec4 color{1, 0, 0, 1};
+
+public:
+    ColorOnly() = default;
+    explicit ColorOnly(ml::vec4 in_color)
+    : color{in_color}
+    {
+    }
+
+    virtual void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        // set interpolation qualifiers for all varyings.
+        iqs.clear();
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      const ml::vec4* attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] float* gl_ClipDistance,
+      [[maybe_unused]] ml::vec4* varyings) const override
+    {
+        ml::mat4x4 proj = (*uniforms)[0].m4;
+        ml::mat4x4 view = (*uniforms)[1].m4;
+
+        // transform vertex.
+        gl_Position = proj * view * attribs[0];
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      [[maybe_unused]] const boost::container::static_vector<
+        swr::varying,
+        swr::limits::max::varyings>& varyings,
+      [[maybe_unused]] float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        // write color.
+        gl_FragColor = color;
+
+        // accept fragment.
+        return swr::accept;
+    }
+};
+
 } /* namespace shader */

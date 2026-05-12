@@ -76,7 +76,7 @@ public:
     static void register_properties(reflect::ClassInfo& class_info);
 
     Gear()
-    : Reflected<Gear, Object>{Gear::static_class()}
+    : reflect::Reflected<Gear, Object>{Gear::static_class()}
     {
     }
 

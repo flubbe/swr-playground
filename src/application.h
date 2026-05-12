@@ -55,7 +55,6 @@ class Application
     SDL_GLContext gl_context{nullptr};
 
     RenderDevice* render_device{nullptr};
-    ShaderCache* shader_cache{nullptr};
     Renderer* renderer{nullptr};
 
     Scene* scene{nullptr};
@@ -90,7 +89,6 @@ public:
 
     void initialize(
       RenderDevice& render_device,
-      ShaderCache& shader_cache,
       Renderer& renderer,
       Scene& scene,
       Viewport& viewport);

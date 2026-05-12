@@ -64,7 +64,8 @@ void RenderDevice::resize(
 std::uint32_t RenderDevice::create_mesh(
   const std::vector<std::uint32_t>& indices,
   const std::vector<ml::vec4>& vertices,
-  const std::vector<ml::vec4>& normals)
+  const std::vector<ml::vec4>& normals,
+  PrimitiveType primitive_type)
 {
     std::uint32_t mesh_id = 0;
     while(meshes.contains(mesh_id))
@@ -76,7 +77,8 @@ std::uint32_t RenderDevice::create_mesh(
     std::uint32_t normals_handle = swr::CreateAttributeBuffer(normals);
 
     meshes.insert({mesh_id,
-                   {.indices = indices,
+                   {.primitive_type = primitive_type,
+                    .indices = indices,
                     .vertices = vertices,
                     .vertices_handle = vertices_handle,
                     .normals = normals,
@@ -206,13 +208,20 @@ void RenderDevice::draw_mesh(std::uint32_t handle)
         return;
     }
 
+    const auto& mesh = it->second;
+
     swr::EnableAttributeBuffer(it->second.vertices_handle, 0);
     swr::EnableAttributeBuffer(it->second.normals_handle, 1);
 
+    const auto mode =
+      mesh.primitive_type == PrimitiveType::Lines
+        ? swr::vertex_buffer_mode::lines
+        : swr::vertex_buffer_mode::triangles;
+
     swr::DrawIndexedElements(
-      swr::vertex_buffer_mode::triangles,
-      it->second.indices.size(),
-      it->second.indices);
+      mode,
+      mesh.indices.size(),
+      mesh.indices);
 
     swr::DisableAttributeBuffer(it->second.vertices_handle);
     swr::DisableAttributeBuffer(it->second.normals_handle);

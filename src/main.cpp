@@ -14,7 +14,6 @@
 #include "application.h"
 #include "renderdevice.h"
 #include "renderer.h"
-#include "shader_cache.h"
 #include "platform.h"
 #include "viewport.h"
 
@@ -35,7 +34,6 @@ int main(int argc, char* argv[])
       "SWR Playground"};
 
     RenderDevice render_device{640, 480};
-    ShaderCache shader_cache;
     Renderer renderer{render_device};
 
     Scene scene;
@@ -43,7 +41,6 @@ int main(int argc, char* argv[])
 
     app.initialize(
       render_device,
-      shader_cache,
       renderer,
       scene,
       viewport);

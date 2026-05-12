@@ -24,8 +24,16 @@
 class Scene;
 class Camera;
 
+enum class PrimitiveType
+{
+    Triangles,
+    Lines
+};
+
 struct MeshData
 {
+    PrimitiveType primitive_type{PrimitiveType::Triangles};
+
     std::vector<std::uint32_t> indices;
 
     std::vector<ml::vec4> vertices;
@@ -164,7 +172,8 @@ public:
     std::uint32_t create_mesh(
       const std::vector<std::uint32_t>& indices,
       const std::vector<ml::vec4>& vertices,
-      const std::vector<ml::vec4>& normals);
+      const std::vector<ml::vec4>& normals,
+      PrimitiveType primitive_type);
 
     bool update_mesh(
       std::uint32_t handle,

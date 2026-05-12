@@ -19,10 +19,11 @@ struct ViewportDisplaySettings
 /** Viewport overlay settings. */
 struct ViewportOverlaySettings
 {
-    // TODO Could be a bitfield?
-
     /** Whether to show the camera selector. */
     bool show_camera_selector{true};
+
+    /** Whether to show a grid. */
+    bool show_grid{false};
 };
 
 /** Viewport render resolution in pixels. */

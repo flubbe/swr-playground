@@ -448,12 +448,14 @@ GearParameters create_gear_resources(
     auto inner_mesh = device.create_mesh(
       geom.inner_indices,
       geom.inner_vertices,
-      geom.inner_normals);
+      geom.inner_normals,
+      PrimitiveType::Triangles);
 
     auto outer_mesh = device.create_mesh(
       geom.outer_indices,
       geom.outer_vertices,
-      geom.outer_normals);
+      geom.outer_normals,
+      PrimitiveType::Triangles);
 
     return GearParameters{
       .inner = RenderData{
@@ -599,7 +601,7 @@ void Application::setup_scene()
       },
     }};
 
-    GearFactory factory{*render_device, *shader_cache};
+    GearFactory factory{*render_device, renderer->get_shader_cache()};
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
@@ -692,7 +694,6 @@ Application::~Application()
 
 void Application::initialize(
   RenderDevice& render_device,
-  ShaderCache& shader_cache,
   Renderer& renderer,
   Scene& scene,
   Viewport& viewport)
@@ -705,7 +706,6 @@ void Application::initialize(
     initialized = true;
 
     this->render_device = &render_device;
-    this->shader_cache = &shader_cache;
     this->renderer = &renderer;
     this->scene = &scene;
     this->viewport = &viewport;

@@ -20,21 +20,37 @@ DEFINE_REFLECTION(Camera)
 
 void Camera::register_properties(reflect::ClassInfo& class_info)
 {
+    reflect::RangeConstraint<float> fov_constraints{};
+    fov_constraints.min = 0.1;
+    fov_constraints.max = M_PI;
+    fov_constraints.clamp = true;
+
+    reflect::RangeConstraint<float> plane_constraints{};
+    plane_constraints.min = 0.1;
+    plane_constraints.clamp = true;
+
     reflect::register_property<&Camera::fov_y>(
       class_info,
       "fov_y",
-      "FOV Y (rad)");
+      "FOV Y (rad)",
+      reflect::PropertyFlags::None,
+      fov_constraints);
     reflect::register_property<&Camera::near_plane>(
       class_info,
       "near_plane",
-      "Near Plane");
+      "Near Plane",
+      reflect::PropertyFlags::None,
+      plane_constraints);
     reflect::register_property<&Camera::far_plane>(
       class_info,
       "far_plane",
-      "Far Plane");
+      "Far Plane",
+      reflect::PropertyFlags::None,
+      plane_constraints);
 }
 
 Camera::Camera()
+: reflect::Reflected<Camera, Object>{Camera::static_class()}
 {
     update_projection_matrix(1.f);
 }
