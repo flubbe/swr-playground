@@ -321,7 +321,6 @@ DEFINE_REFLECTION(Gear);
 Gear::Gear(
   const GearParameters& params)
 : Reflected<Gear, Object>{
-    Gear::static_class(),
     std::vector{
       RenderData{
         .mesh_handle = params.inner.mesh_handle,

@@ -21,10 +21,7 @@ public:
     /** light position. */
     ml::vec4 position{5.0f, 5.0f, 10.0f, 0.0f};
 
-    Light()
-    : reflect::Reflected<Light, Object>{Light::static_class()}
-    {
-    }
+    Light() = default;
 };
 
 DECLARE_REFLECTION(Scene, Light);

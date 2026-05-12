@@ -15,8 +15,10 @@
 #include <cstddef>
 #include <memory>
 #include <ranges>
+#include <stdexcept>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "class_info.h"
@@ -424,6 +426,18 @@ protected:
         }
     }
 
+    /** Rebind this instance to class metadata and rebuild reflected properties. */
+    void rebind_class_info(
+      const ClassInfo* new_class_info)
+    {
+        if(new_class_info == nullptr)
+        {
+            throw std::runtime_error("Cannot bind root without class_info.");
+        }
+        class_info = new_class_info;
+        initialize_properties();
+    }
+
 public:
     using Root = Base;
 
@@ -600,7 +614,22 @@ class Reflected : public Base
 public:
     using Super = Base;
     using Root = typename Base::Root;
-    using Base::Base;
+
+    /** Construct a reflected instance and bind it to the concrete `Derived` metadata. */
+    Reflected()
+    : Base{}
+    {
+        Base::rebind_class_info(Derived::static_class());
+    }
+
+    /** Forward to a base constructor, then bind to the concrete `Derived` metadata. */
+    template<typename... Args>
+    explicit Reflected(Args&&... args)
+    : Base{
+        std::forward<Args>(args)...}
+    {
+        Base::rebind_class_info(Derived::static_class());
+    }
 
     /**
      * Returns the reflection metadata for this type.

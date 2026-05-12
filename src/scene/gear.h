@@ -75,10 +75,7 @@ class Gear : public reflect::Reflected<Gear, Object>
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
-    Gear()
-    : reflect::Reflected<Gear, Object>{Gear::static_class()}
-    {
-    }
+    Gear() = default;
 
     explicit Gear(const GearParameters& params);
 

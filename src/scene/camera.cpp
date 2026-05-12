@@ -50,7 +50,6 @@ void Camera::register_properties(reflect::ClassInfo& class_info)
 }
 
 Camera::Camera()
-: reflect::Reflected<Camera, Object>{Camera::static_class()}
 {
     update_projection_matrix(1.f);
 }

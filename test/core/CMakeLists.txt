@@ -1,6 +1,7 @@
 add_executable(core_tests
     test_utils.cpp
     test_viewport.cpp
+    test_camera_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
