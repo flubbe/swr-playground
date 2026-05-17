@@ -59,15 +59,15 @@ public:
     void vertex_shader(
       [[maybe_unused]] int gl_VertexID,
       [[maybe_unused]] int gl_InstanceID,
-      const ml::vec4* attribs,
+      std::span<const ml::vec4> attribs,
       ml::vec4& gl_Position,
       [[maybe_unused]] float& gl_PointSize,
-      [[maybe_unused]] float* gl_ClipDistance,
-      ml::vec4* varyings) const override
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = (*uniforms)[0].m4;
-        ml::mat4x4 view = (*uniforms)[1].m4;
-        ml::vec4 light_dir = (*uniforms)[2].v4;
+        ml::mat4x4 proj = uniforms[0].m4;
+        ml::mat4x4 view = uniforms[1].m4;
+        ml::vec4 light_dir = uniforms[2].v4;
 
         // transform vertex.
         gl_Position = proj * view * attribs[0];
@@ -83,9 +83,7 @@ public:
       [[maybe_unused]] const ml::vec4& gl_FragCoord,
       [[maybe_unused]] bool gl_FrontFacing,
       [[maybe_unused]] const ml::vec2& gl_PointCoord,
-      const boost::container::static_vector<
-        swr::varying,
-        swr::limits::max::varyings>& varyings,
+      std::span<const swr::varying> varyings,
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
@@ -125,15 +123,15 @@ public:
     void vertex_shader(
       [[maybe_unused]] int gl_VertexID,
       [[maybe_unused]] int gl_InstanceID,
-      const ml::vec4* attribs,
+      std::span<const ml::vec4> attribs,
       ml::vec4& gl_Position,
       [[maybe_unused]] float& gl_PointSize,
-      [[maybe_unused]] float* gl_ClipDistance,
-      ml::vec4* varyings) const override
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = (*uniforms)[0].m4;
-        ml::mat4x4 view = (*uniforms)[1].m4;
-        ml::vec4 light_dir = (*uniforms)[2].v4;
+        ml::mat4x4 proj = uniforms[0].m4;
+        ml::mat4x4 view = uniforms[1].m4;
+        ml::vec4 light_dir = uniforms[2].v4;
 
         // transform vertex.
         gl_Position = proj * view * attribs[0];
@@ -146,9 +144,7 @@ public:
       [[maybe_unused]] const ml::vec4& gl_FragCoord,
       [[maybe_unused]] bool gl_FrontFacing,
       [[maybe_unused]] const ml::vec2& gl_PointCoord,
-      const boost::container::static_vector<
-        swr::varying,
-        swr::limits::max::varyings>& varyings,
+      std::span<const swr::varying> varyings,
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
@@ -191,14 +187,14 @@ public:
     void vertex_shader(
       [[maybe_unused]] int gl_VertexID,
       [[maybe_unused]] int gl_InstanceID,
-      const ml::vec4* attribs,
+      std::span<const ml::vec4> attribs,
       ml::vec4& gl_Position,
       [[maybe_unused]] float& gl_PointSize,
-      [[maybe_unused]] float* gl_ClipDistance,
-      [[maybe_unused]] ml::vec4* varyings) const override
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      [[maybe_unused]] std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = (*uniforms)[0].m4;
-        ml::mat4x4 view = (*uniforms)[1].m4;
+        ml::mat4x4 proj = uniforms[0].m4;
+        ml::mat4x4 view = uniforms[1].m4;
 
         // transform vertex.
         gl_Position = proj * view * attribs[0];
@@ -208,9 +204,7 @@ public:
       [[maybe_unused]] const ml::vec4& gl_FragCoord,
       [[maybe_unused]] bool gl_FrontFacing,
       [[maybe_unused]] const ml::vec2& gl_PointCoord,
-      [[maybe_unused]] const boost::container::static_vector<
-        swr::varying,
-        swr::limits::max::varyings>& varyings,
+      [[maybe_unused]] std::span<const swr::varying> varyings,
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
