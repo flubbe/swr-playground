@@ -320,12 +320,12 @@ DEFINE_REFLECTION(Gear);
 
 Gear::Gear(
   const GearParameters& params)
-: Reflected<Gear, Object>{
+: Reflected<Gear, StaticMesh>{
     std::vector{
-      RenderData{
+      MeshSection{
         .mesh_handle = params.inner.mesh_handle,
         .material_handle = params.inner.material_handle},
-      RenderData{
+      MeshSection{
         .mesh_handle = params.outer.mesh_handle,
         .material_handle = params.outer.material_handle}}}
 , inner_radius{params.inner_radius}

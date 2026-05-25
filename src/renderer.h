@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "render_types.h"
 #include "shader_cache.h"
 
 class Scene;
@@ -29,7 +30,7 @@ class Renderer final
      * Viewport overlays.
      */
 
-    RenderData overlay_grid;
+    MeshSection overlay_grid;
 
     void create_grid_mesh();
 

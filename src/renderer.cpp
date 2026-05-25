@@ -9,10 +9,12 @@
  */
 
 #include <chrono>
+#include <utility>
 
 #include "renderdevice.h"
 #include "renderer.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 #include "viewport.h"
 
 void Renderer::create_grid_mesh()
@@ -67,7 +69,12 @@ void Renderer::create_grid_mesh()
 
     overlay_grid = {
       .mesh_handle = device.create_mesh(
-        ib, vb, nb, PrimitiveType::Lines),
+        MeshData{
+          .primitive_type = PrimitiveType::Lines,
+          .indices = std::move(ib),
+          .vertices = std::move(vb),
+          .normals = std::move(nb),
+        }),
       .material_handle = gray_material};
 }
 
@@ -84,27 +91,27 @@ void Renderer::render_scene(
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)
                      * scene.get_light().position;
 
-    for(const auto& obj: scene.get_objects())
-    {
-        if(!obj->is_drawable())
+    scene.for_each_object<StaticMesh>(
+      [this, &projection, &view, &light_dir](const StaticMesh& static_mesh)
+      {
+        if(!static_mesh.has_mesh_sections())
         {
-            continue;
+            return;
         }
 
-        auto obj_view = view * obj->get_transform();
+        auto obj_view = view * static_mesh.get_transform();
 
-        const auto& meshes = obj->get_meshes();
-        for(const auto& mesh: meshes)
+        for(const auto& section: static_mesh.get_mesh_sections())
         {
-            device.bind_material(mesh.material_handle);
+            device.bind_material(section.material_handle);
             device.bind_uniforms({.proj = projection,
                                   .view = obj_view,
                                   .light_dir = light_dir}
 
             );
-            device.draw_mesh(mesh.mesh_handle);
+            device.draw_mesh(section.mesh_handle);
         }
-    }
+      });
 }
 
 void Renderer::render_grid(

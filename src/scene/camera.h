@@ -14,16 +14,17 @@
 
 #include "object.h"
 
-class Camera : public reflect::Reflected<Camera, Object>
+class Camera
+: public reflect::Reflected<Camera, Object>
 {
     /** Vertical field-of-view in radians. */
     float fov_y{static_cast<float>(M_PI) / 8.f};
 
     /** Near clip plane. */
-    float near_plane{5.f};
+    float near_plane{10.f};
 
     /** Far clip plane. */
-    float far_plane{60.f};
+    float far_plane{100.f};
 
     // FIXME clean up.
     float cached_aspect_ratio{1.f};

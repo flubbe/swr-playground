@@ -15,50 +15,78 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ml/all.h"
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
 #include "shader.h"
-#include "scene/gear.h"
 
 class Scene;
 class Camera;
 
+/** Primitive type for a mesh. */
 enum class PrimitiveType
 {
-    Triangles,
-    Lines
+    Triangles, /** List of triangles. */
+    Lines      /** List of lines. */
 };
 
+/** Raw (CPU-side) mesh data. */
 struct MeshData
 {
+    /** Primitive type. */
     PrimitiveType primitive_type{PrimitiveType::Triangles};
 
+    /** Indices into the geometry buffers (defining e.g. triangles or lines). */
     std::vector<std::uint32_t> indices;
 
+    /** Vertices. */
     std::vector<ml::vec4> vertices;
+
+    /** Normals. */
+    std::vector<ml::vec4> normals;
+};
+
+/** GPU-side mesh data. */
+struct MeshGpuData
+{
+    /** Handle to the vertex buffer. */
     std::uint32_t vertices_handle{0};
 
-    std::vector<ml::vec4> normals;
+    /** Handle to the normal buffer. */
     std::uint32_t normals_handle{0};
 };
 
+/** A render material. */
 struct Material
 {
+    /** Shader instance. */
     const swr::program_base* shader{nullptr};
+
+    /** Shader handle. */
     std::uint32_t shader_handle{0};
 };
 
+/** Shader uniforms. */
 struct Uniforms
 {
+    /** Projection matrix. */
     ml::mat4x4 proj;
+
+    /** View matrix. */
     ml::mat4x4 view;
+
+    /** Light direction. */
     ml::vec4 light_dir;
 };
 
+/** Rasterizer state. */
 struct RasterizerState
 {
+    /** Whether to show geometry as wireframes. */
     bool wireframe{false};
+
+    /** Whether to enable face culling. */
     bool cull_face{true};
 
     bool operator==(const RasterizerState& other) const
@@ -72,6 +100,7 @@ struct RasterizerState
     }
 };
 
+/** Render device. */
 class RenderDevice
 {
     /** framebuffer width. */
@@ -88,6 +117,9 @@ class RenderDevice
 
     /** meshes. */
     std::unordered_map<std::uint32_t, MeshData> meshes;
+
+    /** uploaded mesh data. */
+    std::unordered_map<std::uint32_t, MeshGpuData> mesh_gpu_data;
 
     /** materials. */
     std::unordered_map<std::uint32_t, Material> materials;
@@ -108,6 +140,10 @@ protected:
         while(!meshes.empty())
         {
             delete_mesh(meshes.begin()->first);
+        }
+        while(!mesh_gpu_data.empty())
+        {
+            delete_mesh(mesh_gpu_data.begin()->first);
         }
 
         while(!materials.empty())
@@ -169,17 +205,11 @@ public:
      * resource management.
      */
 
-    std::uint32_t create_mesh(
-      const std::vector<std::uint32_t>& indices,
-      const std::vector<ml::vec4>& vertices,
-      const std::vector<ml::vec4>& normals,
-      PrimitiveType primitive_type);
+    std::uint32_t create_mesh(MeshData mesh);
 
     bool update_mesh(
       std::uint32_t handle,
-      const std::vector<std::uint32_t>& indices,
-      const std::vector<ml::vec4>& vertices,
-      const std::vector<ml::vec4>& normals);
+      MeshData mesh);
 
     void delete_mesh(std::uint32_t handle);
 

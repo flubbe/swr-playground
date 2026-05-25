@@ -10,13 +10,16 @@
 
 #pragma once
 
+#include <format>
 #include <memory>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "ml/all.h"
 
+#include "reflection/cast.h"
 #include "systems/system.h"
 #include "animation.h"
 #include "camera.h"
@@ -32,16 +35,25 @@ class Scene
     std::vector<std::unique_ptr<SceneSystem>> systems;
 
     /** automatic name tracking. */
-    std::unordered_map<const reflect::ClassInfo*, std::uint32_t> object_name_counters;
+    std::unordered_map<
+      const reflect::ClassInfo*,
+      std::uint32_t>
+      object_name_counters;
 
     /** object id tracking. */
     std::uint32_t next_id{0};
 
     /** per-object spin animations. */
-    std::unordered_map<ObjectId, SpinAnimation> spin_animations;
+    std::unordered_map<
+      ObjectId,
+      SpinAnimation>
+      spin_animations;
 
     /** map object id into objects list. */
-    std::unordered_map<ObjectId, Object*> objects_by_id;
+    std::unordered_map<
+      ObjectId,
+      Object*>
+      objects_by_id;
 
     /** scene light. */
     Light light;
@@ -75,16 +87,62 @@ public:
 
     void add_default_systems();
 
-    void set_spin_animation(ObjectId object_id, SpinAnimation animation);
+    void set_spin_animation(
+      ObjectId object_id,
+      SpinAnimation animation);
     void remove_spin_animation(ObjectId object_id);
 
     Object* find_object(ObjectId id);
     const Object* find_object(ObjectId id) const;
 
+    template<typename T>
+        requires(
+          std::is_base_of_v<Object, T>)
+    T* find_object(ObjectId id)
+    {
+        return reflect::try_cast<T>(find_object(id));
+    }
+
+    template<typename T>
+        requires(
+          std::is_base_of_v<Object, T>)
+    const T* find_object(ObjectId id) const
+    {
+        return reflect::try_cast<T>(find_object(id));
+    }
+
     Camera* find_camera(ObjectId id);
     const Camera* find_camera(ObjectId id) const;
     std::vector<Camera*> get_cameras();
     std::vector<const Camera*> get_cameras() const;
+
+    template<typename T, typename Fn>
+        requires(
+          std::is_base_of_v<Object, T>)
+    void for_each_object(Fn&& fn)
+    {
+        for(auto& object: objects)
+        {
+            if(auto* typed = reflect::try_cast<T>(object.get()))
+            {
+                fn(*typed);
+            }
+        }
+    }
+
+    template<typename T, typename Fn>
+        requires(
+          std::is_base_of_v<Object, T>)
+    void for_each_object(Fn&& fn) const
+    {
+        for(const auto& object: objects)
+        {
+            if(const auto* typed = reflect::try_cast<T>(object.get()))
+            {
+                fn(*typed);
+            }
+        }
+    }
 
     template<typename T, typename... Args>
         requires(

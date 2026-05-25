@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -446,23 +447,27 @@ GearParameters create_gear_resources(
       p.tooth_depth);
 
     auto inner_mesh = device.create_mesh(
-      geom.inner_indices,
-      geom.inner_vertices,
-      geom.inner_normals,
-      PrimitiveType::Triangles);
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.inner_indices),
+        .vertices = std::move(geom.inner_vertices),
+        .normals = std::move(geom.inner_normals),
+      });
 
     auto outer_mesh = device.create_mesh(
-      geom.outer_indices,
-      geom.outer_vertices,
-      geom.outer_normals,
-      PrimitiveType::Triangles);
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.outer_indices),
+        .vertices = std::move(geom.outer_vertices),
+        .normals = std::move(geom.outer_normals),
+      });
 
     return GearParameters{
-      .inner = RenderData{
+      .inner = MeshSection{
         .mesh_handle = inner_mesh,
         .material_handle = smooth_material,
       },
-      .outer = RenderData{
+      .outer = MeshSection{
         .mesh_handle = outer_mesh,
         .material_handle = flat_material,
       },
@@ -520,8 +525,8 @@ void rebuild_gear_mesh_if_needed(
       gear_limits::min_teeth,
       gear_limits::max_teeth);
 
-    const auto old_meshes = gear->get_meshes();
-    if(old_meshes.size() != 2)
+    const auto old_mesh_sections = gear->get_mesh_sections();
+    if(old_mesh_sections.size() != 2)
     {
         return;
     }
@@ -533,19 +538,25 @@ void rebuild_gear_mesh_if_needed(
       teeth,
       gear->get_tooth_depth());
 
-    const std::uint32_t old_inner_mesh = old_meshes[0].mesh_handle;
-    const std::uint32_t old_outer_mesh = old_meshes[1].mesh_handle;
+    const std::uint32_t old_inner_mesh = old_mesh_sections[0].mesh_handle;
+    const std::uint32_t old_outer_mesh = old_mesh_sections[1].mesh_handle;
 
     const bool inner_updated = device.update_mesh(
       old_inner_mesh,
-      std::move(geom.inner_indices),
-      std::move(geom.inner_vertices),
-      std::move(geom.inner_normals));
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.inner_indices),
+        .vertices = std::move(geom.inner_vertices),
+        .normals = std::move(geom.inner_normals),
+      });
     const bool outer_updated = device.update_mesh(
       old_outer_mesh,
-      std::move(geom.outer_indices),
-      std::move(geom.outer_vertices),
-      std::move(geom.outer_normals));
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.outer_indices),
+        .vertices = std::move(geom.outer_vertices),
+        .normals = std::move(geom.outer_normals),
+      });
 
     if(!inner_updated || !outer_updated)
     {

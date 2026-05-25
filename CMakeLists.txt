@@ -58,7 +58,7 @@ set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG f2ac1b0
+    GIT_TAG 51b657b
 )
 FetchContent_MakeAvailable(swr_src)
 
@@ -95,6 +95,37 @@ target_link_libraries(imgui PUBLIC
 )
 
 #
+# Assimp
+#
+find_package(assimp QUIET CONFIG)
+if(NOT TARGET assimp::assimp)
+    message(STATUS "assimp not found on system; fetching assimp.")
+
+    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        assimp_src
+        GIT_REPOSITORY https://github.com/assimp/assimp.git
+        GIT_TAG v6.0.5
+    )
+
+    FetchContent_MakeAvailable(assimp_src)
+endif()
+
+if(NOT TARGET assimp::assimp)
+    message(FATAL_ERROR "assimp::assimp target is not available.")
+endif()
+
+#
 # Playground executable
 #
 add_executable(swr_playground
@@ -106,6 +137,7 @@ add_executable(swr_playground
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/scene/static_mesh.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp

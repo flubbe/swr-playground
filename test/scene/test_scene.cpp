@@ -2,6 +2,7 @@
 
 #include "reflection/class_registry.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 
 namespace
 {
@@ -35,6 +36,40 @@ TEST(SceneTests, AddObjectSynchronizesObjectIndex)
     EXPECT_EQ(scene.get_objects_by_id().at(id), camera);
 }
 
+TEST(SceneTests, TypedFindObjectFiltersByRequestedType)
+{
+    ensure_scene_reflection_ready();
+
+    Scene scene;
+    Camera* camera = scene.add_object<Camera>();
+    StaticMesh* mesh = scene.add_object<StaticMesh>();
+    ASSERT_NE(camera, nullptr);
+    ASSERT_NE(mesh, nullptr);
+
+    EXPECT_EQ(scene.find_object<Camera>(camera->get_object_id()), camera);
+    EXPECT_EQ(scene.find_object<StaticMesh>(mesh->get_object_id()), mesh);
+    EXPECT_EQ(scene.find_object<StaticMesh>(camera->get_object_id()), nullptr);
+    EXPECT_EQ(scene.find_camera(camera->get_object_id()), camera);
+    EXPECT_EQ(scene.find_camera(mesh->get_object_id()), nullptr);
+}
+
+TEST(SceneTests, GetCamerasReturnsOnlyCameraObjects)
+{
+    ensure_scene_reflection_ready();
+
+    Scene scene;
+    Camera* first_camera = scene.add_object<Camera>();
+    [[maybe_unused]] StaticMesh* mesh = scene.add_object<StaticMesh>();
+    Camera* second_camera = scene.add_object<Camera>();
+    ASSERT_NE(first_camera, nullptr);
+    ASSERT_NE(second_camera, nullptr);
+
+    const std::vector<Camera*> cameras = scene.get_cameras();
+    ASSERT_EQ(cameras.size(), 2U);
+    EXPECT_EQ(cameras[0], first_camera);
+    EXPECT_EQ(cameras[1], second_camera);
+}
+
 TEST(SceneTests, ClearRemovesObjectIndexAndSpinAnimations)
 {
     ensure_scene_reflection_ready();
@@ -59,4 +94,60 @@ TEST(SceneTests, ClearRemovesObjectIndexAndSpinAnimations)
     EXPECT_TRUE(scene.get_objects_by_id().empty());
     EXPECT_TRUE(scene.get_spin_animations().empty());
     EXPECT_EQ(scene.find_object(id), nullptr);
+}
+
+TEST(SceneTests, AddStaticMeshStoresMeshSections)
+{
+    ensure_scene_reflection_ready();
+
+    Scene scene;
+    StaticMesh* mesh = scene.add_object<StaticMesh>(
+      std::vector{
+        MeshSection{
+          .mesh_handle = 12,
+          .material_handle = 34}});
+    ASSERT_NE(mesh, nullptr);
+
+    EXPECT_TRUE(mesh->is_a<StaticMesh>());
+    ASSERT_EQ(mesh->get_mesh_sections().size(), 1U);
+    EXPECT_EQ(mesh->get_mesh_sections()[0].mesh_handle, 12U);
+    EXPECT_EQ(mesh->get_mesh_sections()[0].material_handle, 34U);
+    EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
+}
+
+TEST(SceneTests, ForEachObjectVisitsRequestedType)
+{
+    ensure_scene_reflection_ready();
+
+    Scene scene;
+    [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
+    StaticMesh* mesh = scene.add_object<StaticMesh>(
+      std::vector{
+        MeshSection{
+          .mesh_handle = 56,
+          .material_handle = 78}});
+    ASSERT_NE(mesh, nullptr);
+
+    int mutable_visit_count = 0;
+    scene.for_each_object<StaticMesh>(
+      [&mutable_visit_count, mesh](StaticMesh& object)
+      {
+          ++mutable_visit_count;
+          EXPECT_EQ(&object, mesh);
+          object.set_name("Visited Static Mesh");
+      });
+
+    EXPECT_EQ(mutable_visit_count, 1);
+    EXPECT_EQ(mesh->get_name(), "Visited Static Mesh");
+
+    const Scene& const_scene = scene;
+    int const_visit_count = 0;
+    const_scene.for_each_object<StaticMesh>(
+      [&const_visit_count, mesh](const StaticMesh& object)
+      {
+          ++const_visit_count;
+          EXPECT_EQ(object.get_object_id(), mesh->get_object_id());
+      });
+
+    EXPECT_EQ(const_visit_count, 1);
 }

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <print>
+#include <utility>
 
 #include "scene/camera.h"
 #include "scene/scene.h"
@@ -62,67 +63,60 @@ void RenderDevice::resize(
 }
 
 std::uint32_t RenderDevice::create_mesh(
-  const std::vector<std::uint32_t>& indices,
-  const std::vector<ml::vec4>& vertices,
-  const std::vector<ml::vec4>& normals,
-  PrimitiveType primitive_type)
+  MeshData mesh)
 {
     std::uint32_t mesh_id = 0;
-    while(meshes.contains(mesh_id))
+    while(meshes.contains(mesh_id)
+          || mesh_gpu_data.contains(mesh_id))
     {
         ++mesh_id;
     }
 
-    std::uint32_t vertices_handle = swr::CreateAttributeBuffer(vertices);
-    std::uint32_t normals_handle = swr::CreateAttributeBuffer(normals);
+    MeshGpuData gpu_data{
+      .vertices_handle = swr::CreateAttributeBuffer(mesh.vertices),
+      .normals_handle = swr::CreateAttributeBuffer(mesh.normals),
+    };
 
-    meshes.insert({mesh_id,
-                   {.primitive_type = primitive_type,
-                    .indices = indices,
-                    .vertices = vertices,
-                    .vertices_handle = vertices_handle,
-                    .normals = normals,
-                    .normals_handle = normals_handle}});
+    meshes.emplace(mesh_id, std::move(mesh));
+    mesh_gpu_data.emplace(mesh_id, gpu_data);
 
     return mesh_id;
 }
 
 bool RenderDevice::update_mesh(
   std::uint32_t handle,
-  const std::vector<std::uint32_t>& indices,
-  const std::vector<ml::vec4>& vertices,
-  const std::vector<ml::vec4>& normals)
+  MeshData mesh)
 {
-    auto it = meshes.find(handle);
-    if(it == meshes.end())
+    auto mesh_it = meshes.find(handle);
+    auto gpu_it = mesh_gpu_data.find(handle);
+    if(mesh_it == meshes.end()
+       || gpu_it == mesh_gpu_data.end())
     {
         return false;
     }
 
-    swr::DeleteAttributeBuffer(it->second.normals_handle);
-    swr::DeleteAttributeBuffer(it->second.vertices_handle);
+    swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
+    swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
 
-    it->second.vertices_handle = swr::CreateAttributeBuffer(vertices);
-    it->second.normals_handle = swr::CreateAttributeBuffer(normals);
-    it->second.indices = indices;
-    it->second.vertices = vertices;
-    it->second.normals = normals;
+    gpu_it->second.vertices_handle = swr::CreateAttributeBuffer(mesh.vertices);
+    gpu_it->second.normals_handle = swr::CreateAttributeBuffer(mesh.normals);
+    mesh_it->second = std::move(mesh);
 
     return true;
 }
 
 void RenderDevice::delete_mesh(std::uint32_t handle)
 {
-    auto it = meshes.find(handle);
-    if(it == meshes.end())
+    auto gpu_it = mesh_gpu_data.find(handle);
+    if(gpu_it != mesh_gpu_data.end())
     {
-        return;
+        swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
+        swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
+
+        mesh_gpu_data.erase(gpu_it);
     }
 
-    swr::DeleteAttributeBuffer(it->second.normals_handle);
-    swr::DeleteAttributeBuffer(it->second.vertices_handle);
-
-    meshes.erase(it);
+    meshes.erase(handle);
 }
 
 std::uint32_t RenderDevice::create_material(
@@ -203,15 +197,17 @@ void RenderDevice::bind_uniforms(const Uniforms& uniforms)
 void RenderDevice::draw_mesh(std::uint32_t handle)
 {
     auto it = meshes.find(handle);
-    if(it == meshes.end())
+    auto gpu_it = mesh_gpu_data.find(handle);
+    if(it == meshes.end() || gpu_it == mesh_gpu_data.end())
     {
         return;
     }
 
     const auto& mesh = it->second;
+    const auto& gpu_data = gpu_it->second;
 
-    swr::EnableAttributeBuffer(it->second.vertices_handle, 0);
-    swr::EnableAttributeBuffer(it->second.normals_handle, 1);
+    swr::EnableAttributeBuffer(gpu_data.vertices_handle, 0);
+    swr::EnableAttributeBuffer(gpu_data.normals_handle, 1);
 
     const auto mode =
       mesh.primitive_type == PrimitiveType::Lines
@@ -223,6 +219,6 @@ void RenderDevice::draw_mesh(std::uint32_t handle)
       mesh.indices.size(),
       mesh.indices);
 
-    swr::DisableAttributeBuffer(it->second.vertices_handle);
-    swr::DisableAttributeBuffer(it->second.normals_handle);
+    swr::DisableAttributeBuffer(gpu_data.vertices_handle);
+    swr::DisableAttributeBuffer(gpu_data.normals_handle);
 }

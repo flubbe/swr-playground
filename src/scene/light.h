@@ -13,7 +13,8 @@
 #include "ml/all.h"
 #include "object.h"
 
-class Light : public reflect::Reflected<Light, Object>
+class Light
+: public reflect::Reflected<Light, Object>
 {
 public:
     static void register_properties(reflect::ClassInfo& class_info);

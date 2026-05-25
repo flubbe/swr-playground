@@ -33,6 +33,7 @@ add_executable(scene_tests
     ${PROJECT_SOURCE_DIR}/src/scene/camera.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/light.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
+    ${PROJECT_SOURCE_DIR}/src/scene/static_mesh.cpp
 )
 
 target_include_directories(scene_tests PRIVATE

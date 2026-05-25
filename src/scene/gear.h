@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include "object.h"
 #include "shader.h"
+#include "static_mesh.h"
 
 struct GearGeometry
 {
@@ -49,8 +49,8 @@ GearGeometry make_gear(
 
 struct GearParameters
 {
-    RenderData inner;
-    RenderData outer;
+    MeshSection inner;
+    MeshSection outer;
     float inner_radius{1.0f};
     float outer_radius{2.0f};
     float width{1.0f};
@@ -59,7 +59,8 @@ struct GearParameters
 };
 
 /** A gear object. */
-class Gear : public reflect::Reflected<Gear, Object>
+class Gear
+: public reflect::Reflected<Gear, StaticMesh>
 {
     float inner_radius{1.0f};
     float outer_radius{2.0f};
