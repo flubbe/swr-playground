@@ -129,6 +129,7 @@ endif()
 # Playground executable
 #
 add_executable(swr_playground
+    src/assets/static_mesh_importer.cpp
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/scene/camera.cpp
@@ -170,6 +171,7 @@ target_link_libraries(swr_playground PRIVATE
     Microsoft.GSL::GSL
     OpenGL::GL
     SDL3::SDL3
+    assimp::assimp
 )
 
 if(MSVC)

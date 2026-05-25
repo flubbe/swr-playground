@@ -12,6 +12,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
@@ -73,6 +74,11 @@ class Application
 
     // demo scene.
     std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
+
+    std::vector<std::string> log_lines{
+      "[info] editor started",
+      "[info] dock layout initialized",
+      "[info] viewport ready"};
 
     ViewportInputState viewport_input{};
     ViewportCameraControllerState viewport_camera_controller{};

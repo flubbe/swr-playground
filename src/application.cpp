@@ -8,11 +8,13 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <format>
-#include <print>
-#include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <format>
+#include <limits>
+#include <print>
+#include <stdexcept>
 #include <utility>
 
 #include <imgui.h>
@@ -20,8 +22,10 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "assets/static_mesh_importer.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 #include "ui/imgui.h"
 #include "application.h"
 #include "renderdevice.h"
@@ -505,6 +509,180 @@ public:
     }
 };
 
+struct MeshBounds
+{
+    ml::vec3 min{};
+    ml::vec3 max{};
+    bool valid{false};
+};
+
+void expand_bounds(
+  MeshBounds& bounds,
+  const ml::vec4& vertex)
+{
+    const ml::vec3 position{vertex.x, vertex.y, vertex.z};
+    if(!bounds.valid)
+    {
+        bounds.min = position;
+        bounds.max = position;
+        bounds.valid = true;
+        return;
+    }
+
+    bounds.min.x = std::min(bounds.min.x, position.x);
+    bounds.min.y = std::min(bounds.min.y, position.y);
+    bounds.min.z = std::min(bounds.min.z, position.z);
+    bounds.max.x = std::max(bounds.max.x, position.x);
+    bounds.max.y = std::max(bounds.max.y, position.y);
+    bounds.max.z = std::max(bounds.max.z, position.z);
+}
+
+MeshBounds calculate_bounds(
+  const ImportedStaticMesh& imported_mesh)
+{
+    MeshBounds bounds;
+    for(const auto& mesh: imported_mesh.meshes)
+    {
+        for(const auto& vertex: mesh.mesh_data.vertices)
+        {
+            expand_bounds(bounds, vertex);
+        }
+    }
+
+    return bounds;
+}
+
+float calculate_max_half_extent(
+  const MeshBounds& bounds)
+{
+    if(!bounds.valid)
+    {
+        return 0.f;
+    }
+
+    const ml::vec3 extents = bounds.max - bounds.min;
+    return 0.5f * std::max({extents.x, extents.y, extents.z});
+}
+
+ml::vec3 calculate_center(
+  const MeshBounds& bounds)
+{
+    return (bounds.min + bounds.max) * 0.5f;
+}
+
+ml::mat4x4 make_static_mesh_fit_transform(
+  const MeshBounds& bounds,
+  float target_half_extent)
+{
+    const float max_half_extent = calculate_max_half_extent(bounds);
+    if(max_half_extent <= std::numeric_limits<float>::epsilon())
+    {
+        return ml::mat4x4::identity();
+    }
+
+    const ml::vec3 center = calculate_center(bounds);
+    const float scale = target_half_extent / max_half_extent;
+
+    ml::mat4x4 fit_transform = ml::mat4x4::identity();
+    fit_transform *= ml::matrices::scaling(scale);
+    fit_transform *= ml::matrices::translation(
+      -center.x,
+      -center.y,
+      -center.z);
+
+    return fit_transform;
+}
+
+std::vector<MeshSection> create_static_mesh_resources(
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  ImportedStaticMesh imported_mesh)
+{
+    std::vector<MeshSection> sections;
+    sections.reserve(imported_mesh.meshes.size());
+
+    for(auto& mesh: imported_mesh.meshes)
+    {
+        auto* shader = shader_cache.add<shader::ColorSmooth>(
+          mesh.diffuse_color);
+        const std::uint32_t material = device.create_material(*shader);
+        const std::uint32_t mesh_handle = device.create_mesh(
+          std::move(mesh.mesh_data));
+
+        sections.push_back(
+          MeshSection{
+            .mesh_handle = mesh_handle,
+            .material_handle = material,
+          });
+    }
+
+    return sections;
+}
+
+StaticMesh* try_create_static_mesh_from_file(
+  Scene& scene,
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  const std::filesystem::path& path,
+  const ml::mat4x4& transform,
+  std::vector<std::string>& log_lines)
+{
+    if(!std::filesystem::exists(path))
+    {
+        log_lines.push_back(
+          std::format(
+            "[info] static mesh asset not found: {}",
+            path.string()));
+        return nullptr;
+    }
+
+    try
+    {
+        constexpr float preview_half_extent = 2.f;
+
+        ImportedStaticMesh imported_mesh = import_static_mesh(path);
+        const MeshBounds mesh_bounds = calculate_bounds(imported_mesh);
+        const ml::mat4x4 fit_transform = make_static_mesh_fit_transform(
+          mesh_bounds,
+          preview_half_extent);
+        auto sections = create_static_mesh_resources(
+          device,
+          shader_cache,
+          std::move(imported_mesh));
+
+        if(sections.empty())
+        {
+            log_lines.push_back(
+              std::format(
+                "[warning] static mesh asset has no renderable meshes: {}",
+                path.string()));
+            return nullptr;
+        }
+
+        StaticMesh* mesh = scene.add_object<StaticMesh>(
+          std::move(sections));
+        mesh->set_name(path.filename().string());
+        mesh->set_transform(transform * fit_transform);
+        mesh->capture_snapshot();
+
+        log_lines.push_back(
+          std::format(
+            "[info] imported static mesh: {}",
+            path.string()));
+        return mesh;
+    }
+    catch(const std::exception& e)
+    {
+        log_lines.push_back(
+          std::format(
+            "[warning] failed to import static mesh '{}': {}",
+            path.string(),
+            e.what()));
+    }
+
+    return nullptr;
+}
+
 void rebuild_gear_mesh_if_needed(
   RenderDevice& device,
   Gear* gear)
@@ -609,6 +787,7 @@ void Application::setup_scene()
     }};
 
     GearFactory factory{*render_device, renderer->get_shader_cache()};
+    ShaderCache& shader_cache = renderer->get_shader_cache();
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
@@ -619,6 +798,17 @@ void Application::setup_scene()
            .angular_speed = gears[i].angular_speed,
            .phase_offset = gears[i].phase_offset});
     }
+
+    // Temporary placeholder until asset path resolution moves behind an asset manager.
+    const std::filesystem::path static_mesh_path{
+      "assets/models/bunny.obj"};
+    try_create_static_mesh_from_file(
+      *scene,
+      *render_device,
+      shader_cache,
+      static_mesh_path,
+      ml::matrices::translation(0.f, 0.f, 0.f),
+      log_lines);
 
     // Local viewport camera stays the modifiable camera.
     viewport->get_local_camera().set_transform(
@@ -740,11 +930,6 @@ void Application::run()
     {
         throw std::runtime_error{"Application not initialized."};
     }
-
-    std::vector<std::string> log_lines = {
-      "[info] editor started",
-      "[info] dock layout initialized",
-      "[info] viewport ready"};
 
     bool running = true;
     int frame_index = 0;
