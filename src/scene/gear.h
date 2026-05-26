@@ -51,6 +51,7 @@ struct GearParameters
 {
     MeshSection inner;
     MeshSection outer;
+    MeshBounds bounds;
     float inner_radius{1.0f};
     float outer_radius{2.0f};
     float width{1.0f};

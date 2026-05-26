@@ -122,6 +122,19 @@ const MeshBounds* RenderDevice::get_mesh_bounds(
     return &it->second;
 }
 
+std::size_t RenderDevice::get_mesh_triangle_count(
+  std::uint32_t handle) const
+{
+    const auto mesh_it = meshes.find(handle);
+    if(mesh_it == meshes.end()
+       || mesh_it->second.primitive_type != PrimitiveType::Triangles)
+    {
+        return 0;
+    }
+
+    return mesh_it->second.indices.size() / 3;
+}
+
 void RenderDevice::delete_mesh(std::uint32_t handle)
 {
     auto gpu_it = mesh_gpu_data.find(handle);

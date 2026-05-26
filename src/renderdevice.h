@@ -11,6 +11,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -195,6 +196,11 @@ public:
 
     [[nodiscard]]
     const MeshBounds* get_mesh_bounds(
+      std::uint32_t handle) const;
+
+    // FIXME temporary?
+    [[nodiscard]]
+    std::size_t get_mesh_triangle_count(
       std::uint32_t handle) const;
 
     void delete_mesh(std::uint32_t handle);

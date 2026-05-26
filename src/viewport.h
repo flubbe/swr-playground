@@ -17,6 +17,9 @@ struct ViewportDisplaySettings
 
     /** Whether to skip mesh sections outside the camera frustum. */
     bool cull_frustum{true};
+
+    /** Whether to select static mesh LODs from projected screen size. */
+    bool dynamic_lod{true};
 };
 
 /** Viewport overlay settings. */

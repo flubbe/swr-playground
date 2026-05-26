@@ -8,8 +8,10 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <chrono>
+#include <algorithm>
 #include <array>
+#include <chrono>
+#include <limits>
 #include <utility>
 
 #include "renderdevice.h"
@@ -109,6 +111,49 @@ bool bounds_intersect_frustum(
                }));
 }
 
+float estimate_screen_height_fraction(
+  const MeshBounds& bounds,
+  const ml::mat4x4& clip_from_mesh)
+{
+    if(!bounds.valid)
+    {
+        return 1.f;
+    }
+
+    constexpr float w_epsilon = 0.0001f;
+    float min_y = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::lowest();
+
+    const auto corners = make_bounds_corners(bounds);
+    for(const auto& corner: corners)
+    {
+        const ml::vec4 clip = clip_from_mesh * corner;
+        if(clip.w <= w_epsilon)
+        {
+            return 1.f;
+        }
+
+        const float ndc_y = clip.y / clip.w;
+        min_y = std::min(min_y, ndc_y);
+        max_y = std::max(max_y, ndc_y);
+    }
+
+    return std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f);
+}
+
+void record_selected_lod(
+  RendererStats& stats,
+  std::size_t lod_index)
+{
+    if(lod_index < stats.static_mesh_lods_selected.size())
+    {
+        ++stats.static_mesh_lods_selected[lod_index];
+        return;
+    }
+
+    ++stats.static_mesh_lods_selected_overflow;
+}
+
 }    // namespace
 
 void Renderer::create_grid_mesh()
@@ -189,36 +234,65 @@ void Renderer::render_scene(
       [this, &display_settings, &projection, &view, &light_dir](
         const StaticMesh& static_mesh)
       {
-        ++render_stats.static_meshes;
+          ++render_stats.static_meshes;
 
-        if(!static_mesh.has_mesh_sections())
-        {
-            return;
-        }
+          if(!static_mesh.has_mesh_sections())
+          {
+              return;
+          }
 
-        auto obj_view = view * static_mesh.get_transform();
-        auto obj_clip = projection * obj_view;
+          const auto obj_view = view * static_mesh.get_transform();
+          const auto obj_clip = projection * obj_view;
 
-        for(const auto& section: static_mesh.get_mesh_sections())
-        {
-            const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
-            if(display_settings.cull_frustum
-               && bounds != nullptr
-               && !bounds_intersect_frustum(*bounds, obj_clip))
-            {
-                ++render_stats.mesh_sections_culled;
-                continue;
-            }
+          const MeshBounds& mesh_bounds = static_mesh.get_bounds();
+          if(display_settings.cull_frustum
+             && mesh_bounds.valid
+             && !bounds_intersect_frustum(mesh_bounds, obj_clip))
+          {
+              const std::size_t base_lod_index = static_mesh.select_lod(1.f);
+              const auto& culled_lod = static_mesh.get_lod(base_lod_index);
+              render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
+              for(const auto& section: culled_lod.mesh_sections)
+              {
+                  render_stats.triangles_frustum_culled +=
+                    device.get_mesh_triangle_count(section.mesh_handle);
+              }
+              return;
+          }
 
-            device.bind_material(section.material_handle);
-            device.bind_uniforms({.proj = projection,
-                                  .view = obj_view,
-                                  .light_dir = light_dir}
+          const float screen_height_fraction =
+            estimate_screen_height_fraction(mesh_bounds, obj_clip);
+          const std::size_t lod_index =
+            display_settings.dynamic_lod
+              ? static_mesh.select_lod(screen_height_fraction)
+              : static_mesh.select_lod(1.f);
+          record_selected_lod(render_stats, lod_index);
 
-            );
-            device.draw_mesh(section.mesh_handle);
-            ++render_stats.mesh_sections_drawn;
-        }
+          const auto& lod = static_mesh.get_lod(lod_index);
+          for(const auto& section: lod.mesh_sections)
+          {
+              const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
+              if(display_settings.cull_frustum
+                 && bounds != nullptr
+                 && !bounds_intersect_frustum(*bounds, obj_clip))
+              {
+                  ++render_stats.mesh_sections_culled;
+                  render_stats.triangles_frustum_culled +=
+                    device.get_mesh_triangle_count(section.mesh_handle);
+                  continue;
+              }
+
+              device.bind_material(section.material_handle);
+              device.bind_uniforms({.proj = projection,
+                                    .view = obj_view,
+                                    .light_dir = light_dir}
+
+              );
+              device.draw_mesh(section.mesh_handle);
+              ++render_stats.mesh_sections_drawn;
+              render_stats.triangles_submitted +=
+                device.get_mesh_triangle_count(section.mesh_handle);
+          }
       });
 }
 

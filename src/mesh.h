@@ -10,7 +10,8 @@
 
 #pragma once
 
-#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -52,41 +53,70 @@ struct MeshBounds
     bool valid{false};
 };
 
+void expand_bounds(
+  MeshBounds& bounds,
+  const ml::vec3& position);
+
+void expand_bounds(
+  MeshBounds& bounds,
+  const ml::vec4& vertex);
+
+void expand_bounds(
+  MeshBounds& bounds,
+  const MeshBounds& other);
+
 namespace detail
 {
 
-inline void expand_bounds(
-  MeshBounds& bounds,
-  const ml::vec4& vertex)
+struct MeshSimplifyTriangle
 {
-    const ml::vec3 position{vertex.xyz()};
-    if(!bounds.valid)
-    {
-        bounds.min = position;
-        bounds.max = position;
-        bounds.valid = true;
-        return;
-    }
+    std::array<std::uint32_t, 3> indices{};
+};
 
-    bounds.min.x = std::min(bounds.min.x, position.x);
-    bounds.min.y = std::min(bounds.min.y, position.y);
-    bounds.min.z = std::min(bounds.min.z, position.z);
-    bounds.max.x = std::max(bounds.max.x, position.x);
-    bounds.max.y = std::max(bounds.max.y, position.y);
-    bounds.max.z = std::max(bounds.max.z, position.z);
-}
+struct MeshSimplifyEdgeCandidate
+{
+    float cost{0.f};
+    std::uint32_t a{0};
+    std::uint32_t b{0};
+};
+
+struct MeshSimplifyEdgeCandidateCompare
+{
+    bool operator()(
+      const MeshSimplifyEdgeCandidate& lhs,
+      const MeshSimplifyEdgeCandidate& rhs) const;
+};
+
+struct MeshSimplifyQuadric
+{
+    float m[4][4]{};
+};
+
+MeshSimplifyQuadric make_mesh_simplify_quadric(
+  const ml::vec4& plane);
+
+void add_mesh_simplify_quadric(
+  MeshSimplifyQuadric& target,
+  const MeshSimplifyQuadric& source);
+
+float evaluate_mesh_simplify_quadric(
+  const MeshSimplifyQuadric& quadric,
+  const ml::vec4& position);
+
+bool solve_mesh_simplify_optimal_position(
+  const MeshSimplifyQuadric& quadric,
+  ml::vec3& output);
+
+std::uint64_t make_mesh_simplify_edge_key(
+  std::uint32_t a,
+  std::uint32_t b);
+
+ml::vec3 mesh_simplify_triangle_normal(
+  const std::array<std::uint32_t, 3>& roots,
+  const std::vector<ml::vec3>& positions);
 
 }    // namespace detail
 
 [[nodiscard]]
-inline MeshBounds calculate_mesh_bounds(
-  const MeshData& mesh)
-{
-    MeshBounds bounds;
-    for(const auto& vertex: mesh.vertices)
-    {
-        detail::expand_bounds(bounds, vertex);
-    }
-
-    return bounds;
-}
+MeshBounds calculate_mesh_bounds(
+  const MeshData& mesh);

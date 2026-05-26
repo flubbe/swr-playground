@@ -115,6 +115,78 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
 
+TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
+{
+    ensure_scene_reflection_ready();
+
+    StaticMesh mesh{
+      std::vector{
+        StaticMeshLod{
+          .mesh_sections =
+            {
+              MeshSection{
+                .mesh_handle = 10,
+                .material_handle = 20,
+              },
+            },
+          .min_screen_height = 0.4f,
+        },
+        StaticMeshLod{
+          .mesh_sections =
+            {
+              MeshSection{
+                .mesh_handle = 11,
+                .material_handle = 21,
+              },
+            },
+          .min_screen_height = 0.15f,
+        },
+        StaticMeshLod{
+          .mesh_sections =
+            {
+              MeshSection{
+                .mesh_handle = 12,
+                .material_handle = 22,
+              },
+            },
+          .min_screen_height = 0.f,
+        },
+      }};
+
+    EXPECT_EQ(mesh.get_lod_count(), 3U);
+    EXPECT_EQ(mesh.select_lod(0.5f), 0U);
+    EXPECT_EQ(mesh.select_lod(0.2f), 1U);
+    EXPECT_EQ(mesh.select_lod(0.05f), 2U);
+}
+
+TEST(SceneTests, StaticMeshStoresCachedBounds)
+{
+    ensure_scene_reflection_ready();
+
+    const MeshBounds bounds{
+      .min = {-1.f, -2.f, -3.f},
+      .max = {1.f, 2.f, 3.f},
+      .valid = true,
+    };
+
+    StaticMesh mesh{
+      std::vector{
+        MeshSection{
+          .mesh_handle = 10,
+          .material_handle = 20,
+        },
+      },
+      bounds};
+
+    EXPECT_TRUE(mesh.get_bounds().valid);
+    EXPECT_EQ(mesh.get_bounds().min.x, -1.f);
+    EXPECT_EQ(mesh.get_bounds().max.z, 3.f);
+
+    mesh.clear_mesh_sections();
+
+    EXPECT_FALSE(mesh.get_bounds().valid);
+}
+
 TEST(SceneTests, ForEachObjectVisitsRequestedType)
 {
     ensure_scene_reflection_ready();

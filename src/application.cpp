@@ -9,12 +9,17 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <limits>
+#include <optional>
 #include <print>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 #include <imgui.h>
@@ -28,6 +33,7 @@
 #include "scene/static_mesh.h"
 #include "ui/imgui.h"
 #include "application.h"
+#include "mesh_lod.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "shader_cache.h"
@@ -475,6 +481,34 @@ struct GearBuildParams
     float tooth_depth;
 };
 
+void expand_mesh_handle_bounds(
+  MeshBounds& bounds,
+  const RenderDevice& device,
+  std::uint32_t mesh_handle)
+{
+    const MeshBounds* mesh_bounds = device.get_mesh_bounds(mesh_handle);
+    if(mesh_bounds != nullptr)
+    {
+        expand_bounds(bounds, *mesh_bounds);
+    }
+}
+
+MeshBounds calculate_mesh_section_bounds(
+  const RenderDevice& device,
+  const std::vector<MeshSection>& sections)
+{
+    MeshBounds bounds;
+    for(const MeshSection& section: sections)
+    {
+        expand_mesh_handle_bounds(
+          bounds,
+          device,
+          section.mesh_handle);
+    }
+
+    return bounds;
+}
+
 GearParameters create_gear_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
@@ -509,6 +543,16 @@ GearParameters create_gear_resources(
         .normals = std::move(geom.outer_normals),
       });
 
+    MeshBounds bounds;
+    expand_mesh_handle_bounds(
+      bounds,
+      device,
+      inner_mesh);
+    expand_mesh_handle_bounds(
+      bounds,
+      device,
+      outer_mesh);
+
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
@@ -518,6 +562,7 @@ GearParameters create_gear_resources(
         .mesh_handle = outer_mesh,
         .material_handle = flat_material,
       },
+      .bounds = bounds,
       .inner_radius = p.inner_radius,
       .outer_radius = p.outer_radius,
       .width = p.width,
@@ -552,31 +597,7 @@ public:
     }
 };
 
-void expand_bounds(
-  MeshBounds& bounds,
-  const MeshBounds& other)
-{
-    if(!other.valid)
-    {
-        return;
-    }
-
-    if(!bounds.valid)
-    {
-        bounds = other;
-        bounds.valid = true;
-        return;
-    }
-
-    bounds.min.x = std::min(bounds.min.x, other.min.x);
-    bounds.min.y = std::min(bounds.min.y, other.min.y);
-    bounds.min.z = std::min(bounds.min.z, other.min.z);
-    bounds.max.x = std::max(bounds.max.x, other.max.x);
-    bounds.max.y = std::max(bounds.max.y, other.max.y);
-    bounds.max.z = std::max(bounds.max.z, other.max.z);
-}
-
-MeshBounds calculate_bounds(
+MeshBounds calculate_imported_mesh_bounds(
   const ImportedStaticMesh& imported_mesh)
 {
     MeshBounds bounds;
@@ -631,38 +652,91 @@ ml::mat4x4 make_static_mesh_fit_transform(
     return fit_transform;
 }
 
-std::vector<MeshSection> create_static_mesh_resources(
+struct StaticMeshAssetResources
+{
+    std::vector<StaticMeshLod> lods;
+    ml::mat4x4 fit_transform;
+    std::string name;
+};
+
+std::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
   ImportedStaticMesh imported_mesh)
 {
-    std::vector<MeshSection> sections;
-    sections.reserve(imported_mesh.meshes.size());
+    const StaticMeshLodBuildSettings lod_settings{
+      .preserve_boundaries = false,
+      .recompute_normals = true,
+    };
+
+    std::vector<StaticMeshLod> result_lods;
+    result_lods.resize(lod_settings.lods.size());
+
+    for(std::size_t i = 0; i < lod_settings.lods.size(); ++i)
+    {
+        result_lods[i].min_screen_height = lod_settings.lods[i].min_screen_height;
+    }
+
+    StaticMeshLodBuilder lod_builder;
 
     for(auto& mesh: imported_mesh.meshes)
     {
         auto* shader = shader_cache.add<shader::ColorSmooth>(
           mesh.diffuse_color);
-        const std::uint32_t material = device.create_material(*shader);
-        const std::uint32_t mesh_handle = device.create_mesh(
-          std::move(mesh.mesh_data));
 
-        sections.push_back(
-          MeshSection{
-            .mesh_handle = mesh_handle,
-            .material_handle = material,
-          });
+        const std::uint32_t material = device.create_material(*shader);
+
+        const StaticMeshLodBuildResult lod_build_result =
+          lod_builder.build(
+            mesh.mesh_data,
+            lod_settings);
+
+        for(std::size_t lod_index = 0;
+            lod_index < lod_build_result.lod_meshes.size() && lod_index < result_lods.size();
+            ++lod_index)
+        {
+            const auto& stats = lod_build_result.simplify_stats[lod_index];
+            auto& lod_mesh = lod_build_result.lod_meshes[lod_index];
+
+            std::println(
+              "LOD frac {}, indices {}, tris {}, accepted {}, rejected {}, queued {}, boundary {}",
+              lod_settings.lods[lod_index].triangle_fraction,
+              lod_mesh.mesh.indices.size(),
+              lod_mesh.mesh.indices.size() / 3,
+              stats.accepted_collapses,
+              stats.rejected_collapses,
+              stats.queued_edges,
+              stats.boundary_vertices);
+
+            const std::uint32_t mesh_handle =
+              device.create_mesh(std::move(lod_mesh.mesh));
+            expand_mesh_handle_bounds(
+              result_lods[lod_index].bounds,
+              device,
+              mesh_handle);
+
+            result_lods[lod_index].mesh_sections.push_back(
+              MeshSection{
+                .mesh_handle = mesh_handle,
+                .material_handle = material,
+              });
+        }
     }
 
-    return sections;
+    std::erase_if(
+      result_lods,
+      [](const StaticMeshLod& lod)
+      {
+          return lod.mesh_sections.empty();
+      });
+
+    return result_lods;
 }
 
-StaticMesh* try_create_static_mesh_from_file(
-  Scene& scene,
+std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_file(
   RenderDevice& device,
   ShaderCache& shader_cache,
   const std::filesystem::path& path,
-  const ml::mat4x4& transform,
   std::vector<std::string>& log_lines)
 {
     if(!std::filesystem::exists(path))
@@ -671,7 +745,7 @@ StaticMesh* try_create_static_mesh_from_file(
           std::format(
             "[info] static mesh asset not found: {}",
             path.string()));
-        return nullptr;
+        return std::nullopt;
     }
 
     try
@@ -679,35 +753,35 @@ StaticMesh* try_create_static_mesh_from_file(
         constexpr float preview_half_extent = 2.f;
 
         ImportedStaticMesh imported_mesh = import_static_mesh(path);
-        const MeshBounds mesh_bounds = calculate_bounds(imported_mesh);
+        const MeshBounds mesh_bounds =
+          calculate_imported_mesh_bounds(imported_mesh);
         const ml::mat4x4 fit_transform = make_static_mesh_fit_transform(
           mesh_bounds,
           preview_half_extent);
-        auto sections = create_static_mesh_resources(
+        auto lods = create_static_mesh_resources(
           device,
           shader_cache,
           std::move(imported_mesh));
 
-        if(sections.empty())
+        if(lods.empty())
         {
             log_lines.push_back(
               std::format(
                 "[warning] static mesh asset has no renderable meshes: {}",
                 path.string()));
-            return nullptr;
+            return std::nullopt;
         }
-
-        StaticMesh* mesh = scene.add_object<StaticMesh>(
-          std::move(sections));
-        mesh->set_name(path.filename().string());
-        mesh->set_transform(transform * fit_transform);
-        mesh->capture_snapshot();
 
         log_lines.push_back(
           std::format(
             "[info] imported static mesh: {}",
             path.string()));
-        return mesh;
+
+        return StaticMeshAssetResources{
+          .lods = std::move(lods),
+          .fit_transform = fit_transform,
+          .name = path.filename().string(),
+        };
     }
     catch(const std::exception& e)
     {
@@ -718,7 +792,20 @@ StaticMesh* try_create_static_mesh_from_file(
             e.what()));
     }
 
-    return nullptr;
+    return std::nullopt;
+}
+
+StaticMesh* create_static_mesh_instance(
+  Scene& scene,
+  const StaticMeshAssetResources& resources,
+  const ml::mat4x4& transform)
+{
+    StaticMesh* mesh = scene.add_object<StaticMesh>(
+      resources.lods);
+    mesh->set_name(resources.name);
+    mesh->set_transform(transform * resources.fit_transform);
+    mesh->capture_snapshot();
+    return mesh;
 }
 
 void rebuild_gear_mesh_if_needed(
@@ -779,6 +866,11 @@ void rebuild_gear_mesh_if_needed(
         return;
     }
 
+    gear->set_mesh_sections(
+      old_mesh_sections,
+      calculate_mesh_section_bounds(
+        device,
+        old_mesh_sections));
     gear->mark_rebuilt();
 }
 
@@ -841,17 +933,23 @@ void Application::setup_scene()
     const std::filesystem::path static_mesh_path{
       "assets/models/bunny.obj"};
 
-    for(int x = -4; x < 5; ++x)
+    const auto mesh_resources = try_create_static_mesh_resources_from_file(
+      *render_device,
+      shader_cache,
+      static_mesh_path,
+      log_lines);
+
+    if(mesh_resources.has_value())
     {
-        for(int y = -4; y < 5; ++y)
+        for(int x = -4; x < 5; ++x)
         {
-            try_create_static_mesh_from_file(
-              *scene,
-              *render_device,
-              shader_cache,
-              static_mesh_path,
-              ml::matrices::translation(x * 5.f, 0.f, y * 5.f),
-              log_lines);
+            for(int y = -4; y < 5; ++y)
+            {
+                create_static_mesh_instance(
+                  *scene,
+                  *mesh_resources,
+                  ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
+            }
         }
     }
 

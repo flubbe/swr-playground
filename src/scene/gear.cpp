@@ -327,7 +327,8 @@ Gear::Gear(
         .material_handle = params.inner.material_handle},
       MeshSection{
         .mesh_handle = params.outer.mesh_handle,
-        .material_handle = params.outer.material_handle}}}
+        .material_handle = params.outer.material_handle}},
+    params.bounds}
 , inner_radius{params.inner_radius}
 , outer_radius{params.outer_radius}
 , width{params.width}

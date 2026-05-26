@@ -146,6 +146,7 @@ add_executable(swr_playground
     src/ui/tools.cpp
     src/application.cpp
     src/main.cpp
+    src/mesh.cpp
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp

@@ -8,6 +8,9 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <algorithm>
+#include <cstddef>
+
 #include <imgui.h>
 
 #include "scene/scene.h"
@@ -95,6 +98,11 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::Checkbox("Dynamic LOD", &display_settings.dynamic_lod))
+        {
+            update_display_settings = true;
+        }
+
         if(update_overlay_settings)
         {
             viewport.set_overlay_settings(overlay_settings);
@@ -177,6 +185,28 @@ void draw_tools_panel(
             ImGui::Text(
               "%llu",
               static_cast<unsigned long long>(stats.mesh_sections_culled));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Triangles submitted");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.triangles_submitted));
+
+            for(std::size_t lod_index = 0;
+                lod_index < stats.static_mesh_lods_selected.size();
+                ++lod_index)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Text("LOD %llu selected", static_cast<unsigned long long>(lod_index));
+                ImGui::TableNextColumn();
+                ImGui::Text(
+                  "%llu",
+                  static_cast<unsigned long long>(
+                    stats.static_mesh_lods_selected[lod_index]));
+            }
 
             ImGui::EndTable();
         }
