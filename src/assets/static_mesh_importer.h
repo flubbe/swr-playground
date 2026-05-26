@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "mesh.h"
 #include "ml/all.h"
-#include "renderdevice.h"
 
 struct ImportedMesh
 {

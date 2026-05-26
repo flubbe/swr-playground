@@ -65,9 +65,12 @@ void RenderDevice::resize(
 std::uint32_t RenderDevice::create_mesh(
   MeshData mesh)
 {
+    const MeshBounds bounds = calculate_mesh_bounds(mesh);
+
     std::uint32_t mesh_id = 0;
     while(meshes.contains(mesh_id)
-          || mesh_gpu_data.contains(mesh_id))
+          || mesh_gpu_data.contains(mesh_id)
+          || mesh_bounds.contains(mesh_id))
     {
         ++mesh_id;
     }
@@ -79,6 +82,7 @@ std::uint32_t RenderDevice::create_mesh(
 
     meshes.emplace(mesh_id, std::move(mesh));
     mesh_gpu_data.emplace(mesh_id, gpu_data);
+    mesh_bounds.emplace(mesh_id, bounds);
 
     return mesh_id;
 }
@@ -101,8 +105,21 @@ bool RenderDevice::update_mesh(
     gpu_it->second.vertices_handle = swr::CreateAttributeBuffer(mesh.vertices);
     gpu_it->second.normals_handle = swr::CreateAttributeBuffer(mesh.normals);
     mesh_it->second = std::move(mesh);
+    mesh_bounds[handle] = calculate_mesh_bounds(mesh_it->second);
 
     return true;
+}
+
+const MeshBounds* RenderDevice::get_mesh_bounds(
+  std::uint32_t handle) const
+{
+    auto it = mesh_bounds.find(handle);
+    if(it == mesh_bounds.end())
+    {
+        return nullptr;
+    }
+
+    return &it->second;
 }
 
 void RenderDevice::delete_mesh(std::uint32_t handle)
@@ -117,6 +134,7 @@ void RenderDevice::delete_mesh(std::uint32_t handle)
     }
 
     meshes.erase(handle);
+    mesh_bounds.erase(handle);
 }
 
 std::uint32_t RenderDevice::create_material(

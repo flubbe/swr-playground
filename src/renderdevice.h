@@ -19,33 +19,11 @@
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
+#include "mesh.h"
 #include "shader.h"
 
 class Scene;
 class Camera;
-
-/** Primitive type for a mesh. */
-enum class PrimitiveType
-{
-    Triangles, /** List of triangles. */
-    Lines      /** List of lines. */
-};
-
-/** Raw (CPU-side) mesh data. */
-struct MeshData
-{
-    /** Primitive type. */
-    PrimitiveType primitive_type{PrimitiveType::Triangles};
-
-    /** Indices into the geometry buffers (defining e.g. triangles or lines). */
-    std::vector<std::uint32_t> indices;
-
-    /** Vertices. */
-    std::vector<ml::vec4> vertices;
-
-    /** Normals. */
-    std::vector<ml::vec4> normals;
-};
 
 /** GPU-side mesh data. */
 struct MeshGpuData
@@ -121,6 +99,9 @@ class RenderDevice
     /** uploaded mesh data. */
     std::unordered_map<std::uint32_t, MeshGpuData> mesh_gpu_data;
 
+    /** Mesh bounds. */
+    std::unordered_map<std::uint32_t, MeshBounds> mesh_bounds;
+
     /** materials. */
     std::unordered_map<std::uint32_t, Material> materials;
 
@@ -145,6 +126,7 @@ protected:
         {
             delete_mesh(mesh_gpu_data.begin()->first);
         }
+        mesh_bounds.clear();
 
         while(!materials.empty())
         {
@@ -210,6 +192,10 @@ public:
     bool update_mesh(
       std::uint32_t handle,
       MeshData mesh);
+
+    [[nodiscard]]
+    const MeshBounds* get_mesh_bounds(
+      std::uint32_t handle) const;
 
     void delete_mesh(std::uint32_t handle);
 

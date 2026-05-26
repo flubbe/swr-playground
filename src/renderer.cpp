@@ -9,6 +9,7 @@
  */
 
 #include <chrono>
+#include <array>
 #include <utility>
 
 #include "renderdevice.h"
@@ -16,6 +17,99 @@
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "viewport.h"
+
+namespace
+{
+
+std::array<ml::vec4, 8> make_bounds_corners(
+  const MeshBounds& bounds)
+{
+    const auto& min = bounds.min;
+    const auto& max = bounds.max;
+
+    return {{
+      {min.x, min.y, min.z, 1.f},
+      {max.x, min.y, min.z, 1.f},
+      {min.x, max.y, min.z, 1.f},
+      {max.x, max.y, min.z, 1.f},
+      {min.x, min.y, max.z, 1.f},
+      {max.x, min.y, max.z, 1.f},
+      {min.x, max.y, max.z, 1.f},
+      {max.x, max.y, max.z, 1.f},
+    }};
+}
+
+template<typename PlaneFn>
+bool all_corners_outside(
+  const std::array<ml::vec4, 8>& clip_corners,
+  PlaneFn plane)
+{
+    for(const auto& corner: clip_corners)
+    {
+        if(plane(corner) >= 0.f)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool bounds_intersect_frustum(
+  const MeshBounds& bounds,
+  const ml::mat4x4& clip_from_mesh)
+{
+    if(!bounds.valid)
+    {
+        return true;
+    }
+
+    const auto corners = make_bounds_corners(bounds);
+    std::array<ml::vec4, 8> clip_corners{};
+    for(std::size_t i = 0; i < corners.size(); ++i)
+    {
+        clip_corners[i] = clip_from_mesh * corners[i];
+    }
+
+    return !(all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return corner.x + corner.w;
+               })
+             || all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return -corner.x + corner.w;
+               })
+             || all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return corner.y + corner.w;
+               })
+             || all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return -corner.y + corner.w;
+               })
+             || all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return corner.z + corner.w;
+               })
+             || all_corners_outside(
+               clip_corners,
+               [](const ml::vec4& corner)
+               {
+                   return -corner.z + corner.w;
+               }));
+}
+
+}    // namespace
 
 void Renderer::create_grid_mesh()
 {
@@ -92,17 +186,30 @@ void Renderer::render_scene(
                      * scene.get_light().position;
 
     scene.for_each_object<StaticMesh>(
-      [this, &projection, &view, &light_dir](const StaticMesh& static_mesh)
+      [this, &display_settings, &projection, &view, &light_dir](
+        const StaticMesh& static_mesh)
       {
+        ++render_stats.static_meshes;
+
         if(!static_mesh.has_mesh_sections())
         {
             return;
         }
 
         auto obj_view = view * static_mesh.get_transform();
+        auto obj_clip = projection * obj_view;
 
         for(const auto& section: static_mesh.get_mesh_sections())
         {
+            const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
+            if(display_settings.cull_frustum
+               && bounds != nullptr
+               && !bounds_intersect_frustum(*bounds, obj_clip))
+            {
+                ++render_stats.mesh_sections_culled;
+                continue;
+            }
+
             device.bind_material(section.material_handle);
             device.bind_uniforms({.proj = projection,
                                   .view = obj_view,
@@ -110,6 +217,7 @@ void Renderer::render_scene(
 
             );
             device.draw_mesh(section.mesh_handle);
+            ++render_stats.mesh_sections_drawn;
         }
       });
 }
@@ -140,6 +248,7 @@ void Renderer::render(
   const Viewport& viewport)
 {
     auto render_start_time = std::chrono::steady_clock::now();
+    render_stats = {};
 
     const auto& display_settings = viewport.get_display_settings();
     const auto& overlay_settings = viewport.get_overlay_settings();

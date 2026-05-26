@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 #include "render_types.h"
 #include "shader_cache.h"
 
@@ -19,12 +21,20 @@ class Viewport;
 struct ViewportDisplaySettings;
 class RenderDevice;
 
+struct RendererStats
+{
+    std::size_t static_meshes{0};
+    std::size_t mesh_sections_drawn{0};
+    std::size_t mesh_sections_culled{0};
+};
+
 class Renderer final
 {
     RenderDevice& device;
     ShaderCache shader_cache;
 
     float render_time{0.f};
+    RendererStats render_stats;
 
     /*
      * Viewport overlays.
@@ -64,6 +74,12 @@ public:
     float get_render_time() const noexcept
     {
         return render_time;
+    }
+
+    [[nodiscard]]
+    const RendererStats& get_stats() const noexcept
+    {
+        return render_stats;
     }
 
     void render(

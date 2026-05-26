@@ -40,6 +40,21 @@ void draw_tools_panel(
         ImGui::Text("Window pixel density: %.2f", pixel_density);
         ImGui::Text("Frame: %d", frame_index);
         ImGui::Text("Scene time: %.1f s", scene.get_time());
+
+        const char* navigation_modes[] = {
+          "FPS",
+          "Orbit",
+        };
+        int navigation_mode = static_cast<int>(viewport.get_navigation_mode());
+        if(ImGui::Combo(
+             "RMB Mode",
+             &navigation_mode,
+             navigation_modes,
+             IM_ARRAYSIZE(navigation_modes)))
+        {
+            viewport.set_navigation_mode(
+              static_cast<ViewportNavigationMode>(navigation_mode));
+        }
     }
 
     if(ImGui::CollapsingHeader(
@@ -75,6 +90,11 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::Checkbox("Frustum Culling", &display_settings.cull_frustum))
+        {
+            update_display_settings = true;
+        }
+
         if(update_overlay_settings)
         {
             viewport.set_overlay_settings(overlay_settings);
@@ -90,9 +110,76 @@ void draw_tools_panel(
          "Stats",
          ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Text("FPS: %.1f", io.Framerate);
-        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
-        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
+        const RendererStats& stats = renderer.get_stats();
+
+        if(ImGui::BeginTable(
+             "FrameStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("FPS");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.1f", io.Framerate);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Frame");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f ms", 1000.0f / std::max(io.Framerate, 0.001f));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Render");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f ms", 1000.f * renderer.get_render_time());
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Meshes");
+
+        if(ImGui::BeginTable(
+             "MeshStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Static meshes");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.static_meshes));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Sections drawn");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.mesh_sections_drawn));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Sections culled");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.mesh_sections_culled));
+
+            ImGui::EndTable();
+        }
     }
 
     ImGui::End();

@@ -38,6 +38,8 @@ struct ViewportInputState
 struct ViewportCameraControllerState
 {
     ml::vec3 position{0.f, 0.f, 40.f};
+    ml::vec3 orbit_target{0.f, 0.f, 0.f};
+    float orbit_distance{40.f};
     float pitch_radians{ml::to_radians(20.f)};
     float yaw_radians{ml::to_radians(30.f)};
 };
@@ -82,6 +84,10 @@ class Application
 
     ViewportInputState viewport_input{};
     ViewportCameraControllerState viewport_camera_controller{};
+    bool viewport_mouse_captured{false};
+
+    void set_viewport_mouse_capture(bool enabled);
+    void update_viewport_mouse_capture();
 
 protected:
     void setup_scene();

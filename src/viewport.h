@@ -14,6 +14,9 @@ struct ViewportDisplaySettings
 
     /** Whether to apply face culling. */
     bool cull_face{true};
+
+    /** Whether to skip mesh sections outside the camera frustum. */
+    bool cull_frustum{true};
 };
 
 /** Viewport overlay settings. */
@@ -43,6 +46,13 @@ enum class ViewportCameraType : std::uint8_t
     Scene  /** Scene update controls the camera. */
 };
 
+/** Viewport mouse navigation mode. */
+enum class ViewportNavigationMode : std::uint8_t
+{
+    Fps,   /** Right mouse look with WASD-style movement. */
+    Orbit  /** Right mouse orbit around a focus point. */
+};
+
 class Viewport
 {
     /** Local viewport camera. */
@@ -56,6 +66,9 @@ class Viewport
 
     /** Overlay settings. */
     ViewportOverlaySettings overlay_settings;
+
+    /** Mouse navigation mode. */
+    ViewportNavigationMode navigation_mode{ViewportNavigationMode::Fps};
 
     /** Render target resolution. */
     ViewportResolution resolution;
@@ -197,6 +210,19 @@ public:
     void set_overlay_settings(ViewportOverlaySettings settings)
     {
         overlay_settings = settings;
+    }
+
+    /** Return the mouse navigation mode. */
+    ViewportNavigationMode get_navigation_mode() const
+    {
+        return navigation_mode;
+    }
+
+    /** Set the mouse navigation mode. */
+    void set_navigation_mode(
+      ViewportNavigationMode mode)
+    {
+        navigation_mode = mode;
     }
 
     /** Whether the camera selector overlay is enabled. */

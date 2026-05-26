@@ -62,27 +62,59 @@ struct ViewportCameraControllerInput
 };
 
 ml::mat4x4 make_view_matrix(
-  const ViewportCameraControllerState& controller)
+  const ViewportCameraControllerState& controller,
+  ViewportNavigationMode mode)
 {
     ml::mat4x4 view = ml::mat4x4::identity();
+
+    if(mode == ViewportNavigationMode::Orbit)
+    {
+        view *= ml::matrices::translation(
+          0.f,
+          0.f,
+          -controller.orbit_distance);
+        view *= ml::matrices::rotation_x(controller.pitch_radians);
+        view *= ml::matrices::rotation_y(controller.yaw_radians);
+        view *= ml::matrices::translation(
+          -controller.orbit_target.x,
+          -controller.orbit_target.y,
+          -controller.orbit_target.z);
+        return view;
+    }
+
+    view *= ml::matrices::rotation_x(controller.pitch_radians);
+    view *= ml::matrices::rotation_y(controller.yaw_radians);
     view *= ml::matrices::translation(
       -controller.position.x,
       -controller.position.y,
       -controller.position.z);
-    view *= ml::matrices::rotation_x(controller.pitch_radians);
-    view *= ml::matrices::rotation_y(controller.yaw_radians);
     return view;
+}
+
+void align_fps_position_to_orbit_view(
+  ViewportCameraControllerState& controller)
+{
+    const float cos_pitch = std::cos(controller.pitch_radians);
+    const float sin_pitch = std::sin(controller.pitch_radians);
+    const float cos_yaw = std::cos(controller.yaw_radians);
+    const float sin_yaw = std::sin(controller.yaw_radians);
+
+    controller.position = controller.orbit_target
+                          + ml::vec3{
+                            -sin_yaw * cos_pitch * controller.orbit_distance,
+                            sin_pitch * controller.orbit_distance,
+                            cos_yaw * cos_pitch * controller.orbit_distance};
 }
 
 ViewportCameraControllerInput gather_viewport_camera_input(
   const ViewportInputState& viewport_input,
-  const ImGuiIO& io)
+  const ImGuiIO& io,
+  bool mouse_captured,
+  ViewportNavigationMode mode)
 {
     ViewportCameraControllerInput input{};
 
-    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
-    const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
-    if(!viewport_input.viewport_hovered || !right_mouse_down)
+    if(!mouse_captured)
     {
         return input;
     }
@@ -93,6 +125,11 @@ ViewportCameraControllerInput gather_viewport_camera_input(
 
     const bool keyboard_blocked = io.WantCaptureKeyboard;
     if(keyboard_blocked)
+    {
+        return input;
+    }
+
+    if(mode == ViewportNavigationMode::Orbit)
     {
         return input;
     }
@@ -135,7 +172,8 @@ ViewportCameraControllerInput gather_viewport_camera_input(
 void update_viewport_camera_controller(
   ViewportCameraControllerState& controller,
   const ViewportCameraControllerInput& input,
-  float delta_time)
+  float delta_time,
+  ViewportNavigationMode mode)
 {
     if(!input.active || delta_time <= 0.f)
     {
@@ -149,6 +187,11 @@ void update_viewport_camera_controller(
       controller.pitch_radians,
       ml::to_radians(-89.f),
       ml::to_radians(89.f));
+
+    if(mode == ViewportNavigationMode::Orbit)
+    {
+        return;
+    }
 
     const float base_speed = input.fast_move ? 20.f : 8.f;
     const float move_distance = base_speed * delta_time;
@@ -509,32 +552,28 @@ public:
     }
 };
 
-struct MeshBounds
-{
-    ml::vec3 min{};
-    ml::vec3 max{};
-    bool valid{false};
-};
-
 void expand_bounds(
   MeshBounds& bounds,
-  const ml::vec4& vertex)
+  const MeshBounds& other)
 {
-    const ml::vec3 position{vertex.x, vertex.y, vertex.z};
+    if(!other.valid)
+    {
+        return;
+    }
+
     if(!bounds.valid)
     {
-        bounds.min = position;
-        bounds.max = position;
+        bounds = other;
         bounds.valid = true;
         return;
     }
 
-    bounds.min.x = std::min(bounds.min.x, position.x);
-    bounds.min.y = std::min(bounds.min.y, position.y);
-    bounds.min.z = std::min(bounds.min.z, position.z);
-    bounds.max.x = std::max(bounds.max.x, position.x);
-    bounds.max.y = std::max(bounds.max.y, position.y);
-    bounds.max.z = std::max(bounds.max.z, position.z);
+    bounds.min.x = std::min(bounds.min.x, other.min.x);
+    bounds.min.y = std::min(bounds.min.y, other.min.y);
+    bounds.min.z = std::min(bounds.min.z, other.min.z);
+    bounds.max.x = std::max(bounds.max.x, other.max.x);
+    bounds.max.y = std::max(bounds.max.y, other.max.y);
+    bounds.max.z = std::max(bounds.max.z, other.max.z);
 }
 
 MeshBounds calculate_bounds(
@@ -543,10 +582,9 @@ MeshBounds calculate_bounds(
     MeshBounds bounds;
     for(const auto& mesh: imported_mesh.meshes)
     {
-        for(const auto& vertex: mesh.mesh_data.vertices)
-        {
-            expand_bounds(bounds, vertex);
-        }
+        expand_bounds(
+          bounds,
+          calculate_mesh_bounds(mesh.mesh_data));
     }
 
     return bounds;
@@ -802,17 +840,28 @@ void Application::setup_scene()
     // Temporary placeholder until asset path resolution moves behind an asset manager.
     const std::filesystem::path static_mesh_path{
       "assets/models/bunny.obj"};
-    try_create_static_mesh_from_file(
-      *scene,
-      *render_device,
-      shader_cache,
-      static_mesh_path,
-      ml::matrices::translation(0.f, 0.f, 0.f),
-      log_lines);
+
+    for(int x = -4; x < 5; ++x)
+    {
+        for(int y = -4; y < 5; ++y)
+        {
+            try_create_static_mesh_from_file(
+              *scene,
+              *render_device,
+              shader_cache,
+              static_mesh_path,
+              ml::matrices::translation(x * 5.f, 0.f, y * 5.f),
+              log_lines);
+        }
+    }
+
+    align_fps_position_to_orbit_view(viewport_camera_controller);
 
     // Local viewport camera stays the modifiable camera.
     viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+      make_view_matrix(
+        viewport_camera_controller,
+        viewport->get_navigation_mode()));
 
     Camera* camera = scene->add_object<Camera>();
     camera->set_transform(viewport->get_local_camera().get_transform());
@@ -831,7 +880,9 @@ void Application::setup_viewport()
 
     // Keep the local camera in sync as a fallback if the bound scene camera is removed.
     viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+      make_view_matrix(
+        viewport_camera_controller,
+        viewport->get_navigation_mode()));
 }
 
 Application::Application(
@@ -880,6 +931,8 @@ Application::Application(
 
 Application::~Application()
 {
+    set_viewport_mouse_capture(false);
+
     imgui::shutdown();
 
     destroy_viewport_texture(viewport_texture);
@@ -892,6 +945,41 @@ Application::~Application()
     {
         SDL_DestroyWindow(window);
     }
+}
+
+void Application::set_viewport_mouse_capture(
+  bool enabled)
+{
+    if(viewport_mouse_captured == enabled || window == nullptr)
+    {
+        return;
+    }
+
+    if(!SDL_SetWindowRelativeMouseMode(window, enabled))
+    {
+        log_lines.push_back(
+          std::format(
+            "[warning] failed to {} viewport mouse capture: {}",
+            enabled ? "enable" : "disable",
+            SDL_GetError()));
+        return;
+    }
+
+    viewport_mouse_captured = enabled;
+    viewport_input.mouse_delta_x = 0.f;
+    viewport_input.mouse_delta_y = 0.f;
+}
+
+void Application::update_viewport_mouse_capture()
+{
+    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
+    const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
+    const bool should_capture =
+      viewport_mouse_captured
+        ? right_mouse_down
+        : viewport_input.viewport_hovered && right_mouse_down;
+
+    set_viewport_mouse_capture(should_capture);
 }
 
 void Application::initialize(
@@ -951,7 +1039,17 @@ void Application::run()
 
             if(event.type == SDL_EVENT_QUIT)
             {
+                set_viewport_mouse_capture(false);
                 running = false;
+            }
+            else if(event.type == SDL_EVENT_WINDOW_FOCUS_LOST)
+            {
+                set_viewport_mouse_capture(false);
+            }
+            else if(event.type == SDL_EVENT_MOUSE_BUTTON_UP
+                    && event.button.button == SDL_BUTTON_RIGHT)
+            {
+                set_viewport_mouse_capture(false);
             }
             else if(event.type == SDL_EVENT_MOUSE_MOTION)
             {
@@ -1004,14 +1102,23 @@ void Application::run()
 
 void Application::tick(float delta_time)
 {
+    update_viewport_mouse_capture();
+
     const ViewportCameraControllerInput controller_input =
-      gather_viewport_camera_input(viewport_input, ImGui::GetIO());
+      gather_viewport_camera_input(
+        viewport_input,
+        ImGui::GetIO(),
+        viewport_mouse_captured,
+        viewport->get_navigation_mode());
     update_viewport_camera_controller(
       viewport_camera_controller,
       controller_input,
-      delta_time);
+      delta_time,
+      viewport->get_navigation_mode());
     viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+      make_view_matrix(
+        viewport_camera_controller,
+        viewport->get_navigation_mode()));
 
     scene->tick(delta_time);
     for(auto* gear: gear_objs)
