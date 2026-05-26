@@ -58,7 +58,7 @@ set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 51b657b
+    GIT_TAG 39db291
 )
 FetchContent_MakeAvailable(swr_src)
 

@@ -81,19 +81,13 @@ ml::mat4x4 make_view_matrix(
           -controller.orbit_distance);
         view *= ml::matrices::rotation_x(controller.pitch_radians);
         view *= ml::matrices::rotation_y(controller.yaw_radians);
-        view *= ml::matrices::translation(
-          -controller.orbit_target.x,
-          -controller.orbit_target.y,
-          -controller.orbit_target.z);
+        view *= ml::matrices::translation(-controller.orbit_target);
         return view;
     }
 
     view *= ml::matrices::rotation_x(controller.pitch_radians);
     view *= ml::matrices::rotation_y(controller.yaw_radians);
-    view *= ml::matrices::translation(
-      -controller.position.x,
-      -controller.position.y,
-      -controller.position.z);
+    view *= ml::matrices::translation(-controller.position);
     return view;
 }
 
@@ -642,12 +636,9 @@ ml::mat4x4 make_static_mesh_fit_transform(
     const ml::vec3 center = calculate_center(bounds);
     const float scale = target_half_extent / max_half_extent;
 
-    ml::mat4x4 fit_transform = ml::mat4x4::identity();
-    fit_transform *= ml::matrices::scaling(scale);
-    fit_transform *= ml::matrices::translation(
-      -center.x,
-      -center.y,
-      -center.z);
+    ml::mat4x4 fit_transform =
+      ml::matrices::scaling(scale)
+      * ml::matrices::translation(-center);
 
     return fit_transform;
 }
