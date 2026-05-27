@@ -276,6 +276,19 @@ void update_viewport_texture(
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void set_imgui_mouse_interactions_enabled(bool enabled)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if(enabled)
+    {
+        io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
+    else
+    {
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    }
+}
+
 void imgui_draw_viewport_panel(
   Application& app,
   RenderDevice& render_device,
@@ -1115,8 +1128,17 @@ void Application::run()
         viewport_input.mouse_delta_y = 0.f;
 
         SDL_Event event;
+        bool suppress_imgui_mouse = viewport_mouse_captured;
         while(SDL_PollEvent(&event))
         {
+            if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
+               && event.button.button == SDL_BUTTON_RIGHT
+               && viewport_input.viewport_hovered)
+            {
+                set_viewport_mouse_capture(true);
+            }
+            suppress_imgui_mouse = suppress_imgui_mouse || viewport_mouse_captured;
+
             ImGui_ImplSDL3_ProcessEvent(&event);
 
             if(event.type == SDL_EVENT_QUIT)
@@ -1140,6 +1162,7 @@ void Application::run()
             }
         }
 
+        set_imgui_mouse_interactions_enabled(!suppress_imgui_mouse);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
