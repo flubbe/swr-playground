@@ -21,10 +21,10 @@ class Camera
     float fov_y{static_cast<float>(M_PI) / 8.f};
 
     /** Near clip plane. */
-    float near_plane{10.f};
+    float near_plane{1.f};
 
     /** Far clip plane. */
-    float far_plane{100.f};
+    float far_plane{200.f};
 
     // FIXME clean up.
     float cached_aspect_ratio{1.f};
