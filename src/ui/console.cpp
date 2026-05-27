@@ -9,21 +9,22 @@
  */
 
 #include <string>
-#include <vector>
 
 #include <imgui.h>
+
+#include "logging.h"
 
 namespace imgui
 {
 
 void draw_console_panel(
-  std::vector<std::string>& log_lines)
+  logging::BufferedLogDevice& log_device)
 {
     ImGui::Begin("Console");
 
     if(ImGui::Button("Clear"))
     {
-        log_lines.clear();
+        log_device.clear();
     }
 
     ImGui::Separator();
@@ -33,11 +34,13 @@ void draw_console_panel(
       ImVec2{0, 0},
       false,
       ImGuiWindowFlags_HorizontalScrollbar);
-    for(const std::string& line: log_lines)
+    const bool scroll_to_bottom =
+      ImGui::GetScrollY() >= ImGui::GetScrollMaxY();
+    for(const std::string& line: log_device.get_lines())
     {
         ImGui::TextUnformatted(line.c_str());
     }
-    if(ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+    if(scroll_to_bottom)
     {
         ImGui::SetScrollHereY(1.0f);
     }

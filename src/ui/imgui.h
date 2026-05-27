@@ -10,9 +10,6 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
-
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
@@ -28,6 +25,11 @@ class Renderer;
 class Scene;
 class Object;
 class Viewport;
+
+namespace logging
+{
+class BufferedLogDevice;
+}    // namespace logging
 
 namespace imgui
 {
@@ -54,7 +56,7 @@ void draw_main_dockspace(
   bool& running);
 
 void draw_console_panel(
-  std::vector<std::string>& log_lines);
+  logging::BufferedLogDevice& log_device);
 
 void draw_tools_panel(
   RenderDevice& render_device,

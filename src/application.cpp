@@ -17,7 +17,6 @@
 #include <format>
 #include <limits>
 #include <optional>
-#include <print>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -33,6 +32,7 @@
 #include "scene/static_mesh.h"
 #include "ui/imgui.h"
 #include "application.h"
+#include "logging.h"
 #include "mesh_lod.h"
 #include "renderdevice.h"
 #include "renderer.h"
@@ -283,7 +283,6 @@ void imgui_draw_viewport_panel(
   Scene& scene,
   Viewport& viewport,
   GLuint& viewport_texture,
-  std::vector<std::string>& log_lines,
   float& last_update_time,
   bool& running,
   bool& viewport_hovered)
@@ -310,15 +309,14 @@ void imgui_draw_viewport_panel(
             viewport_texture = create_viewport_texture(
               render_device.get_width(),
               render_device.get_height());
-            log_lines.push_back(
-              std::format(
-                "[info] resized viewport to {}x{}",
-                render_device.get_width(),
-                render_device.get_height()));
+            logging::logf(
+              "resized viewport to {}x{}",
+              render_device.get_width(),
+              render_device.get_height());
         }
         catch(const std::exception& e)
         {
-            std::println(stderr, "{}", e.what());
+            logging::errorf("{}", e.what());
             running = false;
         }
     }
@@ -689,7 +687,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
             const auto& stats = lod_build_result.simplify_stats[lod_index];
             auto& lod_mesh = lod_build_result.lod_meshes[lod_index];
 
-            std::println(
+            logging::logf(
               "LOD frac {}, indices {}, tris {}, accepted {}, rejected {}, queued {}, boundary {}",
               lod_settings.lods[lod_index].triangle_fraction,
               lod_mesh.mesh.indices.size(),
@@ -727,15 +725,13 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
 std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_file(
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const std::filesystem::path& path,
-  std::vector<std::string>& log_lines)
+  const std::filesystem::path& path)
 {
     if(!std::filesystem::exists(path))
     {
-        log_lines.push_back(
-          std::format(
-            "[info] static mesh asset not found: {}",
-            path.string()));
+        logging::logf(
+          "static mesh asset not found: {}",
+          path.string());
         return std::nullopt;
     }
 
@@ -756,17 +752,15 @@ std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_fi
 
         if(lods.empty())
         {
-            log_lines.push_back(
-              std::format(
-                "[warning] static mesh asset has no renderable meshes: {}",
-                path.string()));
+            logging::warningf(
+              "static mesh asset has no renderable meshes: {}",
+              path.string());
             return std::nullopt;
         }
 
-        log_lines.push_back(
-          std::format(
-            "[info] imported static mesh: {}",
-            path.string()));
+        logging::logf(
+          "imported static mesh: {}",
+          path.string());
 
         return StaticMeshAssetResources{
           .lods = std::move(lods),
@@ -776,11 +770,10 @@ std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_fi
     }
     catch(const std::exception& e)
     {
-        log_lines.push_back(
-          std::format(
-            "[warning] failed to import static mesh '{}': {}",
-            path.string(),
-            e.what()));
+        logging::warningf(
+          "failed to import static mesh '{}': {}",
+          path.string(),
+          e.what());
     }
 
     return std::nullopt;
@@ -927,8 +920,7 @@ void Application::setup_scene()
     const auto mesh_resources = try_create_static_mesh_resources_from_file(
       *render_device,
       shader_cache,
-      static_mesh_path,
-      log_lines);
+      static_mesh_path);
 
     if(mesh_resources.has_value())
     {
@@ -975,8 +967,10 @@ void Application::setup_viewport()
 }
 
 Application::Application(
-  std::string_view title)
+  std::string_view title,
+  logging::BufferedLogDevice& log_device)
 : title{title}
+, log_device{log_device}
 {
     window = SDL_CreateWindow(
       "SWR Playground",
@@ -1012,10 +1006,10 @@ Application::Application(
     SDL_GetWindowSize(window, &window_w, &window_h);
     SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
 
-    std::println("display scale: {}", display_scale);
-    std::println("pixel density: {}", pixel_density);
-    std::println("window size: {} x {}", window_w, window_h);
-    std::println("pixel size: {} x {}", pixel_w, pixel_h);
+    logging::logf("display scale: {}", display_scale);
+    logging::logf("pixel density: {}", pixel_density);
+    logging::logf("window size: {} x {}", window_w, window_h);
+    logging::logf("pixel size: {} x {}", pixel_w, pixel_h);
 }
 
 Application::~Application()
@@ -1046,11 +1040,10 @@ void Application::set_viewport_mouse_capture(
 
     if(!SDL_SetWindowRelativeMouseMode(window, enabled))
     {
-        log_lines.push_back(
-          std::format(
-            "[warning] failed to {} viewport mouse capture: {}",
-            enabled ? "enable" : "disable",
-            SDL_GetError()));
+        logging::warningf(
+          "failed to {} viewport mouse capture: {}",
+          enabled ? "enable" : "disable",
+          SDL_GetError());
         return;
     }
 
@@ -1159,11 +1152,10 @@ void Application::run()
           *scene,
           *viewport,
           viewport_texture,
-          log_lines,
           last_update_time,
           running,
           viewport_input.viewport_hovered);
-        imgui::draw_console_panel(log_lines);
+        imgui::draw_console_panel(log_device);
         imgui::draw_tools_panel(
           *render_device,
           *viewport,

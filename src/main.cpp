@@ -12,6 +12,7 @@
 
 #include "scene/scene.h"
 #include "application.h"
+#include "logging.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "platform.h"
@@ -19,6 +20,12 @@
 
 int main(int argc, char* argv[])
 {
+    logging::BufferedLogDevice log_device;
+    logging::log_init(&log_device);
+
+    const auto log_shutdown = gsl::finally([]() -> void
+                                           { logging::log_shutdown(); });
+
     if(!platform_init(argc, argv))
     {
         return EXIT_FAILURE;
@@ -31,7 +38,8 @@ int main(int argc, char* argv[])
                                        { platform_shutdown(); });
 
     Application app{
-      "SWR Playground"};
+      "SWR Playground",
+      log_device};
 
     RenderDevice render_device{640, 480};
     Renderer renderer{render_device};

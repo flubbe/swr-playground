@@ -145,6 +145,7 @@ add_executable(swr_playground
     src/ui/scene_inspector.cpp
     src/ui/tools.cpp
     src/application.cpp
+    src/logging.cpp
     src/main.cpp
     src/mesh.cpp
     src/platform.cpp

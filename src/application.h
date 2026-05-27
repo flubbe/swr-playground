@@ -10,9 +10,9 @@
 
 #pragma once
 
+#include <array>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
@@ -50,9 +50,15 @@ class ColorFlat;
 class ColorSmooth;
 }    // namespace shader
 
+namespace logging
+{
+class BufferedLogDevice;
+}    // namespace logging
+
 class Application
 {
     std::string title;
+    logging::BufferedLogDevice& log_device;
 
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
@@ -77,11 +83,6 @@ class Application
     // demo scene.
     std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
 
-    std::vector<std::string> log_lines{
-      "[info] editor started",
-      "[info] dock layout initialized",
-      "[info] viewport ready"};
-
     ViewportInputState viewport_input{};
     ViewportCameraControllerState viewport_camera_controller{};
     bool viewport_mouse_captured{false};
@@ -94,8 +95,9 @@ protected:
     void setup_viewport();
 
 public:
-    explicit Application(
-      std::string_view title);
+    Application(
+      std::string_view title,
+      logging::BufferedLogDevice& log_device);
 
     ~Application();
 

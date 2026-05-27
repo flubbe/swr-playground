@@ -8,17 +8,40 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <print>
+#include <thread>
 
 #include <SDL3/SDL.h>
+
+#include "logging.h"
+
+/** default SDL log device (set in global_initialize and used in global_shutdown) */
+static SDL_LogOutputFunction default_sdl_log{nullptr};
+
+/** map SDL output to log device. */
+void sdl_log(
+  [[maybe_unused]] void* userdata,
+  [[maybe_unused]] int category,
+  [[maybe_unused]] SDL_LogPriority priority,
+  const char* message)
+{
+    logging::logf("{}", message);
+}
 
 bool platform_init(
   [[maybe_unused]] int argc,
   [[maybe_unused]] char* argv[])
 {
+    logging::logf(
+      "std::thread::hardware_concurrency: {}",
+      std::thread::hardware_concurrency());
+
+    /* map SDL output to log. */
+    SDL_GetLogOutputFunction(&default_sdl_log, nullptr);
+    SDL_SetLogOutputFunction(&sdl_log, nullptr);
+
     if(!SDL_Init(SDL_INIT_VIDEO))
     {
-        std::println(stderr, "SDL_Init failed: {}", SDL_GetError());
+        logging::errorf("SDL_Init failed: {}", SDL_GetError());
         return false;
     }
 
