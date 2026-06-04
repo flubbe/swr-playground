@@ -312,6 +312,18 @@ void set_imgui_mouse_interactions_enabled(bool enabled)
     }
 }
 
+bool viewport_contains_mouse_position(
+  const ViewportInputState& viewport_input,
+  float x,
+  float y)
+{
+    return viewport_input.viewport_rect_valid
+           && x >= viewport_input.viewport_min_x
+           && x < viewport_input.viewport_max_x
+           && y >= viewport_input.viewport_min_y
+           && y < viewport_input.viewport_max_y;
+}
+
 void imgui_draw_viewport_panel(
   Application& app,
   RenderDevice& render_device,
@@ -321,7 +333,7 @@ void imgui_draw_viewport_panel(
   GLuint& viewport_texture,
   float& last_update_time,
   bool& running,
-  bool& viewport_hovered)
+  ViewportInputState& viewport_input)
 {
     ImGui::Begin("Viewport");
 
@@ -381,7 +393,14 @@ void imgui_draw_viewport_panel(
           avail,
           ImVec2{0, 0},
           ImVec2{1, 1});
-        viewport_hovered = ImGui::IsItemHovered();
+        const ImVec2 viewport_min = ImGui::GetItemRectMin();
+        const ImVec2 viewport_max = ImGui::GetItemRectMax();
+        viewport_input.viewport_hovered = ImGui::IsItemHovered();
+        viewport_input.viewport_rect_valid = true;
+        viewport_input.viewport_min_x = viewport_min.x;
+        viewport_input.viewport_min_y = viewport_min.y;
+        viewport_input.viewport_max_x = viewport_max.x;
+        viewport_input.viewport_max_y = viewport_max.y;
 
         if(viewport.is_camera_selector_overlay_enabled())
         {
@@ -396,7 +415,6 @@ void imgui_draw_viewport_panel(
             const std::string label_name = camera_name;
             const std::string label_right = "]";
             const std::string label = label_left + label_name + label_right;
-            const ImVec2 viewport_min = ImGui::GetItemRectMin();
             const ImVec2 text_pos = ImVec2{
               viewport_min.x + 8.0f,
               viewport_min.y + 6.0f};
@@ -505,6 +523,11 @@ void imgui_draw_viewport_panel(
                 ImGui::EndPopup();
             }
         }
+    }
+    else
+    {
+        viewport_input.viewport_hovered = false;
+        viewport_input.viewport_rect_valid = false;
     }
 
     ImGui::End();
@@ -1105,12 +1128,15 @@ void Application::set_viewport_mouse_capture(
 
 void Application::update_viewport_mouse_capture()
 {
-    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
+    float mouse_x = 0.f;
+    float mouse_y = 0.f;
+    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
     const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
     const bool should_capture =
       viewport_mouse_captured
         ? right_mouse_down
-        : viewport_input.viewport_hovered && right_mouse_down;
+        : viewport_contains_mouse_position(viewport_input, mouse_x, mouse_y)
+            && right_mouse_down;
 
     set_viewport_mouse_capture(should_capture);
 }
@@ -1172,7 +1198,10 @@ void Application::run()
         {
             if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
                && event.button.button == SDL_BUTTON_RIGHT
-               && viewport_input.viewport_hovered)
+               && viewport_contains_mouse_position(
+                 viewport_input,
+                 event.button.x,
+                 event.button.y))
             {
                 set_viewport_mouse_capture(true);
             }
@@ -1220,7 +1249,7 @@ void Application::run()
           viewport_texture,
           last_update_time,
           running,
-          viewport_input.viewport_hovered);
+          viewport_input);
         imgui::draw_console_panel(log_device);
         imgui::draw_tools_panel(
           *render_device,

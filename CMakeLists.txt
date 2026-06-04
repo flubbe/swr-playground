@@ -58,7 +58,7 @@ set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 95fdaee  
+    GIT_TAG 95fdaee
 )
 FetchContent_MakeAvailable(swr_src)
 
@@ -148,6 +148,7 @@ add_executable(swr_playground
     src/logging.cpp
     src/main.cpp
     src/mesh.cpp
+    src/mesh_simplifier.cpp
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp

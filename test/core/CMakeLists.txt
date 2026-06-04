@@ -4,6 +4,7 @@ add_executable(core_tests
     test_viewport.cpp
     test_camera_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh.cpp
+    ${PROJECT_SOURCE_DIR}/src/mesh_simplifier.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp

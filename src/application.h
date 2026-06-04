@@ -31,6 +31,11 @@ class Viewport;
 struct ViewportInputState
 {
     bool viewport_hovered{false};
+    bool viewport_rect_valid{false};
+    float viewport_min_x{0.f};
+    float viewport_min_y{0.f};
+    float viewport_max_x{0.f};
+    float viewport_max_y{0.f};
     float mouse_delta_x{0.f};
     float mouse_delta_y{0.f};
     float mouse_wheel_delta{0.f};
