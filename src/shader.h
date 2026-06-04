@@ -46,6 +46,13 @@ public:
     {
     }
 
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
     virtual void pre_link(
       boost::container::static_vector<
         swr::interpolation_qualifier,
@@ -106,6 +113,13 @@ public:
     : diffuse_color{in_color}
     , ambient_color{in_color}
     {
+    }
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
     }
 
     virtual void pre_link(
@@ -173,6 +187,13 @@ public:
     explicit ColorOnly(ml::vec4 in_color)
     : color{in_color}
     {
+    }
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
     }
 
     virtual void pre_link(

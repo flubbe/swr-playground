@@ -61,6 +61,9 @@ MeshData import_mesh_data(const aiMesh& mesh)
 {
     MeshData result{
       .primitive_type = PrimitiveType::Triangles,
+      .indices = {},
+      .vertices = {},
+      .normals = {},
     };
 
     result.vertices.reserve(mesh.mNumVertices);

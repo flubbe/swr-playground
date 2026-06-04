@@ -13,6 +13,7 @@
 #include <chrono>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "renderdevice.h"
 #include "renderer.h"
@@ -141,6 +142,35 @@ float estimate_screen_height_fraction(
     return std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f);
 }
 
+float estimate_sort_depth(
+  const MeshBounds& bounds,
+  const ml::mat4x4& view_from_mesh)
+{
+    ml::vec4 local_center{0.f, 0.f, 0.f, 1.f};
+    if(bounds.valid)
+    {
+        local_center = {
+          (bounds.min.x + bounds.max.x) * 0.5f,
+          (bounds.min.y + bounds.max.y) * 0.5f,
+          (bounds.min.z + bounds.max.z) * 0.5f,
+          1.f,
+        };
+    }
+
+    // In view space, visible geometry is typically in negative Z.
+    // Sorting by -z yields near-to-far submission.
+    const ml::vec4 view_center = view_from_mesh * local_center;
+    return -view_center.z;
+}
+
+struct DrawSubmission
+{
+    float sort_depth{0.f};
+    std::uint32_t mesh_handle{0};
+    std::uint32_t material_handle{0};
+    ml::mat4x4 view_from_mesh;
+};
+
 void record_selected_lod(
   RendererStats& stats,
   std::size_t lod_index)
@@ -230,8 +260,10 @@ void Renderer::render_scene(
     auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)
                      * scene.get_light().position;
 
+    std::vector<DrawSubmission> submissions;
+
     scene.for_each_object<StaticMesh>(
-      [this, &display_settings, &projection, &view, &light_dir](
+      [this, &display_settings, &projection, &view, &submissions](
         const StaticMesh& static_mesh)
       {
           ++render_stats.static_meshes;
@@ -243,6 +275,8 @@ void Renderer::render_scene(
 
           const auto obj_view = view * static_mesh.get_transform();
           const auto obj_clip = projection * obj_view;
+          const float obj_sort_depth =
+            estimate_sort_depth(static_mesh.get_bounds(), obj_view);
 
           const MeshBounds& mesh_bounds = static_mesh.get_bounds();
           if(display_settings.cull_frustum
@@ -282,18 +316,37 @@ void Renderer::render_scene(
                   continue;
               }
 
-              device.bind_material(section.material_handle);
-              device.bind_uniforms({.proj = projection,
-                                    .view = obj_view,
-                                    .light_dir = light_dir}
-
-              );
-              device.draw_mesh(section.mesh_handle);
+              submissions.push_back({
+                .sort_depth = obj_sort_depth,
+                .mesh_handle = section.mesh_handle,
+                .material_handle = section.material_handle,
+                .view_from_mesh = obj_view,
+              });
               ++render_stats.mesh_sections_drawn;
               render_stats.triangles_submitted +=
                 device.get_mesh_triangle_count(section.mesh_handle);
           }
       });
+
+    if(display_settings.sort_meshes)
+    {
+      std::stable_sort(
+        submissions.begin(),
+        submissions.end(),
+        [](const DrawSubmission& lhs, const DrawSubmission& rhs)
+        {
+          return lhs.sort_depth < rhs.sort_depth;
+        });
+    }
+
+    for(const DrawSubmission& submission: submissions)
+    {
+        device.bind_material(submission.material_handle);
+        device.bind_uniforms({.proj = projection,
+                              .view = submission.view_from_mesh,
+                              .light_dir = light_dir});
+        device.draw_mesh(submission.mesh_handle);
+    }
 }
 
 void Renderer::render_grid(

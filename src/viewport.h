@@ -20,6 +20,9 @@ struct ViewportDisplaySettings
 
     /** Whether to select static mesh LODs from projected screen size. */
     bool dynamic_lod{true};
+
+    /** Whether to sort mesh submissions from front to back. */
+    bool sort_meshes{true};
 };
 
 /** Viewport overlay settings. */

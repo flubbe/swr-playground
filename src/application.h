@@ -33,6 +33,7 @@ struct ViewportInputState
     bool viewport_hovered{false};
     float mouse_delta_x{0.f};
     float mouse_delta_y{0.f};
+    float mouse_wheel_delta{0.f};
 };
 
 struct ViewportCameraControllerState
@@ -110,4 +111,6 @@ public:
     void run();
 
     void tick(float delta_time);
+
+    void reset_viewport_camera();
 };

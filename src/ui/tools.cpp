@@ -103,6 +103,11 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::Checkbox("Sort Meshes", &display_settings.sort_meshes))
+        {
+            update_display_settings = true;
+        }
+
         if(update_overlay_settings)
         {
             viewport.set_overlay_settings(overlay_settings);

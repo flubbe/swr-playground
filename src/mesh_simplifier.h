@@ -674,6 +674,9 @@ private:
     {
         MeshData lod{
           .primitive_type = source_mesh->primitive_type,
+          .indices = {},
+          .vertices = {},
+          .normals = {},
         };
 
         std::vector<std::uint32_t> root_to_lod_vertex(

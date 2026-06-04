@@ -63,9 +63,21 @@ struct ViewportCameraControllerInput
     float move_up{0.f};
     float look_yaw{0.f};
     float look_pitch{0.f};
+    float zoom_delta{0.f};
     bool fast_move{false};
     bool active{false};
 };
+
+// Forward declaration
+void align_fps_position_to_orbit_view(
+  ViewportCameraControllerState& controller);
+
+void reset_viewport_camera_controller(
+  ViewportCameraControllerState& controller)
+{
+    controller = {};
+    align_fps_position_to_orbit_view(controller);
+}
 
 ml::mat4x4 make_view_matrix(
   const ViewportCameraControllerState& controller,
@@ -122,6 +134,10 @@ ViewportCameraControllerInput gather_viewport_camera_input(
     input.active = true;
     input.look_yaw = viewport_input.mouse_delta_x;
     input.look_pitch = viewport_input.mouse_delta_y;
+    if(viewport_input.viewport_hovered)
+    {
+        input.zoom_delta = viewport_input.mouse_wheel_delta;
+    }
 
     const bool keyboard_blocked = io.WantCaptureKeyboard;
     if(keyboard_blocked)
@@ -190,6 +206,13 @@ void update_viewport_camera_controller(
 
     if(mode == ViewportNavigationMode::Orbit)
     {
+        if(input.zoom_delta != 0.f)
+        {
+            const float zoom_step = std::max(0.5f, controller.orbit_distance * 0.1f);
+            controller.orbit_distance = std::max(
+              1.f,
+              controller.orbit_distance - input.zoom_delta * zoom_step);
+        }
         return;
     }
 
@@ -462,6 +485,21 @@ void imgui_draw_viewport_panel(
                     }
 
                     ImGui::EndMenu();
+                }
+
+                const bool using_scene_camera =
+                  viewport.get_camera_type(scene) == ViewportCameraType::Scene;
+                if(using_scene_camera)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if(ImGui::MenuItem("Reset") && !using_scene_camera)
+                {
+                    app.reset_viewport_camera();
+                }
+                if(using_scene_camera)
+                {
+                    ImGui::EndDisabled();
                 }
 
                 ImGui::EndPopup();
@@ -1126,6 +1164,7 @@ void Application::run()
     {
         viewport_input.mouse_delta_x = 0.f;
         viewport_input.mouse_delta_y = 0.f;
+        viewport_input.mouse_wheel_delta = 0.f;
 
         SDL_Event event;
         bool suppress_imgui_mouse = viewport_mouse_captured;
@@ -1159,6 +1198,10 @@ void Application::run()
             {
                 viewport_input.mouse_delta_x += event.motion.xrel;
                 viewport_input.mouse_delta_y += event.motion.yrel;
+            }
+            else if(event.type == SDL_EVENT_MOUSE_WHEEL)
+            {
+                viewport_input.mouse_wheel_delta += event.wheel.y;
             }
         }
 
@@ -1230,3 +1273,17 @@ void Application::tick(float delta_time)
         rebuild_gear_mesh_if_needed(*render_device, gear);
     }
 }
+
+  void Application::reset_viewport_camera()
+  {
+    if(viewport == nullptr)
+    {
+      return;
+    }
+
+    reset_viewport_camera_controller(viewport_camera_controller);
+    viewport->get_local_camera().set_transform(
+      make_view_matrix(
+      viewport_camera_controller,
+      viewport->get_navigation_mode()));
+  }
