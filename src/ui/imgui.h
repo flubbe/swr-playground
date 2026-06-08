@@ -67,6 +67,8 @@ void draw_tools_panel(
   float pixel_density,
   const ImGuiIO& io);
 
+bool check_and_clear_sorting_benchmark_request();
+
 void draw_scene_inspector_panel(
   State& ui_state,
   Scene& scene);

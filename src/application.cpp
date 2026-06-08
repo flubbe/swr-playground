@@ -379,9 +379,16 @@ void imgui_draw_viewport_panel(
 
     viewport.update_active_camera_projection(scene);
 
-    renderer.render(
-      scene,
-      viewport);
+    if(renderer.is_benchmark_in_progress())
+    {
+        renderer.update_sorting_benchmark(scene, viewport);
+    }
+    else
+    {
+        renderer.render(
+          scene,
+          viewport);
+    }
 
     if(viewport_texture != 0)
     {
@@ -401,6 +408,37 @@ void imgui_draw_viewport_panel(
         viewport_input.viewport_min_y = viewport_min.y;
         viewport_input.viewport_max_x = viewport_max.x;
         viewport_input.viewport_max_y = viewport_max.y;
+
+        if(renderer.is_benchmark_in_progress())
+        {
+            const std::size_t iteration =
+              renderer.get_benchmark_current_iteration();
+            const std::size_t target =
+              renderer.get_benchmark_target_iterations();
+            const char* phase = renderer.is_benchmark_sorted_phase()
+                                  ? "With Sorting"
+                                  : "Without Sorting";
+            const std::string status = std::format(
+              "Benchmark running: {} {}/{}",
+              phase,
+              iteration + 1,
+              target);
+            const ImVec2 text_pos = ImVec2{
+              viewport_min.x + 8.0f,
+              viewport_min.y + 28.0f};
+            const ImVec2 text_size = ImGui::CalcTextSize(status.c_str());
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            draw_list->AddRectFilled(
+              ImVec2{text_pos.x - 4.f, text_pos.y - 4.f},
+              ImVec2{text_pos.x + text_size.x + 4.f,
+                     text_pos.y + text_size.y + 4.f},
+              IM_COL32(0, 0, 0, 180),
+              4.0f);
+            draw_list->AddText(
+              text_pos,
+              IM_COL32(255, 255, 255, 255),
+              status.c_str());
+        }
 
         if(viewport.is_camera_selector_overlay_enabled())
         {
@@ -1259,6 +1297,13 @@ void Application::run()
           frame_index,
           pixel_density,
           io);
+
+        // Check if benchmark was requested
+        if(imgui::check_and_clear_sorting_benchmark_request())
+        {
+            renderer->start_sorting_benchmark(*scene, *viewport);
+        }
+
         imgui::draw_scene_inspector_panel(ui_state, *scene);
         imgui::draw_class_inspector_panel(ui_state);
 
@@ -1303,16 +1348,16 @@ void Application::tick(float delta_time)
     }
 }
 
-  void Application::reset_viewport_camera()
-  {
+void Application::reset_viewport_camera()
+{
     if(viewport == nullptr)
     {
-      return;
+        return;
     }
 
     reset_viewport_camera_controller(viewport_camera_controller);
     viewport->get_local_camera().set_transform(
       make_view_matrix(
-      viewport_camera_controller,
-      viewport->get_navigation_mode()));
-  }
+        viewport_camera_controller,
+        viewport->get_navigation_mode()));
+}

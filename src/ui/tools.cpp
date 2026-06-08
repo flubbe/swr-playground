@@ -21,6 +21,10 @@
 namespace imgui
 {
 
+static bool sorting_benchmark_requested = false;
+static int sorting_benchmark_iterations = 100;
+static int sorting_depth_bin_count = 8;
+
 void draw_tools_panel(
   RenderDevice& render_device,
   Viewport& viewport,
@@ -106,6 +110,23 @@ void draw_tools_panel(
         if(ImGui::Checkbox("Sort Meshes", &display_settings.sort_meshes))
         {
             update_display_settings = true;
+        }
+
+        if(display_settings.sort_meshes)
+        {
+            const char* sort_modes[] = {
+              "Full Sort (O(n log n))",
+              "Bin Sort (O(n))",
+            };
+            int sort_mode = static_cast<int>(renderer.get_sort_mode());
+            if(ImGui::Combo(
+                 "Sort Mode",
+                 &sort_mode,
+                 sort_modes,
+                 IM_ARRAYSIZE(sort_modes)))
+            {
+                renderer.set_sort_mode(static_cast<SortMode>(sort_mode));
+            }
         }
 
         if(update_overlay_settings)
@@ -217,7 +238,148 @@ void draw_tools_panel(
         }
     }
 
+    if(ImGui::CollapsingHeader("Sorting Benchmark", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        bool benchmark_in_progress = renderer.is_benchmark_in_progress();
+
+        if(benchmark_in_progress)
+        {
+            ImGui::Text("Benchmark in progress...");
+        }
+        else
+        {
+            ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
+            if(sorting_benchmark_iterations < 1)
+                sorting_benchmark_iterations = 1;
+
+            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                sorting_benchmark_requested = true;
+            }
+
+            ImGui::SameLine();
+            ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
+            if(sorting_depth_bin_count < 1)
+                sorting_depth_bin_count = 1;
+            if(static_cast<std::size_t>(sorting_depth_bin_count) != renderer.get_depth_bin_count())
+            {
+                renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
+            }
+
+            ImGui::SameLine();
+            if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                renderer.start_comparative_benchmark(scene, viewport, static_cast<std::size_t>(sorting_benchmark_iterations));
+            }
+
+            const SortingBenchmarkResults& results = renderer.get_benchmark_results();
+            if(results.iterations > 0)
+            {
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Results:");
+
+                if(ImGui::BeginTable(
+                     "BenchmarkResults",
+                     2,
+                     ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Metric");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Iterations");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%llu", static_cast<unsigned long long>(results.iterations));
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("With Sorting");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.time_with_sorting / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Without Sorting");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.time_without_sorting / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Difference");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.get_difference() / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Improvement");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.1f %%", results.get_percentage_improvement());
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::Spacing();
+                const auto& comp = renderer.get_comparative_results();
+                if(!comp.empty())
+                {
+                    ImGui::Spacing();
+                    ImGui::TextUnformatted("Comparative Results (FullSort / BinSort):");
+                    if(ImGui::BeginTable("ComparativeResults", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+                    {
+                        ImGui::TableSetupColumn("Mode");
+                        ImGui::TableSetupColumn("With Sorting (ms)");
+                        ImGui::TableSetupColumn("Without Sorting (ms)");
+                        ImGui::TableHeadersRow();
+
+                        const char* labels[] = {"FullSort", "BinSort"};
+                        for(size_t i = 0; i < comp.size() && i < 2; ++i)
+                        {
+                            ImGui::TableNextRow();
+                            ImGui::TableNextColumn();
+                            ImGui::TextUnformatted(labels[i]);
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%.3f", 1000.f * comp[i].time_with_sorting / std::max<std::size_t>(1, comp[i].iterations));
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%.3f", 1000.f * comp[i].time_without_sorting / std::max<std::size_t>(1, comp[i].iterations));
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+                if(results.get_percentage_improvement() > 0.1f)
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.2f, 0.8f, 0.2f, 1.0f),
+                      "Sorting improves performance by ~%.1f%%",
+                      results.get_percentage_improvement());
+                }
+                else if(results.get_percentage_improvement() < -0.1f)
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.8f, 0.3f, 0.2f, 1.0f),
+                      "Sorting reduces performance by ~%.1f%%",
+                      -results.get_percentage_improvement());
+                }
+                else
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+                      "No significant difference (%.2f%%)",
+                      results.get_percentage_improvement());
+                }
+            }
+        }
+    }
+
     ImGui::End();
+}
+
+bool check_and_clear_sorting_benchmark_request()
+{
+    bool result = sorting_benchmark_requested;
+    sorting_benchmark_requested = false;
+    return result;
 }
 
 }    // namespace imgui

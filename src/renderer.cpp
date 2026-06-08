@@ -42,6 +42,34 @@ std::array<ml::vec4, 8> make_bounds_corners(
     }};
 }
 
+ml::mat4x4 make_camera_view_matrix(
+  const ml::vec3& eye,
+  const ml::vec3& target,
+  const ml::vec3& up)
+{
+    return ml::matrices::look_at(eye, target, up);
+}
+
+std::array<ml::vec3, 16> make_benchmark_positions()
+{
+    constexpr float benchmark_distance = 40.f;
+    constexpr float benchmark_height = 0.f;
+
+    std::array<ml::vec3, 16> positions{};
+    for(std::size_t index = 0; index < positions.size(); ++index)
+    {
+        const float yaw = static_cast<float>(index)
+                          * (2.f * static_cast<float>(M_PI) / positions.size());
+        positions[index] = {
+          std::cos(yaw) * benchmark_distance,
+          benchmark_height,
+          std::sin(yaw) * benchmark_distance,
+        };
+    }
+
+    return positions;
+}
+
 template<typename PlaneFn>
 bool all_corners_outside(
   const std::array<ml::vec4, 8>& clip_corners,
@@ -182,6 +210,43 @@ void record_selected_lod(
     }
 
     ++stats.static_mesh_lods_selected_overflow;
+}
+
+void bin_submissions_by_depth(
+  std::vector<DrawSubmission>& submissions,
+  float near_depth,
+  float far_depth,
+  std::size_t bin_count)
+{
+    if(bin_count == 0)
+        bin_count = 1;
+
+    const float bin_size = (far_depth - near_depth) / static_cast<float>(bin_count);
+
+    std::vector<std::vector<DrawSubmission>> bins;
+    bins.resize(bin_count);
+
+    // Distribute submissions into bins
+    for(const auto& submission: submissions)
+    {
+        int bin_index = 0;
+        if(bin_size > 0.f)
+        {
+            bin_index = static_cast<int>((submission.sort_depth - near_depth) / bin_size);
+        }
+        bin_index = std::min(std::max(bin_index, 0), static_cast<int>(bin_count) - 1);
+        bins[bin_index].push_back(submission);
+    }
+
+    // Reconstruct submissions from bins (front to back)
+    submissions.clear();
+    for(const auto& bin: bins)
+    {
+        for(const auto& submission: bin)
+        {
+            submissions.push_back(submission);
+        }
+    }
 }
 
 }    // namespace
@@ -330,13 +395,29 @@ void Renderer::render_scene(
 
     if(display_settings.sort_meshes)
     {
-      std::stable_sort(
-        submissions.begin(),
-        submissions.end(),
-        [](const DrawSubmission& lhs, const DrawSubmission& rhs)
+        if(sort_mode == SortMode::FullSort)
         {
-          return lhs.sort_depth < rhs.sort_depth;
-        });
+            std::stable_sort(
+              submissions.begin(),
+              submissions.end(),
+              [](const DrawSubmission& lhs, const DrawSubmission& rhs)
+              {
+                  return lhs.sort_depth < rhs.sort_depth;
+              });
+        }
+        else if(sort_mode == SortMode::BinSort && !submissions.empty())
+        {
+            // Find depth range for binning
+            float min_depth = submissions[0].sort_depth;
+            float max_depth = submissions[0].sort_depth;
+            for(const auto& submission: submissions)
+            {
+                min_depth = std::min(min_depth, submission.sort_depth);
+                max_depth = std::max(max_depth, submission.sort_depth);
+            }
+
+            bin_submissions_by_depth(submissions, min_depth, max_depth, depth_bin_count);
+        }
     }
 
     for(const DrawSubmission& submission: submissions)
@@ -408,4 +489,177 @@ void Renderer::render(
     render_time = std::chrono::duration<float>(
                     std::chrono::steady_clock::now() - render_start_time)
                     .count();
+}
+
+void Renderer::start_sorting_benchmark(
+  Scene& scene,
+  Viewport& viewport,
+  std::size_t iterations)
+{
+    if(benchmark_state.active)
+    {
+        return;
+    }
+
+    benchmark_state.active = true;
+    benchmark_state.sorted_phase = true;
+    benchmark_state.target_iterations = iterations;
+    benchmark_state.current_iteration = 0;
+    benchmark_state.total_time_sorted = 0.f;
+    benchmark_state.total_time_unsorted = 0.f;
+    benchmark_state.camera_positions = make_benchmark_positions();
+    benchmark_state.saved_camera_transform = viewport.get_camera(scene).get_transform();
+}
+
+void Renderer::start_comparative_benchmark(
+  Scene& scene,
+  Viewport& viewport,
+  std::size_t iterations)
+{
+    if(comparative_state.active)
+    {
+        return;
+    }
+
+    comparative_state.modes = {SortMode::FullSort, SortMode::BinSort};
+    comparative_state.results.assign(comparative_state.modes.size(), {});
+    comparative_state.current_mode_index = 0;
+    comparative_state.saved_sort_mode = sort_mode;
+    comparative_state.iterations_per_mode = iterations;
+    comparative_state.active = true;
+
+    // start first mode
+    sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+    start_sorting_benchmark(scene, viewport, iterations);
+}
+
+void Renderer::update_sorting_benchmark(
+  Scene& scene,
+  Viewport& viewport)
+{
+    if(!benchmark_state.active)
+    {
+        return;
+    }
+
+    const ViewportDisplaySettings display_settings = viewport.get_display_settings();
+    const auto overlay_settings = viewport.get_overlay_settings();
+    const ml::vec3 target{0.f, 0.f, 0.f};
+    const ml::vec3 up{0.f, 1.f, 0.f};
+
+    if(benchmark_state.current_iteration >= benchmark_state.target_iterations)
+    {
+        if(benchmark_state.sorted_phase)
+        {
+            benchmark_state.sorted_phase = false;
+            benchmark_state.current_iteration = 0;
+            return;
+        }
+
+        Camera& viewport_camera = viewport.get_camera(scene);
+        viewport_camera.set_transform(benchmark_state.saved_camera_transform);
+        viewport_camera.update_projection_matrix(viewport.get_aspect_ratio());
+
+        benchmark_state.active = false;
+        benchmark_results = {
+          .time_with_sorting = benchmark_state.total_time_sorted,
+          .time_without_sorting = benchmark_state.total_time_unsorted,
+          .iterations = benchmark_state.target_iterations,
+        };
+
+        if(comparative_state.active)
+        {
+            // record results for current mode
+            if(comparative_state.current_mode_index < comparative_state.results.size())
+            {
+                comparative_state.results[comparative_state.current_mode_index] = benchmark_results;
+            }
+            comparative_state.current_mode_index += 1;
+            if(comparative_state.current_mode_index < comparative_state.modes.size())
+            {
+                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
+                return;
+            }
+            // finished comparative run
+            comparative_state.active = false;
+            sort_mode = comparative_state.saved_sort_mode;
+        }
+
+        return;
+    }
+
+    const auto camera_position =
+      benchmark_state.camera_positions[benchmark_state.current_iteration
+                                       % benchmark_state.camera_positions.size()];
+
+    Camera& benchmark_camera = viewport.get_camera(scene);
+    benchmark_camera.set_transform(
+      make_camera_view_matrix(camera_position, target, up));
+    benchmark_camera.update_projection_matrix(viewport.get_aspect_ratio());
+
+    const auto saved_render_stats = render_stats;
+    const float saved_render_time = render_time;
+
+    ViewportDisplaySettings benchmark_display_settings = display_settings;
+    benchmark_display_settings.sort_meshes = benchmark_state.sorted_phase;
+
+    auto start_time = std::chrono::steady_clock::now();
+    device.begin_frame();
+    render_scene(scene, benchmark_camera, benchmark_display_settings);
+    if(overlay_settings.show_grid)
+    {
+        render_grid(benchmark_camera);
+    }
+    device.end_frame();
+    const float elapsed = std::chrono::duration<float>(
+                            std::chrono::steady_clock::now() - start_time)
+                            .count();
+
+    if(benchmark_state.sorted_phase)
+    {
+        benchmark_state.total_time_sorted += elapsed;
+    }
+    else
+    {
+        benchmark_state.total_time_unsorted += elapsed;
+    }
+
+    render_stats = saved_render_stats;
+    render_time = saved_render_time;
+
+    benchmark_state.current_iteration += 1;
+    if(benchmark_state.current_iteration >= benchmark_state.target_iterations
+       && !benchmark_state.sorted_phase)
+    {
+        Camera& viewport_camera = viewport.get_camera(scene);
+        viewport_camera.set_transform(benchmark_state.saved_camera_transform);
+        viewport_camera.update_projection_matrix(viewport.get_aspect_ratio());
+
+        benchmark_state.active = false;
+        benchmark_results = {
+          .time_with_sorting = benchmark_state.total_time_sorted,
+          .time_without_sorting = benchmark_state.total_time_unsorted,
+          .iterations = benchmark_state.target_iterations,
+        };
+
+        if(comparative_state.active)
+        {
+            if(comparative_state.current_mode_index < comparative_state.results.size())
+            {
+                comparative_state.results[comparative_state.current_mode_index] = benchmark_results;
+            }
+            comparative_state.current_mode_index += 1;
+            if(comparative_state.current_mode_index < comparative_state.modes.size())
+            {
+                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
+            }
+            else
+            {
+                comparative_state.active = false;
+                sort_mode = comparative_state.saved_sort_mode;
+            }
+        }
+    }
 }
