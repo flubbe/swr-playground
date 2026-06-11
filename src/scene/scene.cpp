@@ -9,6 +9,7 @@
  */
 
 #include "systems/animation.h"
+#include "systems/lights.h"
 #include "systems/object_tick.h"
 #include "scene.h"
 
@@ -44,6 +45,7 @@ void Scene::add_default_systems()
 {
     add_system<ObjectTickSystem>();
     add_system<AnimationSystem>();
+    add_system<LightSystem>();
 }
 
 void Scene::set_spin_animation(

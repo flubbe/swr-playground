@@ -12,6 +12,8 @@
 
 #include <cstdint>
 
+#include "ml/all.h"
+
 /** Part of a mesh using one material. */
 struct MeshSection
 {
@@ -20,4 +22,7 @@ struct MeshSection
 
     /** Material handle. */
     std::uint32_t material_handle{0};
+
+    /** Base color used by the lighting shader. */
+    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
 };

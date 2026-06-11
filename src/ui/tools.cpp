@@ -17,6 +17,7 @@
 #include "renderdevice.h"
 #include "renderer.h"
 #include "viewport.h"
+#include "application.h"
 
 namespace imgui
 {
@@ -26,6 +27,7 @@ static int sorting_benchmark_iterations = 100;
 static int sorting_depth_bin_count = 8;
 
 void draw_tools_panel(
+  Application& app,
   RenderDevice& render_device,
   Viewport& viewport,
   Scene& scene,
@@ -90,6 +92,27 @@ void draw_tools_panel(
         if(ImGui::Checkbox("Wireframe", &display_settings.wireframe))
         {
             update_display_settings = true;
+        }
+
+        const char* shader_names[] = {
+          "Flat",
+          "Smooth",
+          "Phong",
+        };
+        int shader_index = static_cast<int>(app.get_static_mesh_shader());
+        if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
+        {
+            app.set_static_mesh_shader(static_cast<StaticMeshShaderType>(shader_index));
+        }
+
+        const char* light_mode_names[] = {
+          "Rotating",
+          "Stationary",
+        };
+        int light_mode_index = static_cast<int>(scene.get_light().type);
+        if(ImGui::Combo("Light", &light_mode_index, light_mode_names, IM_ARRAYSIZE(light_mode_names)))
+        {
+            scene.get_light().type = static_cast<LightType>(light_mode_index);
         }
 
         if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))

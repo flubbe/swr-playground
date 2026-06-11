@@ -661,10 +661,12 @@ GearParameters create_gear_resources(
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
         .material_handle = smooth_material,
+        .color = p.color,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
         .material_handle = flat_material,
+        .color = p.color,
       },
       .bounds = bounds,
       .inner_radius = p.inner_radius,
@@ -782,7 +784,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
 
     for(auto& mesh: imported_mesh.meshes)
     {
-        auto* shader = shader_cache.add<shader::ColorSmooth>(
+        auto* shader = shader_cache.add<shader::PhongSmooth>(
           mesh.diffuse_color);
 
         const std::uint32_t material = device.create_material(*shader);
@@ -820,6 +822,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
               MeshSection{
                 .mesh_handle = mesh_handle,
                 .material_handle = material,
+                .color = mesh.diffuse_color,
               });
         }
     }
@@ -1290,6 +1293,7 @@ void Application::run()
           viewport_input);
         imgui::draw_console_panel(log_device);
         imgui::draw_tools_panel(
+          *this,
           *render_device,
           *viewport,
           *scene,
@@ -1342,6 +1346,7 @@ void Application::tick(float delta_time)
         viewport->get_navigation_mode()));
 
     scene->tick(delta_time);
+
     for(auto* gear: gear_objs)
     {
         rebuild_gear_mesh_if_needed(*render_device, gear);
@@ -1360,4 +1365,51 @@ void Application::reset_viewport_camera()
       make_view_matrix(
         viewport_camera_controller,
         viewport->get_navigation_mode()));
+}
+
+void Application::set_static_mesh_shader(StaticMeshShaderType type)
+{
+    if(!initialized)
+    {
+        return;
+    }
+
+    active_static_mesh_shader = type;
+    ShaderCache& shader_cache = renderer->get_shader_cache();
+
+    scene->for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          // skip gears for now.
+          if(mesh.is_a<Gear>())
+          {
+              return;
+          }
+
+          for(auto& lod: mesh.get_lods())
+          {
+              for(auto& section: lod.mesh_sections)
+              {
+                  render_device->delete_material(section.material_handle);
+
+                  swr::program_base* new_shader = nullptr;
+                  switch(type)
+                  {
+                  case StaticMeshShaderType::ColorFlat:
+                      new_shader = shader_cache.add<shader::ColorFlat>(section.color);
+                      break;
+                  case StaticMeshShaderType::ColorSmooth:
+                      new_shader = shader_cache.add<shader::ColorSmooth>(section.color);
+                      break;
+                  case StaticMeshShaderType::PhongSmooth:
+                      new_shader = shader_cache.add<shader::PhongSmooth>(section.color);
+                      break;
+                  default:
+                      throw std::runtime_error{"Unknown shader type for static meshes."};
+                  }
+
+                  section.material_handle = render_device->create_material(*new_shader);
+              }
+          }
+      });
 }

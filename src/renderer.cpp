@@ -322,8 +322,7 @@ void Renderer::render_scene(
 
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
-    auto light_dir = ml::matrices::translation(view.rows[0].w, view.rows[1].w, view.rows[2].w)
-                     * scene.get_light().position;
+    auto light_pos_view = view * scene.get_light().position;
 
     std::vector<DrawSubmission> submissions;
 
@@ -425,7 +424,7 @@ void Renderer::render_scene(
         device.bind_material(submission.material_handle);
         device.bind_uniforms({.proj = projection,
                               .view = submission.view_from_mesh,
-                              .light_dir = light_dir});
+                              .light_pos = light_pos_view});
         device.draw_mesh(submission.mesh_handle);
     }
 }
@@ -445,7 +444,7 @@ void Renderer::render_grid(
     device.bind_uniforms({
       .proj = projection,
       .view = view,
-      .light_dir = {},
+      .light_pos = {},
     });
 
     device.draw_mesh(overlay_grid.mesh_handle);

@@ -54,7 +54,15 @@ namespace shader
 {
 class ColorFlat;
 class ColorSmooth;
+class PhongSmooth;
 }    // namespace shader
+
+enum class StaticMeshShaderType
+{
+    ColorFlat,
+    ColorSmooth,
+    PhongSmooth,
+};
 
 namespace logging
 {
@@ -89,6 +97,13 @@ class Application
     // demo scene.
     std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
 
+    /**
+     * Currently active shader type for static meshes.
+     *
+     * FIXME Likely not the correct place, but convenient for experimenting.
+     */
+    StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::PhongSmooth};
+
     ViewportInputState viewport_input{};
     ViewportCameraControllerState viewport_camera_controller{};
     bool viewport_mouse_captured{false};
@@ -118,4 +133,13 @@ public:
     void tick(float delta_time);
 
     void reset_viewport_camera();
+
+    // FIXME Likely not the correct place, but convenient for experimenting.
+    void set_static_mesh_shader(StaticMeshShaderType type);
+
+    // FIXME Likely not the correct place, but convenient for experimenting.
+    StaticMeshShaderType get_static_mesh_shader() const noexcept
+    {
+        return active_static_mesh_shader;
+    }
 };

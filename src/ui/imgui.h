@@ -25,6 +25,7 @@ class Renderer;
 class Scene;
 class Object;
 class Viewport;
+class Application;
 
 namespace logging
 {
@@ -59,6 +60,7 @@ void draw_console_panel(
   logging::BufferedLogDevice& log_device);
 
 void draw_tools_panel(
+  Application& app,
   RenderDevice& render_device,
   Viewport& viewport,
   Scene& scene,

@@ -80,6 +80,16 @@ public:
         return mesh_lods;
     }
 
+    /*
+     * FIXME This is currently here because the LOD's materials should be
+     *       changable at run-time.
+     */
+    [[nodiscard]]
+    std::vector<StaticMeshLod>& get_lods()
+    {
+        return mesh_lods;
+    }
+
     [[nodiscard]]
     const MeshBounds& get_bounds() const noexcept
     {

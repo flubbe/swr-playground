@@ -55,8 +55,8 @@ struct Uniforms
     /** View matrix. */
     ml::mat4x4 view;
 
-    /** Light direction. */
-    ml::vec4 light_dir;
+    /** Light position in camera/view space. */
+    ml::vec4 light_pos;
 };
 
 /** Rasterizer state. */
