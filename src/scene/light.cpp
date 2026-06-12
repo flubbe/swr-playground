@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Light implementation.
+ * Shared light functionality.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -10,18 +10,13 @@
 
 #include "light.h"
 
-#include "scene/properties.h"
-
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 
 DEFINE_REFLECTION(Light);
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void Light::register_properties(reflect::ClassInfo& class_info)
+void Light::register_properties(
+  [[maybe_unused]] reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&Light::position>(
-      class_info,
-      "position",
-      "Position");
 }

@@ -55,8 +55,11 @@ struct Uniforms
     /** View matrix. */
     ml::mat4x4 view;
 
-    /** Light position in camera/view space. */
-    ml::vec4 light_pos;
+    /** Number of active directional lights. */
+    int directional_light_count{0};
+
+    /** Directional lights in camera/view space: xyz = direction, w = brightness. */
+    std::array<ml::vec4, shader::max_lights> directional_light_dirs{};
 };
 
 /** Rasterizer state. */

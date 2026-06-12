@@ -10,11 +10,56 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cmath>
+
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
 namespace shader
 {
+
+constexpr std::size_t max_lights = 2;
+
+inline int clamp_light_count(
+  int light_count)
+{
+    return std::clamp(
+      light_count,
+      0,
+      static_cast<int>(max_lights));
+}
+
+inline std::array<ml::vec4, max_lights> load_directional_lights(
+  std::span<const swr::uniform> uniforms)
+{
+    std::array<ml::vec4, max_lights> lights{};
+    for(std::size_t light_index = 0; light_index < lights.size(); ++light_index)
+    {
+        lights[light_index] = uniforms[3 + light_index].v4;
+    }
+    return lights;
+}
+
+inline float accumulate_directional_light(
+  const ml::vec3& normal,
+  int light_count,
+  const std::array<ml::vec4, max_lights>& lights)
+{
+    float light = 0.f;
+    const int active_light_count = clamp_light_count(light_count);
+    for(int light_index = 0; light_index < active_light_count; ++light_index)
+    {
+        const ml::vec4& directional_light =
+          lights[static_cast<std::size_t>(light_index)];
+        light +=
+          std::max(ml::dot(normal, directional_light.xyz()), 0.f)
+          * directional_light.w;
+    }
+    return std::clamp(light, 0.f, 1.f);
+}
 
 /**
  * A shader that applies coloring and directional lighting.
@@ -24,12 +69,14 @@ namespace shader
  *   attribute 1: vertex normal
  *
  * varyings:
- *   location 0: normal
- *   location 1: light direction in camera space
+ *   location 0: lit color
  *
  * uniforms:
  *   location 0: projection matrix              [mat4x4]
  *   location 1: view matrix                    [mat4x4]
+ *   location 2: directional light count        [int]
+ *   location 3..(3 + max_lights - 1): directional lights in camera space,
+ *                                     brightness in w [vec4]
  *
  */
 
@@ -74,15 +121,18 @@ public:
     {
         ml::mat4x4 proj = uniforms[0].m4;
         ml::mat4x4 view = uniforms[1].m4;
-        const ml::vec3 light_pos = uniforms[2].v4.xyz();
+        const int light_count = uniforms[2].i;
+        const auto lights = load_directional_lights(uniforms);
 
         // transform vertex.
         const ml::vec4 pos_cam = view * attribs[0];
         gl_Position = proj * pos_cam;
 
-        auto n = ml::vec4((view * attribs[1]).xyz(), 0).normalized();   /* normal in camera space */
-        auto d = ml::vec4((light_pos - pos_cam.xyz()).normalized(), 0); /* light direction in camera space */
-        auto l = std::clamp(ml::dot(n, d), 0.f, 1.f);
+        auto n = ml::vec4((view * attribs[1]).xyz(), 0).normalized(); /* normal in camera space */
+        auto l = accumulate_directional_light(
+          n.xyz(),
+          light_count,
+          lights);
 
         varyings[0] = ambient_color * 0.2f + diffuse_color * l;
     }
@@ -131,7 +181,8 @@ public:
         // set interpolation qualifiers for all varyings.
         iqs = {
           swr::interpolation_qualifier::smooth, /* normal */
-          swr::interpolation_qualifier::flat,   /* light direction */
+          swr::interpolation_qualifier::flat,   /* light direction 0 */
+          swr::interpolation_qualifier::flat,   /* light direction 1 */
         };
     }
 
@@ -146,14 +197,24 @@ public:
     {
         ml::mat4x4 proj = uniforms[0].m4;
         ml::mat4x4 view = uniforms[1].m4;
-        const ml::vec3 light_pos = uniforms[2].v4.xyz();
+        const int light_count = clamp_light_count(uniforms[2].i);
+        const auto lights = load_directional_lights(uniforms);
 
         // transform vertex.
         const ml::vec4 pos_cam = view * attribs[0];
         gl_Position = proj * pos_cam;
 
-        varyings[0] = ml::vec4((view * attribs[1]).xyz(), 0);                /* normal in camera space */
-        varyings[1] = ml::vec4((light_pos - pos_cam.xyz()).normalized(), 0); /* light direction in camera space */
+        varyings[0] = ml::vec4((view * attribs[1]).xyz(), 0); /* normal in camera space */
+        for(int light_index = 0; light_index < light_count; ++light_index)
+        {
+            varyings[1 + light_index] = lights[static_cast<std::size_t>(light_index)];
+        }
+        for(std::size_t light_index = static_cast<std::size_t>(light_count);
+            light_index < max_lights;
+            ++light_index)
+        {
+            varyings[1 + light_index] = ml::vec4{0.f, 0.f, 0.f, 0.f};
+        }
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -165,12 +226,18 @@ public:
       ml::vec4& gl_FragColor) const override
     {
         const ml::vec4 normal = varyings[0];
-        const ml::vec4 direction = varyings[1];
+        const ml::vec4 direction0 = varyings[1];
+        const ml::vec4 direction1 = varyings[2];
+        const int light_count = uniforms[2].i;
+        const std::array<ml::vec4, max_lights> lights = {
+          direction0,
+          direction1};
 
         const ml::vec3 n = normal.xyz().normalized();
-        const ml::vec3 d = direction.xyz();
-
-        auto l = std::clamp(ml::dot(n, d), 0.f, 1.f);
+        const float l = accumulate_directional_light(
+          n,
+          light_count,
+          lights);
 
         // write color.
         gl_FragColor = ambient_color * 0.2f + diffuse_color * l;
@@ -181,7 +248,7 @@ public:
 };
 
 /**
- * A Phong shader with a point light.
+ * A Phong shader with two directional lights.
  *
  * vertex shader input:
  *   attribute 0: vertex position
@@ -189,12 +256,13 @@ public:
  *
  * varyings:
  *   location 0: normal in camera space         [smooth]
- *   location 1: fragment position in camera space [smooth]
  *
  * uniforms:
  *   location 0: projection matrix              [mat4x4]
  *   location 1: view matrix                    [mat4x4]
- *   location 2: light position in camera space [vec4]
+ *   location 2: directional light count        [int]
+ *   location 3..(3 + max_lights - 1): directional lights in camera space,
+ *                                     brightness in w [vec4]
  *
  */
 
@@ -229,7 +297,6 @@ public:
     {
         iqs = {
           swr::interpolation_qualifier::smooth, /* normal */
-          swr::interpolation_qualifier::smooth, /* fragment position */
         };
     }
 
@@ -244,12 +311,9 @@ public:
     {
         ml::mat4x4 proj = uniforms[0].m4;
         ml::mat4x4 view = uniforms[1].m4;
-        const ml::vec4 pos_cam = view * attribs[0];
-
-        gl_Position = proj * pos_cam;
+        gl_Position = proj * view * attribs[0];
 
         varyings[0] = ml::vec4((view * attribs[1]).xyz(), 0.f); /* normal in camera space */
-        varyings[1] = ml::vec4(pos_cam.xyz(), 0.f);             /* position in camera space */
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -261,16 +325,35 @@ public:
       ml::vec4& gl_FragColor) const override
     {
         const ml::vec3 N = ml::vec4(varyings[0]).xyz().normalized();
-        const ml::vec3 frag_pos = ml::vec4(varyings[1]).xyz();
-        const ml::vec3 light_pos = uniforms[2].v4.xyz();
+        const int light_count = uniforms[2].i;
+        const auto lights = load_directional_lights(uniforms);
 
-        const ml::vec3 L = (light_pos - frag_pos).normalized();
-        const ml::vec3 V = (-frag_pos).normalized();
-        /* reflect(-L, N) = -L + 2*(N·L)*N */
-        const ml::vec3 R = (-L + N * (2.f * ml::dot(N, L))).normalized();
+        float diff = 0.f;
+        const int active_light_count = clamp_light_count(light_count);
+        for(int light_index = 0; light_index < active_light_count; ++light_index)
+        {
+            const ml::vec4& directional_light =
+              lights[static_cast<std::size_t>(light_index)];
+            diff +=
+              std::max(ml::dot(N, directional_light.xyz()), 0.f)
+              * directional_light.w;
+        }
+        diff = std::clamp(diff, 0.f, 1.f);
 
-        const float diff = std::max(ml::dot(N, L), 0.f);
-        const float spec = std::pow(std::max(ml::dot(R, V), 0.f), shininess);
+        const ml::vec3 view_dir = {0.f, 0.f, 1.f};
+        float spec = 0.f;
+        for(int light_index = 0; light_index < active_light_count; ++light_index)
+        {
+            const ml::vec4& directional_light =
+              lights[static_cast<std::size_t>(light_index)];
+            const ml::vec3 light_dir = directional_light.xyz();
+            const ml::vec3 reflect_dir =
+              (-light_dir + N * (2.f * ml::dot(N, light_dir))).normalized();
+            spec +=
+              std::pow(std::max(ml::dot(reflect_dir, view_dir), 0.f), shininess)
+              * directional_light.w;
+        }
+        spec = std::clamp(spec, 0.f, 1.f);
 
         const ml::vec4 ambient = ambient_color * ambient_strength;
         const ml::vec4 diffuse = diffuse_color * diff;

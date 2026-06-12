@@ -10,9 +10,11 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <format>
 
 #include <imgui.h>
 
+#include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
 #include "renderer.h"
@@ -109,10 +111,24 @@ void draw_tools_panel(
           "Rotating",
           "Stationary",
         };
-        int light_mode_index = static_cast<int>(scene.get_light().type);
-        if(ImGui::Combo("Light", &light_mode_index, light_mode_names, IM_ARRAYSIZE(light_mode_names)))
+
+        auto directional_lights = scene.get_directional_lights();
+        for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
         {
-            scene.get_light().type = static_cast<LightType>(light_mode_index);
+            DirectionalLight& light = *directional_lights[light_index];
+            int light_mode_index = static_cast<int>(light.behavior);
+
+            const std::string label = std::format(
+              "Directional Light {}",
+              light_index + 1);
+            if(ImGui::Combo(
+                 label.c_str(),
+                 &light_mode_index,
+                 light_mode_names,
+                 IM_ARRAYSIZE(light_mode_names)))
+            {
+                light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
+            }
         }
 
         if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))

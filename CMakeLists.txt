@@ -58,7 +58,7 @@ set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 95fdaee
+    GIT_TAG a57d743
 )
 FetchContent_MakeAvailable(swr_src)
 
@@ -133,11 +133,13 @@ add_executable(swr_playground
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/scene/camera.cpp
+    src/scene/directionallight.cpp
     src/scene/gear.cpp
     src/scene/light.cpp
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp

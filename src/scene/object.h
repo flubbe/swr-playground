@@ -199,6 +199,23 @@ public:
         return transform;
     }
 
+    /** Set the object's world position while preserving the rest of the transform. */
+    void set_position(const ml::vec3& position)
+    {
+        transform.rows[0].w = position.x;
+        transform.rows[1].w = position.y;
+        transform.rows[2].w = position.z;
+    }
+
+    /** Return the object's world position. */
+    ml::vec3 get_position() const
+    {
+        return {
+          transform.rows[0].w,
+          transform.rows[1].w,
+          transform.rows[2].w};
+    }
+
     /*
      * Snapshots.
      */

@@ -17,6 +17,7 @@
 
 #include "renderdevice.h"
 #include "renderer.h"
+#include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "viewport.h"
@@ -212,6 +213,36 @@ void record_selected_lod(
     ++stats.static_mesh_lods_selected_overflow;
 }
 
+Uniforms collect_light_uniforms(
+  const Scene& scene,
+  const ml::mat4x4& camera_view)
+{
+    Uniforms uniforms{};
+    const auto directional_lights = scene.get_directional_lights();
+
+    std::size_t active_light_index = 0;
+    for(const DirectionalLight* light: directional_lights)
+    {
+        if(light == nullptr
+           || !light->enabled
+           || active_light_index >= uniforms.directional_light_dirs.size())
+        {
+            continue;
+        }
+
+        const ml::vec3 world_dir =
+          light->get_world_direction_to_light();
+        uniforms.directional_light_dirs[active_light_index] =
+          ml::vec4(
+            (camera_view * ml::vec4(world_dir, 0.f)).xyz().normalized(),
+            light->brightness);
+        ++active_light_index;
+    }
+
+    uniforms.directional_light_count = static_cast<int>(active_light_index);
+    return uniforms;
+}
+
 void bin_submissions_by_depth(
   std::vector<DrawSubmission>& submissions,
   float near_depth,
@@ -322,7 +353,7 @@ void Renderer::render_scene(
 
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
-    auto light_pos_view = view * scene.get_light().position;
+    Uniforms light_uniforms = collect_light_uniforms(scene, view);
 
     std::vector<DrawSubmission> submissions;
 
@@ -424,7 +455,8 @@ void Renderer::render_scene(
         device.bind_material(submission.material_handle);
         device.bind_uniforms({.proj = projection,
                               .view = submission.view_from_mesh,
-                              .light_pos = light_pos_view});
+                              .directional_light_count = light_uniforms.directional_light_count,
+                              .directional_light_dirs = light_uniforms.directional_light_dirs});
         device.draw_mesh(submission.mesh_handle);
     }
 }
@@ -444,7 +476,8 @@ void Renderer::render_grid(
     device.bind_uniforms({
       .proj = projection,
       .view = view,
-      .light_pos = {},
+      .directional_light_count = 0,
+      .directional_light_dirs = {},
     });
 
     device.draw_mesh(overlay_grid.mesh_handle);

@@ -222,7 +222,15 @@ void RenderDevice::bind_uniforms(const Uniforms& uniforms)
 {
     swr::BindUniform(0, uniforms.proj);
     swr::BindUniform(1, uniforms.view);
-    swr::BindUniform(2, uniforms.light_pos);
+    swr::BindUniform(2, uniforms.directional_light_count);
+    for(std::size_t light_index = 0;
+        light_index < uniforms.directional_light_dirs.size();
+        ++light_index)
+    {
+        swr::BindUniform(
+          static_cast<std::uint32_t>(3 + light_index),
+          uniforms.directional_light_dirs[light_index]);
+    }
 }
 
 void RenderDevice::draw_mesh(std::uint32_t handle)

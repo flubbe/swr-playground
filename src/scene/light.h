@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * A simple light.
+ * Shared light functionality.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -13,25 +13,25 @@
 #include "ml/all.h"
 #include "object.h"
 
-enum class LightType
-{
-    Rotating,
-    Stationary,
-};
-
 class Light
 : public reflect::Reflected<Light, Object>
 {
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
-    /** Light behavior mode. */
-    LightType type{LightType::Rotating};
-
-    /** light position. */
-    ml::vec4 position{5.0f, 5.0f, 10.0f, 1.0f};
-
     Light() = default;
+
+    [[nodiscard]]
+    ml::vec3 get_world_forward_direction() const
+    {
+        const ml::vec3 direction =
+          (get_transform() * ml::vec4{0.f, 0.f, -1.f, 0.f}).xyz();
+        if(direction.length() <= 0.0001f)
+        {
+            return {0.f, 0.f, -1.f};
+        }
+        return direction.normalized();
+    }
 };
 
 DECLARE_REFLECTION(Scene, Light);

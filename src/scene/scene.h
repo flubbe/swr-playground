@@ -23,7 +23,8 @@
 #include "systems/system.h"
 #include "animation.h"
 #include "camera.h"
-#include "light.h"
+#include "directionallight.h"
+#include "spotlight.h"
 #include "object.h"
 
 class Scene
@@ -55,9 +56,6 @@ class Scene
       Object*>
       objects_by_id;
 
-    /** scene light. */
-    Light light;
-
     /** scene time. */
     float time{0};
 
@@ -65,7 +63,7 @@ class Scene
     bool paused{false};
 
 public:
-    Scene() = default;
+    Scene();
 
     void set_paused(bool in_pause)
     {
@@ -115,6 +113,10 @@ public:
     const Camera* find_camera(ObjectId id) const;
     std::vector<Camera*> get_cameras();
     std::vector<const Camera*> get_cameras() const;
+    std::vector<DirectionalLight*> get_directional_lights();
+    std::vector<const DirectionalLight*> get_directional_lights() const;
+    std::vector<SpotLight*> get_spot_lights();
+    std::vector<const SpotLight*> get_spot_lights() const;
 
     template<typename T, typename Fn>
         requires(
@@ -190,16 +192,6 @@ public:
     std::vector<std::unique_ptr<Object>>& get_objects()
     {
         return objects;
-    }
-
-    const Light& get_light() const
-    {
-        return light;
-    }
-
-    Light& get_light()
-    {
-        return light;
     }
 
     const std::unordered_map<ObjectId, SpinAnimation>& get_spin_animations() const
