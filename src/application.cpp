@@ -973,6 +973,29 @@ void rebuild_gear_mesh_if_needed(
     gear->mark_rebuilt();
 }
 
+void configure_default_directional_lights(Scene& scene)
+{
+    auto* key_light = scene.add_object<DirectionalLight>();
+    key_light->set_name("Directional Light 1");
+    key_light->behavior = DirectionalLightBehavior::Rotating;
+    key_light->brightness = 0.55f;
+    key_light->set_transform(
+      ml::matrices::rotation_y(ml::to_radians(210.f))
+      * ml::matrices::rotation_x(ml::to_radians(-35.f)));
+    key_light->set_position({5.f, 8.f, 10.f});
+    key_light->capture_snapshot();
+
+    auto* fill_light = scene.add_object<DirectionalLight>();
+    fill_light->set_name("Directional Light 2");
+    fill_light->behavior = DirectionalLightBehavior::Stationary;
+    fill_light->brightness = 0.25f;
+    fill_light->set_transform(
+      ml::matrices::rotation_y(ml::to_radians(35.f))
+      * ml::matrices::rotation_x(ml::to_radians(-55.f)));
+    fill_light->set_position({-10.f, 12.f, -6.f});
+    fill_light->capture_snapshot();
+}
+
 }    // namespace
 
 void Application::setup_scene()
@@ -981,6 +1004,8 @@ void Application::setup_scene()
     {
         throw std::runtime_error{"Application not initialized."};
     }
+
+    configure_default_directional_lights(*scene);
 
     struct GearInit
     {

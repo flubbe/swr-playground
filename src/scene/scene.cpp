@@ -13,37 +13,8 @@
 #include "systems/object_tick.h"
 #include "scene.h"
 
-namespace
-{
-
-void configure_default_directional_lights(Scene& scene)
-{
-    auto* key_light = scene.add_object<DirectionalLight>();
-    key_light->set_name("Directional Light 1");
-    key_light->behavior = DirectionalLightBehavior::Rotating;
-    key_light->brightness = 0.55f;
-    key_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(210.f))
-      * ml::matrices::rotation_x(ml::to_radians(-35.f)));
-    key_light->set_position({5.f, 8.f, 10.f});
-    key_light->capture_snapshot();
-
-    auto* fill_light = scene.add_object<DirectionalLight>();
-    fill_light->set_name("Directional Light 2");
-    fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.25f;
-    fill_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(35.f))
-      * ml::matrices::rotation_x(ml::to_radians(-55.f)));
-    fill_light->set_position({-10.f, 12.f, -6.f});
-    fill_light->capture_snapshot();
-}
-
-}    // namespace
-
 Scene::Scene()
 {
-    configure_default_directional_lights(*this);
 }
 
 void Scene::clear()
@@ -56,8 +27,6 @@ void Scene::clear()
     objects.clear();
     objects_by_id.clear();
     spin_animations.clear();
-
-    configure_default_directional_lights(*this);
 }
 
 void Scene::tick(float delta_time)

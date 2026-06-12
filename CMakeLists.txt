@@ -6,13 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
-set(SWR_PLAYGROUND_BUILD_TESTING ON)
-if(DEFINED BUILD_TESTING)
-    set(SWR_PLAYGROUND_BUILD_TESTING ${BUILD_TESTING})
-endif()
+option(SWR_PLAYGROUND_BUILD_TESTING "Build swr_playground tests" ON)
 
 # Keep third-party dependency tests disabled.
+set(BUILD_TESTING OFF)
 set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
 
 find_package(OpenGL REQUIRED)
@@ -186,6 +185,7 @@ else()
 endif()
 
 # Enable this project's tests (and CTest) after dependency setup.
+set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING})
 set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)
 include(CTest)
 

@@ -11,6 +11,8 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/scene/object.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/camera.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/light.cpp
+    ${PROJECT_SOURCE_DIR}/src/scene/directionallight.cpp
+    ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
 )
 
