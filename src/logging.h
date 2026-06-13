@@ -12,6 +12,7 @@
 
 #include <format>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace logging
@@ -25,7 +26,7 @@ class LogDevice
 
 protected:
     /** log with newline at end. */
-    virtual void log_n(const std::string& message) = 0;
+    virtual void log_n(std::string_view message) = 0;
 
 public:
     /** empty destructor */
@@ -34,7 +35,7 @@ public:
     }
 
     void log(
-      const char* format,
+      std::string_view format,
       std::format_args args)
     {
         const std::string msg = std::vformat(format, args);
@@ -43,14 +44,14 @@ public:
 
     template<typename... Args>
     void logf(
-      const char* format,
+      std::string_view format,
       const Args&... args)
     {
         log(format, std::make_format_args(args...));
     }
 
     void warning(
-      const char* format,
+      std::string_view format,
       std::format_args args)
     {
         const std::string msg = std::vformat(format, args);
@@ -59,14 +60,14 @@ public:
 
     template<typename... Args>
     void warningf(
-      const char* format,
+      std::string_view format,
       const Args&... args)
     {
         warning(format, std::make_format_args(args...));
     }
 
     void error(
-      const char* format,
+      std::string_view format,
       std::format_args args)
     {
         const std::string msg = std::vformat(format, args);
@@ -75,7 +76,7 @@ public:
 
     template<typename... Args>
     void errorf(
-      const char* format,
+      std::string_view format,
       const Args&... args)
     {
         error(format, std::make_format_args(args...));
@@ -97,7 +98,7 @@ public:
 /** formatted log interface. */
 template<typename... Args>
 void logf(
-  const char* format,
+  std::string_view format,
   const Args&... args)
 {
     LogDevice::get().log(
@@ -108,7 +109,7 @@ void logf(
 /** formatted log interface. */
 template<typename... Args>
 void warningf(
-  const char* format,
+  std::string_view format,
   const Args&... args)
 {
     LogDevice::get().warning(
@@ -119,7 +120,7 @@ void warningf(
 /** formatted log interface. */
 template<typename... Args>
 void errorf(
-  const char* format,
+  std::string_view format,
   const Args&... args)
 {
     LogDevice::get().error(
@@ -137,7 +138,7 @@ inline void log_n()
 class LogNull : public LogDevice
 {
 protected:
-    void log_n(const std::string&) override
+    void log_n(std::string_view) override
     {
     }
 };
@@ -148,7 +149,7 @@ class BufferedLogDevice : public LogDevice
     std::vector<std::string> lines;
 
 protected:
-    void log_n(const std::string& message) override;
+    void log_n(std::string_view message) override;
 
 public:
     /** Get stored log lines. */

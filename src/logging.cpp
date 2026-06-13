@@ -52,9 +52,9 @@ void LogDevice::cleanup()
 }
 
 void BufferedLogDevice::log_n(
-  const std::string& message)
+  std::string_view message)
 {
-    lines.push_back(message);
+    lines.emplace_back(std::string{message});
 }
 
 const std::vector<std::string>& BufferedLogDevice::get_lines() const
