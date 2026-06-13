@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <print>
+#include <span>
 #include <utility>
 
 #include "scene/camera.h"
@@ -78,6 +79,11 @@ std::uint32_t RenderDevice::create_mesh(
     MeshGpuData gpu_data{
       .vertices_handle = swr::CreateAttributeBuffer(mesh.vertices),
       .normals_handle = swr::CreateAttributeBuffer(mesh.normals),
+      .texcoords_handle =
+        mesh.texcoords.empty()
+          ? std::nullopt
+          : std::make_optional(
+              swr::CreateAttributeBuffer(mesh.texcoords)),
     };
 
     meshes.emplace(mesh_id, std::move(mesh));
@@ -99,11 +105,20 @@ bool RenderDevice::update_mesh(
         return false;
     }
 
+    if(gpu_it->second.texcoords_handle.has_value())
+    {
+        swr::DeleteAttributeBuffer(*gpu_it->second.texcoords_handle);
+    }
     swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
     swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
 
     gpu_it->second.vertices_handle = swr::CreateAttributeBuffer(mesh.vertices);
     gpu_it->second.normals_handle = swr::CreateAttributeBuffer(mesh.normals);
+    gpu_it->second.texcoords_handle =
+      mesh.texcoords.empty()
+        ? std::nullopt
+        : std::make_optional(
+            swr::CreateAttributeBuffer(mesh.texcoords));
     mesh_it->second = std::move(mesh);
     mesh_bounds[handle] = calculate_mesh_bounds(mesh_it->second);
 
@@ -140,6 +155,10 @@ void RenderDevice::delete_mesh(std::uint32_t handle)
     auto gpu_it = mesh_gpu_data.find(handle);
     if(gpu_it != mesh_gpu_data.end())
     {
+        if(gpu_it->second.texcoords_handle.has_value())
+        {
+            swr::DeleteAttributeBuffer(*gpu_it->second.texcoords_handle);
+        }
         swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
         swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
 
@@ -150,8 +169,68 @@ void RenderDevice::delete_mesh(std::uint32_t handle)
     mesh_bounds.erase(handle);
 }
 
+std::uint32_t RenderDevice::create_texture(
+  const assets::ImageRgba8& image)
+{
+    if(image.width <= 0
+       || image.height <= 0
+       || image.pixels.size()
+            != static_cast<std::size_t>(image.width * image.height * 4))
+    {
+        throw std::runtime_error("Unable to create texture from invalid RGBA8 image data");
+    }
+
+    const std::uint32_t texture_id = swr::CreateTexture();
+    if(texture_id == 0)
+    {
+        throw std::runtime_error("Unable to create texture handle");
+    }
+
+    swr::ActiveTexture(swr::texture_0);
+    swr::BindTexture(swr::texture_target::texture_2d, texture_id);
+    swr::SetImage(
+      texture_id,
+      0,
+      static_cast<std::size_t>(image.width),
+      static_cast<std::size_t>(image.height),
+      swr::pixel_format::rgba8888,
+      image.pixels);
+    if(swr::GetLastError() != swr::error::none)
+    {
+        swr::ReleaseTexture(texture_id);
+        throw std::runtime_error("Unable to upload texture image");
+    }
+
+    swr::SetTextureWrapMode(
+      texture_id,
+      swr::wrap_mode::repeat,
+      swr::wrap_mode::repeat);
+    swr::SetTextureMinificationFilter(swr::texture_filter::linear);
+    swr::SetTextureMagnificationFilter(swr::texture_filter::linear);
+    swr::BindTexture(swr::texture_target::texture_2d, 0);
+
+    return texture_id;
+}
+
+void RenderDevice::delete_texture(std::uint32_t handle)
+{
+    if(handle != 0)
+    {
+        swr::ReleaseTexture(handle);
+    }
+}
+
 std::uint32_t RenderDevice::create_material(
   const swr::program_base& shader)
+{
+    return create_material(
+      shader,
+      std::span<const std::uint32_t>{});
+}
+
+std::uint32_t RenderDevice::create_material(
+  const swr::program_base& shader,
+  std::span<const std::uint32_t> texture_handles)
 {
     std::uint32_t shader_handle = swr::RegisterShader(&shader);
     if(shader_handle == 0)
@@ -167,7 +246,10 @@ std::uint32_t RenderDevice::create_material(
 
     materials.insert({material_id,
                       {.shader = &shader,
-                       .shader_handle = shader_handle}});
+                       .shader_handle = shader_handle,
+                       .texture_handles = std::vector<std::uint32_t>(
+                         texture_handles.begin(),
+                         texture_handles.end())}});
     return material_id;
 }
 
@@ -180,6 +262,13 @@ void RenderDevice::delete_material(std::uint32_t handle)
     }
 
     swr::UnregisterShader(it->second.shader_handle);
+    for(const std::uint32_t texture_handle: it->second.texture_handles)
+    {
+        if(texture_handle != 0)
+        {
+            delete_texture(texture_handle);
+        }
+    }
 
     materials.erase(it);
 }
@@ -216,6 +305,27 @@ void RenderDevice::bind_material(std::uint32_t handle)
     }
 
     swr::BindShader(it->second.shader_handle);
+
+    const std::size_t texture_count = it->second.texture_handles.size();
+    swr::SetState(
+      swr::state::texture,
+      texture_count > 0);
+
+    for(std::size_t unit = 0; unit < texture_count; ++unit)
+    {
+        swr::ActiveTexture(static_cast<std::uint32_t>(unit));
+        swr::BindTexture(
+          swr::texture_target::texture_2d,
+          it->second.texture_handles[unit]);
+    }
+    for(std::size_t unit = texture_count; unit < current_bound_texture_count; ++unit)
+    {
+        swr::ActiveTexture(static_cast<std::uint32_t>(unit));
+        swr::BindTexture(
+          swr::texture_target::texture_2d,
+          0);
+    }
+    current_bound_texture_count = texture_count;
 }
 
 void RenderDevice::bind_uniforms(const Uniforms& uniforms)
@@ -247,6 +357,10 @@ void RenderDevice::draw_mesh(std::uint32_t handle)
 
     swr::EnableAttributeBuffer(gpu_data.vertices_handle, 0);
     swr::EnableAttributeBuffer(gpu_data.normals_handle, 1);
+    if(gpu_data.texcoords_handle.has_value())
+    {
+        swr::EnableAttributeBuffer(*gpu_data.texcoords_handle, 2);
+    }
 
     const auto mode =
       mesh.primitive_type == PrimitiveType::Lines
@@ -260,4 +374,8 @@ void RenderDevice::draw_mesh(std::uint32_t handle)
 
     swr::DisableAttributeBuffer(gpu_data.vertices_handle);
     swr::DisableAttributeBuffer(gpu_data.normals_handle);
+    if(gpu_data.texcoords_handle.has_value())
+    {
+        swr::DisableAttributeBuffer(*gpu_data.texcoords_handle);
+    }
 }

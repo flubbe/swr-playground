@@ -38,6 +38,9 @@ struct MeshData
 
     /** Normals. */
     std::vector<ml::vec4> normals;
+
+    /** Texture coordinates packed into xy. */
+    std::vector<ml::vec4> texcoords;
 };
 
 /** Axis-aligned mesh bounds in local mesh space. */

@@ -361,6 +361,11 @@ void Renderer::render_scene(
       [this, &display_settings, &projection, &view, &submissions](
         const StaticMesh& static_mesh)
       {
+          if(!static_mesh.is_visible())
+          {
+              return;
+          }
+
           ++render_stats.static_meshes;
 
           if(!static_mesh.has_mesh_sections())

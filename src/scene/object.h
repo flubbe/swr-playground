@@ -91,6 +91,9 @@ public:
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
+    /** Whether the object should be rendered when supported by the renderer. */
+    bool visible{true};
+
 protected:
     /** per-instance baseline snapshot object. */
     std::unique_ptr<Object> snapshot;
@@ -122,6 +125,8 @@ public:
     : reflect::ReflectRoot<Object>{std::move(other)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
+    , transform{other.transform}
+    , visible{other.visible}
     {
         other.class_info = nullptr;
     }
@@ -135,6 +140,8 @@ public:
 
         object_id = other.object_id;
         name = std::move(other.name);
+        transform = other.transform;
+        visible = other.visible;
 
         return *this;
     }
@@ -197,6 +204,19 @@ public:
     ml::mat4x4 get_transform() const
     {
         return transform;
+    }
+
+    /** Set whether this object should be rendered when supported by the renderer. */
+    void set_visible(bool in_visible) noexcept
+    {
+        visible = in_visible;
+    }
+
+    /** Return whether this object should be rendered when supported by the renderer. */
+    [[nodiscard]]
+    bool is_visible() const noexcept
+    {
+        return visible;
     }
 
     /** Set the object's world position while preserving the rest of the transform. */

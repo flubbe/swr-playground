@@ -13,6 +13,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -20,6 +22,7 @@
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
+#include "assets/texture.h"
 #include "mesh.h"
 #include "shader.h"
 
@@ -34,6 +37,9 @@ struct MeshGpuData
 
     /** Handle to the normal buffer. */
     std::uint32_t normals_handle{0};
+
+    /** Handle to the texture coordinate buffer. */
+    std::optional<std::uint32_t> texcoords_handle;
 };
 
 /** A render material. */
@@ -44,6 +50,9 @@ struct Material
 
     /** Shader handle. */
     std::uint32_t shader_handle{0};
+
+    /** Bound 2D textures by texture unit index. */
+    std::vector<std::uint32_t> texture_handles{};
 };
 
 /** Shader uniforms. */
@@ -111,6 +120,7 @@ class RenderDevice
 
     /** state cache. */
     RasterizerState current_rasterizer_state;
+    std::size_t current_bound_texture_count{0};
 
 protected:
     void initialize()
@@ -208,8 +218,17 @@ public:
 
     void delete_mesh(std::uint32_t handle);
 
+    std::uint32_t create_texture(
+      const assets::ImageRgba8& image);
+
+    void delete_texture(std::uint32_t handle);
+
     std::uint32_t create_material(
       const swr::program_base& shader);
+
+    std::uint32_t create_material(
+      const swr::program_base& shader,
+      std::span<const std::uint32_t> texture_handles);
 
     void delete_material(std::uint32_t handle);
 

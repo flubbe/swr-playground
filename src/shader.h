@@ -428,4 +428,137 @@ public:
     }
 };
 
+class TexturedFloor : public swr::program<TexturedFloor>
+{
+    const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
+    const ml::vec4 light_specular_color{1.f, 1.f, 1.f, 1.f};
+    static constexpr float ambient_diffuse_factor = 0.10f;
+    static constexpr float specular_strength = 0.35f;
+    static constexpr float shininess = 24.f;
+
+public:
+    TexturedFloor() = default;
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
+    void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        iqs = {
+          swr::interpolation_qualifier::smooth, /* uv */
+          swr::interpolation_qualifier::smooth, /* position in camera space */
+          swr::interpolation_qualifier::smooth, /* normal in camera space */
+          swr::interpolation_qualifier::smooth, /* tangent in camera space */
+          swr::interpolation_qualifier::smooth, /* bitangent in camera space */
+          swr::interpolation_qualifier::smooth, /* eye direction in camera space */
+        };
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      std::span<const ml::vec4> attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
+    {
+        const ml::mat4x4 proj = uniforms[0].m4;
+        const ml::mat4x4 view = uniforms[1].m4;
+        const ml::vec3 position_cameraspace = (view * attribs[0]).xyz();
+        const ml::vec3 normal_cameraspace =
+          (view * ml::vec4{0.f, 1.f, 0.f, 0.f}).xyz();
+        const ml::vec3 tangent_cameraspace =
+          (view * ml::vec4{1.f, 0.f, 0.f, 0.f}).xyz();
+        const ml::vec3 bitangent_cameraspace =
+          (view * ml::vec4{0.f, 0.f, -1.f, 0.f}).xyz();
+
+        gl_Position = proj * view * attribs[0];
+        varyings[0] = attribs[2];
+        varyings[1] = ml::vec4(position_cameraspace, 0.f);
+        varyings[2] = ml::vec4(normal_cameraspace, 0.f);
+        varyings[3] = ml::vec4(tangent_cameraspace, 0.f);
+        varyings[4] = ml::vec4(bitangent_cameraspace, 0.f);
+        varyings[5] = ml::vec4(-position_cameraspace, 0.f);
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      std::span<const swr::varying> varyings,
+      [[maybe_unused]] float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        const swr::varying& tex_coords = varyings[0];
+        const ml::vec4 normal = varyings[2];
+        const ml::vec4 tangent = varyings[3];
+        const ml::vec4 bitangent = varyings[4];
+        const ml::vec4 eye_direction = varyings[5];
+
+        const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
+        const ml::vec3 material_normal =
+          (samplers[1]->sample_at(tex_coords) * 2.f - 1.f).xyz();
+
+        const ml::mat4x4 tbn = ml::mat4x4{
+          tangent,
+          bitangent,
+          normal,
+          ml::vec4::zero()}
+                                 .transposed();
+        const ml::vec3 N =
+          (tbn * ml::vec4{material_normal, 0.f}).xyz().normalized();
+        const ml::vec3 view_dir = eye_direction.xyz().normalized();
+
+        const int light_count = clamp_light_count(uniforms[2].i);
+        const auto lights = load_directional_lights(uniforms);
+
+        float lambertian_sum = 0.f;
+        float specular_sum = 0.f;
+        for(int light_index = 0; light_index < light_count; ++light_index)
+        {
+            const ml::vec4& directional_light =
+              lights[static_cast<std::size_t>(light_index)];
+            const ml::vec3 light_dir = directional_light.xyz().normalized();
+            const float lambertian =
+              std::clamp(ml::dot(N, light_dir), 0.f, 1.f);
+            lambertian_sum += lambertian * directional_light.w;
+
+            if(lambertian > 0.f)
+            {
+                const ml::vec3 reflect_dir =
+                  -(light_dir - N * 2.f * ml::dot(light_dir, N));
+                const float specular_angle =
+                  ml::dot(reflect_dir, view_dir);
+                specular_sum +=
+                  std::pow(std::clamp(specular_angle, 0.f, 1.f), shininess)
+                  * directional_light.w;
+            }
+        }
+
+        lambertian_sum = std::clamp(lambertian_sum, 0.f, 1.f);
+        specular_sum = std::clamp(specular_sum, 0.f, 1.f);
+
+        const ml::vec4 ambient_color = base_color * ambient_diffuse_factor;
+        const ml::vec4 diffuse_color =
+          light_color * base_color * lambertian_sum;
+        const ml::vec4 specular_color =
+          light_specular_color * (specular_strength * specular_sum);
+
+        gl_FragColor = ml::vec4{
+          std::min(ambient_color.x + diffuse_color.x + specular_color.x, 1.f),
+          std::min(ambient_color.y + diffuse_color.y + specular_color.y, 1.f),
+          std::min(ambient_color.z + diffuse_color.z + specular_color.z, 1.f),
+          base_color.w};
+        return swr::accept;
+    }
+};
+
 } /* namespace shader */

@@ -27,6 +27,7 @@
 #include <backends/imgui_impl_opengl3.h>
 
 #include "assets/static_mesh_importer.h"
+#include "assets/texture.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
@@ -762,6 +763,8 @@ struct StaticMeshAssetResources
     std::string name;
 };
 
+constexpr std::string_view floor_object_name = "Stone Floor";
+
 std::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
@@ -894,6 +897,120 @@ std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_fi
     return std::nullopt;
 }
 
+MeshData make_floor_mesh(
+  float half_extent,
+  float uv_repeat)
+{
+    const ml::vec4 up_normal{0.f, 1.f, 0.f, 0.f};
+
+    return MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = {0, 2, 1, 0, 3, 2},
+      .vertices = {
+        {-half_extent, 0.f, -half_extent, 1.f},
+        {half_extent, 0.f, -half_extent, 1.f},
+        {half_extent, 0.f, half_extent, 1.f},
+        {-half_extent, 0.f, half_extent, 1.f},
+      },
+      .normals = {
+        up_normal,
+        up_normal,
+        up_normal,
+        up_normal,
+      },
+      .texcoords = {
+        {0.f, uv_repeat, 0.f, 0.f},
+        {uv_repeat, uv_repeat, 0.f, 0.f},
+        {uv_repeat, 0.f, 0.f, 0.f},
+        {0.f, 0.f, 0.f, 0.f},
+      },
+    };
+}
+
+void try_add_textured_floor(
+  Scene& scene,
+  RenderDevice& device,
+  ShaderCache& shader_cache)
+{
+    const std::filesystem::path diffuse_path{
+      "assets/textures/tiles/tiles_0080_color_1k.png"};
+    const std::filesystem::path normal_path{
+      "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"};
+
+    if(!std::filesystem::exists(diffuse_path)
+       || !std::filesystem::exists(normal_path))
+    {
+        logging::warningf(
+          "floor textures not found: '{}' or '{}'",
+          diffuse_path.string(),
+          normal_path.string());
+        return;
+    }
+
+    std::optional<std::uint32_t> diffuse_texture;
+    std::optional<std::uint32_t> normal_texture;
+    std::optional<std::uint32_t> mesh_handle;
+
+    try
+    {
+        constexpr float floor_half_extent = 28.f;
+        constexpr float uv_repeat = 1.f;
+        constexpr float floor_height = -6.25f;
+
+        diffuse_texture = device.create_texture(
+          assets::load_texture_rgba8(diffuse_path));
+        normal_texture = device.create_texture(
+          assets::load_normal_map_rgba8(
+            normal_path,
+            assets::NormalMapConvention::DirectX));
+        auto* shader = shader_cache.add<shader::TexturedFloor>();
+
+        mesh_handle = device.create_mesh(
+          make_floor_mesh(
+            floor_half_extent,
+            uv_repeat));
+        const std::array<std::uint32_t, 2> textures = {
+          *diffuse_texture,
+          *normal_texture};
+        const std::uint32_t material_handle = device.create_material(
+          *shader,
+          textures);
+        diffuse_texture.reset();
+        normal_texture.reset();
+        const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
+
+        auto* floor = scene.add_object<StaticMesh>(
+          std::vector<MeshSection>{
+            MeshSection{
+              .mesh_handle = *mesh_handle,
+              .material_handle = material_handle,
+              .color = {1.f, 1.f, 1.f, 1.f},
+            }},
+          bounds);
+        floor->set_name(std::string{floor_object_name});
+        floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
+        floor->capture_snapshot();
+    }
+    catch(const std::exception& e)
+    {
+        if(mesh_handle.has_value())
+        {
+            device.delete_mesh(*mesh_handle);
+        }
+        if(diffuse_texture.has_value())
+        {
+            device.delete_texture(*diffuse_texture);
+        }
+        if(normal_texture.has_value())
+        {
+            device.delete_texture(*normal_texture);
+        }
+        logging::warningf(
+          "failed to create textured floor: {}",
+          e.what());
+    }
+}
+
 StaticMesh* create_static_mesh_instance(
   Scene& scene,
   const StaticMeshAssetResources& resources,
@@ -988,7 +1105,7 @@ void configure_default_directional_lights(Scene& scene)
     auto* fill_light = scene.add_object<DirectionalLight>();
     fill_light->set_name("Directional Light 2");
     fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.25f;
+    fill_light->brightness = 0.75f;
     fill_light->set_transform(
       ml::matrices::rotation_y(ml::to_radians(35.f))
       * ml::matrices::rotation_x(ml::to_radians(-55.f)));
@@ -1042,6 +1159,11 @@ void Application::setup_scene()
 
     GearFactory factory{*render_device, renderer->get_shader_cache()};
     ShaderCache& shader_cache = renderer->get_shader_cache();
+
+    try_add_textured_floor(
+      *scene,
+      *render_device,
+      shader_cache);
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
@@ -1407,6 +1529,10 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
       {
           // skip gears for now.
           if(mesh.is_a<Gear>())
+          {
+              return;
+          }
+          if(mesh.get_name() == floor_object_name)
           {
               return;
           }

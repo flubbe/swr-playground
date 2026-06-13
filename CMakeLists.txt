@@ -95,6 +95,23 @@ target_link_libraries(imgui PUBLIC
 )
 
 #
+# stb
+#
+FetchContent_Declare(
+    stb_src
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG 28d546d
+    SOURCE_SUBDIR __unused__
+)
+
+FetchContent_MakeAvailable(stb_src)
+
+add_library(stb INTERFACE)
+target_include_directories(stb SYSTEM INTERFACE
+    "${stb_src_SOURCE_DIR}"
+)
+
+#
 # Assimp
 #
 find_package(assimp QUIET CONFIG)
@@ -130,6 +147,7 @@ endif()
 #
 add_executable(swr_playground
     src/assets/static_mesh_importer.cpp
+    src/assets/texture.cpp
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/scene/camera.cpp
@@ -177,6 +195,7 @@ target_link_libraries(swr_playground PRIVATE
     OpenGL::GL
     SDL3::SDL3
     assimp::assimp
+    stb
 )
 
 if(MSVC)
