@@ -74,7 +74,7 @@ class Viewport
     ViewportOverlaySettings overlay_settings;
 
     /** Mouse navigation mode. */
-    ViewportNavigationMode navigation_mode{ViewportNavigationMode::Fps};
+    ViewportNavigationMode navigation_mode{ViewportNavigationMode::Orbit};
 
     /** Render target resolution. */
     ViewportResolution resolution;
