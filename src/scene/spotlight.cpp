@@ -21,21 +21,53 @@ DEFINE_REFLECTION(SpotLight);
 
 void SpotLight::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::RangeConstraint<float> angle_constraints{};
-    angle_constraints.min = ml::to_radians(1.f);
-    angle_constraints.max = ml::to_radians(89.f);
-    angle_constraints.clamp = true;
+    reflect::register_property<&SpotLight::enabled>(
+      class_info,
+      "enabled",
+      "Enabled");
+    reflect::register_property<&SpotLight::color>(
+      class_info,
+      "color",
+      "Color");
+
+    reflect::RangeConstraint<float> brightness_constraints{};
+    brightness_constraints.min = 0.f;
+    brightness_constraints.max = 32.f;
+    brightness_constraints.clamp = true;
+
+    reflect::register_property<&SpotLight::brightness>(
+      class_info,
+      "brightness",
+      "Brightness",
+      reflect::PropertyFlags::None,
+      brightness_constraints);
+
+    reflect::RangeConstraint<float> inner_angle_constraints{};
+    inner_angle_constraints.min = ml::to_radians(1.f);
+    inner_angle_constraints.max = ml::to_radians(89.f);
+    inner_angle_constraints.clamp = true;
+
+    reflect::RangeConstraint<float> outer_angle_constraints{};
+    outer_angle_constraints.min = ml::to_radians(1.f);
+    outer_angle_constraints.max = ml::to_radians(89.f);
+    outer_angle_constraints.clamp = true;
 
     reflect::RangeConstraint<float> range_constraints{};
     range_constraints.min = 0.1f;
     range_constraints.clamp = true;
 
-    reflect::register_property<&SpotLight::cone_angle_radians>(
+    reflect::register_property<&SpotLight::inner_cone_angle_radians>(
       class_info,
-      "cone_angle_radians",
-      "Cone Angle (rad)",
+      "inner_cone_angle_radians",
+      "Inner Cone Angle (rad)",
       reflect::PropertyFlags::None,
-      angle_constraints);
+      inner_angle_constraints);
+    reflect::register_property<&SpotLight::outer_cone_angle_radians>(
+      class_info,
+      "outer_cone_angle_radians",
+      "Outer Cone Angle (rad)",
+      reflect::PropertyFlags::None,
+      outer_angle_constraints);
     reflect::register_property<&SpotLight::range>(
       class_info,
       "range",

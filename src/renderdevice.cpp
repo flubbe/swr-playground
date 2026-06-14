@@ -49,7 +49,7 @@ void RenderDevice::resize(
         swr::ResizeOffscreenContext(context, width, height);
         if(!swr::MakeContextCurrent(context))
         {
-            throw std::runtime_error("MakeCurrentContext failed");
+            throw std::runtime_error{"MakeCurrentContext failed"};
         }
 
         swr::GetContextInfo(
@@ -177,13 +177,13 @@ std::uint32_t RenderDevice::create_texture(
        || image.pixels.size()
             != static_cast<std::size_t>(image.width * image.height * 4))
     {
-        throw std::runtime_error("Unable to create texture from invalid RGBA8 image data");
+        throw std::runtime_error{"Unable to create texture from invalid RGBA8 image data"};
     }
 
     const std::uint32_t texture_id = swr::CreateTexture();
     if(texture_id == 0)
     {
-        throw std::runtime_error("Unable to create texture handle");
+        throw std::runtime_error{"Unable to create texture handle"};
     }
 
     swr::ActiveTexture(swr::texture_0);
@@ -198,7 +198,7 @@ std::uint32_t RenderDevice::create_texture(
     if(swr::GetLastError() != swr::error::none)
     {
         swr::ReleaseTexture(texture_id);
-        throw std::runtime_error("Unable to upload texture image");
+        throw std::runtime_error{"Unable to upload texture image"};
     }
 
     swr::SetTextureWrapMode(
@@ -235,7 +235,7 @@ std::uint32_t RenderDevice::create_material(
     std::uint32_t shader_handle = swr::RegisterShader(&shader);
     if(shader_handle == 0)
     {
-        throw std::runtime_error("Unable to register shader");
+        throw std::runtime_error{"Unable to register shader"};
     }
 
     std::uint32_t material_id = 0;
@@ -340,6 +340,30 @@ void RenderDevice::bind_uniforms(const Uniforms& uniforms)
         swr::BindUniform(
           static_cast<std::uint32_t>(3 + light_index),
           uniforms.directional_light_dirs[light_index]);
+    }
+    swr::BindUniform(
+      static_cast<std::uint32_t>(3 + uniforms.directional_light_dirs.size()),
+      uniforms.spot_light_count);
+    const std::uint32_t spot_light_base =
+      static_cast<std::uint32_t>(4 + uniforms.directional_light_dirs.size());
+    for(std::size_t light_index = 0;
+        light_index < uniforms.spot_light_positions.size();
+        ++light_index)
+    {
+        const std::uint32_t light_base =
+          spot_light_base + static_cast<std::uint32_t>(light_index * 4);
+        swr::BindUniform(
+          light_base,
+          uniforms.spot_light_positions[light_index]);
+        swr::BindUniform(
+          light_base + 1,
+          uniforms.spot_light_directions[light_index]);
+        swr::BindUniform(
+          light_base + 2,
+          uniforms.spot_light_params[light_index]);
+        swr::BindUniform(
+          light_base + 3,
+          uniforms.spot_light_colors[light_index]);
     }
 }
 

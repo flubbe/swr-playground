@@ -21,8 +21,6 @@ DEFINE_REFLECTION(DirectionalLight);
 
 void DirectionalLight::register_properties(reflect::ClassInfo& class_info)
 {
-    Light::register_properties(class_info);
-
     reflect::register_property<&DirectionalLight::enabled>(
       class_info,
       "enabled",

@@ -69,6 +69,21 @@ struct Uniforms
 
     /** Directional lights in camera/view space: xyz = direction, w = brightness. */
     std::array<ml::vec4, shader::max_lights> directional_light_dirs{};
+
+    /** Number of active spot lights. */
+    int spot_light_count{0};
+
+    /** Spot light positions in camera/view space: xyz = position, w = range. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_positions{};
+
+    /** Spot light directions in camera/view space: xyz = direction, w = brightness. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_directions{};
+
+    /** Spot light parameters: x = cos(inner cone), y = cos(outer cone). */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_params{};
+
+    /** Spot light colors. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_colors{};
 };
 
 /** Rasterizer state. */

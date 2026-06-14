@@ -22,6 +22,9 @@ namespace shader
 {
 
 constexpr std::size_t max_lights = 2;
+constexpr std::size_t max_spot_lights = 1;
+constexpr std::size_t spot_light_count_uniform_index = 3 + max_lights;
+constexpr std::size_t spot_light_uniform_base_index = spot_light_count_uniform_index + 1;
 
 inline int clamp_light_count(
   int light_count)
@@ -39,6 +42,41 @@ inline std::array<ml::vec4, max_lights> load_directional_lights(
     for(std::size_t light_index = 0; light_index < lights.size(); ++light_index)
     {
         lights[light_index] = uniforms[3 + light_index].v4;
+    }
+    return lights;
+}
+
+inline int clamp_spot_light_count(
+  int light_count)
+{
+    return std::clamp(
+      light_count,
+      0,
+      static_cast<int>(max_spot_lights));
+}
+
+struct SpotLightData
+{
+    ml::vec4 position_and_range;
+    ml::vec4 direction_and_brightness;
+    ml::vec4 params;
+    ml::vec4 color;
+};
+
+inline std::array<SpotLightData, max_spot_lights> load_spot_lights(
+  std::span<const swr::uniform> uniforms)
+{
+    std::array<SpotLightData, max_spot_lights> lights{};
+    for(std::size_t light_index = 0; light_index < lights.size(); ++light_index)
+    {
+        const std::size_t uniform_index =
+          spot_light_uniform_base_index + light_index * 4;
+        lights[light_index] = {
+          .position_and_range = uniforms[uniform_index].v4,
+          .direction_and_brightness = uniforms[uniform_index + 1].v4,
+          .params = uniforms[uniform_index + 2].v4,
+          .color = uniforms[uniform_index + 3].v4,
+        };
     }
     return lights;
 }
@@ -61,6 +99,86 @@ inline float accumulate_directional_light(
     return std::clamp(light, 0.f, 1.f);
 }
 
+struct LightContribution
+{
+    ml::vec4 diffuse{0.f, 0.f, 0.f, 0.f};
+    ml::vec4 specular{0.f, 0.f, 0.f, 0.f};
+};
+
+inline LightContribution accumulate_spot_lights(
+  const ml::vec3& normal,
+  const ml::vec3& position_cameraspace,
+  const ml::vec3& view_dir,
+  int light_count,
+  const std::array<SpotLightData, max_spot_lights>& lights,
+  float shininess)
+{
+    LightContribution contribution{};
+    const int active_light_count = clamp_spot_light_count(light_count);
+    for(int light_index = 0; light_index < active_light_count; ++light_index)
+    {
+        const SpotLightData& spot_light =
+          lights[static_cast<std::size_t>(light_index)];
+        const ml::vec3 light_position = spot_light.position_and_range.xyz();
+        const float light_range = spot_light.position_and_range.w;
+        if(light_range <= 0.f)
+        {
+            continue;
+        }
+
+        const ml::vec3 spot_direction =
+          spot_light.direction_and_brightness.xyz().normalized();
+        const float brightness = spot_light.direction_and_brightness.w;
+        const float inner_cone_cosine = spot_light.params.x;
+        const float outer_cone_cosine = spot_light.params.y;
+        const ml::vec4 light_color = spot_light.color;
+
+        const ml::vec3 to_light = light_position - position_cameraspace;
+        const float distance = to_light.length();
+        if(distance <= 0.0001f || distance > light_range)
+        {
+            continue;
+        }
+
+        const ml::vec3 light_dir = to_light / distance;
+        const ml::vec3 light_to_fragment = -light_dir;
+        const float cone = ml::dot(light_to_fragment, spot_direction);
+        if(cone < outer_cone_cosine)
+        {
+            continue;
+        }
+
+        const float attenuation =
+          std::pow(std::clamp(1.f - distance / light_range, 0.f, 1.f), 2.f);
+        const float cone_falloff =
+          std::clamp(
+            (cone - outer_cone_cosine)
+              / (inner_cone_cosine - outer_cone_cosine + 0.0001f),
+            0.f,
+            1.f);
+        const float intensity =
+          brightness * attenuation * cone_falloff;
+
+        const float diffuse =
+          std::max(ml::dot(normal, light_dir), 0.f) * intensity;
+        contribution.diffuse += light_color * diffuse;
+
+        if(diffuse > 0.f)
+        {
+            const ml::vec3 reflect_dir =
+              (-light_dir + normal * (2.f * ml::dot(normal, light_dir))).normalized();
+            contribution.specular +=
+              light_color
+              * (std::pow(std::max(ml::dot(reflect_dir, view_dir), 0.f), shininess)
+                 * intensity);
+        }
+    }
+
+    contribution.diffuse = ml::clamp_to_unit_interval(contribution.diffuse);
+    contribution.specular = ml::clamp_to_unit_interval(contribution.specular);
+    return contribution;
+}
+
 /**
  * A shader that applies coloring and directional lighting.
  *
@@ -77,6 +195,9 @@ inline float accumulate_directional_light(
  *   location 2: directional light count        [int]
  *   location 3..(3 + max_lights - 1): directional lights in camera space,
  *                                     brightness in w [vec4]
+ *   location 3 + max_lights: spot light count [int]
+ *   location (4 + max_lights)..: spot light triples:
+ *      position/range, direction/brightness, params(inner/outer cone) [vec4]
  *
  */
 
@@ -123,6 +244,8 @@ public:
         ml::mat4x4 view = uniforms[1].m4;
         const int light_count = uniforms[2].i;
         const auto lights = load_directional_lights(uniforms);
+        const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
+        const auto spot_lights = load_spot_lights(uniforms);
 
         // transform vertex.
         const ml::vec4 pos_cam = view * attribs[0];
@@ -133,8 +256,16 @@ public:
           n.xyz(),
           light_count,
           lights);
+        const LightContribution spot = accumulate_spot_lights(
+          n.xyz(),
+          pos_cam.xyz(),
+          ml::vec3{0.f, 0.f, 1.f},
+          spot_light_count,
+          spot_lights,
+          1.f);
 
-        varyings[0] = ambient_color * 0.2f + diffuse_color * l;
+        varyings[0] =
+          ml::clamp_to_unit_interval(ambient_color * 0.2f + diffuse_color * l + diffuse_color * spot.diffuse);
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -180,6 +311,7 @@ public:
     {
         // set interpolation qualifiers for all varyings.
         iqs = {
+          swr::interpolation_qualifier::smooth, /* position */
           swr::interpolation_qualifier::smooth, /* normal */
           swr::interpolation_qualifier::flat,   /* light direction 0 */
           swr::interpolation_qualifier::flat,   /* light direction 1 */
@@ -199,21 +331,22 @@ public:
         ml::mat4x4 view = uniforms[1].m4;
         const int light_count = clamp_light_count(uniforms[2].i);
         const auto lights = load_directional_lights(uniforms);
+        const ml::vec4 pos_cam = view * attribs[0];
 
         // transform vertex.
-        const ml::vec4 pos_cam = view * attribs[0];
         gl_Position = proj * pos_cam;
 
-        varyings[0] = ml::vec4((view * attribs[1]).xyz(), 0); /* normal in camera space */
+        varyings[0] = ml::vec4(pos_cam.xyz(), 0.f);             /* position in camera space */
+        varyings[1] = ml::vec4((view * attribs[1]).xyz(), 0.f); /* normal in camera space */
         for(int light_index = 0; light_index < light_count; ++light_index)
         {
-            varyings[1 + light_index] = lights[static_cast<std::size_t>(light_index)];
+            varyings[2 + light_index] = lights[static_cast<std::size_t>(light_index)];
         }
         for(std::size_t light_index = static_cast<std::size_t>(light_count);
             light_index < max_lights;
             ++light_index)
         {
-            varyings[1 + light_index] = ml::vec4{0.f, 0.f, 0.f, 0.f};
+            varyings[2 + light_index] = ml::vec4{0.f, 0.f, 0.f, 0.f};
         }
     }
 
@@ -225,22 +358,33 @@ public:
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
-        const ml::vec4 normal = varyings[0];
-        const ml::vec4 direction0 = varyings[1];
-        const ml::vec4 direction1 = varyings[2];
+        const ml::vec4 position = varyings[0];
+        const ml::vec4 normal = varyings[1];
+        const ml::vec4 direction0 = varyings[2];
+        const ml::vec4 direction1 = varyings[3];
         const int light_count = uniforms[2].i;
+        const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
         const std::array<ml::vec4, max_lights> lights = {
           direction0,
           direction1};
+        const auto spot_lights = load_spot_lights(uniforms);
 
         const ml::vec3 n = normal.xyz().normalized();
         const float l = accumulate_directional_light(
           n,
           light_count,
           lights);
+        const LightContribution spot = accumulate_spot_lights(
+          n,
+          position.xyz(),
+          (-position.xyz()).normalized(),
+          spot_light_count,
+          spot_lights,
+          1.f);
 
         // write color.
-        gl_FragColor = ambient_color * 0.2f + diffuse_color * l;
+        gl_FragColor =
+          ml::clamp_to_unit_interval(ambient_color * 0.2f + diffuse_color * l + diffuse_color * spot.diffuse);
 
         // accept fragment.
         return swr::accept;
@@ -263,6 +407,9 @@ public:
  *   location 2: directional light count        [int]
  *   location 3..(3 + max_lights - 1): directional lights in camera space,
  *                                     brightness in w [vec4]
+ *   location 3 + max_lights: spot light count [int]
+ *   location (4 + max_lights)..: spot light triples:
+ *      position/range, direction/brightness, params(inner/outer cone) [vec4]
  *
  */
 
@@ -296,6 +443,7 @@ public:
         swr::limits::max::varyings>& iqs) const override
     {
         iqs = {
+          swr::interpolation_qualifier::smooth, /* position */
           swr::interpolation_qualifier::smooth, /* normal */
         };
     }
@@ -311,9 +459,11 @@ public:
     {
         ml::mat4x4 proj = uniforms[0].m4;
         ml::mat4x4 view = uniforms[1].m4;
-        gl_Position = proj * view * attribs[0];
+        const ml::vec4 position_cameraspace = view * attribs[0];
+        gl_Position = proj * position_cameraspace;
 
-        varyings[0] = ml::vec4((view * attribs[1]).xyz(), 0.f); /* normal in camera space */
+        varyings[0] = ml::vec4(position_cameraspace.xyz(), 0.f); /* position in camera space */
+        varyings[1] = ml::vec4((view * attribs[1]).xyz(), 0.f);  /* normal in camera space */
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -324,9 +474,12 @@ public:
       [[maybe_unused]] float& gl_FragDepth,
       ml::vec4& gl_FragColor) const override
     {
-        const ml::vec3 N = ml::vec4(varyings[0]).xyz().normalized();
+        const ml::vec3 position_cameraspace = ml::vec4(varyings[0]).xyz();
+        const ml::vec3 N = ml::vec4(varyings[1]).xyz().normalized();
         const int light_count = uniforms[2].i;
         const auto lights = load_directional_lights(uniforms);
+        const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
+        const auto spot_lights = load_spot_lights(uniforms);
 
         float diff = 0.f;
         const int active_light_count = clamp_light_count(light_count);
@@ -340,7 +493,7 @@ public:
         }
         diff = std::clamp(diff, 0.f, 1.f);
 
-        const ml::vec3 view_dir = {0.f, 0.f, 1.f};
+        const ml::vec3 view_dir = (-position_cameraspace).normalized();
         float spec = 0.f;
         for(int light_index = 0; light_index < active_light_count; ++light_index)
         {
@@ -355,15 +508,20 @@ public:
         }
         spec = std::clamp(spec, 0.f, 1.f);
 
+        const LightContribution spot = accumulate_spot_lights(
+          N,
+          position_cameraspace,
+          view_dir,
+          spot_light_count,
+          spot_lights,
+          shininess);
         const ml::vec4 ambient = ambient_color * ambient_strength;
-        const ml::vec4 diffuse = diffuse_color * diff;
-        const ml::vec4 specular = ml::vec4{1.f, 1.f, 1.f, 0.f} * (specular_strength * spec);
+        const ml::vec4 diffuse = diffuse_color * diff + diffuse_color * spot.diffuse;
+        const ml::vec4 specular =
+          ml::vec4{1.f, 1.f, 1.f, 0.f} * (specular_strength * spec)
+          + spot.specular * specular_strength;
 
-        gl_FragColor = ml::vec4{
-          std::min(ambient.x + diffuse.x + specular.x, 1.f),
-          std::min(ambient.y + diffuse.y + specular.y, 1.f),
-          std::min(ambient.z + diffuse.z + specular.z, 1.f),
-          1.f};
+        gl_FragColor = ml::clamp_to_unit_interval(ambient + diffuse + specular + ml::vec4{0.f, 0.f, 0.f, 1.f});
 
         return swr::accept;
     }
@@ -519,6 +677,9 @@ public:
 
         const int light_count = clamp_light_count(uniforms[2].i);
         const auto lights = load_directional_lights(uniforms);
+        const int spot_light_count = clamp_spot_light_count(
+          uniforms[spot_light_count_uniform_index].i);
+        const auto spot_lights = load_spot_lights(uniforms);
 
         float lambertian_sum = 0.f;
         float specular_sum = 0.f;
@@ -545,18 +706,24 @@ public:
 
         lambertian_sum = std::clamp(lambertian_sum, 0.f, 1.f);
         specular_sum = std::clamp(specular_sum, 0.f, 1.f);
+        const LightContribution spot = accumulate_spot_lights(
+          N,
+          ml::vec4(varyings[1]).xyz(),
+          view_dir,
+          spot_light_count,
+          spot_lights,
+          shininess);
 
         const ml::vec4 ambient_color = base_color * ambient_diffuse_factor;
         const ml::vec4 diffuse_color =
-          light_color * base_color * lambertian_sum;
+          light_color * base_color * lambertian_sum
+          + base_color * spot.diffuse;
         const ml::vec4 specular_color =
-          light_specular_color * (specular_strength * specular_sum);
+          light_specular_color * (specular_strength * specular_sum)
+          + spot.specular * specular_strength;
 
-        gl_FragColor = ml::vec4{
-          std::min(ambient_color.x + diffuse_color.x + specular_color.x, 1.f),
-          std::min(ambient_color.y + diffuse_color.y + specular_color.y, 1.f),
-          std::min(ambient_color.z + diffuse_color.z + specular_color.z, 1.f),
-          base_color.w};
+        gl_FragColor = ml::clamp_to_unit_interval(ambient_color + diffuse_color + specular_color);
+        gl_FragColor.w = base_color.w;
         return swr::accept;
     }
 };

@@ -1093,7 +1093,8 @@ void rebuild_gear_mesh_if_needed(
 void configure_default_directional_lights(Scene& scene)
 {
     auto* key_light = scene.add_object<DirectionalLight>();
-    key_light->set_name("Directional Light 1");
+    key_light->enabled = false;
+    key_light->set_name("Key Light");
     key_light->behavior = DirectionalLightBehavior::Rotating;
     key_light->brightness = 0.55f;
     key_light->set_transform(
@@ -1103,7 +1104,7 @@ void configure_default_directional_lights(Scene& scene)
     key_light->capture_snapshot();
 
     auto* fill_light = scene.add_object<DirectionalLight>();
-    fill_light->set_name("Directional Light 2");
+    fill_light->set_name("Fill Light");
     fill_light->behavior = DirectionalLightBehavior::Stationary;
     fill_light->brightness = 0.75f;
     fill_light->set_transform(
@@ -1111,6 +1112,31 @@ void configure_default_directional_lights(Scene& scene)
       * ml::matrices::rotation_x(ml::to_radians(-55.f)));
     fill_light->set_position({-10.f, 12.f, -6.f});
     fill_light->capture_snapshot();
+}
+
+void configure_default_spot_lights(Scene& scene)
+{
+    auto* spotlight = scene.add_object<SpotLight>();
+    spotlight->set_name("Spot Light");
+    spotlight->color = {0.42f, 0.62f, 1.f, 1.f};
+    spotlight->brightness = 7.f;
+    spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
+    spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
+    spotlight->range = 45.f;
+
+    const ml::vec3 spotlight_position{0.f, 11.f, 12.f};
+    const ml::vec3 direction_to_origin =
+      (-spotlight_position).normalized();
+    const float spotlight_pitch =
+      std::asin(direction_to_origin.y);
+    const float spotlight_yaw =
+      std::atan2(-direction_to_origin.x, -direction_to_origin.z);
+
+    spotlight->set_transform(
+      ml::matrices::rotation_y(spotlight_yaw)
+      * ml::matrices::rotation_x(spotlight_pitch));
+    spotlight->set_position(spotlight_position);
+    spotlight->capture_snapshot();
 }
 
 }    // namespace
@@ -1123,6 +1149,7 @@ void Application::setup_scene()
     }
 
     configure_default_directional_lights(*scene);
+    configure_default_spot_lights(*scene);
 
     struct GearInit
     {

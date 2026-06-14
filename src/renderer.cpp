@@ -18,6 +18,7 @@
 #include "renderdevice.h"
 #include "renderer.h"
 #include "scene/directionallight.h"
+#include "scene/spotlight.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "viewport.h"
@@ -240,6 +241,40 @@ Uniforms collect_light_uniforms(
     }
 
     uniforms.directional_light_count = static_cast<int>(active_light_index);
+
+    const auto spot_lights = scene.get_spot_lights();
+    active_light_index = 0;
+    for(const SpotLight* light: spot_lights)
+    {
+        if(light == nullptr
+           || !light->enabled
+           || active_light_index >= uniforms.spot_light_positions.size())
+        {
+            continue;
+        }
+
+        const ml::vec3 world_position = light->get_position();
+        const ml::vec3 world_direction = light->get_world_spot_direction();
+        uniforms.spot_light_positions[active_light_index] =
+          ml::vec4(
+            (camera_view * ml::vec4(world_position, 1.f)).xyz(),
+            light->get_range());
+        uniforms.spot_light_directions[active_light_index] =
+          ml::vec4(
+            (camera_view * ml::vec4(world_direction, 0.f)).xyz().normalized(),
+            light->brightness);
+        uniforms.spot_light_params[active_light_index] =
+          ml::vec4(
+            static_cast<float>(std::cos(light->get_inner_cone_angle_radians())),
+            static_cast<float>(std::cos(light->get_outer_cone_angle_radians())),
+            0.f,
+            0.f);
+        uniforms.spot_light_colors[active_light_index] =
+          light->get_color();
+        ++active_light_index;
+    }
+
+    uniforms.spot_light_count = static_cast<int>(active_light_index);
     return uniforms;
 }
 
@@ -461,7 +496,12 @@ void Renderer::render_scene(
         device.bind_uniforms({.proj = projection,
                               .view = submission.view_from_mesh,
                               .directional_light_count = light_uniforms.directional_light_count,
-                              .directional_light_dirs = light_uniforms.directional_light_dirs});
+                              .directional_light_dirs = light_uniforms.directional_light_dirs,
+                              .spot_light_count = light_uniforms.spot_light_count,
+                              .spot_light_positions = light_uniforms.spot_light_positions,
+                              .spot_light_directions = light_uniforms.spot_light_directions,
+                              .spot_light_params = light_uniforms.spot_light_params,
+                              .spot_light_colors = light_uniforms.spot_light_colors});
         device.draw_mesh(submission.mesh_handle);
     }
 }
