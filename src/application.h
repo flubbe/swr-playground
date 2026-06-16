@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <string>
 #include <string_view>
 
@@ -35,18 +36,18 @@ struct ViewportInputState
     float mouse_wheel_delta{0.f};
 };
 
-namespace shader
-{
-class ColorFlat;
-class ColorSmooth;
-class PhongSmooth;
-}    // namespace shader
-
 enum class StaticMeshShaderType
 {
     ColorFlat,
     ColorSmooth,
     PhongSmooth,
+    LitSmooth
+};
+
+enum class FloorShaderType
+{
+    TexturedFloor,
+    TexturedShinyFloor
 };
 
 namespace logging
@@ -82,7 +83,10 @@ class Application
      *
      * FIXME Likely not the correct place, but convenient for experimenting.
      */
-    StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::PhongSmooth};
+    StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::LitSmooth};
+    FloorShaderType active_floor_shader{FloorShaderType::TexturedFloor};
+    std::array<std::uint32_t, 2> floor_texture_handles{};
+    bool has_floor_textures{false};
 
     ViewportInputState viewport_input{};
     bool viewport_mouse_captured{false};
@@ -112,8 +116,16 @@ public:
     void set_static_mesh_shader(StaticMeshShaderType type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
+    void set_floor_shader(FloorShaderType type);
+
+    // FIXME Likely not the correct place, but convenient for experimenting.
     StaticMeshShaderType get_static_mesh_shader() const noexcept
     {
         return active_static_mesh_shader;
+    }
+
+    FloorShaderType get_floor_shader() const noexcept
+    {
+        return active_floor_shader;
     }
 };

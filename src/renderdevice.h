@@ -256,7 +256,9 @@ public:
       const swr::program_base& shader,
       std::span<const std::uint32_t> texture_handles);
 
-    void delete_material(std::uint32_t handle);
+    void delete_material(
+      std::uint32_t handle,
+      bool delete_textures = true);
 
     /*
      * begin/end frame.

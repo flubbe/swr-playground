@@ -37,6 +37,7 @@
 #include "mesh_lod.h"
 #include "renderdevice.h"
 #include "renderer.h"
+#include "shader.h"
 #include "shader_cache.h"
 #include "viewport.h"
 
@@ -648,6 +649,21 @@ struct StaticMeshAssetResources
 
 constexpr std::string_view floor_object_name = "Stone Floor";
 
+swr::program_base* get_floor_shader_program(
+  FloorShaderType type,
+  ShaderCache& shader_cache)
+{
+    switch(type)
+    {
+    case FloorShaderType::TexturedFloor:
+        return shader_cache.get_or_create<shader::TexturedFloor>();
+    case FloorShaderType::TexturedShinyFloor:
+        return shader_cache.get_or_create<shader::TexturedShinyFloor>();
+    default:
+        throw std::runtime_error{"Unknown shader type for the floor."};
+    }
+}
+
 std::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
@@ -670,7 +686,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
 
     for(auto& mesh: imported_mesh.meshes)
     {
-        auto* shader = shader_cache.get_or_create<shader::PhongSmooth>();
+        auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
 
         const std::uint32_t material = device.create_material(*shader);
 
@@ -812,7 +828,9 @@ MeshData make_floor_mesh(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
-  ShaderCache& shader_cache)
+  ShaderCache& shader_cache,
+  FloorShaderType floor_shader_type,
+  std::array<std::uint32_t, 2>* out_texture_handles = nullptr)
 {
     const std::filesystem::path diffuse_path{
       "assets/textures/tiles/tiles_0080_color_1k.png"};
@@ -845,7 +863,9 @@ void try_add_textured_floor(
           assets::load_normal_map_rgba8(
             normal_path,
             assets::NormalMapConvention::DirectX));
-        auto* shader = shader_cache.get_or_create<shader::TexturedFloor>();
+        swr::program_base* shader = get_floor_shader_program(
+          floor_shader_type,
+          shader_cache);
 
         mesh_handle = device.create_mesh(
           make_floor_mesh(
@@ -857,6 +877,10 @@ void try_add_textured_floor(
         const std::uint32_t material_handle = device.create_material(
           *shader,
           textures);
+        if(out_texture_handles != nullptr)
+        {
+            *out_texture_handles = textures;
+        }
         diffuse_texture.reset();
         normal_texture.reset();
         const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
@@ -1067,7 +1091,12 @@ void Application::setup_scene()
     try_add_textured_floor(
       scene,
       render_device,
-      shader_cache);
+      shader_cache,
+      active_floor_shader,
+      &floor_texture_handles);
+    has_floor_textures =
+      floor_texture_handles[0] != 0
+      && floor_texture_handles[1] != 0;
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
@@ -1433,11 +1462,52 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
                   case StaticMeshShaderType::PhongSmooth:
                       new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
                       break;
+                  case StaticMeshShaderType::LitSmooth:
+                      new_shader = shader_cache.get_or_create<shader::LitSmooth>();
+                      break;
                   default:
                       throw std::runtime_error{"Unknown shader type for static meshes."};
                   }
 
                   section.material_handle = render_device.create_material(*new_shader);
+              }
+          }
+      });
+}
+
+void Application::set_floor_shader(FloorShaderType type)
+{
+    active_floor_shader = type;
+    if(!has_floor_textures)
+    {
+        return;
+    }
+
+    ShaderCache& shader_cache = renderer.get_shader_cache();
+    swr::program_base* new_shader = get_floor_shader_program(
+      type,
+      shader_cache);
+
+    scene.for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          if(mesh.get_name() != floor_object_name)
+          {
+              return;
+          }
+
+          for(auto& lod: mesh.get_lods())
+          {
+              for(auto& section: lod.mesh_sections)
+              {
+                  render_device.delete_material(
+                    section.material_handle,
+                    false);
+
+                  section.material_handle =
+                    render_device.create_material(
+                      *new_shader,
+                      floor_texture_handles);
               }
           }
       });

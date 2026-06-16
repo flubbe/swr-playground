@@ -100,11 +100,24 @@ void draw_tools_panel(
           "Flat",
           "Smooth",
           "Phong",
-        };
+          "Lit"};
         int shader_index = static_cast<int>(app.get_static_mesh_shader());
         if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
         {
             app.set_static_mesh_shader(static_cast<StaticMeshShaderType>(shader_index));
+        }
+
+        const char* floor_shader_names[] = {
+          "Textured",
+          "Textured Shiny"};
+        int floor_shader_index = static_cast<int>(app.get_floor_shader());
+        if(ImGui::Combo(
+             "Floor Shader",
+             &floor_shader_index,
+             floor_shader_names,
+             IM_ARRAYSIZE(floor_shader_names)))
+        {
+            app.set_floor_shader(static_cast<FloorShaderType>(floor_shader_index));
         }
 
         const char* light_mode_names[] = {

@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * color shader with directional lighting.
+ * shaders.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -116,6 +116,9 @@ struct LightContribution
     ml::vec4 specular{0.f, 0.f, 0.f, 0.f};
 };
 
+namespace phong
+{
+
 inline LightContribution accumulate_spot_lights(
   const ml::vec3& normal,
   const ml::vec3& position_cameraspace,
@@ -190,6 +193,106 @@ inline LightContribution accumulate_spot_lights(
     return contribution;
 }
 
+}    // namespace phong
+
+namespace lit
+{
+
+inline LightContribution accumulate_spot_lights(
+  const ml::vec3& normal,
+  const ml::vec3& position_cameraspace,
+  const ml::vec3& view_dir,
+  int light_count,
+  const std::array<SpotLightData, max_spot_lights>& lights,
+  float shininess)
+{
+    LightContribution contribution{};
+    const int active_light_count = clamp_spot_light_count(light_count);
+
+    const float normalized_specular_scale =
+      (shininess + 8.f) / (8.f * M_PI);
+
+    for(int light_index = 0; light_index < active_light_count; ++light_index)
+    {
+        const SpotLightData& spot_light =
+          lights[static_cast<std::size_t>(light_index)];
+
+        const ml::vec3 light_position = spot_light.position_and_range.xyz();
+        const float light_range = spot_light.position_and_range.w;
+        if(light_range <= 0.f)
+        {
+            continue;
+        }
+
+        const ml::vec3 spot_direction =
+          spot_light.direction_and_brightness.xyz().normalized();
+        const float brightness = spot_light.direction_and_brightness.w;
+        const float inner_cone_cosine = spot_light.params.x;
+        const float outer_cone_cosine = spot_light.params.y;
+        const ml::vec4 light_color = spot_light.color;
+
+        const ml::vec3 to_light = light_position - position_cameraspace;
+        const float distance = to_light.length();
+        if(distance <= 0.0001f || distance > light_range)
+        {
+            continue;
+        }
+
+        const ml::vec3 light_dir = to_light / distance;
+
+        const ml::vec3 light_to_fragment = -light_dir;
+        const float cone = ml::dot(light_to_fragment, spot_direction);
+        if(cone < outer_cone_cosine)
+        {
+            continue;
+        }
+
+        const float attenuation =
+          std::pow(std::clamp(1.f - distance / light_range, 0.f, 1.f), 2.f);
+
+        const float cone_falloff =
+          std::clamp(
+            (cone - outer_cone_cosine)
+              / (inner_cone_cosine - outer_cone_cosine + 0.0001f),
+            0.f,
+            1.f);
+
+        const float intensity =
+          brightness * attenuation * cone_falloff;
+
+        const float NoL =
+          std::max(ml::dot(normal, light_dir), 0.f);
+
+        contribution.diffuse +=
+          light_color * (NoL * intensity);
+
+        if(NoL > 0.f)
+        {
+            const ml::vec3 half_dir =
+              (light_dir + view_dir).normalized();
+
+            const float NoH =
+              std::max(ml::dot(normal, half_dir), 0.f);
+
+            const float specular =
+              normalized_specular_scale
+              * std::pow(NoH, shininess)
+              * NoL
+              * intensity;
+
+            contribution.specular +=
+              light_color * specular;
+        }
+    }
+
+    contribution.diffuse = ml::clamp_to_unit_interval(contribution.diffuse);
+    contribution.specular = ml::clamp_to_unit_interval(contribution.specular);
+
+    return contribution;
+}
+
+}    // namespace lit
+
 /**
  * A shader that applies coloring and directional lighting.
  *
@@ -262,7 +365,7 @@ public:
           n.xyz(),
           light_count,
           lights);
-        const LightContribution spot = accumulate_spot_lights(
+        const LightContribution spot = phong::accumulate_spot_lights(
           n.xyz(),
           pos_cam.xyz(),
           ml::vec3{0.f, 0.f, 1.f},
@@ -375,7 +478,7 @@ public:
           n,
           light_count,
           lights);
-        const LightContribution spot = accumulate_spot_lights(
+        const LightContribution spot = phong::accumulate_spot_lights(
           n,
           position.xyz(),
           (-position.xyz()).normalized(),
@@ -504,7 +607,7 @@ public:
         }
         spec = std::clamp(spec, 0.f, 1.f);
 
-        const LightContribution spot = accumulate_spot_lights(
+        const LightContribution spot = phong::accumulate_spot_lights(
           N,
           position_cameraspace,
           view_dir,
@@ -518,6 +621,149 @@ public:
           + spot.specular * specular_strength;
 
         gl_FragColor = ml::clamp_to_unit_interval(ambient + diffuse + specular + ml::vec4{0.f, 0.f, 0.f, 1.f});
+
+        return swr::accept;
+    }
+};
+
+class LitSmooth : public swr::program<LitSmooth>
+{
+    static constexpr float ambient_strength = 0.15f;
+
+    // Dielectric-ish default reflectance.
+    static constexpr float specular_strength = 0.04f;
+
+    static constexpr float shininess = 64.f;
+
+public:
+    LitSmooth() = default;
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
+    void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        iqs = {
+          swr::interpolation_qualifier::smooth, /* position */
+          swr::interpolation_qualifier::smooth, /* normal */
+        };
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      std::span<const ml::vec4> attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
+    {
+        ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
+
+        const ml::vec4 position_cameraspace = view * attribs[0];
+        gl_Position = proj * position_cameraspace;
+
+        varyings[0] = ml::vec4(position_cameraspace.xyz(), 0.f);
+        varyings[1] = ml::vec4((view * attribs[1]).xyz(), 0.f);
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      std::span<const swr::varying> varyings,
+      [[maybe_unused]] float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        const ml::vec3 position_cameraspace = ml::vec4(varyings[0]).xyz();
+        const ml::vec3 N = ml::vec4(varyings[1]).xyz().normalized();
+
+        const int light_count = uniforms[directional_light_count_uniform_index].i;
+        const auto lights = load_directional_lights(uniforms);
+
+        const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
+        const auto spot_lights = load_spot_lights(uniforms);
+
+        const ml::vec4 material_color = uniforms[material_color_uniform_index].v4;
+
+        const ml::vec4 diffuse_color =
+          material_color * (1.f - specular_strength);
+
+        const ml::vec4 specular_color{
+          specular_strength,
+          specular_strength,
+          specular_strength,
+          0.f};
+
+        const ml::vec3 view_dir = (-position_cameraspace).normalized();
+
+        float directional_diffuse = 0.f;
+        float directional_specular = 0.f;
+
+        const int active_light_count = clamp_light_count(light_count);
+
+        const float normalized_specular_scale =
+          (shininess + 8.f) / (8.f * M_PI);
+
+        for(int light_index = 0; light_index < active_light_count; ++light_index)
+        {
+            const ml::vec4& directional_light =
+              lights[static_cast<std::size_t>(light_index)];
+
+            const ml::vec3 light_dir = directional_light.xyz();
+            const float brightness = directional_light.w;
+
+            const float NoL = std::max(ml::dot(N, light_dir), 0.f);
+            directional_diffuse += NoL * brightness;
+
+            if(NoL > 0.f)
+            {
+                const ml::vec3 half_dir = (light_dir + view_dir).normalized();
+                const float NoH = std::max(ml::dot(N, half_dir), 0.f);
+
+                directional_specular +=
+                  normalized_specular_scale
+                  * std::pow(NoH, shininess)
+                  * NoL
+                  * brightness;
+            }
+        }
+
+        directional_diffuse = std::clamp(directional_diffuse, 0.f, 1.f);
+        directional_specular = std::clamp(directional_specular, 0.f, 1.f);
+
+        const LightContribution spot = lit::accumulate_spot_lights(
+          N,
+          position_cameraspace,
+          view_dir,
+          spot_light_count,
+          spot_lights,
+          shininess);
+
+        const ml::vec4 ambient =
+          material_color * ambient_strength;
+
+        const ml::vec4 diffuse =
+          diffuse_color * directional_diffuse
+          + diffuse_color * spot.diffuse;
+
+        const ml::vec4 specular =
+          specular_color * directional_specular
+          + spot.specular * specular_strength;
+
+        gl_FragColor = ml::clamp_to_unit_interval(
+          ambient
+          + diffuse
+          + specular
+          + ml::vec4{0.f, 0.f, 0.f, material_color.w});
 
         return swr::accept;
     }
@@ -576,7 +822,7 @@ public:
     }
 };
 
-class TexturedFloor : public swr::program<TexturedFloor>
+class TexturedShinyFloor : public swr::program<TexturedShinyFloor>
 {
     const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
     const ml::vec4 light_specular_color{1.f, 1.f, 1.f, 1.f};
@@ -585,7 +831,7 @@ class TexturedFloor : public swr::program<TexturedFloor>
     static constexpr float shininess = 24.f;
 
 public:
-    TexturedFloor() = default;
+    TexturedShinyFloor() = default;
 
     swr::program_metadata get_metadata() const override
     {
@@ -697,7 +943,7 @@ public:
 
         lambertian_sum = std::clamp(lambertian_sum, 0.f, 1.f);
         specular_sum = std::clamp(specular_sum, 0.f, 1.f);
-        const LightContribution spot = accumulate_spot_lights(
+        const LightContribution spot = phong::accumulate_spot_lights(
           N,
           ml::vec4(varyings[1]).xyz(),
           view_dir,
@@ -715,6 +961,170 @@ public:
 
         gl_FragColor = ml::clamp_to_unit_interval(ambient_color + diffuse_color + specular_color);
         gl_FragColor.w = base_color.w;
+        return swr::accept;
+    }
+};
+
+class TexturedFloor : public swr::program<TexturedFloor>
+{
+    const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
+    const ml::vec4 light_specular_color{1.f, 1.f, 1.f, 1.f};
+
+    static constexpr float ambient_diffuse_factor = 0.10f;
+    static constexpr float specular_strength = 0.04f;
+    static constexpr float shininess = 24.f;
+
+public:
+    TexturedFloor() = default;
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
+    void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        iqs = {
+          swr::interpolation_qualifier::smooth, /* uv */
+          swr::interpolation_qualifier::smooth, /* position in camera space */
+          swr::interpolation_qualifier::smooth, /* normal in camera space */
+          swr::interpolation_qualifier::smooth, /* tangent in camera space */
+          swr::interpolation_qualifier::smooth, /* bitangent in camera space */
+          swr::interpolation_qualifier::smooth, /* eye direction in camera space */
+        };
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      std::span<const ml::vec4> attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
+    {
+        const ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        const ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
+        const ml::vec3 position_cameraspace = (view * attribs[0]).xyz();
+        const ml::vec3 normal_cameraspace =
+          (view * ml::vec4{0.f, 1.f, 0.f, 0.f}).xyz();
+        const ml::vec3 tangent_cameraspace =
+          (view * ml::vec4{1.f, 0.f, 0.f, 0.f}).xyz();
+        const ml::vec3 bitangent_cameraspace =
+          (view * ml::vec4{0.f, 0.f, -1.f, 0.f}).xyz();
+
+        gl_Position = proj * view * attribs[0];
+        varyings[0] = attribs[2];
+        varyings[1] = ml::vec4(position_cameraspace, 0.f);
+        varyings[2] = ml::vec4(normal_cameraspace, 0.f);
+        varyings[3] = ml::vec4(tangent_cameraspace, 0.f);
+        varyings[4] = ml::vec4(bitangent_cameraspace, 0.f);
+        varyings[5] = ml::vec4(-position_cameraspace, 0.f);
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      std::span<const swr::varying> varyings,
+      [[maybe_unused]] float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        const swr::varying& tex_coords = varyings[0];
+        const ml::vec4 normal = varyings[2];
+        const ml::vec4 tangent = varyings[3];
+        const ml::vec4 bitangent = varyings[4];
+        const ml::vec4 eye_direction = varyings[5];
+
+        const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
+        const ml::vec3 material_normal =
+          (samplers[1]->sample_at(tex_coords) * 2.f - 1.f).xyz();
+
+        const ml::mat4x4 tbn = ml::mat4x4{
+          tangent,
+          bitangent,
+          normal,
+          ml::vec4::zero()}
+                                 .transposed();
+        const ml::vec3 N =
+          (tbn * ml::vec4{material_normal, 0.f}).xyz().normalized();
+        const ml::vec3 view_dir = eye_direction.xyz().normalized();
+
+        const int light_count = clamp_light_count(
+          uniforms[directional_light_count_uniform_index].i);
+        const auto lights = load_directional_lights(uniforms);
+        const int spot_light_count = clamp_spot_light_count(
+          uniforms[spot_light_count_uniform_index].i);
+        const auto spot_lights = load_spot_lights(uniforms);
+
+        float lambertian_sum = 0.f;
+        float specular_sum = 0.f;
+
+        const float normalized_specular_scale =
+          (shininess + 8.f) / (8.f * M_PI);
+
+        for(int light_index = 0; light_index < light_count; ++light_index)
+        {
+            const ml::vec4& directional_light =
+              lights[static_cast<std::size_t>(light_index)];
+
+            const ml::vec3 light_dir = directional_light.xyz().normalized();
+            const float brightness = directional_light.w;
+
+            const float NoL =
+              std::clamp(ml::dot(N, light_dir), 0.f, 1.f);
+
+            lambertian_sum += NoL * brightness;
+
+            if(NoL > 0.f)
+            {
+                const ml::vec3 half_dir =
+                  (light_dir + view_dir).normalized();
+
+                const float NoH =
+                  std::clamp(ml::dot(N, half_dir), 0.f, 1.f);
+
+                specular_sum +=
+                  normalized_specular_scale
+                  * std::pow(NoH, shininess)
+                  * NoL
+                  * brightness;
+            }
+        }
+
+        lambertian_sum = std::clamp(lambertian_sum, 0.f, 1.f);
+        specular_sum = std::clamp(specular_sum, 0.f, 1.f);
+        const LightContribution spot = lit::accumulate_spot_lights(
+          N,
+          ml::vec4(varyings[1]).xyz(),
+          view_dir,
+          spot_light_count,
+          spot_lights,
+          shininess);
+
+        const ml::vec4 diffuse_base =
+          base_color * (1.f - specular_strength);
+
+        const ml::vec4 ambient_color =
+          diffuse_base * ambient_diffuse_factor;
+
+        const ml::vec4 diffuse_color =
+          light_color * diffuse_base * lambertian_sum
+          + diffuse_base * spot.diffuse;
+
+        const ml::vec4 specular_color =
+          light_specular_color * (specular_strength * specular_sum)
+          + spot.specular * specular_strength;
+
+        gl_FragColor = ml::clamp_to_unit_interval(
+          ambient_color + diffuse_color + specular_color);
+        gl_FragColor.w = base_color.w;
+
         return swr::accept;
     }
 };

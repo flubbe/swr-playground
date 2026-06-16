@@ -253,7 +253,9 @@ std::uint32_t RenderDevice::create_material(
     return material_id;
 }
 
-void RenderDevice::delete_material(std::uint32_t handle)
+void RenderDevice::delete_material(
+  std::uint32_t handle,
+  bool delete_textures)
 {
     auto it = materials.find(handle);
     if(it == materials.end())
@@ -262,11 +264,14 @@ void RenderDevice::delete_material(std::uint32_t handle)
     }
 
     swr::UnregisterShader(it->second.shader_handle);
-    for(const std::uint32_t texture_handle: it->second.texture_handles)
+    if(delete_textures)
     {
-        if(texture_handle != 0)
+        for(const std::uint32_t texture_handle: it->second.texture_handles)
         {
-            delete_texture(texture_handle);
+            if(texture_handle != 0)
+            {
+                delete_texture(texture_handle);
+            }
         }
     }
 
