@@ -324,10 +324,12 @@ Gear::Gear(
     std::vector{
       MeshSection{
         .mesh_handle = params.inner.mesh_handle,
-        .material_handle = params.inner.material_handle},
+        .material_handle = params.inner.material_handle,
+        .color = params.inner.color},
       MeshSection{
         .mesh_handle = params.outer.mesh_handle,
-        .material_handle = params.outer.material_handle}},
+        .material_handle = params.outer.material_handle,
+        .color = params.outer.color}},
     params.bounds}
 , inner_radius{params.inner_radius}
 , outer_radius{params.outer_radius}

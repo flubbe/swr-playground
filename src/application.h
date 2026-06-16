@@ -10,22 +10,16 @@
 
 #pragma once
 
-#include <array>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
-#include "ml/all.h"
-
-class Camera;
-class Gear;
-class Object;
 class RenderDevice;
 class Renderer;
 class Scene;
-class ShaderCache;
 class Viewport;
 
 struct ViewportInputState
@@ -39,15 +33,6 @@ struct ViewportInputState
     float mouse_delta_x{0.f};
     float mouse_delta_y{0.f};
     float mouse_wheel_delta{0.f};
-};
-
-struct ViewportCameraControllerState
-{
-    ml::vec3 position{0.f, 0.f, 40.f};
-    ml::vec3 orbit_target{0.f, 0.f, 0.f};
-    float orbit_distance{40.f};
-    float pitch_radians{ml::to_radians(20.f)};
-    float yaw_radians{ml::to_radians(30.f)};
 };
 
 namespace shader
@@ -77,13 +62,11 @@ class Application
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
 
-    RenderDevice* render_device{nullptr};
-    Renderer* renderer{nullptr};
+    RenderDevice& render_device;
+    Renderer& renderer;
 
-    Scene* scene{nullptr};
-    Viewport* viewport{nullptr};
-
-    bool initialized{false};
+    Scene& scene;
+    Viewport& viewport;
 
     int window_w{0};
     int window_h{0};
@@ -94,9 +77,6 @@ class Application
 
     GLuint viewport_texture = 0;
 
-    // demo scene.
-    std::array<Gear*, 3> gear_objs = {nullptr, nullptr, nullptr};
-
     /**
      * Currently active shader type for static meshes.
      *
@@ -105,7 +85,6 @@ class Application
     StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::PhongSmooth};
 
     ViewportInputState viewport_input{};
-    ViewportCameraControllerState viewport_camera_controller{};
     bool viewport_mouse_captured{false};
 
     void set_viewport_mouse_capture(bool enabled);
@@ -114,25 +93,20 @@ class Application
 protected:
     void setup_scene();
     void setup_viewport();
+    void tick(float delta_time);
 
 public:
     Application(
       std::string_view title,
-      logging::BufferedLogDevice& log_device);
-
-    ~Application();
-
-    void initialize(
+      logging::BufferedLogDevice& log_device,
       RenderDevice& render_device,
       Renderer& renderer,
       Scene& scene,
       Viewport& viewport);
 
+    ~Application();
+
     void run();
-
-    void tick(float delta_time);
-
-    void reset_viewport_camera();
 
     // FIXME Likely not the correct place, but convenient for experimenting.
     void set_static_mesh_shader(StaticMeshShaderType type);

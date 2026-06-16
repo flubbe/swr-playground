@@ -17,6 +17,7 @@
 
 #include "renderdevice.h"
 #include "renderer.h"
+#include "shader.h"
 #include "scene/directionallight.h"
 #include "scene/spotlight.h"
 #include "scene/scene.h"
@@ -198,6 +199,7 @@ struct DrawSubmission
     float sort_depth{0.f};
     std::uint32_t mesh_handle{0};
     std::uint32_t material_handle{0};
+    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
     ml::mat4x4 view_from_mesh;
 };
 
@@ -214,11 +216,11 @@ void record_selected_lod(
     ++stats.static_mesh_lods_selected_overflow;
 }
 
-Uniforms collect_light_uniforms(
+LightingUniforms collect_light_uniforms(
   const Scene& scene,
   const ml::mat4x4& camera_view)
 {
-    Uniforms uniforms{};
+    LightingUniforms uniforms{};
     const auto directional_lights = scene.get_directional_lights();
 
     std::size_t active_light_index = 0;
@@ -320,7 +322,7 @@ void bin_submissions_by_depth(
 void Renderer::create_grid_mesh()
 {
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
-    auto* gray_shader = shader_cache.add<shader::ColorOnly>(color_gray);
+    auto* gray_shader = shader_cache.get_or_create<shader::ColorOnly>();
     auto gray_material = device.create_material(*gray_shader);
 
     // FIXME Materials are released by the render device on shutdown.
@@ -375,7 +377,8 @@ void Renderer::create_grid_mesh()
           .vertices = std::move(vb),
           .normals = std::move(nb),
         }),
-      .material_handle = gray_material};
+      .material_handle = gray_material,
+      .color = color_gray};
 }
 
 void Renderer::render_scene(
@@ -388,7 +391,7 @@ void Renderer::render_scene(
 
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
-    Uniforms light_uniforms = collect_light_uniforms(scene, view);
+    const LightingUniforms lighting_uniforms = collect_light_uniforms(scene, view);
 
     std::vector<DrawSubmission> submissions;
 
@@ -455,6 +458,7 @@ void Renderer::render_scene(
                 .sort_depth = obj_sort_depth,
                 .mesh_handle = section.mesh_handle,
                 .material_handle = section.material_handle,
+                .color = section.color,
                 .view_from_mesh = obj_view,
               });
               ++render_stats.mesh_sections_drawn;
@@ -490,18 +494,18 @@ void Renderer::render_scene(
         }
     }
 
+    device.bind_lighting_uniforms(lighting_uniforms);
+
     for(const DrawSubmission& submission: submissions)
     {
         device.bind_material(submission.material_handle);
-        device.bind_uniforms({.proj = projection,
-                              .view = submission.view_from_mesh,
-                              .directional_light_count = light_uniforms.directional_light_count,
-                              .directional_light_dirs = light_uniforms.directional_light_dirs,
-                              .spot_light_count = light_uniforms.spot_light_count,
-                              .spot_light_positions = light_uniforms.spot_light_positions,
-                              .spot_light_directions = light_uniforms.spot_light_directions,
-                              .spot_light_params = light_uniforms.spot_light_params,
-                              .spot_light_colors = light_uniforms.spot_light_colors});
+        device.bind_camera_uniforms({
+          .proj = projection,
+          .view = submission.view_from_mesh,
+        });
+        device.bind_material_uniforms({
+          .base_color = submission.color,
+        });
         device.draw_mesh(submission.mesh_handle);
     }
 }
@@ -518,11 +522,13 @@ void Renderer::render_grid(
     auto projection = camera.get_projection_matrix();
 
     device.bind_material(overlay_grid.material_handle);
-    device.bind_uniforms({
+    device.bind_camera_uniforms({
       .proj = projection,
       .view = view,
-      .directional_light_count = 0,
-      .directional_light_dirs = {},
+    });
+    device.bind_lighting_uniforms({});
+    device.bind_material_uniforms({
+      .base_color = overlay_grid.color,
     });
 
     device.draw_mesh(overlay_grid.mesh_handle);

@@ -14,6 +14,7 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/scene/directionallight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
+    ${PROJECT_SOURCE_DIR}/src/viewport.cpp
 )
 
 target_include_directories(core_tests PRIVATE

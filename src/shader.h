@@ -15,16 +15,12 @@
 #include <cstddef>
 #include <cmath>
 
+#include "shader_constants.h"
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
 namespace shader
 {
-
-constexpr std::size_t max_lights = 2;
-constexpr std::size_t max_spot_lights = 1;
-constexpr std::size_t spot_light_count_uniform_index = 3 + max_lights;
-constexpr std::size_t spot_light_uniform_base_index = spot_light_count_uniform_index + 1;
 
 inline int clamp_light_count(
   int light_count)
@@ -41,7 +37,8 @@ inline std::array<ml::vec4, max_lights> load_directional_lights(
     std::array<ml::vec4, max_lights> lights{};
     for(std::size_t light_index = 0; light_index < lights.size(); ++light_index)
     {
-        lights[light_index] = uniforms[3 + light_index].v4;
+        lights[light_index] =
+          uniforms[directional_light_uniform_index(light_index)].v4;
     }
     return lights;
 }
@@ -69,13 +66,27 @@ inline std::array<SpotLightData, max_spot_lights> load_spot_lights(
     std::array<SpotLightData, max_spot_lights> lights{};
     for(std::size_t light_index = 0; light_index < lights.size(); ++light_index)
     {
-        const std::size_t uniform_index =
-          spot_light_uniform_base_index + light_index * 4;
         lights[light_index] = {
-          .position_and_range = uniforms[uniform_index].v4,
-          .direction_and_brightness = uniforms[uniform_index + 1].v4,
-          .params = uniforms[uniform_index + 2].v4,
-          .color = uniforms[uniform_index + 3].v4,
+          .position_and_range =
+            uniforms[spot_light_uniform_index(
+                       light_index,
+                       spot_light_position_uniform_offset)]
+              .v4,
+          .direction_and_brightness =
+            uniforms[spot_light_uniform_index(
+                       light_index,
+                       spot_light_direction_uniform_offset)]
+              .v4,
+          .params =
+            uniforms[spot_light_uniform_index(
+                       light_index,
+                       spot_light_params_uniform_offset)]
+              .v4,
+          .color =
+            uniforms[spot_light_uniform_index(
+                       light_index,
+                       spot_light_color_uniform_offset)]
+              .v4,
         };
     }
     return lights;
@@ -190,29 +201,22 @@ inline LightContribution accumulate_spot_lights(
  *   location 0: lit color
  *
  * uniforms:
- *   location 0: projection matrix              [mat4x4]
- *   location 1: view matrix                    [mat4x4]
- *   location 2: directional light count        [int]
- *   location 3..(3 + max_lights - 1): directional lights in camera space,
- *                                     brightness in w [vec4]
- *   location 3 + max_lights: spot light count [int]
- *   location (4 + max_lights)..: spot light triples:
+ *   location camera_projection_uniform_index: projection matrix [mat4x4]
+ *   location camera_view_uniform_index: view matrix [mat4x4]
+ *   location directional_light_count_uniform_index: directional light count [int]
+ *   location directional_light_uniform_base_index..
+ *            (directional_light_uniform_base_index + max_lights - 1):
+ *            directional lights in camera space, brightness in w [vec4]
+ *   location spot_light_count_uniform_index: spot light count [int]
+ *   location spot_light_uniform_base_index..: spot light tuples:
  *      position/range, direction/brightness, params(inner/outer cone) [vec4]
  *
  */
 
 class ColorFlat : public swr::program<ColorFlat>
 {
-    ml::vec4 diffuse_color{1, 0, 0, 1};
-    ml::vec4 ambient_color{1, 0, 0, 1};
-
 public:
     ColorFlat() = default;
-    explicit ColorFlat(ml::vec4 in_color)
-    : diffuse_color{in_color}
-    , ambient_color{in_color}
-    {
-    }
 
     swr::program_metadata get_metadata() const override
     {
@@ -240,12 +244,14 @@ public:
       [[maybe_unused]] std::span<float> gl_ClipDistance,
       std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = uniforms[0].m4;
-        ml::mat4x4 view = uniforms[1].m4;
-        const int light_count = uniforms[2].i;
+        ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
+        const int light_count = uniforms[directional_light_count_uniform_index].i;
         const auto lights = load_directional_lights(uniforms);
         const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
         const auto spot_lights = load_spot_lights(uniforms);
+        const ml::vec4 diffuse_color = uniforms[material_color_uniform_index].v4;
+        const ml::vec4 ambient_color = diffuse_color;
 
         // transform vertex.
         const ml::vec4 pos_cam = view * attribs[0];
@@ -286,16 +292,8 @@ public:
 
 class ColorSmooth : public swr::program<ColorSmooth>
 {
-    ml::vec4 diffuse_color{1, 0, 0, 1};
-    ml::vec4 ambient_color{1, 0, 0, 1};
-
 public:
     ColorSmooth() = default;
-    explicit ColorSmooth(ml::vec4 in_color)
-    : diffuse_color{in_color}
-    , ambient_color{in_color}
-    {
-    }
 
     swr::program_metadata get_metadata() const override
     {
@@ -327,9 +325,10 @@ public:
       [[maybe_unused]] std::span<float> gl_ClipDistance,
       std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = uniforms[0].m4;
-        ml::mat4x4 view = uniforms[1].m4;
-        const int light_count = clamp_light_count(uniforms[2].i);
+        ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
+        const int light_count =
+          clamp_light_count(uniforms[directional_light_count_uniform_index].i);
         const auto lights = load_directional_lights(uniforms);
         const ml::vec4 pos_cam = view * attribs[0];
 
@@ -362,8 +361,10 @@ public:
         const ml::vec4 normal = varyings[1];
         const ml::vec4 direction0 = varyings[2];
         const ml::vec4 direction1 = varyings[3];
-        const int light_count = uniforms[2].i;
+        const int light_count = uniforms[directional_light_count_uniform_index].i;
         const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
+        const ml::vec4 diffuse_color = uniforms[material_color_uniform_index].v4;
+        const ml::vec4 ambient_color = diffuse_color;
         const std::array<ml::vec4, max_lights> lights = {
           direction0,
           direction1};
@@ -402,33 +403,26 @@ public:
  *   location 0: normal in camera space         [smooth]
  *
  * uniforms:
- *   location 0: projection matrix              [mat4x4]
- *   location 1: view matrix                    [mat4x4]
- *   location 2: directional light count        [int]
- *   location 3..(3 + max_lights - 1): directional lights in camera space,
- *                                     brightness in w [vec4]
- *   location 3 + max_lights: spot light count [int]
- *   location (4 + max_lights)..: spot light triples:
+ *   location camera_projection_uniform_index: projection matrix [mat4x4]
+ *   location camera_view_uniform_index: view matrix [mat4x4]
+ *   location directional_light_count_uniform_index: directional light count [int]
+ *   location directional_light_uniform_base_index..
+ *            (directional_light_uniform_base_index + max_lights - 1):
+ *            directional lights in camera space, brightness in w [vec4]
+ *   location spot_light_count_uniform_index: spot light count [int]
+ *   location spot_light_uniform_base_index..: spot light tuples:
  *      position/range, direction/brightness, params(inner/outer cone) [vec4]
  *
  */
 
 class PhongSmooth : public swr::program<PhongSmooth>
 {
-    ml::vec4 diffuse_color{1, 0, 0, 1};
-    ml::vec4 ambient_color{1, 0, 0, 1};
-
     static constexpr float ambient_strength = 0.15f;
     static constexpr float specular_strength = 0.5f;
     static constexpr float shininess = 64.f;
 
 public:
     PhongSmooth() = default;
-    explicit PhongSmooth(ml::vec4 in_color)
-    : diffuse_color{in_color}
-    , ambient_color{in_color}
-    {
-    }
 
     swr::program_metadata get_metadata() const override
     {
@@ -457,8 +451,8 @@ public:
       [[maybe_unused]] std::span<float> gl_ClipDistance,
       std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = uniforms[0].m4;
-        ml::mat4x4 view = uniforms[1].m4;
+        ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
         const ml::vec4 position_cameraspace = view * attribs[0];
         gl_Position = proj * position_cameraspace;
 
@@ -476,10 +470,12 @@ public:
     {
         const ml::vec3 position_cameraspace = ml::vec4(varyings[0]).xyz();
         const ml::vec3 N = ml::vec4(varyings[1]).xyz().normalized();
-        const int light_count = uniforms[2].i;
+        const int light_count = uniforms[directional_light_count_uniform_index].i;
         const auto lights = load_directional_lights(uniforms);
         const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
         const auto spot_lights = load_spot_lights(uniforms);
+        const ml::vec4 diffuse_color = uniforms[material_color_uniform_index].v4;
+        const ml::vec4 ambient_color = diffuse_color;
 
         float diff = 0.f;
         const int active_light_count = clamp_light_count(light_count);
@@ -529,14 +525,8 @@ public:
 
 class ColorOnly : public swr::program<ColorOnly>
 {
-    ml::vec4 color{1, 0, 0, 1};
-
 public:
     ColorOnly() = default;
-    explicit ColorOnly(ml::vec4 in_color)
-    : color{in_color}
-    {
-    }
 
     swr::program_metadata get_metadata() const override
     {
@@ -563,8 +553,8 @@ public:
       [[maybe_unused]] std::span<float> gl_ClipDistance,
       [[maybe_unused]] std::span<ml::vec4> varyings) const override
     {
-        ml::mat4x4 proj = uniforms[0].m4;
-        ml::mat4x4 view = uniforms[1].m4;
+        ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
 
         // transform vertex.
         gl_Position = proj * view * attribs[0];
@@ -579,7 +569,7 @@ public:
       ml::vec4& gl_FragColor) const override
     {
         // write color.
-        gl_FragColor = color;
+        gl_FragColor = uniforms[material_color_uniform_index].v4;
 
         // accept fragment.
         return swr::accept;
@@ -628,8 +618,8 @@ public:
       [[maybe_unused]] std::span<float> gl_ClipDistance,
       std::span<ml::vec4> varyings) const override
     {
-        const ml::mat4x4 proj = uniforms[0].m4;
-        const ml::mat4x4 view = uniforms[1].m4;
+        const ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        const ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
         const ml::vec3 position_cameraspace = (view * attribs[0]).xyz();
         const ml::vec3 normal_cameraspace =
           (view * ml::vec4{0.f, 1.f, 0.f, 0.f}).xyz();
@@ -675,7 +665,8 @@ public:
           (tbn * ml::vec4{material_normal, 0.f}).xyz().normalized();
         const ml::vec3 view_dir = eye_direction.xyz().normalized();
 
-        const int light_count = clamp_light_count(uniforms[2].i);
+        const int light_count = clamp_light_count(
+          uniforms[directional_light_count_uniform_index].i);
         const auto lights = load_directional_lights(uniforms);
         const int spot_light_count = clamp_spot_light_count(
           uniforms[spot_light_count_uniform_index].i);

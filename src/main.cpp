@@ -37,21 +37,19 @@ int main(int argc, char* argv[])
     const auto shutdown = gsl::finally([]() -> void
                                        { platform_shutdown(); });
 
-    Application app{
-      "SWR Playground",
-      log_device};
-
     RenderDevice render_device{640, 480};
     Renderer renderer{render_device};
 
     Scene scene;
     Viewport viewport;
 
-    app.initialize(
+    Application app{
+      "SWR Playground",
+      log_device,
       render_device,
       renderer,
       scene,
-      viewport);
+      viewport};
 
     app.run();
 

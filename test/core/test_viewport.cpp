@@ -106,3 +106,23 @@ TEST(ViewportTests, AspectRatioUsesCurrentResolution)
     EXPECT_EQ(resolution.height, 1080);
     EXPECT_FLOAT_EQ(viewport.get_aspect_ratio(), 1920.0f / 1080.0f);
 }
+
+TEST(ViewportTests, EditorCameraViewIsOwnedByViewportLocalCamera)
+{
+    Viewport viewport;
+
+    EXPECT_EQ(viewport.get_editor_camera_view(), EditorCameraView::Perspective);
+    EXPECT_EQ(
+      viewport.get_local_camera().get_projection_mode(),
+      CameraProjectionMode::Perspective);
+
+    viewport.set_editor_camera_view(EditorCameraView::Orthographic);
+
+    EXPECT_EQ(viewport.get_editor_camera_view(), EditorCameraView::Orthographic);
+    EXPECT_EQ(
+      viewport.get_local_camera().get_projection_mode(),
+      CameraProjectionMode::Orthographic);
+    EXPECT_STREQ(
+      to_string(EditorCameraView::Orthographic).data(),
+      "Orthographic");
+}

@@ -275,6 +275,29 @@ void draw_tools_panel(
 
             ImGui::EndTable();
         }
+
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Shaders");
+
+        if(ImGui::BeginTable(
+             "ShaderStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Cache Size");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(renderer.get_shader_cache().size()));
+
+            ImGui::EndTable();
+        }
     }
 
     if(ImGui::CollapsingHeader("Sorting Benchmark", ImGuiTreeNodeFlags_DefaultOpen))

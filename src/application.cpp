@@ -9,7 +9,7 @@
  */
 
 #include <algorithm>
-#include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -57,75 +57,13 @@ public:
     }
 };
 
-struct ViewportCameraControllerInput
-{
-    float move_forward{0.f};
-    float move_right{0.f};
-    float move_up{0.f};
-    float look_yaw{0.f};
-    float look_pitch{0.f};
-    float zoom_delta{0.f};
-    bool fast_move{false};
-    bool active{false};
-};
-
-// Forward declaration
-void align_fps_position_to_orbit_view(
-  ViewportCameraControllerState& controller);
-
-void reset_viewport_camera_controller(
-  ViewportCameraControllerState& controller)
-{
-    controller = {};
-    align_fps_position_to_orbit_view(controller);
-}
-
-ml::mat4x4 make_view_matrix(
-  const ViewportCameraControllerState& controller,
-  ViewportNavigationMode mode)
-{
-    ml::mat4x4 view = ml::mat4x4::identity();
-
-    if(mode == ViewportNavigationMode::Orbit)
-    {
-        view *= ml::matrices::translation(
-          0.f,
-          0.f,
-          -controller.orbit_distance);
-        view *= ml::matrices::rotation_x(controller.pitch_radians);
-        view *= ml::matrices::rotation_y(controller.yaw_radians);
-        view *= ml::matrices::translation(-controller.orbit_target);
-        return view;
-    }
-
-    view *= ml::matrices::rotation_x(controller.pitch_radians);
-    view *= ml::matrices::rotation_y(controller.yaw_radians);
-    view *= ml::matrices::translation(-controller.position);
-    return view;
-}
-
-void align_fps_position_to_orbit_view(
-  ViewportCameraControllerState& controller)
-{
-    const float cos_pitch = std::cos(controller.pitch_radians);
-    const float sin_pitch = std::sin(controller.pitch_radians);
-    const float cos_yaw = std::cos(controller.yaw_radians);
-    const float sin_yaw = std::sin(controller.yaw_radians);
-
-    controller.position = controller.orbit_target
-                          + ml::vec3{
-                            -sin_yaw * cos_pitch * controller.orbit_distance,
-                            sin_pitch * controller.orbit_distance,
-                            cos_yaw * cos_pitch * controller.orbit_distance};
-}
-
-ViewportCameraControllerInput gather_viewport_camera_input(
+ViewportEditorCameraInput gather_viewport_camera_input(
   const ViewportInputState& viewport_input,
   const ImGuiIO& io,
   bool mouse_captured,
   ViewportNavigationMode mode)
 {
-    ViewportCameraControllerInput input{};
+    ViewportEditorCameraInput input{};
 
     if(!mouse_captured)
     {
@@ -184,59 +122,6 @@ ViewportCameraControllerInput gather_viewport_camera_input(
 
     input.fast_move = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
     return input;
-}
-
-void update_viewport_camera_controller(
-  ViewportCameraControllerState& controller,
-  const ViewportCameraControllerInput& input,
-  float delta_time,
-  ViewportNavigationMode mode)
-{
-    if(!input.active || delta_time <= 0.f)
-    {
-        return;
-    }
-
-    const float look_sensitivity = 0.0025f;
-    controller.yaw_radians += input.look_yaw * look_sensitivity;
-    controller.pitch_radians += input.look_pitch * look_sensitivity;
-    controller.pitch_radians = std::clamp(
-      controller.pitch_radians,
-      ml::to_radians(-89.f),
-      ml::to_radians(89.f));
-
-    if(mode == ViewportNavigationMode::Orbit)
-    {
-        if(input.zoom_delta != 0.f)
-        {
-            const float zoom_step = std::max(0.5f, controller.orbit_distance * 0.1f);
-            controller.orbit_distance = std::max(
-              1.f,
-              controller.orbit_distance - input.zoom_delta * zoom_step);
-        }
-        return;
-    }
-
-    const float base_speed = input.fast_move ? 20.f : 8.f;
-    const float move_distance = base_speed * delta_time;
-    const float cos_pitch = std::cos(controller.pitch_radians);
-    const float sin_pitch = std::sin(controller.pitch_radians);
-    const float cos_yaw = std::cos(controller.yaw_radians);
-    const float sin_yaw = std::sin(controller.yaw_radians);
-
-    const ml::vec3 forward = {
-      sin_yaw * cos_pitch,
-      -sin_pitch,
-      -cos_yaw * cos_pitch};
-    const ml::vec3 right = {
-      cos_yaw,
-      0.f,
-      sin_yaw};
-    const ml::vec3 up = {0.f, 1.f, 0.f};
-
-    controller.position += forward * (input.move_forward * move_distance);
-    controller.position += right * (input.move_right * move_distance);
-    controller.position += up * (input.move_up * move_distance);
 }
 
 GLuint create_viewport_texture(
@@ -326,13 +211,11 @@ bool viewport_contains_mouse_position(
 }
 
 void imgui_draw_viewport_panel(
-  Application& app,
   RenderDevice& render_device,
   Renderer& renderer,
   Scene& scene,
   Viewport& viewport,
   GLuint& viewport_texture,
-  float& last_update_time,
   bool& running,
   ViewportInputState& viewport_input)
 {
@@ -368,14 +251,6 @@ void imgui_draw_viewport_panel(
             logging::errorf("{}", e.what());
             running = false;
         }
-    }
-
-    const float time_seconds = static_cast<float>(SDL_GetTicks()) / 1000.0f;
-    const float delta_time = time_seconds - last_update_time;
-    last_update_time = time_seconds;
-    if(delta_time > 0)
-    {
-        app.tick(delta_time);
     }
 
     viewport.update_active_camera_projection(scene);
@@ -444,7 +319,7 @@ void imgui_draw_viewport_panel(
         if(viewport.is_camera_selector_overlay_enabled())
         {
             const ViewportCameraType camera_type = viewport.get_camera_type(scene);
-            std::string camera_name = "Perspective";
+            std::string camera_name{to_string(viewport.get_editor_camera_view())};
             if(camera_type == ViewportCameraType::Scene)
             {
                 camera_name = viewport.get_camera(scene).get_name();
@@ -498,14 +373,22 @@ void imgui_draw_viewport_panel(
             {
                 const bool using_local_camera =
                   (viewport.get_camera_type(scene) == ViewportCameraType::Local);
-                if(ImGui::MenuItem("Perspective", nullptr, using_local_camera))
+                for(int view_index = 0;
+                    view_index <= static_cast<int>(EditorCameraView::Orthographic);
+                    ++view_index)
                 {
-                    viewport.use_local_camera();
+                    const auto view = static_cast<EditorCameraView>(view_index);
+                    const bool selected =
+                      using_local_camera && viewport.get_editor_camera_view() == view;
+                    if(ImGui::MenuItem(
+                         to_string(view).data(),
+                         nullptr,
+                         selected))
+                    {
+                        viewport.use_local_camera();
+                        viewport.set_editor_camera_view(view);
+                    }
                 }
-
-                ImGui::BeginDisabled(true);
-                ImGui::MenuItem("Orthographic", nullptr, false);
-                ImGui::EndDisabled();
 
                 const std::optional<ObjectId> selected_scene_camera_id =
                   viewport.get_scene_camera_id();
@@ -552,7 +435,7 @@ void imgui_draw_viewport_panel(
                 }
                 if(ImGui::MenuItem("Reset") && !using_scene_camera)
                 {
-                    app.reset_viewport_camera();
+                    viewport.reset_editor_camera();
                 }
                 if(using_scene_camera)
                 {
@@ -619,8 +502,8 @@ GearParameters create_gear_resources(
   ShaderCache& shader_cache,
   const GearBuildParams& p)
 {
-    auto* flat_shader = shader_cache.add<shader::ColorFlat>(p.color);
-    auto* smooth_shader = shader_cache.add<shader::ColorSmooth>(p.color);
+    auto* flat_shader = shader_cache.get_or_create<shader::ColorFlat>();
+    auto* smooth_shader = shader_cache.get_or_create<shader::ColorSmooth>();
 
     auto flat_material = device.create_material(*flat_shader);
     auto smooth_material = device.create_material(*smooth_shader);
@@ -787,8 +670,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
 
     for(auto& mesh: imported_mesh.meshes)
     {
-        auto* shader = shader_cache.add<shader::PhongSmooth>(
-          mesh.diffuse_color);
+        auto* shader = shader_cache.get_or_create<shader::PhongSmooth>();
 
         const std::uint32_t material = device.create_material(*shader);
 
@@ -963,7 +845,7 @@ void try_add_textured_floor(
           assets::load_normal_map_rgba8(
             normal_path,
             assets::NormalMapConvention::DirectX));
-        auto* shader = shader_cache.add<shader::TexturedFloor>();
+        auto* shader = shader_cache.get_or_create<shader::TexturedFloor>();
 
         mesh_handle = device.create_mesh(
           make_floor_mesh(
@@ -1143,13 +1025,8 @@ void configure_default_spot_lights(Scene& scene)
 
 void Application::setup_scene()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
-
-    configure_default_directional_lights(*scene);
-    configure_default_spot_lights(*scene);
+    configure_default_directional_lights(scene);
+    configure_default_spot_lights(scene);
 
     struct GearInit
     {
@@ -1184,19 +1061,19 @@ void Application::setup_scene()
       },
     }};
 
-    GearFactory factory{*render_device, renderer->get_shader_cache()};
-    ShaderCache& shader_cache = renderer->get_shader_cache();
+    GearFactory factory{render_device, renderer.get_shader_cache()};
+    ShaderCache& shader_cache = renderer.get_shader_cache();
 
     try_add_textured_floor(
-      *scene,
-      *render_device,
+      scene,
+      render_device,
       shader_cache);
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
-        gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
-        scene->set_spin_animation(
-          gear_objs[i]->get_object_id(),
+        Gear& gear = factory.create(scene, gears[i].build, gears[i].transform);
+        scene.set_spin_animation(
+          gear.get_object_id(),
           {.translation = gears[i].translation,
            .angular_speed = gears[i].angular_speed,
            .phase_offset = gears[i].phase_offset});
@@ -1207,7 +1084,7 @@ void Application::setup_scene()
       "assets/models/bunny.obj"};
 
     const auto mesh_resources = try_create_static_mesh_resources_from_file(
-      *render_device,
+      render_device,
       shader_cache,
       static_mesh_path);
 
@@ -1218,48 +1095,42 @@ void Application::setup_scene()
             for(int y = -4; y < 5; ++y)
             {
                 create_static_mesh_instance(
-                  *scene,
+                  scene,
                   *mesh_resources,
                   ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
             }
         }
     }
 
-    align_fps_position_to_orbit_view(viewport_camera_controller);
+    viewport.reset_editor_camera();
 
-    // Local viewport camera stays the modifiable camera.
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(
-        viewport_camera_controller,
-        viewport->get_navigation_mode()));
-
-    Camera* camera = scene->add_object<Camera>();
-    camera->set_transform(viewport->get_local_camera().get_transform());
+    Camera* camera = scene.add_object<Camera>();
+    camera->set_transform(viewport.get_local_camera().get_transform());
     camera->set_name("Editor Camera");
     camera->capture_snapshot();
 
-    viewport->use_local_camera();
+    viewport.use_local_camera();
 }
 
 void Application::setup_viewport()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
-
-    // Keep the local camera in sync as a fallback if the bound scene camera is removed.
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(
-        viewport_camera_controller,
-        viewport->get_navigation_mode()));
+    // Keep the local camera initialized as a fallback if the bound scene camera is removed.
+    viewport.reset_editor_camera();
 }
 
 Application::Application(
   std::string_view title,
-  logging::BufferedLogDevice& log_device)
+  logging::BufferedLogDevice& log_device,
+  RenderDevice& render_device,
+  Renderer& renderer,
+  Scene& scene,
+  Viewport& viewport)
 : title{title}
 , log_device{log_device}
+, render_device{render_device}
+, renderer{renderer}
+, scene{scene}
+, viewport{viewport}
 {
     window = SDL_CreateWindow(
       "SWR Playground",
@@ -1299,6 +1170,25 @@ Application::Application(
     logging::logf("pixel density: {}", pixel_density);
     logging::logf("window size: {} x {}", window_w, window_h);
     logging::logf("pixel size: {} x {}", pixel_w, pixel_h);
+
+    /*
+     * viewport setup.
+     */
+
+    viewport_texture = create_viewport_texture(
+      render_device.get_width(),
+      render_device.get_height());
+    viewport.set_resolution(
+      render_device.get_width(),
+      render_device.get_height());
+
+    /*
+     * scene setup.
+     */
+
+    setup_scene();
+    scene.add_default_systems();
+    setup_viewport();
 }
 
 Application::~Application()
@@ -1343,6 +1233,13 @@ void Application::set_viewport_mouse_capture(
 
 void Application::update_viewport_mouse_capture()
 {
+    if(!viewport.is_editor_camera_modification_enabled()
+       || !viewport.is_local_camera_active(scene))
+    {
+        set_viewport_mouse_capture(false);
+        return;
+    }
+
     float mouse_x = 0.f;
     float mouse_y = 0.f;
     const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -1356,53 +1253,28 @@ void Application::update_viewport_mouse_capture()
     set_viewport_mouse_capture(should_capture);
 }
 
-void Application::initialize(
-  RenderDevice& render_device,
-  Renderer& renderer,
-  Scene& scene,
-  Viewport& viewport)
-{
-    if(initialized)
-    {
-        throw std::runtime_error{
-          "Application already initialized."};
-    }
-    initialized = true;
-
-    this->render_device = &render_device;
-    this->renderer = &renderer;
-    this->scene = &scene;
-    this->viewport = &viewport;
-
-    viewport_texture = create_viewport_texture(
-      render_device.get_width(),
-      render_device.get_height());
-    viewport.set_resolution(
-      render_device.get_width(),
-      render_device.get_height());
-
-    setup_scene();
-    scene.add_default_systems();
-    setup_viewport();
-}
-
 void Application::run()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
-
     bool running = true;
     int frame_index = 0;
 
-    float last_update_time = static_cast<float>(SDL_GetTicks()) / 1000.0f;
+    auto last_update_time = std::chrono::steady_clock::now();
 
     ImGuiIO& io = ImGui::GetIO();
     imgui::State ui_state;
 
     while(running)
     {
+        const auto current_time = std::chrono::steady_clock::now();
+        const float delta_time = std::chrono::duration<float>(
+                                   current_time - last_update_time)
+                                   .count();
+        last_update_time = current_time;
+        if(delta_time > 0.f)
+        {
+            tick(delta_time);
+        }
+
         viewport_input.mouse_delta_x = 0.f;
         viewport_input.mouse_delta_y = 0.f;
         viewport_input.mouse_wheel_delta = 0.f;
@@ -1413,6 +1285,8 @@ void Application::run()
         {
             if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
                && event.button.button == SDL_BUTTON_RIGHT
+               && viewport.is_editor_camera_modification_enabled()
+               && viewport.is_local_camera_active(scene)
                && viewport_contains_mouse_position(
                  viewport_input,
                  event.button.x,
@@ -1456,22 +1330,20 @@ void Application::run()
 
         imgui::draw_main_dockspace(running);
         imgui_draw_viewport_panel(
-          *this,
-          *render_device,
-          *renderer,
-          *scene,
-          *viewport,
+          render_device,
+          renderer,
+          scene,
+          viewport,
           viewport_texture,
-          last_update_time,
           running,
           viewport_input);
         imgui::draw_console_panel(log_device);
         imgui::draw_tools_panel(
           *this,
-          *render_device,
-          *viewport,
-          *scene,
-          *renderer,
+          render_device,
+          viewport,
+          scene,
+          renderer,
           frame_index,
           pixel_density,
           io);
@@ -1479,10 +1351,10 @@ void Application::run()
         // Check if benchmark was requested
         if(imgui::check_and_clear_sorting_benchmark_request())
         {
-            renderer->start_sorting_benchmark(*scene, *viewport);
+            renderer.start_sorting_benchmark(scene, viewport);
         }
 
-        imgui::draw_scene_inspector_panel(ui_state, *scene);
+        imgui::draw_scene_inspector_panel(ui_state, scene);
         imgui::draw_class_inspector_panel(ui_state);
 
         ImGui::Render();
@@ -1502,56 +1374,35 @@ void Application::run()
 void Application::tick(float delta_time)
 {
     update_viewport_mouse_capture();
-
-    const ViewportCameraControllerInput controller_input =
-      gather_viewport_camera_input(
-        viewport_input,
-        ImGui::GetIO(),
-        viewport_mouse_captured,
-        viewport->get_navigation_mode());
-    update_viewport_camera_controller(
-      viewport_camera_controller,
-      controller_input,
+    const ViewportNavigationMode navigation_mode = viewport.get_navigation_mode();
+    const ViewportEditorCameraInput controller_input =
+      viewport.is_editor_camera_modification_enabled()
+        ? gather_viewport_camera_input(
+            viewport_input,
+            ImGui::GetIO(),
+            viewport_mouse_captured,
+            navigation_mode)
+        : ViewportEditorCameraInput{};
+    viewport.update_editor_camera(
       delta_time,
-      viewport->get_navigation_mode());
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(
-        viewport_camera_controller,
-        viewport->get_navigation_mode()));
+      controller_input);
 
-    scene->tick(delta_time);
+    // FIXME temporary until a better update mechanism is in place
+    scene.for_each_object<Gear>(
+      [&](Gear& gear)
+      {
+          rebuild_gear_mesh_if_needed(render_device, &gear);
+      });
 
-    for(auto* gear: gear_objs)
-    {
-        rebuild_gear_mesh_if_needed(*render_device, gear);
-    }
-}
-
-void Application::reset_viewport_camera()
-{
-    if(viewport == nullptr)
-    {
-        return;
-    }
-
-    reset_viewport_camera_controller(viewport_camera_controller);
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(
-        viewport_camera_controller,
-        viewport->get_navigation_mode()));
+    scene.tick(delta_time);
 }
 
 void Application::set_static_mesh_shader(StaticMeshShaderType type)
 {
-    if(!initialized)
-    {
-        return;
-    }
-
     active_static_mesh_shader = type;
-    ShaderCache& shader_cache = renderer->get_shader_cache();
+    ShaderCache& shader_cache = renderer.get_shader_cache();
 
-    scene->for_each_object<StaticMesh>(
+    scene.for_each_object<StaticMesh>(
       [&](StaticMesh& mesh)
       {
           // skip gears for now.
@@ -1568,25 +1419,25 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
           {
               for(auto& section: lod.mesh_sections)
               {
-                  render_device->delete_material(section.material_handle);
+                  render_device.delete_material(section.material_handle);
 
                   swr::program_base* new_shader = nullptr;
                   switch(type)
                   {
                   case StaticMeshShaderType::ColorFlat:
-                      new_shader = shader_cache.add<shader::ColorFlat>(section.color);
+                      new_shader = shader_cache.get_or_create<shader::ColorFlat>();
                       break;
                   case StaticMeshShaderType::ColorSmooth:
-                      new_shader = shader_cache.add<shader::ColorSmooth>(section.color);
+                      new_shader = shader_cache.get_or_create<shader::ColorSmooth>();
                       break;
                   case StaticMeshShaderType::PhongSmooth:
-                      new_shader = shader_cache.add<shader::PhongSmooth>(section.color);
+                      new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
                       break;
                   default:
                       throw std::runtime_error{"Unknown shader type for static meshes."};
                   }
 
-                  section.material_handle = render_device->create_material(*new_shader);
+                  section.material_handle = render_device.create_material(*new_shader);
               }
           }
       });

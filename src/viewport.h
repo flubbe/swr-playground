@@ -1,10 +1,14 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
+
+#include "ml/all.h"
 
 #include "scene/camera.h"
 #include "scene/object.h"
+#include "scene/scene.h"
 
 /** Viewport display settings (how geometry is rasterized). */
 struct ViewportDisplaySettings
@@ -55,12 +59,50 @@ enum class ViewportCameraType : std::uint8_t
 /** Viewport mouse navigation mode. */
 enum class ViewportNavigationMode : std::uint8_t
 {
-    Fps,   /** Right mouse look with WASD-style movement. */
-    Orbit  /** Right mouse orbit around a focus point. */
+    Fps,  /** Right mouse look with WASD-style movement. */
+    Orbit /** Right mouse orbit around a focus point. */
+};
+
+/** Preset editor camera view for the viewport-local camera. */
+enum class EditorCameraView : std::uint8_t
+{
+    Perspective = 0,
+    Top,
+    Left,
+    Front,
+    Orthographic,
+};
+
+/** Convert `EditorCameraView` to string. */
+std::string_view to_string(EditorCameraView view);
+
+/** Input for updating the viewport-local editor camera. */
+struct ViewportEditorCameraInput
+{
+    float move_forward{0.f};
+    float move_right{0.f};
+    float move_up{0.f};
+    float look_yaw{0.f};
+    float look_pitch{0.f};
+    float zoom_delta{0.f};
+    bool fast_move{false};
+    bool active{false};
 };
 
 class Viewport
 {
+public:
+    struct EditorCameraControllerState
+    {
+        ml::vec3 position{0.f, 0.f, 40.f};
+        ml::vec3 orbit_target{0.f, 0.f, 0.f};
+        float orbit_distance{40.f};
+        float orthographic_height{40.f};
+        float pitch_radians{ml::to_radians(20.f)};
+        float yaw_radians{ml::to_radians(30.f)};
+    };
+
+private:
     /** Local viewport camera. */
     Camera local_camera;
 
@@ -76,11 +118,29 @@ class Viewport
     /** Mouse navigation mode. */
     ViewportNavigationMode navigation_mode{ViewportNavigationMode::Orbit};
 
+    /** Current editor-local camera preset. */
+    EditorCameraView editor_camera_view{EditorCameraView::Perspective};
+
+    /** Editor controller state for the viewport-local camera. */
+    EditorCameraControllerState editor_camera_controller{};
+
+    /** Cached navigation mode for cross-mode synchronization. */
+    std::uint8_t last_navigation_mode{
+      static_cast<std::uint8_t>(ViewportNavigationMode::Orbit)};
+
+    /** Whether the local editor camera responds to user input. */
+    bool editor_camera_modification_enabled{true};
+
     /** Render target resolution. */
     ViewportResolution resolution;
 
+    void sync_local_camera();
+    void apply_editor_camera_view(
+      EditorCameraView view,
+      bool reset_controller);
+
 public:
-    Viewport() = default;
+    Viewport();
     Viewport(const Viewport&) = delete;
     Viewport(Viewport&&) = default;
 
@@ -230,6 +290,38 @@ public:
     {
         navigation_mode = mode;
     }
+
+    /** Reset the viewport-local editor camera for the current editor view preset. */
+    void reset_editor_camera();
+
+    /** Set the viewport-local editor camera preset. */
+    void set_editor_camera_view(EditorCameraView view);
+
+    /** Return the current viewport-local editor camera preset. */
+    EditorCameraView get_editor_camera_view() const noexcept
+    {
+        return editor_camera_view;
+    }
+
+    /** Return whether the viewport is actively using its local editor camera. */
+    bool is_local_camera_active(const Scene& scene) const;
+
+    /** Return whether editor-camera input is enabled for this viewport. */
+    bool is_editor_camera_modification_enabled() const noexcept
+    {
+        return editor_camera_modification_enabled;
+    }
+
+    /** Set whether editor-camera input is enabled for this viewport. */
+    void set_editor_camera_modification_enabled(bool enabled)
+    {
+        editor_camera_modification_enabled = enabled;
+    }
+
+    /** Update the viewport-local editor camera from user input. */
+    void update_editor_camera(
+      float delta_time,
+      const ViewportEditorCameraInput& input);
 
     /** Whether the camera selector overlay is enabled. */
     bool is_camera_selector_overlay_enabled() const

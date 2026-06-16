@@ -24,7 +24,7 @@
 
 #include "assets/texture.h"
 #include "mesh.h"
-#include "shader.h"
+#include "shader_constants.h"
 
 class Scene;
 class Camera;
@@ -55,15 +55,19 @@ struct Material
     std::vector<std::uint32_t> texture_handles{};
 };
 
-/** Shader uniforms. */
-struct Uniforms
+/** Camera-related shader uniforms. */
+struct CameraUniforms
 {
     /** Projection matrix. */
     ml::mat4x4 proj;
 
     /** View matrix. */
     ml::mat4x4 view;
+};
 
+/** Lighting-related shader uniforms. */
+struct LightingUniforms
+{
     /** Number of active directional lights. */
     int directional_light_count{0};
 
@@ -84,6 +88,13 @@ struct Uniforms
 
     /** Spot light colors. */
     std::array<ml::vec4, shader::max_spot_lights> spot_light_colors{};
+};
+
+/** Material-related shader uniforms. */
+struct MaterialUniforms
+{
+    /** Per-material base color. */
+    ml::vec4 base_color{1.f, 1.f, 1.f, 1.f};
 };
 
 /** Rasterizer state. */
@@ -270,7 +281,9 @@ public:
 
     void bind_rasterizer_state(const RasterizerState& state);
     void bind_material(std::uint32_t handle);
-    void bind_uniforms(const Uniforms& uniforms);
+    void bind_camera_uniforms(const CameraUniforms& uniforms);
+    void bind_lighting_uniforms(const LightingUniforms& uniforms);
+    void bind_material_uniforms(const MaterialUniforms& uniforms);
 
     /*
      * drawing functions.

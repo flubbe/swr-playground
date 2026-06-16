@@ -9,6 +9,9 @@
  */
 
 #include "reflection/builtin_properties.h"
+
+#include <algorithm>
+
 #include "camera.h"
 #include "properties.h"
 
@@ -25,6 +28,10 @@ void Camera::register_properties(reflect::ClassInfo& class_info)
     fov_constraints.max = M_PI;
     fov_constraints.clamp = true;
 
+    reflect::RangeConstraint<float> orthographic_height_constraints{};
+    orthographic_height_constraints.min = 0.1;
+    orthographic_height_constraints.clamp = true;
+
     reflect::RangeConstraint<float> plane_constraints{};
     plane_constraints.min = 0.1;
     plane_constraints.clamp = true;
@@ -35,6 +42,12 @@ void Camera::register_properties(reflect::ClassInfo& class_info)
       "FOV Y (rad)",
       reflect::PropertyFlags::None,
       fov_constraints);
+    reflect::register_property<&Camera::orthographic_height>(
+      class_info,
+      "orthographic_height",
+      "Orthographic Height",
+      reflect::PropertyFlags::None,
+      orthographic_height_constraints);
     reflect::register_property<&Camera::near_plane>(
       class_info,
       "near_plane",
@@ -67,20 +80,40 @@ void Camera::update_projection_matrix(float aspect_ratio)
     }
 
     if(cached_aspect_ratio == aspect_ratio
+       && cached_projection_mode == projection_mode
        && cached_fov_y == fov_y
+       && cached_orthographic_height == orthographic_height
        && cached_near_plane == near_plane
        && cached_far_plane == far_plane)
     {
         return;
     }
 
-    cached_projection = ml::matrices::perspective_projection(
-      aspect_ratio,
-      fov_y,
-      near_plane,
-      far_plane);
+    if(projection_mode == CameraProjectionMode::Orthographic)
+    {
+        const float half_height = orthographic_height * 0.5f;
+        const float half_width = half_height * aspect_ratio;
+        cached_projection = ml::matrices::orthographic_projection(
+          -half_width,
+          half_width,
+          -half_height,
+          half_height,
+          -near_plane,
+          -far_plane);
+    }
+    else
+    {
+        cached_projection = ml::matrices::perspective_projection(
+          aspect_ratio,
+          fov_y,
+          near_plane,
+          far_plane);
+    }
+
     cached_aspect_ratio = aspect_ratio;
+    cached_projection_mode = projection_mode;
     cached_fov_y = fov_y;
+    cached_orthographic_height = orthographic_height;
     cached_near_plane = near_plane;
     cached_far_plane = far_plane;
 }
@@ -88,4 +121,24 @@ void Camera::update_projection_matrix(float aspect_ratio)
 ml::mat4x4 Camera::get_projection_matrix() const
 {
     return cached_projection;
+}
+
+void Camera::set_projection_mode(CameraProjectionMode mode)
+{
+    projection_mode = mode;
+}
+
+CameraProjectionMode Camera::get_projection_mode() const noexcept
+{
+    return projection_mode;
+}
+
+void Camera::set_orthographic_height(float height)
+{
+    orthographic_height = std::max(0.1f, height);
+}
+
+float Camera::get_orthographic_height() const noexcept
+{
+    return orthographic_height;
 }

@@ -328,43 +328,65 @@ void RenderDevice::bind_material(std::uint32_t handle)
     current_bound_texture_count = texture_count;
 }
 
-void RenderDevice::bind_uniforms(const Uniforms& uniforms)
+void RenderDevice::bind_camera_uniforms(const CameraUniforms& uniforms)
 {
-    swr::BindUniform(0, uniforms.proj);
-    swr::BindUniform(1, uniforms.view);
-    swr::BindUniform(2, uniforms.directional_light_count);
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::camera_projection_uniform_index),
+      uniforms.proj);
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::camera_view_uniform_index),
+      uniforms.view);
+}
+
+void RenderDevice::bind_lighting_uniforms(const LightingUniforms& uniforms)
+{
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::directional_light_count_uniform_index),
+      uniforms.directional_light_count);
     for(std::size_t light_index = 0;
         light_index < uniforms.directional_light_dirs.size();
         ++light_index)
     {
         swr::BindUniform(
-          static_cast<std::uint32_t>(3 + light_index),
+          static_cast<std::uint32_t>(
+            shader::directional_light_uniform_index(light_index)),
           uniforms.directional_light_dirs[light_index]);
     }
     swr::BindUniform(
-      static_cast<std::uint32_t>(3 + uniforms.directional_light_dirs.size()),
+      static_cast<std::uint32_t>(shader::spot_light_count_uniform_index),
       uniforms.spot_light_count);
-    const std::uint32_t spot_light_base =
-      static_cast<std::uint32_t>(4 + uniforms.directional_light_dirs.size());
     for(std::size_t light_index = 0;
         light_index < uniforms.spot_light_positions.size();
         ++light_index)
     {
-        const std::uint32_t light_base =
-          spot_light_base + static_cast<std::uint32_t>(light_index * 4);
         swr::BindUniform(
-          light_base,
+          static_cast<std::uint32_t>(shader::spot_light_uniform_index(
+            light_index,
+            shader::spot_light_position_uniform_offset)),
           uniforms.spot_light_positions[light_index]);
         swr::BindUniform(
-          light_base + 1,
+          static_cast<std::uint32_t>(shader::spot_light_uniform_index(
+            light_index,
+            shader::spot_light_direction_uniform_offset)),
           uniforms.spot_light_directions[light_index]);
         swr::BindUniform(
-          light_base + 2,
+          static_cast<std::uint32_t>(shader::spot_light_uniform_index(
+            light_index,
+            shader::spot_light_params_uniform_offset)),
           uniforms.spot_light_params[light_index]);
         swr::BindUniform(
-          light_base + 3,
+          static_cast<std::uint32_t>(shader::spot_light_uniform_index(
+            light_index,
+            shader::spot_light_color_uniform_offset)),
           uniforms.spot_light_colors[light_index]);
     }
+}
+
+void RenderDevice::bind_material_uniforms(const MaterialUniforms& uniforms)
+{
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::material_color_uniform_index),
+      uniforms.base_color);
 }
 
 void RenderDevice::draw_mesh(std::uint32_t handle)
