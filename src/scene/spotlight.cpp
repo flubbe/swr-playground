@@ -25,6 +25,10 @@ void SpotLight::register_properties(reflect::ClassInfo& class_info)
       class_info,
       "enabled",
       "Enabled");
+    reflect::register_property<&SpotLight::casts_shadows>(
+      class_info,
+      "casts_shadows",
+      "Casts Shadows");
     reflect::register_property<&SpotLight::color>(
       class_info,
       "color",

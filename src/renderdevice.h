@@ -24,6 +24,7 @@
 
 #include "assets/texture.h"
 #include "mesh.h"
+#include "render_types.h"
 #include "shader_constants.h"
 
 class Scene;
@@ -97,6 +98,14 @@ struct MaterialUniforms
     ml::vec4 base_color{1.f, 1.f, 1.f, 1.f};
 };
 
+/** Shadow-related shader uniforms. */
+struct ShadowUniforms
+{
+    bool enabled{false};
+    ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
+    ml::vec4 params{0.f, 0.f, 0.f, 0.f};
+};
+
 /** Rasterizer state. */
 struct RasterizerState
 {
@@ -147,6 +156,7 @@ class RenderDevice
     /** state cache. */
     RasterizerState current_rasterizer_state;
     std::size_t current_bound_texture_count{0};
+    std::optional<ShadowMapBinding> current_shadow_map_binding;
 
 protected:
     void initialize()
@@ -247,6 +257,10 @@ public:
     std::uint32_t create_texture(
       const assets::ImageRgba8& image);
 
+    std::uint32_t create_empty_texture(
+      int width,
+      int height);
+
     void delete_texture(std::uint32_t handle);
 
     std::uint32_t create_material(
@@ -286,6 +300,9 @@ public:
     void bind_camera_uniforms(const CameraUniforms& uniforms);
     void bind_lighting_uniforms(const LightingUniforms& uniforms);
     void bind_material_uniforms(const MaterialUniforms& uniforms);
+    void bind_shadow_map(const ShadowMapBinding& binding);
+    void clear_shadow_map();
+    void bind_shadow_uniforms(const ShadowUniforms& uniforms);
 
     /*
      * drawing functions.

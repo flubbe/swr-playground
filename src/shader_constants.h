@@ -30,11 +30,18 @@ constexpr std::size_t spot_light_uniform_base_index =
   spot_light_count_uniform_index + 1;
 constexpr std::size_t material_color_uniform_index =
   spot_light_uniform_base_index + max_spot_lights * spot_light_uniform_stride;
+constexpr std::size_t shadow_map_enabled_uniform_index =
+  material_color_uniform_index + 1;
+constexpr std::size_t shadow_map_matrix_uniform_index =
+  shadow_map_enabled_uniform_index + 1;
+constexpr std::size_t shadow_map_params_uniform_index =
+  shadow_map_matrix_uniform_index + 1;
 
 constexpr std::size_t spot_light_position_uniform_offset = 0;
 constexpr std::size_t spot_light_direction_uniform_offset = 1;
 constexpr std::size_t spot_light_params_uniform_offset = 2;
 constexpr std::size_t spot_light_color_uniform_offset = 3;
+constexpr std::size_t shadow_map_sampler_unit = 2;
 
 constexpr std::size_t directional_light_uniform_index(
   std::size_t light_index) noexcept

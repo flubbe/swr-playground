@@ -92,6 +92,61 @@ inline std::array<SpotLightData, max_spot_lights> load_spot_lights(
     return lights;
 }
 
+inline float sample_shadow_map(
+  std::span<const swr::uniform> uniforms,
+  std::span<swr::sampler_2d* const> samplers,
+  const swr::varying& shadow_clip_position,
+  float depth_bias)
+{
+    if(uniforms[shadow_map_enabled_uniform_index].i == 0
+       || samplers.size() <= shadow_map_sampler_unit
+       || samplers[shadow_map_sampler_unit] == nullptr)
+    {
+        return 1.f;
+    }
+
+    const swr::sampler_2d* shadow_map = samplers[shadow_map_sampler_unit];
+    const ml::tvec2<int> shadow_map_size = shadow_map->size(0);
+
+    const ml::vec4 clip = shadow_clip_position.value;
+    if(std::abs(clip.w) <= 0.0001f)
+    {
+        return 1.f;
+    }
+
+    const ml::vec3 ndc = clip.xyz() / clip.w;
+    ml::vec2 uv{
+      ndc.x * 0.5f + 0.5f,
+      ndc.y * 0.5f + 0.5f,
+    };
+    float receiver_depth = ndc.z * 0.5f + 0.5f;
+
+    // Guard against tiny precision spillover at shadow-map borders.
+    const float u_guard = 1.f / shadow_map_size.x;
+    const float v_guard = 1.f / shadow_map_size.y;
+    constexpr float depth_guard = 1.f / 4096.f;
+
+    if(uv.x < -u_guard || uv.x > 1.f + u_guard
+       || uv.y < -v_guard || uv.y > 1.f + v_guard
+       || receiver_depth < -depth_guard || receiver_depth > 1.f + depth_guard)
+    {
+        return 1.f;
+    }
+
+    uv.x = std::clamp(uv.x, 0.f, 1.f);
+    uv.y = std::clamp(uv.y, 0.f, 1.f);
+    receiver_depth = std::clamp(receiver_depth, 0.f, 1.f);
+
+    const swr::varying uv_varying{
+      ml::vec4{uv.x, uv.y, 0.f, 0.f},
+      ml::vec4::zero(),
+      ml::vec4::zero(),
+    };
+    const float stored_depth =
+      samplers[shadow_map_sampler_unit]->sample_at(uv_varying).x;
+    return receiver_depth - depth_bias <= stored_depth ? 1.f : 0.f;
+}
+
 inline float accumulate_directional_light(
   const ml::vec3& normal,
   int light_count,
@@ -141,7 +196,7 @@ inline LightContribution accumulate_spot_lights(
         }
 
         const ml::vec3 spot_direction =
-          spot_light.direction_and_brightness.xyz().normalized();
+          spot_light.direction_and_brightness.xyz();
         const float brightness = spot_light.direction_and_brightness.w;
         const float inner_cone_cosine = spot_light.params.x;
         const float outer_cone_cosine = spot_light.params.y;
@@ -292,6 +347,53 @@ inline LightContribution accumulate_spot_lights(
 }
 
 }    // namespace lit
+
+class ShadowDepth : public swr::program<ShadowDepth>
+{
+public:
+    ShadowDepth() = default;
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
+    void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        iqs = {};
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      std::span<const ml::vec4> attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      [[maybe_unused]] std::span<ml::vec4> varyings) const override
+    {
+        const ml::mat4x4 proj = uniforms[camera_projection_uniform_index].m4;
+        const ml::mat4x4 view = uniforms[camera_view_uniform_index].m4;
+        gl_Position = proj * view * attribs[0];
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      [[maybe_unused]] std::span<const swr::varying> varyings,
+      float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        gl_FragColor = {gl_FragDepth, gl_FragDepth, gl_FragDepth, 1.f};
+        return swr::accept;
+    }
+};
 
 /**
  * A shader that applies coloring and directional lighting.
@@ -634,6 +736,8 @@ class LitSmooth : public swr::program<LitSmooth>
     static constexpr float specular_strength = 0.04f;
 
     static constexpr float shininess = 64.f;
+    static constexpr float normalized_specular_scale =
+      (shininess + 8.f) / (8.f * M_PI);
 
 public:
     LitSmooth() = default;
@@ -653,6 +757,7 @@ public:
         iqs = {
           swr::interpolation_qualifier::smooth, /* position */
           swr::interpolation_qualifier::smooth, /* normal */
+          swr::interpolation_qualifier::smooth, /* shadow clip position */
         };
     }
 
@@ -673,6 +778,7 @@ public:
 
         varyings[0] = ml::vec4(position_cameraspace.xyz(), 0.f);
         varyings[1] = ml::vec4((view * attribs[1]).xyz(), 0.f);
+        varyings[2] = uniforms[shadow_map_matrix_uniform_index].m4 * attribs[0];
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -686,11 +792,21 @@ public:
         const ml::vec3 position_cameraspace = ml::vec4(varyings[0]).xyz();
         const ml::vec3 N = ml::vec4(varyings[1]).xyz().normalized();
 
-        const int light_count = uniforms[directional_light_count_uniform_index].i;
+        const int light_count =
+          clamp_light_count(uniforms[directional_light_count_uniform_index].i);
         const auto lights = load_directional_lights(uniforms);
 
-        const int spot_light_count = uniforms[spot_light_count_uniform_index].i;
+        const int spot_light_count =
+          clamp_spot_light_count(uniforms[spot_light_count_uniform_index].i);
         const auto spot_lights = load_spot_lights(uniforms);
+        const float shadow =
+          spot_light_count > 0
+            ? sample_shadow_map(
+                uniforms,
+                samplers,
+                varyings[2],
+                uniforms[shadow_map_params_uniform_index].v4.x)
+            : 1.f;
 
         const ml::vec4 material_color = uniforms[material_color_uniform_index].v4;
 
@@ -708,12 +824,7 @@ public:
         float directional_diffuse = 0.f;
         float directional_specular = 0.f;
 
-        const int active_light_count = clamp_light_count(light_count);
-
-        const float normalized_specular_scale =
-          (shininess + 8.f) / (8.f * M_PI);
-
-        for(int light_index = 0; light_index < active_light_count; ++light_index)
+        for(int light_index = 0; light_index < light_count; ++light_index)
         {
             const ml::vec4& directional_light =
               lights[static_cast<std::size_t>(light_index)];
@@ -747,17 +858,19 @@ public:
           spot_light_count,
           spot_lights,
           shininess);
+        const ml::vec4 shadowed_spot_diffuse = spot.diffuse * shadow;
+        const ml::vec4 shadowed_spot_specular = spot.specular * shadow;
 
         const ml::vec4 ambient =
           material_color * ambient_strength;
 
         const ml::vec4 diffuse =
           diffuse_color * directional_diffuse
-          + diffuse_color * spot.diffuse;
+          + diffuse_color * shadowed_spot_diffuse;
 
         const ml::vec4 specular =
           specular_color * directional_specular
-          + spot.specular * specular_strength;
+          + shadowed_spot_specular * specular_strength;
 
         gl_FragColor = ml::clamp_to_unit_interval(
           ambient
@@ -822,6 +935,71 @@ public:
     }
 };
 
+class ShadowMapDebug : public swr::program<ShadowMapDebug>
+{
+public:
+    ShadowMapDebug() = default;
+
+    swr::program_metadata get_metadata() const override
+    {
+        return {
+          .fragment_shader_may_discard = false,
+          .fragment_shader_may_write_depth = false};
+    }
+
+    void pre_link(
+      boost::container::static_vector<
+        swr::interpolation_qualifier,
+        swr::limits::max::varyings>& iqs) const override
+    {
+        iqs = {
+          swr::interpolation_qualifier::smooth};
+    }
+
+    void vertex_shader(
+      [[maybe_unused]] int gl_VertexID,
+      [[maybe_unused]] int gl_InstanceID,
+      std::span<const ml::vec4> attribs,
+      ml::vec4& gl_Position,
+      [[maybe_unused]] float& gl_PointSize,
+      [[maybe_unused]] std::span<float> gl_ClipDistance,
+      std::span<ml::vec4> varyings) const override
+    {
+        gl_Position = attribs[0];
+        varyings[0] = attribs[2];
+    }
+
+    swr::fragment_shader_result fragment_shader(
+      [[maybe_unused]] const ml::vec4& gl_FragCoord,
+      [[maybe_unused]] bool gl_FrontFacing,
+      [[maybe_unused]] const ml::vec2& gl_PointCoord,
+      std::span<const swr::varying> varyings,
+      [[maybe_unused]] float& gl_FragDepth,
+      ml::vec4& gl_FragColor) const override
+    {
+        if(samplers.size() <= shadow_map_sampler_unit
+           || samplers[shadow_map_sampler_unit] == nullptr)
+        {
+            gl_FragColor = {0.f, 0.f, 0.f, 1.f};
+            return swr::accept;
+        }
+
+        const float depth =
+          std::clamp(
+            samplers[shadow_map_sampler_unit]->sample_at(varyings[0]).x,
+            0.f,
+            1.f);
+
+        // Raw depth is usually heavily concentrated near 1.0 in perspective
+        // shadow maps; remap it to reveal structure in the debug view.
+        const float depth_debug =
+          std::pow(std::max(1.f - depth, 0.f), 0.2f);
+
+        gl_FragColor = {depth_debug, depth_debug, depth_debug, 1.f};
+        return swr::accept;
+    }
+};
+
 class TexturedShinyFloor : public swr::program<TexturedShinyFloor>
 {
     const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
@@ -852,6 +1030,7 @@ public:
           swr::interpolation_qualifier::smooth, /* tangent in camera space */
           swr::interpolation_qualifier::smooth, /* bitangent in camera space */
           swr::interpolation_qualifier::smooth, /* eye direction in camera space */
+          swr::interpolation_qualifier::smooth, /* shadow clip position */
         };
     }
 
@@ -881,6 +1060,7 @@ public:
         varyings[3] = ml::vec4(tangent_cameraspace, 0.f);
         varyings[4] = ml::vec4(bitangent_cameraspace, 0.f);
         varyings[5] = ml::vec4(-position_cameraspace, 0.f);
+        varyings[6] = uniforms[shadow_map_matrix_uniform_index].m4 * attribs[0];
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -896,6 +1076,11 @@ public:
         const ml::vec4 tangent = varyings[3];
         const ml::vec4 bitangent = varyings[4];
         const ml::vec4 eye_direction = varyings[5];
+        const float shadow = sample_shadow_map(
+          uniforms,
+          samplers,
+          varyings[6],
+          uniforms[shadow_map_params_uniform_index].v4.x);
 
         const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
         const ml::vec3 material_normal =
@@ -950,14 +1135,16 @@ public:
           spot_light_count,
           spot_lights,
           shininess);
+        const ml::vec4 shadowed_spot_diffuse = spot.diffuse * shadow;
+        const ml::vec4 shadowed_spot_specular = spot.specular * shadow;
 
         const ml::vec4 ambient_color = base_color * ambient_diffuse_factor;
         const ml::vec4 diffuse_color =
           light_color * base_color * lambertian_sum
-          + base_color * spot.diffuse;
+          + base_color * shadowed_spot_diffuse;
         const ml::vec4 specular_color =
           light_specular_color * (specular_strength * specular_sum)
-          + spot.specular * specular_strength;
+          + shadowed_spot_specular * specular_strength;
 
         gl_FragColor = ml::clamp_to_unit_interval(ambient_color + diffuse_color + specular_color);
         gl_FragColor.w = base_color.w;
@@ -996,6 +1183,7 @@ public:
           swr::interpolation_qualifier::smooth, /* tangent in camera space */
           swr::interpolation_qualifier::smooth, /* bitangent in camera space */
           swr::interpolation_qualifier::smooth, /* eye direction in camera space */
+          swr::interpolation_qualifier::smooth, /* shadow clip position */
         };
     }
 
@@ -1025,6 +1213,7 @@ public:
         varyings[3] = ml::vec4(tangent_cameraspace, 0.f);
         varyings[4] = ml::vec4(bitangent_cameraspace, 0.f);
         varyings[5] = ml::vec4(-position_cameraspace, 0.f);
+        varyings[6] = uniforms[shadow_map_matrix_uniform_index].m4 * attribs[0];
     }
 
     swr::fragment_shader_result fragment_shader(
@@ -1040,6 +1229,11 @@ public:
         const ml::vec4 tangent = varyings[3];
         const ml::vec4 bitangent = varyings[4];
         const ml::vec4 eye_direction = varyings[5];
+        const float shadow = sample_shadow_map(
+          uniforms,
+          samplers,
+          varyings[6],
+          uniforms[shadow_map_params_uniform_index].v4.x);
 
         const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
         const ml::vec3 material_normal =
@@ -1106,6 +1300,8 @@ public:
           spot_light_count,
           spot_lights,
           shininess);
+        const ml::vec4 shadowed_spot_diffuse = spot.diffuse * shadow;
+        const ml::vec4 shadowed_spot_specular = spot.specular * shadow;
 
         const ml::vec4 diffuse_base =
           base_color * (1.f - specular_strength);
@@ -1115,11 +1311,11 @@ public:
 
         const ml::vec4 diffuse_color =
           light_color * diffuse_base * lambertian_sum
-          + diffuse_base * spot.diffuse;
+          + diffuse_base * shadowed_spot_diffuse;
 
         const ml::vec4 specular_color =
           light_specular_color * (specular_strength * specular_sum)
-          + spot.specular * specular_strength;
+          + shadowed_spot_specular * specular_strength;
 
         gl_FragColor = ml::clamp_to_unit_interval(
           ambient_color + diffuse_color + specular_color);

@@ -100,7 +100,7 @@ void draw_tools_panel(
           "Flat",
           "Smooth",
           "Phong",
-          "Lit"};
+          "Shadowed"};
         int shader_index = static_cast<int>(app.get_static_mesh_shader());
         if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
         {

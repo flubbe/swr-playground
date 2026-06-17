@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -201,6 +203,20 @@ struct DrawSubmission
     std::uint32_t material_handle{0};
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
     ml::mat4x4 view_from_mesh;
+    ShadowMapBinding shadow_map;
+};
+
+struct ShadowCasterSubmission
+{
+    std::uint32_t mesh_handle{0};
+    ml::mat4x4 light_view_from_mesh;
+};
+
+struct ShadowCamera
+{
+    ml::mat4x4 proj{ml::mat4x4::identity()};
+    ml::mat4x4 view{ml::mat4x4::identity()};
+    const SpotLight* light{nullptr};
 };
 
 void record_selected_lod(
@@ -280,6 +296,52 @@ LightingUniforms collect_light_uniforms(
     return uniforms;
 }
 
+std::optional<ShadowCamera> collect_shadow_camera(
+  const Scene& scene)
+{
+    const auto spot_lights = scene.get_spot_lights();
+    for(const SpotLight* light: spot_lights)
+    {
+        if(light == nullptr
+           || !light->enabled
+           || !light->casts_shadows)
+        {
+            continue;
+        }
+
+        const float outer_angle = light->get_outer_cone_angle_radians();
+        const float range = light->get_range();
+        if(range <= 0.1f)
+        {
+            continue;
+        }
+
+        constexpr float near_plane = 0.5f;
+        const ml::vec3 position = light->get_position();
+        const ml::vec3 direction = light->get_world_spot_direction();
+
+        // Expand shadow frustum FOV beyond the spotlight cone to avoid clipping
+        // casters near the projection boundary in shadow-map UV space.
+        const float shadow_fov =
+          std::min(outer_angle * 4.f, ml::to_radians(170.f));
+
+        return ShadowCamera{
+          .proj = ml::matrices::perspective_projection(
+            1.f,
+            shadow_fov,
+            near_plane,
+            range),
+          .view = make_camera_view_matrix(
+            position,
+            position + direction,
+            {0.f, 1.f, 0.f}),
+          .light = light,
+        };
+    }
+
+    return std::nullopt;
+}
+
 void bin_submissions_by_depth(
   std::vector<DrawSubmission>& submissions,
   float near_depth,
@@ -321,11 +383,11 @@ void bin_submissions_by_depth(
 
 void Renderer::create_grid_mesh()
 {
+    release_grid_mesh();
+
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
     auto* gray_shader = shader_cache.get_or_create<shader::ColorOnly>();
     auto gray_material = device.create_material(*gray_shader);
-
-    // FIXME Materials are released by the render device on shutdown.
 
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
@@ -381,6 +443,227 @@ void Renderer::create_grid_mesh()
       .color = color_gray};
 }
 
+void Renderer::release_grid_mesh()
+{
+    if(overlay_grid.mesh_handle != 0)
+    {
+        device.delete_mesh(overlay_grid.mesh_handle);
+        overlay_grid.mesh_handle = 0;
+    }
+    if(overlay_grid.material_handle != 0)
+    {
+        device.delete_material(overlay_grid.material_handle, false);
+        overlay_grid.material_handle = 0;
+    }
+}
+
+void Renderer::create_spotlight_depth_debug_mesh()
+{
+    release_spotlight_depth_debug_mesh();
+
+    auto* debug_shadow_shader = shader_cache.get_or_create<shader::ShadowMapDebug>();
+    const auto debug_shadow_material = device.create_material(*debug_shadow_shader);
+
+    std::vector<ml::vec4> qvb;
+    std::vector<ml::vec4> qnb;
+    std::vector<ml::vec4> qtb;
+    std::vector<std::uint32_t> qib;
+
+    qvb.reserve(4);
+    qnb.reserve(4);
+    qtb.reserve(4);
+    qib.reserve(6);
+
+    qvb.push_back({-1.f, -1.f, 0.f, 1.f});
+    qvb.push_back({1.f, -1.f, 0.f, 1.f});
+    qvb.push_back({1.f, 1.f, 0.f, 1.f});
+    qvb.push_back({-1.f, 1.f, 0.f, 1.f});
+
+    qnb.push_back({0.f, 0.f, 1.f, 0.f});
+    qnb.push_back({0.f, 0.f, 1.f, 0.f});
+    qnb.push_back({0.f, 0.f, 1.f, 0.f});
+    qnb.push_back({0.f, 0.f, 1.f, 0.f});
+
+    qtb.push_back({0.f, 0.f, 0.f, 0.f});
+    qtb.push_back({1.f, 0.f, 0.f, 0.f});
+    qtb.push_back({1.f, 1.f, 0.f, 0.f});
+    qtb.push_back({0.f, 1.f, 0.f, 0.f});
+
+    qib.push_back(0);
+    qib.push_back(1);
+    qib.push_back(2);
+    qib.push_back(0);
+    qib.push_back(2);
+    qib.push_back(3);
+
+    overlay_spotlight_depth = {
+      .mesh_handle = device.create_mesh(
+        MeshData{
+          .primitive_type = PrimitiveType::Triangles,
+          .indices = std::move(qib),
+          .vertices = std::move(qvb),
+          .normals = std::move(qnb),
+          .texcoords = std::move(qtb),
+        }),
+      .material_handle = debug_shadow_material,
+      .color = {1.f, 1.f, 1.f, 1.f},
+    };
+}
+
+void Renderer::release_spotlight_depth_debug_mesh()
+{
+    if(overlay_spotlight_depth.mesh_handle != 0)
+    {
+        device.delete_mesh(overlay_spotlight_depth.mesh_handle);
+        overlay_spotlight_depth.mesh_handle = 0;
+    }
+    if(overlay_spotlight_depth.material_handle != 0)
+    {
+        device.delete_material(overlay_spotlight_depth.material_handle, false);
+        overlay_spotlight_depth.material_handle = 0;
+    }
+}
+
+Renderer::~Renderer()
+{
+    release_spotlight_depth_debug_mesh();
+    release_grid_mesh();
+    release_shadow_map_resources();
+}
+
+void Renderer::ensure_shadow_map_resources()
+{
+    if(shadow_map_texture != 0
+       && shadow_map_framebuffer != 0
+       && shadow_map_depth_renderbuffer != 0)
+    {
+        return;
+    }
+
+    release_shadow_map_resources();
+
+    shadow_map_texture = device.create_empty_texture(
+      shadow_map_resolution,
+      shadow_map_resolution);
+    swr::ActiveTexture(shader::shadow_map_sampler_unit);
+    swr::BindTexture(
+      swr::texture_target::texture_2d,
+      shadow_map_texture);
+    swr::SetTextureWrapMode(
+      shadow_map_texture,
+      swr::wrap_mode::clamp_to_edge,
+      swr::wrap_mode::clamp_to_edge);
+    swr::SetTextureMinificationFilter(swr::texture_filter::linear);
+    swr::SetTextureMagnificationFilter(swr::texture_filter::linear);
+    swr::BindTexture(swr::texture_target::texture_2d, 0);
+
+    shadow_map_framebuffer = swr::CreateFramebufferObject();
+    shadow_map_depth_renderbuffer = swr::CreateDepthRenderbuffer(
+      shadow_map_resolution,
+      shadow_map_resolution);
+
+    swr::FramebufferTexture(
+      shadow_map_framebuffer,
+      swr::framebuffer_attachment::color_attachment_0,
+      shadow_map_texture,
+      0);
+    swr::FramebufferRenderbuffer(
+      shadow_map_framebuffer,
+      swr::framebuffer_attachment::depth_attachment,
+      shadow_map_depth_renderbuffer);
+}
+
+void Renderer::release_shadow_map_resources()
+{
+    if(shadow_map_depth_renderbuffer != 0)
+    {
+        swr::ReleaseDepthRenderbuffer(shadow_map_depth_renderbuffer);
+        shadow_map_depth_renderbuffer = 0;
+    }
+    if(shadow_map_framebuffer != 0)
+    {
+        swr::ReleaseFramebufferObject(shadow_map_framebuffer);
+        shadow_map_framebuffer = 0;
+    }
+    if(shadow_map_texture != 0)
+    {
+        device.delete_texture(shadow_map_texture);
+        shadow_map_texture = 0;
+    }
+}
+
+void Renderer::render_shadow_map(const Scene& scene)
+{
+    const auto shadow_camera = collect_shadow_camera(scene);
+    if(!shadow_camera.has_value())
+    {
+        return;
+    }
+
+    ensure_shadow_map_resources();
+
+    auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
+    const std::uint32_t shadow_material = device.create_material(*shadow_shader);
+
+    std::vector<ShadowCasterSubmission> submissions;
+    scene.for_each_object<StaticMesh>(
+      [&shadow_camera, &submissions](const StaticMesh& static_mesh)
+      {
+          if(!static_mesh.is_visible()
+             || !static_mesh.casts_shadows
+             || !static_mesh.has_mesh_sections())
+          {
+              return;
+          }
+
+          const auto& lod = static_mesh.get_lod(static_mesh.select_lod(1.f));
+          for(const auto& section: lod.mesh_sections)
+          {
+              submissions.push_back({
+                .mesh_handle = section.mesh_handle,
+                .light_view_from_mesh =
+                  shadow_camera->view * static_mesh.get_transform(),
+              });
+          }
+      });
+
+    swr::BindFramebufferObject(
+      swr::framebuffer_target::draw,
+      shadow_map_framebuffer);
+    swr::SetViewport(0, 0, shadow_map_resolution, shadow_map_resolution);
+    swr::SetClearColor(1.f, 1.f, 1.f, 1.f);
+    swr::SetClearDepth(1.f);
+    swr::ClearColorBuffer();
+    swr::ClearDepthBuffer();
+    swr::SetState(swr::state::depth_test, true);
+    swr::SetState(swr::state::depth_write, true);
+    swr::SetState(swr::state::texture, false);
+    swr::SetState(swr::state::cull_face, true);
+    swr::SetState(swr::state::polygon_offset_fill, true);
+    swr::PolygonOffset(1.5f, 2.f);
+    swr::SetPolygonMode(swr::polygon_mode::fill);
+
+    device.bind_material(shadow_material);
+    device.bind_lighting_uniforms({});
+    device.bind_material_uniforms({});
+    device.bind_shadow_uniforms({});
+    for(const ShadowCasterSubmission& submission: submissions)
+    {
+        device.bind_camera_uniforms({
+          .proj = shadow_camera->proj,
+          .view = submission.light_view_from_mesh,
+        });
+        device.draw_mesh(submission.mesh_handle);
+    }
+
+    swr::SetState(swr::state::polygon_offset_fill, false);
+    swr::BindFramebufferObject(swr::framebuffer_target::draw, 0);
+    swr::SetViewport(0, 0, device.get_width(), device.get_height());
+    swr::SetClearColor(0.f, 0.f, 0.f, 1.f);
+
+    device.delete_material(shadow_material, false);
+}
+
 void Renderer::render_scene(
   const Scene& scene,
   const Camera& camera,
@@ -392,11 +675,12 @@ void Renderer::render_scene(
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
     const LightingUniforms lighting_uniforms = collect_light_uniforms(scene, view);
+    const auto shadow_camera = collect_shadow_camera(scene);
 
     std::vector<DrawSubmission> submissions;
 
     scene.for_each_object<StaticMesh>(
-      [this, &display_settings, &projection, &view, &submissions](
+      [this, &display_settings, &projection, &view, &submissions, &shadow_camera](
         const StaticMesh& static_mesh)
       {
           if(!static_mesh.is_visible())
@@ -413,6 +697,12 @@ void Renderer::render_scene(
 
           const auto obj_view = view * static_mesh.get_transform();
           const auto obj_clip = projection * obj_view;
+          const ml::mat4x4 shadow_clip_from_mesh =
+            shadow_camera.has_value()
+              ? shadow_camera->proj
+                  * shadow_camera->view
+                  * static_mesh.get_transform()
+              : ml::mat4x4::identity();
           const float obj_sort_depth =
             estimate_sort_depth(static_mesh.get_bounds(), obj_view);
 
@@ -460,6 +750,15 @@ void Renderer::render_scene(
                 .material_handle = section.material_handle,
                 .color = section.color,
                 .view_from_mesh = obj_view,
+                .shadow_map = {
+                  .enabled =
+                    shadow_camera.has_value()
+                    && static_mesh.receives_shadows
+                    && shadow_map_texture != 0,
+                  .texture_handle = shadow_map_texture,
+                  .clip_from_mesh = shadow_clip_from_mesh,
+                  .depth_bias = 0.0008f,
+                },
               });
               ++render_stats.mesh_sections_drawn;
               render_stats.triangles_submitted +=
@@ -498,6 +797,7 @@ void Renderer::render_scene(
 
     for(const DrawSubmission& submission: submissions)
     {
+        device.bind_shadow_map(submission.shadow_map);
         device.bind_material(submission.material_handle);
         device.bind_camera_uniforms({
           .proj = projection,
@@ -506,8 +806,19 @@ void Renderer::render_scene(
         device.bind_material_uniforms({
           .base_color = submission.color,
         });
+        device.bind_shadow_uniforms({
+          .enabled = submission.shadow_map.enabled,
+          .clip_from_mesh = submission.shadow_map.clip_from_mesh,
+          .params = {
+            submission.shadow_map.depth_bias,
+            0.f,
+            0.f,
+            0.f,
+          },
+        });
         device.draw_mesh(submission.mesh_handle);
     }
+    device.clear_shadow_map();
 }
 
 void Renderer::render_grid(
@@ -530,8 +841,47 @@ void Renderer::render_grid(
     device.bind_material_uniforms({
       .base_color = overlay_grid.color,
     });
+    device.bind_shadow_uniforms({});
 
     device.draw_mesh(overlay_grid.mesh_handle);
+}
+
+bool Renderer::render_spotlight_depth_debug()
+{
+    if(shadow_map_texture == 0)
+    {
+        return false;
+    }
+
+    device.bind_rasterizer_state({
+      .wireframe = false,
+      .cull_face = false,
+    });
+
+    device.bind_shadow_map({
+      .enabled = true,
+      .texture_handle = shadow_map_texture,
+      .clip_from_mesh = ml::mat4x4::identity(),
+      .depth_bias = 0.f,
+    });
+    device.bind_material(overlay_spotlight_depth.material_handle);
+    device.bind_camera_uniforms({
+      .proj = ml::mat4x4::identity(),
+      .view = ml::mat4x4::identity(),
+    });
+    device.bind_lighting_uniforms({});
+    device.bind_material_uniforms({
+      .base_color = {1.f, 1.f, 1.f, 1.f},
+    });
+    device.bind_shadow_uniforms({
+      .enabled = true,
+      .clip_from_mesh = ml::mat4x4::identity(),
+      .params = {0.f, 0.f, 0.f, 0.f},
+    });
+    device.draw_mesh(overlay_spotlight_depth.mesh_handle);
+    device.clear_shadow_map();
+
+    return true;
 }
 
 void Renderer::render(
@@ -552,16 +902,32 @@ void Renderer::render(
      * scene rendering.
      */
 
-    render_scene(
-      scene,
-      camera,
-      display_settings);
+    const bool has_shadow_camera = collect_shadow_camera(scene).has_value();
+    if(has_shadow_camera)
+    {
+        render_shadow_map(scene);
+    }
+
+    if(display_settings.debug_spotlight_depth
+       && has_shadow_camera
+       && render_spotlight_depth_debug())
+    {
+        // Debug depth rendered.
+    }
+    else
+    {
+        render_scene(
+          scene,
+          camera,
+          display_settings);
+    }
 
     /*
      * viewport overlays.
      */
 
-    if(overlay_settings.show_grid)
+    if(!display_settings.debug_spotlight_depth
+       && overlay_settings.show_grid)
     {
         render_grid(
           camera);

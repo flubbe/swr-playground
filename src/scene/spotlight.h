@@ -19,6 +19,7 @@ public:
     static void register_properties(reflect::ClassInfo& class_info);
 
     bool enabled{true};
+    bool casts_shadows{false};
     ml::vec4 color{0.42f, 0.62f, 1.f, 1.f};
     float brightness{1.4f};
     float inner_cone_angle_radians{ml::to_radians(20.f)};

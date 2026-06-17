@@ -372,6 +372,9 @@ void imgui_draw_viewport_panel(
             }
             if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
             {
+                ViewportDisplaySettings display_settings = viewport.get_display_settings();
+                bool update_display_settings = false;
+
                 const bool using_local_camera =
                   (viewport.get_camera_type(scene) == ViewportCameraType::Local);
                 for(int view_index = 0;
@@ -386,6 +389,8 @@ void imgui_draw_viewport_panel(
                          nullptr,
                          selected))
                     {
+                        display_settings.debug_spotlight_depth = false;
+                        update_display_settings = true;
                         viewport.use_local_camera();
                         viewport.set_editor_camera_view(view);
                     }
@@ -414,6 +419,8 @@ void imgui_draw_viewport_panel(
                              nullptr,
                              selected))
                         {
+                            display_settings.debug_spotlight_depth = false;
+                            update_display_settings = true;
                             viewport.use_scene_camera(camera->get_object_id());
                         }
                     }
@@ -436,11 +443,32 @@ void imgui_draw_viewport_panel(
                 }
                 if(ImGui::MenuItem("Reset") && !using_scene_camera)
                 {
+                    display_settings.debug_spotlight_depth = false;
+                    update_display_settings = true;
                     viewport.reset_editor_camera();
                 }
                 if(using_scene_camera)
                 {
                     ImGui::EndDisabled();
+                }
+
+                if(ImGui::BeginMenu("Debug"))
+                {
+                    if(ImGui::MenuItem(
+                         "Spotlight Depth",
+                         nullptr,
+                         display_settings.debug_spotlight_depth))
+                    {
+                        display_settings.debug_spotlight_depth =
+                          !display_settings.debug_spotlight_depth;
+                        update_display_settings = true;
+                    }
+                    ImGui::EndMenu();
+                }
+
+                if(update_display_settings)
+                {
+                    viewport.set_display_settings(display_settings);
                 }
 
                 ImGui::EndPopup();
@@ -503,11 +531,8 @@ GearParameters create_gear_resources(
   ShaderCache& shader_cache,
   const GearBuildParams& p)
 {
-    auto* flat_shader = shader_cache.get_or_create<shader::ColorFlat>();
-    auto* smooth_shader = shader_cache.get_or_create<shader::ColorSmooth>();
-
-    auto flat_material = device.create_material(*flat_shader);
-    auto smooth_material = device.create_material(*smooth_shader);
+    auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
+    auto lit_material = device.create_material(*lit_shader);
 
     auto geom = make_gear(
       p.inner_radius,
@@ -545,12 +570,12 @@ GearParameters create_gear_resources(
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
-        .material_handle = smooth_material,
+        .material_handle = lit_material,
         .color = p.color,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
-        .material_handle = flat_material,
+        .material_handle = lit_material,
         .color = p.color,
       },
       .bounds = bounds,
@@ -583,6 +608,7 @@ public:
     {
         auto params = create_gear_resources(device, shader_cache, build);
         auto* gear = scene.add_object<Gear>(params);
+        gear->casts_shadows = true;
         gear->set_transform(transform);
         return *gear;
     }
@@ -894,6 +920,7 @@ void try_add_textured_floor(
             }},
           bounds);
         floor->set_name(std::string{floor_object_name});
+        floor->casts_shadows = false;
         floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
         floor->capture_snapshot();
     }
@@ -1024,6 +1051,7 @@ void configure_default_spot_lights(Scene& scene)
 {
     auto* spotlight = scene.add_object<SpotLight>();
     spotlight->set_name("Spot Light");
+    spotlight->casts_shadows = true;
     spotlight->color = {0.42f, 0.62f, 1.f, 1.f};
     spotlight->brightness = 7.f;
     spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
@@ -1119,16 +1147,23 @@ void Application::setup_scene()
 
     if(mesh_resources.has_value())
     {
-        for(int x = -4; x < 5; ++x)
-        {
-            for(int y = -4; y < 5; ++y)
-            {
-                create_static_mesh_instance(
-                  scene,
-                  *mesh_resources,
-                  ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
-            }
-        }
+        // for(int x = -4; x < 5; ++x)
+        // {
+        //     for(int y = -4; y < 5; ++y)
+        //     {
+        //         StaticMesh* bunny = create_static_mesh_instance(
+        //           scene,
+        //           *mesh_resources,
+        //           ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
+        //         bunny->casts_shadows = true;
+        //     }
+        // }
+
+        StaticMesh* bunny = create_static_mesh_instance(
+          scene,
+          *mesh_resources,
+          ml::matrices::translation(0.f, 0.f, 5.f));
+        bunny->casts_shadows = true;
     }
 
     viewport.reset_editor_camera();

@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 #include "ml/all.h"
@@ -90,6 +91,8 @@ struct ComparativeBenchmarkState
 
 class Renderer final
 {
+    static constexpr int shadow_map_resolution = 1024;
+
     RenderDevice& device;
     ShaderCache shader_cache;
 
@@ -106,17 +109,30 @@ class Renderer final
      */
 
     MeshSection overlay_grid;
+    MeshSection overlay_spotlight_depth;
+    std::uint32_t shadow_map_texture{0};
+    std::uint32_t shadow_map_framebuffer{0};
+    std::uint32_t shadow_map_depth_renderbuffer{0};
 
     void create_grid_mesh();
+    void release_grid_mesh();
+    void create_spotlight_depth_debug_mesh();
+    void release_spotlight_depth_debug_mesh();
+    void ensure_shadow_map_resources();
+    void release_shadow_map_resources();
 
     /*
      * Rendering functions.
      */
 
+    void render_shadow_map(
+      const Scene& scene);
     void render_scene(
       const Scene& scene,
       const Camera& camera,
       const ViewportDisplaySettings& display_settings);
+
+    bool render_spotlight_depth_debug();
 
     void render_grid(
       const Camera& camera);
@@ -127,7 +143,10 @@ public:
     : device{device}
     {
         create_grid_mesh();
+        create_spotlight_depth_debug_mesh();
     }
+
+    ~Renderer();
 
     [[nodiscard]]
     ShaderCache& get_shader_cache()

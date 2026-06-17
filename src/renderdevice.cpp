@@ -13,6 +13,7 @@
 #include <print>
 #include <span>
 #include <utility>
+#include <vector>
 
 #include "scene/camera.h"
 #include "scene/scene.h"
@@ -212,6 +213,19 @@ std::uint32_t RenderDevice::create_texture(
     return texture_id;
 }
 
+std::uint32_t RenderDevice::create_empty_texture(
+  int width,
+  int height)
+{
+    assets::ImageRgba8 image;
+    image.width = std::max(1, width);
+    image.height = std::max(1, height);
+    image.pixels.resize(
+      static_cast<std::size_t>(image.width * image.height * 4),
+      0u);
+    return create_texture(image);
+}
+
 void RenderDevice::delete_texture(std::uint32_t handle)
 {
     if(handle != 0)
@@ -312,9 +326,13 @@ void RenderDevice::bind_material(std::uint32_t handle)
     swr::BindShader(it->second.shader_handle);
 
     const std::size_t texture_count = it->second.texture_handles.size();
+    const bool has_shadow_texture =
+      current_shadow_map_binding.has_value()
+      && current_shadow_map_binding->enabled
+      && current_shadow_map_binding->texture_handle != 0;
     swr::SetState(
       swr::state::texture,
-      texture_count > 0);
+      texture_count > 0 || has_shadow_texture);
 
     for(std::size_t unit = 0; unit < texture_count; ++unit)
     {
@@ -330,7 +348,18 @@ void RenderDevice::bind_material(std::uint32_t handle)
           swr::texture_target::texture_2d,
           0);
     }
-    current_bound_texture_count = texture_count;
+    if(has_shadow_texture)
+    {
+        swr::ActiveTexture(shader::shadow_map_sampler_unit);
+        swr::BindTexture(
+          swr::texture_target::texture_2d,
+          current_shadow_map_binding->texture_handle);
+    }
+    current_bound_texture_count = std::max(
+      texture_count,
+      has_shadow_texture
+        ? static_cast<std::size_t>(shader::shadow_map_sampler_unit + 1)
+        : texture_count);
 }
 
 void RenderDevice::bind_camera_uniforms(const CameraUniforms& uniforms)
@@ -392,6 +421,36 @@ void RenderDevice::bind_material_uniforms(const MaterialUniforms& uniforms)
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::material_color_uniform_index),
       uniforms.base_color);
+}
+
+void RenderDevice::bind_shadow_map(const ShadowMapBinding& binding)
+{
+    if(binding.enabled
+       && binding.texture_handle != 0)
+    {
+        current_shadow_map_binding = binding;
+        return;
+    }
+
+    current_shadow_map_binding.reset();
+}
+
+void RenderDevice::clear_shadow_map()
+{
+    current_shadow_map_binding.reset();
+}
+
+void RenderDevice::bind_shadow_uniforms(const ShadowUniforms& uniforms)
+{
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::shadow_map_enabled_uniform_index),
+      uniforms.enabled ? 1 : 0);
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::shadow_map_matrix_uniform_index),
+      uniforms.clip_from_mesh);
+    swr::BindUniform(
+      static_cast<std::uint32_t>(shader::shadow_map_params_uniform_index),
+      uniforms.params);
 }
 
 void RenderDevice::draw_mesh(std::uint32_t handle)

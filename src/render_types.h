@@ -26,3 +26,12 @@ struct MeshSection
     /** Base color used by the lighting shader. */
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
 };
+
+/** One shadow map input for a draw call. */
+struct ShadowMapBinding
+{
+    bool enabled{false};
+    std::uint32_t texture_handle{0};
+    ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
+    float depth_bias{0.0015f};
+};

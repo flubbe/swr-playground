@@ -42,6 +42,12 @@ class StaticMesh
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
+    /** Whether this mesh contributes to shadow maps when supported by the renderer. */
+    bool casts_shadows{false};
+
+    /** Whether this mesh receives shadows when supported by the renderer. */
+    bool receives_shadows{true};
+
     StaticMesh() = default;
 
     explicit StaticMesh(std::vector<MeshSection> sections);

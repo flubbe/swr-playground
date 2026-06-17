@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "reflection/builtin_properties.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -19,8 +20,16 @@ DEFINE_REFLECTION(StaticMesh);
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void StaticMesh::register_properties(
-  [[maybe_unused]] reflect::ClassInfo& class_info)
+  reflect::ClassInfo& class_info)
 {
+    reflect::register_property<&StaticMesh::casts_shadows>(
+      class_info,
+      "casts_shadows",
+      "Casts Shadows");
+    reflect::register_property<&StaticMesh::receives_shadows>(
+      class_info,
+      "receives_shadows",
+      "Receives Shadows");
 }
 
 StaticMesh::StaticMesh(

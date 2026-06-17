@@ -27,6 +27,9 @@ struct ViewportDisplaySettings
 
     /** Whether to sort mesh submissions from front to back. */
     bool sort_meshes{true};
+
+    /** Whether to display the spotlight shadow-map depth texture. */
+    bool debug_spotlight_depth{false};
 };
 
 /** Viewport overlay settings. */
