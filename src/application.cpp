@@ -319,9 +319,15 @@ void imgui_draw_viewport_panel(
 
         if(viewport.is_camera_selector_overlay_enabled())
         {
+            const ViewportDisplaySettings display_settings =
+              viewport.get_display_settings();
             const ViewportCameraType camera_type = viewport.get_camera_type(scene);
             std::string camera_name{to_string(viewport.get_editor_camera_view())};
-            if(camera_type == ViewportCameraType::Scene)
+            if(display_settings.debug_spotlight_depth)
+            {
+                camera_name = "Spotlight Depth";
+            }
+            else if(camera_type == ViewportCameraType::Scene)
             {
                 camera_name = viewport.get_camera(scene).get_name();
             }
@@ -373,21 +379,20 @@ void imgui_draw_viewport_panel(
             if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
             {
                 ViewportDisplaySettings display_settings = viewport.get_display_settings();
+                const bool showing_spotlight_depth =
+                  display_settings.debug_spotlight_depth;
                 bool update_display_settings = false;
 
-                const bool using_local_camera =
-                  (viewport.get_camera_type(scene) == ViewportCameraType::Local);
                 for(int view_index = 0;
                     view_index <= static_cast<int>(EditorCameraView::Orthographic);
                     ++view_index)
                 {
                     const auto view = static_cast<EditorCameraView>(view_index);
-                    const bool selected =
-                      using_local_camera && viewport.get_editor_camera_view() == view;
                     if(ImGui::MenuItem(
                          to_string(view).data(),
                          nullptr,
-                         selected))
+                         !showing_spotlight_depth
+                           && viewport.is_editor_camera_view_active(scene, view)))
                     {
                         display_settings.debug_spotlight_depth = false;
                         update_display_settings = true;
@@ -396,11 +401,10 @@ void imgui_draw_viewport_panel(
                     }
                 }
 
-                const std::optional<ObjectId> selected_scene_camera_id =
-                  viewport.get_scene_camera_id();
+                ImGui::Separator();
                 const std::vector<Camera*> scene_cameras = scene.get_cameras();
 
-                if(ImGui::BeginMenu("Cameras"))
+                if(ImGui::BeginMenu("Scene Cameras"))
                 {
                     bool has_any_scene_camera = false;
                     for(const Camera* camera: scene_cameras)
@@ -410,14 +414,13 @@ void imgui_draw_viewport_panel(
                             continue;
                         }
                         has_any_scene_camera = true;
-                        const bool selected =
-                          selected_scene_camera_id.has_value()
-                          && selected_scene_camera_id.value() == camera->get_object_id()
-                          && viewport.get_camera_type(scene) == ViewportCameraType::Scene;
                         if(ImGui::MenuItem(
                              camera->get_name().c_str(),
                              nullptr,
-                             selected))
+                             !showing_spotlight_depth
+                               && viewport.is_scene_camera_active(
+                                 scene,
+                                 camera->get_object_id())))
                         {
                             display_settings.debug_spotlight_depth = false;
                             update_display_settings = true;
@@ -436,12 +439,13 @@ void imgui_draw_viewport_panel(
                 }
 
                 const bool using_scene_camera =
-                  viewport.get_camera_type(scene) == ViewportCameraType::Scene;
+                  camera_type == ViewportCameraType::Scene;
+                ImGui::Separator();
                 if(using_scene_camera)
                 {
                     ImGui::BeginDisabled();
                 }
-                if(ImGui::MenuItem("Reset") && !using_scene_camera)
+                if(ImGui::MenuItem("Reset Cameras") && !using_scene_camera)
                 {
                     display_settings.debug_spotlight_depth = false;
                     update_display_settings = true;

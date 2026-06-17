@@ -39,7 +39,7 @@ struct ViewportOverlaySettings
     bool show_camera_selector{true};
 
     /** Whether to show a grid. */
-    bool show_grid{true};
+    bool show_grid{false};
 };
 
 /** Viewport render resolution in pixels. */
@@ -109,7 +109,10 @@ private:
     /** Local viewport camera. */
     Camera local_camera;
 
-    /** Active camera. If `nullptr`, the local camera is used. */
+    /** Selected camera source for this viewport. */
+    ViewportCameraType camera_selection{ViewportCameraType::Local};
+
+    /** Selected scene camera id, when the viewport is looking through a scene camera. */
     std::optional<ObjectId> scene_camera_id;
 
     /** Display/rasterization settings. */
@@ -153,6 +156,7 @@ public:
     /** Use the local viewport camera. */
     void use_local_camera()
     {
+        camera_selection = ViewportCameraType::Local;
         scene_camera_id.reset();
     }
 
@@ -164,6 +168,7 @@ public:
     void use_scene_camera(
       ObjectId camera_id)
     {
+        camera_selection = ViewportCameraType::Scene;
         scene_camera_id = camera_id;
     }
 
@@ -182,7 +187,8 @@ public:
      */
     Camera* try_get_scene_camera(Scene& scene)
     {
-        if(!scene_camera_id.has_value())
+        if(camera_selection != ViewportCameraType::Scene
+           || !scene_camera_id.has_value())
         {
             return nullptr;
         }
@@ -199,7 +205,8 @@ public:
      */
     const Camera* try_get_scene_camera(const Scene& scene) const
     {
-        if(!scene_camera_id.has_value())
+        if(camera_selection != ViewportCameraType::Scene
+           || !scene_camera_id.has_value())
         {
             return nullptr;
         }
@@ -255,6 +262,24 @@ public:
             return ViewportCameraType::Scene;
         }
         return ViewportCameraType::Local;
+    }
+
+    /** Return whether the given editor view is currently the active viewport camera. */
+    bool is_editor_camera_view_active(
+      const Scene& scene,
+      EditorCameraView view) const
+    {
+        return get_camera_type(scene) == ViewportCameraType::Local
+               && editor_camera_view == view;
+    }
+
+    /** Return whether the given scene camera is currently active in the viewport. */
+    bool is_scene_camera_active(
+      const Scene& scene,
+      ObjectId camera_id) const
+    {
+        const Camera* camera = try_get_scene_camera(scene);
+        return camera != nullptr && camera->get_object_id() == camera_id;
     }
 
     /** Return the display settings for this viewport. */

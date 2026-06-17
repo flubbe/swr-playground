@@ -32,6 +32,9 @@ TEST(ViewportTests, DefaultsToLocalCamera)
     EXPECT_EQ(viewport.get_scene_camera_id(), std::nullopt);
     EXPECT_EQ(&viewport.get_camera(scene), &viewport.get_local_camera());
     EXPECT_EQ(viewport.get_camera_type(scene), ViewportCameraType::Local);
+    EXPECT_TRUE(viewport.is_editor_camera_view_active(
+      scene,
+      EditorCameraView::Perspective));
 }
 
 TEST(ViewportTests, UsesSceneCameraWhenPresent)
@@ -49,6 +52,12 @@ TEST(ViewportTests, UsesSceneCameraWhenPresent)
     EXPECT_EQ(viewport.try_get_scene_camera(scene), scene_camera);
     EXPECT_EQ(&viewport.get_camera(scene), scene_camera);
     EXPECT_EQ(viewport.get_camera_type(scene), ViewportCameraType::Scene);
+    EXPECT_TRUE(viewport.is_scene_camera_active(
+      scene,
+      scene_camera->get_object_id()));
+    EXPECT_FALSE(viewport.is_editor_camera_view_active(
+      scene,
+      EditorCameraView::Perspective));
 }
 
 TEST(ViewportTests, FallsBackToLocalCameraWhenSceneCameraIsMissing)
@@ -63,6 +72,9 @@ TEST(ViewportTests, FallsBackToLocalCameraWhenSceneCameraIsMissing)
     EXPECT_EQ(viewport.try_get_scene_camera(scene), nullptr);
     EXPECT_EQ(&viewport.get_camera(scene), &viewport.get_local_camera());
     EXPECT_EQ(viewport.get_camera_type(scene), ViewportCameraType::Local);
+    EXPECT_TRUE(viewport.is_editor_camera_view_active(
+      scene,
+      EditorCameraView::Perspective));
 }
 
 TEST(ViewportTests, UseLocalCameraClearsSceneCameraSelection)
