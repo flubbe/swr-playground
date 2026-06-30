@@ -453,7 +453,7 @@ inline LightContribution accumulate_spot_lights(
 
 }    // namespace lit
 
-class ShadowDepth : public swr::program<ShadowDepth>
+class ShadowDepth final : public swr::program<ShadowDepth>
 {
 public:
     ShadowDepth() = default;
@@ -523,7 +523,7 @@ public:
  *
  */
 
-class ColorFlat : public swr::program<ColorFlat>
+class ColorFlat final : public swr::program<ColorFlat>
 {
 public:
     ColorFlat() = default;
@@ -600,7 +600,7 @@ public:
     }
 };
 
-class ColorSmooth : public swr::program<ColorSmooth>
+class ColorSmooth final : public swr::program<ColorSmooth>
 {
 public:
     ColorSmooth() = default;
@@ -725,7 +725,7 @@ public:
  *
  */
 
-class PhongSmooth : public swr::program<PhongSmooth>
+class PhongSmooth final : public swr::program<PhongSmooth>
 {
     static constexpr float ambient_strength = 0.15f;
     static constexpr float specular_strength = 0.5f;
@@ -833,7 +833,7 @@ public:
     }
 };
 
-class LitSmooth : public swr::program<LitSmooth>
+class LitSmooth final : public swr::program<LitSmooth>
 {
     static constexpr float ambient_strength = 0.15f;
 
@@ -989,7 +989,7 @@ public:
     }
 };
 
-class ColorOnly : public swr::program<ColorOnly>
+class ColorOnly final : public swr::program<ColorOnly>
 {
 public:
     ColorOnly() = default;
@@ -1042,7 +1042,7 @@ public:
     }
 };
 
-class ShadowMapDebug : public swr::program<ShadowMapDebug>
+class ShadowMapDebug final : public swr::program<ShadowMapDebug>
 {
 public:
     ShadowMapDebug() = default;
@@ -1100,7 +1100,7 @@ public:
     }
 };
 
-class TexturedShinyFloor : public swr::program<TexturedShinyFloor>
+class TexturedShinyFloor final : public swr::program<TexturedShinyFloor>
 {
     const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
     const ml::vec4 light_specular_color{1.f, 1.f, 1.f, 1.f};
@@ -1254,7 +1254,7 @@ public:
     }
 };
 
-class TexturedFloor : public swr::program<TexturedFloor>
+class TexturedFloor final : public swr::program<TexturedFloor>
 {
     const ml::vec4 light_color{1.f, 1.f, 1.f, 1.f};
     const ml::vec4 light_specular_color{1.f, 1.f, 1.f, 1.f};
