@@ -247,7 +247,7 @@ const reflect::ClassInfo* resolve_cycle_b()
 const reflect::ClassInfo* resolve_throw_once()
 {
     ++g_throwing_resolver_calls;
-    throw std::runtime_error("Synthetic resolver failure");
+    throw std::runtime_error{"Synthetic resolver failure"};
 }
 
 const reflect::ClassInfo* resolve_chain_super_a()

@@ -432,7 +432,7 @@ protected:
     {
         if(new_class_info == nullptr)
         {
-            throw std::runtime_error("Cannot bind root without class_info.");
+            throw std::runtime_error{"Cannot bind root without class_info."};
         }
         class_info = new_class_info;
         initialize_properties();
@@ -462,7 +462,7 @@ public:
     {
         if(class_info == nullptr)
         {
-            throw std::runtime_error("Cannot create root without class_info.");
+            throw std::runtime_error{"Cannot create root without class_info."};
         }
     }
 
@@ -481,7 +481,7 @@ public:
     {
         if(class_info == nullptr)
         {
-            throw std::runtime_error("Cannot create root without class_info.");
+            throw std::runtime_error{"Cannot create root without class_info."};
         }
 
         initialize_properties();

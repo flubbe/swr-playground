@@ -8,13 +8,12 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <print>
-
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "logging.h"
 #include "ui/imgui.h"
 
 namespace
@@ -175,14 +174,14 @@ bool init(
 
     if(!ImGui_ImplSDL3_InitForOpenGL(window, gl_context))
     {
-        std::println(stderr, "ImGui_ImplSDL3_InitForOpenGL failed");
+        logging::errorf("ImGui_ImplSDL3_InitForOpenGL failed");
         ImGui::DestroyContext();
         return false;
     }
 
     if(!ImGui_ImplOpenGL3_Init("#version 330"))
     {
-        std::println(stderr, "ImGui_ImplOpenGL3_Init failed");
+        logging::errorf("ImGui_ImplOpenGL3_Init failed");
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
         return false;

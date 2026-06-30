@@ -8,17 +8,28 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <algorithm>
+#include <cstddef>
+#include <format>
+
 #include <imgui.h>
 
+#include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "viewport.h"
+#include "application.h"
 
 namespace imgui
 {
 
+static bool sorting_benchmark_requested = false;
+static int sorting_benchmark_iterations = 100;
+static int sorting_depth_bin_count = 8;
+
 void draw_tools_panel(
+  Application& app,
   RenderDevice& render_device,
   Viewport& viewport,
   Scene& scene,
@@ -40,6 +51,21 @@ void draw_tools_panel(
         ImGui::Text("Window pixel density: %.2f", pixel_density);
         ImGui::Text("Frame: %d", frame_index);
         ImGui::Text("Scene time: %.1f s", scene.get_time());
+
+        const char* navigation_modes[] = {
+          "FPS",
+          "Orbit",
+        };
+        int navigation_mode = static_cast<int>(viewport.get_navigation_mode());
+        if(ImGui::Combo(
+             "RMB Mode",
+             &navigation_mode,
+             navigation_modes,
+             IM_ARRAYSIZE(navigation_modes)))
+        {
+            viewport.set_navigation_mode(
+              static_cast<ViewportNavigationMode>(navigation_mode));
+        }
     }
 
     if(ImGui::CollapsingHeader(
@@ -70,9 +96,103 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        const char* shader_names[] = {
+          "Flat",
+          "Smooth",
+          "Phong",
+          "Shadowed"};
+        int shader_index = static_cast<int>(app.get_static_mesh_shader());
+        if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
+        {
+            app.set_static_mesh_shader(static_cast<StaticMeshShaderType>(shader_index));
+        }
+
+        const char* floor_shader_names[] = {
+          "Textured",
+          "Textured Shiny"};
+        int floor_shader_index = static_cast<int>(app.get_floor_shader());
+        if(ImGui::Combo(
+             "Floor Shader",
+             &floor_shader_index,
+             floor_shader_names,
+             IM_ARRAYSIZE(floor_shader_names)))
+        {
+            app.set_floor_shader(static_cast<FloorShaderType>(floor_shader_index));
+        }
+
+        const char* light_mode_names[] = {
+          "Rotating",
+          "Stationary",
+        };
+
+        auto directional_lights = scene.get_directional_lights();
+        for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
+        {
+            DirectionalLight& light = *directional_lights[light_index];
+            int light_mode_index = static_cast<int>(light.behavior);
+
+            const std::string label = std::format(
+              "Directional Light {}",
+              light_index + 1);
+            if(ImGui::Combo(
+                 label.c_str(),
+                 &light_mode_index,
+                 light_mode_names,
+                 IM_ARRAYSIZE(light_mode_names)))
+            {
+                light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
+            }
+        }
+
         if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))
         {
             update_display_settings = true;
+        }
+
+        if(ImGui::Checkbox("Frustum Culling", &display_settings.cull_frustum))
+        {
+            update_display_settings = true;
+        }
+
+        if(ImGui::Checkbox("Dynamic LOD", &display_settings.dynamic_lod))
+        {
+            update_display_settings = true;
+        }
+
+        if(ImGui::Checkbox("Sort Meshes", &display_settings.sort_meshes))
+        {
+            update_display_settings = true;
+        }
+
+        if(display_settings.sort_meshes)
+        {
+            const char* sort_modes[] = {
+              "Full Sort (O(n log n))",
+              "Bin Sort (O(n))",
+            };
+            int sort_mode = static_cast<int>(renderer.get_sort_mode());
+            if(ImGui::Combo(
+                 "Sort Mode",
+                 &sort_mode,
+                 sort_modes,
+                 IM_ARRAYSIZE(sort_modes)))
+            {
+                renderer.set_sort_mode(static_cast<SortMode>(sort_mode));
+            }
+        }
+
+        {
+            const char* pcf_modes[] = {
+              "Off",
+              "Legacy 3x3 Nearest",
+              "Legacy Bilinear",
+              "Modern 3x3 Nearest",
+              "Modern 3x3 Bilinear"};
+            int pcf_mode_int = static_cast<int>(renderer.get_shadow_pcf_mode());
+            if(ImGui::Combo("Shadow PCF Mode", &pcf_mode_int, pcf_modes, IM_ARRAYSIZE(pcf_modes)))
+            {
+                renderer.set_shadow_pcf_mode(static_cast<ShadowPcfMode>(pcf_mode_int));
+            }
         }
 
         if(update_overlay_settings)
@@ -90,12 +210,265 @@ void draw_tools_panel(
          "Stats",
          ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Text("FPS: %.1f", io.Framerate);
-        ImGui::Text("ms/frame: %.3f", 1000.0f / std::max(io.Framerate, 0.001f));
-        ImGui::Text("render time: %.3f ms", 1000.f * renderer.get_render_time());
+        const RendererStats& stats = renderer.get_stats();
+
+        if(ImGui::BeginTable(
+             "FrameStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("FPS");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.1f", io.Framerate);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Frame");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f ms", 1000.0f / std::max(io.Framerate, 0.001f));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Render");
+            ImGui::TableNextColumn();
+            ImGui::Text("%.3f ms", 1000.f * renderer.get_render_time());
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Meshes");
+
+        if(ImGui::BeginTable(
+             "MeshStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Static meshes");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.static_meshes));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Sections drawn");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.mesh_sections_drawn));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Sections culled");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.mesh_sections_culled));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Triangles submitted");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(stats.triangles_submitted));
+
+            for(std::size_t lod_index = 0;
+                lod_index < stats.static_mesh_lods_selected.size();
+                ++lod_index)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Text("LOD %llu selected", static_cast<unsigned long long>(lod_index));
+                ImGui::TableNextColumn();
+                ImGui::Text(
+                  "%llu",
+                  static_cast<unsigned long long>(
+                    stats.static_mesh_lods_selected[lod_index]));
+            }
+
+            ImGui::EndTable();
+        }
+
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Shaders");
+
+        if(ImGui::BeginTable(
+             "ShaderStats",
+             2,
+             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+        {
+            ImGui::TableSetupColumn("Metric");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("Cache Size");
+            ImGui::TableNextColumn();
+            ImGui::Text(
+              "%llu",
+              static_cast<unsigned long long>(renderer.get_shader_cache().size()));
+
+            ImGui::EndTable();
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Sorting Benchmark", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        bool benchmark_in_progress = renderer.is_benchmark_in_progress();
+
+        if(benchmark_in_progress)
+        {
+            ImGui::Text("Benchmark in progress...");
+        }
+        else
+        {
+            ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
+            if(sorting_benchmark_iterations < 1)
+                sorting_benchmark_iterations = 1;
+
+            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                sorting_benchmark_requested = true;
+            }
+
+            ImGui::SameLine();
+            ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
+            if(sorting_depth_bin_count < 1)
+                sorting_depth_bin_count = 1;
+            if(static_cast<std::size_t>(sorting_depth_bin_count) != renderer.get_depth_bin_count())
+            {
+                renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
+            }
+
+            ImGui::SameLine();
+            if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                renderer.start_comparative_benchmark(scene, viewport, static_cast<std::size_t>(sorting_benchmark_iterations));
+            }
+
+            const SortingBenchmarkResults& results = renderer.get_benchmark_results();
+            if(results.iterations > 0)
+            {
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Results:");
+
+                if(ImGui::BeginTable(
+                     "BenchmarkResults",
+                     2,
+                     ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Metric");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Iterations");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%llu", static_cast<unsigned long long>(results.iterations));
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("With Sorting");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.time_with_sorting / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Without Sorting");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.time_without_sorting / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Difference");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.3f ms", 1000.f * results.get_difference() / results.iterations);
+
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted("Improvement");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.1f %%", results.get_percentage_improvement());
+
+                    ImGui::EndTable();
+                }
+
+                ImGui::Spacing();
+                const auto& comp = renderer.get_comparative_results();
+                if(!comp.empty())
+                {
+                    ImGui::Spacing();
+                    ImGui::TextUnformatted("Comparative Results (FullSort / BinSort):");
+                    if(ImGui::BeginTable("ComparativeResults", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+                    {
+                        ImGui::TableSetupColumn("Mode");
+                        ImGui::TableSetupColumn("With Sorting (ms)");
+                        ImGui::TableSetupColumn("Without Sorting (ms)");
+                        ImGui::TableHeadersRow();
+
+                        const char* labels[] = {"FullSort", "BinSort"};
+                        for(size_t i = 0; i < comp.size() && i < 2; ++i)
+                        {
+                            ImGui::TableNextRow();
+                            ImGui::TableNextColumn();
+                            ImGui::TextUnformatted(labels[i]);
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%.3f", 1000.f * comp[i].time_with_sorting / std::max<std::size_t>(1, comp[i].iterations));
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%.3f", 1000.f * comp[i].time_without_sorting / std::max<std::size_t>(1, comp[i].iterations));
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+                if(results.get_percentage_improvement() > 0.1f)
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.2f, 0.8f, 0.2f, 1.0f),
+                      "Sorting improves performance by ~%.1f%%",
+                      results.get_percentage_improvement());
+                }
+                else if(results.get_percentage_improvement() < -0.1f)
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.8f, 0.3f, 0.2f, 1.0f),
+                      "Sorting reduces performance by ~%.1f%%",
+                      -results.get_percentage_improvement());
+                }
+                else
+                {
+                    ImGui::TextColored(
+                      ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+                      "No significant difference (%.2f%%)",
+                      results.get_percentage_improvement());
+                }
+            }
+        }
     }
 
     ImGui::End();
+}
+
+bool check_and_clear_sorting_benchmark_request()
+{
+    bool result = sorting_benchmark_requested;
+    sorting_benchmark_requested = false;
+    return result;
 }
 
 }    // namespace imgui

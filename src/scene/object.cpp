@@ -129,6 +129,10 @@ void Object::register_properties(reflect::ClassInfo& class_info)
       class_info,
       "transform",
       "Transform");
+    register_property<&Object::visible>(
+      class_info,
+      "visible",
+      "Visible");
 }
 
 void Object::capture_snapshot()

@@ -11,54 +11,108 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
+#include "ml/all.h"
 #include "swr/swr.h"
 #include "swr/shaders.h"
 
-#include "shader.h"
-#include "scene/gear.h"
+#include "assets/texture.h"
+#include "mesh.h"
+#include "render_types.h"
+#include "shader_constants.h"
 
 class Scene;
 class Camera;
 
-enum class PrimitiveType
+/** GPU-side mesh data. */
+struct MeshGpuData
 {
-    Triangles,
-    Lines
-};
-
-struct MeshData
-{
-    PrimitiveType primitive_type{PrimitiveType::Triangles};
-
-    std::vector<std::uint32_t> indices;
-
-    std::vector<ml::vec4> vertices;
+    /** Handle to the vertex buffer. */
     std::uint32_t vertices_handle{0};
 
-    std::vector<ml::vec4> normals;
+    /** Handle to the normal buffer. */
     std::uint32_t normals_handle{0};
+
+    /** Handle to the texture coordinate buffer. */
+    std::optional<std::uint32_t> texcoords_handle;
 };
 
+/** A render material. */
 struct Material
 {
+    /** Shader instance. */
     const swr::program_base* shader{nullptr};
+
+    /** Shader handle. */
     std::uint32_t shader_handle{0};
+
+    /** Bound 2D textures by texture unit index. */
+    std::vector<std::uint32_t> texture_handles{};
 };
 
-struct Uniforms
+/** Camera-related shader uniforms. */
+struct CameraUniforms
 {
+    /** Projection matrix. */
     ml::mat4x4 proj;
+
+    /** View matrix. */
     ml::mat4x4 view;
-    ml::vec4 light_dir;
 };
 
+/** Lighting-related shader uniforms. */
+struct LightingUniforms
+{
+    /** Number of active directional lights. */
+    int directional_light_count{0};
+
+    /** Directional lights in camera/view space: xyz = direction, w = brightness. */
+    std::array<ml::vec4, shader::max_lights> directional_light_dirs{};
+
+    /** Number of active spot lights. */
+    int spot_light_count{0};
+
+    /** Spot light positions in camera/view space: xyz = position, w = range. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_positions{};
+
+    /** Spot light directions in camera/view space: xyz = direction, w = brightness. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_directions{};
+
+    /** Spot light parameters: x = cos(inner cone), y = cos(outer cone). */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_params{};
+
+    /** Spot light colors. */
+    std::array<ml::vec4, shader::max_spot_lights> spot_light_colors{};
+};
+
+/** Material-related shader uniforms. */
+struct MaterialUniforms
+{
+    /** Per-material base color. */
+    ml::vec4 base_color{1.f, 1.f, 1.f, 1.f};
+};
+
+/** Shadow-related shader uniforms. */
+struct ShadowUniforms
+{
+    bool enabled{false};
+    ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
+    ml::vec4 params{0.f, 0.f, 0.f, 0.f};
+};
+
+/** Rasterizer state. */
 struct RasterizerState
 {
+    /** Whether to show geometry as wireframes. */
     bool wireframe{false};
+
+    /** Whether to enable face culling. */
     bool cull_face{true};
 
     bool operator==(const RasterizerState& other) const
@@ -72,6 +126,16 @@ struct RasterizerState
     }
 };
 
+/** GPU-side shadow-map render target data. */
+struct ShadowMapTargetGpuData
+{
+    std::uint32_t texture_handle{0};
+    std::uint32_t framebuffer_handle{0};
+    int width{0};
+    int height{0};
+};
+
+/** Render device. */
 class RenderDevice
 {
     /** framebuffer width. */
@@ -89,11 +153,29 @@ class RenderDevice
     /** meshes. */
     std::unordered_map<std::uint32_t, MeshData> meshes;
 
+    /** uploaded mesh data. */
+    std::unordered_map<std::uint32_t, MeshGpuData> mesh_gpu_data;
+
+    /** Mesh bounds. */
+    std::unordered_map<std::uint32_t, MeshBounds> mesh_bounds;
+
     /** materials. */
     std::unordered_map<std::uint32_t, Material> materials;
 
+    /** shadow-map render targets. */
+    std::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
+
     /** state cache. */
     RasterizerState current_rasterizer_state;
+    std::size_t current_bound_texture_count{0};
+    std::optional<ShadowMapBinding> current_shadow_map_binding;
+    ShadowMapHandle active_shadow_map_pass{0};
+
+    void apply_rasterizer_state(const RasterizerState& state);
+
+    [[nodiscard]]
+    const ShadowMapTargetGpuData* find_shadow_map_target(
+      ShadowMapHandle handle) const;
 
 protected:
     void initialize()
@@ -109,10 +191,19 @@ protected:
         {
             delete_mesh(meshes.begin()->first);
         }
+        while(!mesh_gpu_data.empty())
+        {
+            delete_mesh(mesh_gpu_data.begin()->first);
+        }
+        mesh_bounds.clear();
 
         while(!materials.empty())
         {
             delete_material(materials.begin()->first);
+        }
+        while(!shadow_map_targets.empty())
+        {
+            delete_shadow_map(shadow_map_targets.begin()->first);
         }
 
         if(context != nullptr)
@@ -169,24 +260,44 @@ public:
      * resource management.
      */
 
-    std::uint32_t create_mesh(
-      const std::vector<std::uint32_t>& indices,
-      const std::vector<ml::vec4>& vertices,
-      const std::vector<ml::vec4>& normals,
-      PrimitiveType primitive_type);
+    std::uint32_t create_mesh(MeshData mesh);
 
     bool update_mesh(
       std::uint32_t handle,
-      const std::vector<std::uint32_t>& indices,
-      const std::vector<ml::vec4>& vertices,
-      const std::vector<ml::vec4>& normals);
+      MeshData mesh);
+
+    [[nodiscard]]
+    const MeshBounds* get_mesh_bounds(
+      std::uint32_t handle) const;
+
+    // FIXME temporary?
+    [[nodiscard]]
+    std::size_t get_mesh_triangle_count(
+      std::uint32_t handle) const;
 
     void delete_mesh(std::uint32_t handle);
+
+    std::uint32_t create_texture(
+      const assets::ImageRgba8& image);
+
+    void delete_texture(std::uint32_t handle);
+
+    ShadowMapHandle create_shadow_map(
+      int width,
+      int height);
+
+    void delete_shadow_map(ShadowMapHandle handle);
 
     std::uint32_t create_material(
       const swr::program_base& shader);
 
-    void delete_material(std::uint32_t handle);
+    std::uint32_t create_material(
+      const swr::program_base& shader,
+      std::span<const std::uint32_t> texture_handles);
+
+    void delete_material(
+      std::uint32_t handle,
+      bool delete_textures = true);
 
     /*
      * begin/end frame.
@@ -211,7 +322,16 @@ public:
 
     void bind_rasterizer_state(const RasterizerState& state);
     void bind_material(std::uint32_t handle);
-    void bind_uniforms(const Uniforms& uniforms);
+    void bind_camera_uniforms(const CameraUniforms& uniforms);
+    void bind_lighting_uniforms(const LightingUniforms& uniforms);
+    void bind_material_uniforms(const MaterialUniforms& uniforms);
+    void bind_shadow_map(const ShadowMapBinding& binding);
+    void bind_shadow_uniforms(const ShadowUniforms& uniforms);
+
+    void clear_shadow_map();
+
+    void begin_shadow_map_pass(ShadowMapHandle handle);
+    void end_shadow_map_pass();
 
     /*
      * drawing functions.

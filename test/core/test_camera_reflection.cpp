@@ -49,6 +49,24 @@ TEST(CameraReflectionTests, ExposesCameraPropertiesOnInstance)
     EXPECT_TRUE(has_name("name"));
     EXPECT_TRUE(has_name("transform"));
     EXPECT_TRUE(has_name("fov_y"));
+    EXPECT_TRUE(has_name("orthographic_height"));
     EXPECT_TRUE(has_name("near_plane"));
     EXPECT_TRUE(has_name("far_plane"));
+}
+
+TEST(CameraReflectionTests, UsesOrthographicProjectionWhenRequested)
+{
+    Camera camera;
+    camera.set_projection_mode(CameraProjectionMode::Orthographic);
+    camera.set_orthographic_height(20.f);
+    camera.update_projection_matrix(2.f);
+
+    const float eps = 1e-5f;
+
+    const ml::mat4x4 projection = camera.get_projection_matrix();
+    EXPECT_NEAR(projection.rows[0].x, 0.05f, eps);
+    EXPECT_NEAR(projection.rows[1].y, 0.1f, eps);
+    EXPECT_NEAR(projection.rows[2].z, 2.f / 199.f, eps);
+    EXPECT_NEAR(projection.rows[2].w, -201.f / 199.f, eps);
+    EXPECT_NEAR(projection.rows[3].w, 1.f, eps);
 }

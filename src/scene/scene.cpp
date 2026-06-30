@@ -8,10 +8,14 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "reflection/cast.h"
 #include "systems/animation.h"
+#include "systems/lights.h"
 #include "systems/object_tick.h"
 #include "scene.h"
+
+Scene::Scene()
+{
+}
 
 void Scene::clear()
 {
@@ -45,6 +49,7 @@ void Scene::add_default_systems()
 {
     add_system<ObjectTickSystem>();
     add_system<AnimationSystem>();
+    add_system<LightSystem>();
 }
 
 void Scene::set_spin_animation(
@@ -81,54 +86,76 @@ const Object* Scene::find_object(ObjectId id) const
 
 Camera* Scene::find_camera(ObjectId id)
 {
-    for(auto& object: objects)
-    {
-        if(object->get_object_id() != id)
-        {
-            continue;
-        }
-
-        return reflect::try_cast<Camera, Object>(object.get());
-    }
-    return nullptr;
+    return find_object<Camera>(id);
 }
 
 const Camera* Scene::find_camera(ObjectId id) const
 {
-    for(const auto& object: objects)
-    {
-        if(object->get_object_id() != id)
-        {
-            continue;
-        }
-
-        return reflect::try_cast<Camera, Object>(object.get());
-    }
-    return nullptr;
+    return find_object<Camera>(id);
 }
 
 std::vector<Camera*> Scene::get_cameras()
 {
     std::vector<Camera*> cameras;
-    for(auto& object: objects)
-    {
-        if(auto* camera = reflect::try_cast<Camera, Object>(object.get()))
-        {
-            cameras.push_back(camera);
-        }
-    }
+    for_each_object<Camera>(
+      [&cameras](Camera& camera)
+      {
+          cameras.push_back(&camera);
+      });
     return cameras;
 }
 
 std::vector<const Camera*> Scene::get_cameras() const
 {
     std::vector<const Camera*> cameras;
-    for(const auto& object: objects)
-    {
-        if(const auto* camera = reflect::try_cast<Camera, Object>(object.get()))
-        {
-            cameras.push_back(camera);
-        }
-    }
+    for_each_object<Camera>(
+      [&cameras](const Camera& camera)
+      {
+          cameras.push_back(&camera);
+      });
     return cameras;
+}
+
+std::vector<DirectionalLight*> Scene::get_directional_lights()
+{
+    std::vector<DirectionalLight*> lights;
+    for_each_object<DirectionalLight>(
+      [&lights](DirectionalLight& light)
+      {
+          lights.push_back(&light);
+      });
+    return lights;
+}
+
+std::vector<const DirectionalLight*> Scene::get_directional_lights() const
+{
+    std::vector<const DirectionalLight*> lights;
+    for_each_object<DirectionalLight>(
+      [&lights](const DirectionalLight& light)
+      {
+          lights.push_back(&light);
+      });
+    return lights;
+}
+
+std::vector<SpotLight*> Scene::get_spot_lights()
+{
+    std::vector<SpotLight*> lights;
+    for_each_object<SpotLight>(
+      [&lights](SpotLight& light)
+      {
+          lights.push_back(&light);
+      });
+    return lights;
+}
+
+std::vector<const SpotLight*> Scene::get_spot_lights() const
+{
+    std::vector<const SpotLight*> lights;
+    for_each_object<SpotLight>(
+      [&lights](const SpotLight& light)
+      {
+          lights.push_back(&light);
+      });
+    return lights;
 }

@@ -20,9 +20,10 @@ public:
       Scene& scene,
       float delta_time) override
     {
-        for(auto& object: scene.get_objects())
-        {
-            object->tick(delta_time);
-        }
+        scene.for_each_object<Object>(
+          [delta_time](Object& object)
+          {
+              object.tick(delta_time);
+          });
     }
 };

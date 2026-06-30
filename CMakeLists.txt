@@ -6,13 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
-set(SWR_PLAYGROUND_BUILD_TESTING ON)
-if(DEFINED BUILD_TESTING)
-    set(SWR_PLAYGROUND_BUILD_TESTING ${BUILD_TESTING})
-endif()
+option(SWR_PLAYGROUND_BUILD_TESTING "Build swr_playground tests" ON)
 
 # Keep third-party dependency tests disabled.
+set(BUILD_TESTING OFF)
 set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
 
 find_package(OpenGL REQUIRED)
@@ -54,12 +53,14 @@ set(SWR_BUILD_APP OFF CACHE BOOL "" FORCE)
 set(SWR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
+set(SWR_ENABLE_MULTI_THREADING ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG f2ac1b0
+    GIT_TAG 32e3089
 )
+set(FETCHCONTENT_UPDATES_DISCONNECTED_SWR_SRC OFF)
 FetchContent_MakeAvailable(swr_src)
 
 #
@@ -95,27 +96,84 @@ target_link_libraries(imgui PUBLIC
 )
 
 #
+# stb
+#
+FetchContent_Declare(
+    stb_src
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG 28d546d
+    SOURCE_SUBDIR __unused__
+)
+
+FetchContent_MakeAvailable(stb_src)
+
+add_library(stb INTERFACE)
+target_include_directories(stb SYSTEM INTERFACE
+    "${stb_src_SOURCE_DIR}"
+)
+
+#
+# Assimp
+#
+find_package(assimp QUIET CONFIG)
+if(NOT TARGET assimp::assimp)
+    message(STATUS "assimp not found on system; fetching assimp.")
+
+    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        assimp_src
+        GIT_REPOSITORY https://github.com/assimp/assimp.git
+        GIT_TAG v6.0.5
+    )
+
+    FetchContent_MakeAvailable(assimp_src)
+endif()
+
+if(NOT TARGET assimp::assimp)
+    message(FATAL_ERROR "assimp::assimp target is not available.")
+endif()
+
+#
 # Playground executable
 #
 add_executable(swr_playground
+    src/assets/static_mesh_importer.cpp
+    src/assets/texture.cpp
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/scene/camera.cpp
+    src/scene/directionallight.cpp
     src/scene/gear.cpp
     src/scene/light.cpp
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/scene/spotlight.cpp
+    src/scene/static_mesh.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
     src/ui/scene_inspector.cpp
     src/ui/tools.cpp
     src/application.cpp
+    src/logging.cpp
     src/main.cpp
+    src/mesh.cpp
+    src/mesh_simplifier.cpp
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp
+    src/viewport.cpp
 )
 
 target_include_directories(swr_playground PRIVATE src)
@@ -138,6 +196,8 @@ target_link_libraries(swr_playground PRIVATE
     Microsoft.GSL::GSL
     OpenGL::GL
     SDL3::SDL3
+    assimp::assimp
+    stb
 )
 
 if(MSVC)
@@ -147,6 +207,7 @@ else()
 endif()
 
 # Enable this project's tests (and CTest) after dependency setup.
+set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING})
 set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)
 include(CTest)
 

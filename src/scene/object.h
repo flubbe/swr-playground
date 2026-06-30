@@ -14,18 +14,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
 
 #include "ml/all.h"
 
 #include "reflection/class_registry.h"
 #include "reflection/property.h"
-
-struct RenderData
-{
-    std::uint32_t mesh_handle{0};
-    std::uint32_t material_handle{0};
-};
 
 struct ObjectId
 {
@@ -97,19 +91,17 @@ public:
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
+    /** Whether the object should be rendered when supported by the renderer. */
+    bool visible{true};
+
 protected:
     /** per-instance baseline snapshot object. */
     std::unique_ptr<Object> snapshot;
 
-    /** meshes. */
-    std::vector<RenderData> mesh_handles;
-
 protected:
-    Object(
-      const reflect::ClassInfo* class_info,
-      std::vector<RenderData> mesh_handles = {})
+    explicit Object(
+      const reflect::ClassInfo* class_info)
     : reflect::ReflectRoot<Object>{class_info}
-    , mesh_handles{std::move(mesh_handles)}
     {
     }
 
@@ -128,21 +120,13 @@ public:
     /** Default destructor. */
     virtual ~Object() = default;
 
-    /** initialize the object with a mesh. */
-    Object(
-      std::vector<RenderData> mesh_handles)
-    : Object{
-        Object::static_class(),
-        std::move(mesh_handles)}
-    {
-    }
-
     /** Move constructor. */
     Object(Object&& other)
     : reflect::ReflectRoot<Object>{std::move(other)}
     , object_id{other.object_id}
     , name{std::move(other.name)}
-    , mesh_handles{std::move(other.mesh_handles)}
+    , transform{other.transform}
+    , visible{other.visible}
     {
         other.class_info = nullptr;
     }
@@ -154,9 +138,10 @@ public:
     {
         static_cast<ReflectRoot<Object>&>(*this) = std::move(other);
 
-        mesh_handles = std::move(other.mesh_handles);
         object_id = other.object_id;
         name = std::move(other.name);
+        transform = other.transform;
+        visible = other.visible;
 
         return *this;
     }
@@ -198,34 +183,6 @@ public:
     {
     }
 
-    /**
-     * Set the mesh.
-     *
-     * @param handles The new mesh handles.
-     */
-    void set_meshes(std::vector<RenderData> handles)
-    {
-        mesh_handles = std::move(handles);
-    }
-
-    /** Clear the mesh. */
-    void clear_mesh()
-    {
-        mesh_handles.clear();
-    }
-
-    /** Get the mesh handle. */
-    const std::vector<RenderData>& get_meshes() const
-    {
-        return mesh_handles;
-    }
-
-    /** Whether the object is drawable. */
-    virtual bool is_drawable() const
-    {
-        return !mesh_handles.empty();
-    }
-
     /** Update the object. */
     virtual void tick(
       [[maybe_unused]] float delta_time)
@@ -247,6 +204,36 @@ public:
     ml::mat4x4 get_transform() const
     {
         return transform;
+    }
+
+    /** Set whether this object should be rendered when supported by the renderer. */
+    void set_visible(bool in_visible) noexcept
+    {
+        visible = in_visible;
+    }
+
+    /** Return whether this object should be rendered when supported by the renderer. */
+    [[nodiscard]]
+    bool is_visible() const noexcept
+    {
+        return visible;
+    }
+
+    /** Set the object's world position while preserving the rest of the transform. */
+    void set_position(const ml::vec3& position)
+    {
+        transform.rows[0].w = position.x;
+        transform.rows[1].w = position.y;
+        transform.rows[2].w = position.z;
+    }
+
+    /** Return the object's world position. */
+    ml::vec3 get_position() const
+    {
+        return {
+          transform.rows[0].w,
+          transform.rows[1].w,
+          transform.rows[2].w};
     }
 
     /*

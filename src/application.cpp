@@ -8,23 +8,36 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <format>
-#include <print>
-#include <stdexcept>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <format>
+#include <limits>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "assets/static_mesh_importer.h"
+#include "assets/texture.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 #include "ui/imgui.h"
 #include "application.h"
+#include "logging.h"
+#include "mesh_lod.h"
 #include "renderdevice.h"
 #include "renderer.h"
+#include "shader.h"
 #include "shader_cache.h"
 #include "viewport.h"
 
@@ -45,39 +58,15 @@ public:
     }
 };
 
-struct ViewportCameraControllerInput
-{
-    float move_forward{0.f};
-    float move_right{0.f};
-    float move_up{0.f};
-    float look_yaw{0.f};
-    float look_pitch{0.f};
-    bool fast_move{false};
-    bool active{false};
-};
-
-ml::mat4x4 make_view_matrix(
-  const ViewportCameraControllerState& controller)
-{
-    ml::mat4x4 view = ml::mat4x4::identity();
-    view *= ml::matrices::translation(
-      -controller.position.x,
-      -controller.position.y,
-      -controller.position.z);
-    view *= ml::matrices::rotation_x(controller.pitch_radians);
-    view *= ml::matrices::rotation_y(controller.yaw_radians);
-    return view;
-}
-
-ViewportCameraControllerInput gather_viewport_camera_input(
+ViewportEditorCameraInput gather_viewport_camera_input(
   const ViewportInputState& viewport_input,
-  const ImGuiIO& io)
+  const ImGuiIO& io,
+  bool mouse_captured,
+  ViewportNavigationMode mode)
 {
-    ViewportCameraControllerInput input{};
+    ViewportEditorCameraInput input{};
 
-    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(nullptr, nullptr);
-    const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
-    if(!viewport_input.viewport_hovered || !right_mouse_down)
+    if(!mouse_captured)
     {
         return input;
     }
@@ -85,9 +74,18 @@ ViewportCameraControllerInput gather_viewport_camera_input(
     input.active = true;
     input.look_yaw = viewport_input.mouse_delta_x;
     input.look_pitch = viewport_input.mouse_delta_y;
+    if(viewport_input.viewport_hovered)
+    {
+        input.zoom_delta = viewport_input.mouse_wheel_delta;
+    }
 
     const bool keyboard_blocked = io.WantCaptureKeyboard;
     if(keyboard_blocked)
+    {
+        return input;
+    }
+
+    if(mode == ViewportNavigationMode::Orbit)
     {
         return input;
     }
@@ -125,46 +123,6 @@ ViewportCameraControllerInput gather_viewport_camera_input(
 
     input.fast_move = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
     return input;
-}
-
-void update_viewport_camera_controller(
-  ViewportCameraControllerState& controller,
-  const ViewportCameraControllerInput& input,
-  float delta_time)
-{
-    if(!input.active || delta_time <= 0.f)
-    {
-        return;
-    }
-
-    const float look_sensitivity = 0.0025f;
-    controller.yaw_radians += input.look_yaw * look_sensitivity;
-    controller.pitch_radians += input.look_pitch * look_sensitivity;
-    controller.pitch_radians = std::clamp(
-      controller.pitch_radians,
-      ml::to_radians(-89.f),
-      ml::to_radians(89.f));
-
-    const float base_speed = input.fast_move ? 20.f : 8.f;
-    const float move_distance = base_speed * delta_time;
-    const float cos_pitch = std::cos(controller.pitch_radians);
-    const float sin_pitch = std::sin(controller.pitch_radians);
-    const float cos_yaw = std::cos(controller.yaw_radians);
-    const float sin_yaw = std::sin(controller.yaw_radians);
-
-    const ml::vec3 forward = {
-      sin_yaw * cos_pitch,
-      -sin_pitch,
-      -cos_yaw * cos_pitch};
-    const ml::vec3 right = {
-      cos_yaw,
-      0.f,
-      sin_yaw};
-    const ml::vec3 up = {0.f, 1.f, 0.f};
-
-    controller.position += forward * (input.move_forward * move_distance);
-    controller.position += right * (input.move_right * move_distance);
-    controller.position += up * (input.move_up * move_distance);
 }
 
 GLuint create_viewport_texture(
@@ -228,17 +186,39 @@ void update_viewport_texture(
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void set_imgui_mouse_interactions_enabled(bool enabled)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if(enabled)
+    {
+        io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
+    else
+    {
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    }
+}
+
+bool viewport_contains_mouse_position(
+  const ViewportInputState& viewport_input,
+  float x,
+  float y)
+{
+    return viewport_input.viewport_rect_valid
+           && x >= viewport_input.viewport_min_x
+           && x < viewport_input.viewport_max_x
+           && y >= viewport_input.viewport_min_y
+           && y < viewport_input.viewport_max_y;
+}
+
 void imgui_draw_viewport_panel(
-  Application& app,
   RenderDevice& render_device,
   Renderer& renderer,
   Scene& scene,
   Viewport& viewport,
   GLuint& viewport_texture,
-  std::vector<std::string>& log_lines,
-  float& last_update_time,
   bool& running,
-  bool& viewport_hovered)
+  ViewportInputState& viewport_input)
 {
     ImGui::Begin("Viewport");
 
@@ -262,32 +242,30 @@ void imgui_draw_viewport_panel(
             viewport_texture = create_viewport_texture(
               render_device.get_width(),
               render_device.get_height());
-            log_lines.push_back(
-              std::format(
-                "[info] resized viewport to {}x{}",
-                render_device.get_width(),
-                render_device.get_height()));
+            logging::logf(
+              "resized viewport to {}x{}",
+              render_device.get_width(),
+              render_device.get_height());
         }
         catch(const std::exception& e)
         {
-            std::println(stderr, "{}", e.what());
+            logging::errorf("{}", e.what());
             running = false;
         }
     }
 
-    const float time_seconds = static_cast<float>(SDL_GetTicks()) / 1000.0f;
-    const float delta_time = time_seconds - last_update_time;
-    last_update_time = time_seconds;
-    if(delta_time > 0)
-    {
-        app.tick(delta_time);
-    }
-
     viewport.update_active_camera_projection(scene);
 
-    renderer.render(
-      scene,
-      viewport);
+    if(renderer.is_benchmark_in_progress())
+    {
+        renderer.update_sorting_benchmark(scene, viewport);
+    }
+    else
+    {
+        renderer.render(
+          scene,
+          viewport);
+    }
 
     if(viewport_texture != 0)
     {
@@ -299,13 +277,57 @@ void imgui_draw_viewport_panel(
           avail,
           ImVec2{0, 0},
           ImVec2{1, 1});
-        viewport_hovered = ImGui::IsItemHovered();
+        const ImVec2 viewport_min = ImGui::GetItemRectMin();
+        const ImVec2 viewport_max = ImGui::GetItemRectMax();
+        viewport_input.viewport_hovered = ImGui::IsItemHovered();
+        viewport_input.viewport_rect_valid = true;
+        viewport_input.viewport_min_x = viewport_min.x;
+        viewport_input.viewport_min_y = viewport_min.y;
+        viewport_input.viewport_max_x = viewport_max.x;
+        viewport_input.viewport_max_y = viewport_max.y;
+
+        if(renderer.is_benchmark_in_progress())
+        {
+            const std::size_t iteration =
+              renderer.get_benchmark_current_iteration();
+            const std::size_t target =
+              renderer.get_benchmark_target_iterations();
+            const char* phase = renderer.is_benchmark_sorted_phase()
+                                  ? "With Sorting"
+                                  : "Without Sorting";
+            const std::string status = std::format(
+              "Benchmark running: {} {}/{}",
+              phase,
+              iteration + 1,
+              target);
+            const ImVec2 text_pos = ImVec2{
+              viewport_min.x + 8.0f,
+              viewport_min.y + 28.0f};
+            const ImVec2 text_size = ImGui::CalcTextSize(status.c_str());
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            draw_list->AddRectFilled(
+              ImVec2{text_pos.x - 4.f, text_pos.y - 4.f},
+              ImVec2{text_pos.x + text_size.x + 4.f,
+                     text_pos.y + text_size.y + 4.f},
+              IM_COL32(0, 0, 0, 180),
+              4.0f);
+            draw_list->AddText(
+              text_pos,
+              IM_COL32(255, 255, 255, 255),
+              status.c_str());
+        }
 
         if(viewport.is_camera_selector_overlay_enabled())
         {
+            const ViewportDisplaySettings display_settings =
+              viewport.get_display_settings();
             const ViewportCameraType camera_type = viewport.get_camera_type(scene);
-            std::string camera_name = "Perspective";
-            if(camera_type == ViewportCameraType::Scene)
+            std::string camera_name{to_string(viewport.get_editor_camera_view())};
+            if(display_settings.debug_spotlight_depth)
+            {
+                camera_name = "Spotlight Depth";
+            }
+            else if(camera_type == ViewportCameraType::Scene)
             {
                 camera_name = viewport.get_camera(scene).get_name();
             }
@@ -314,7 +336,6 @@ void imgui_draw_viewport_panel(
             const std::string label_name = camera_name;
             const std::string label_right = "]";
             const std::string label = label_left + label_name + label_right;
-            const ImVec2 viewport_min = ImGui::GetItemRectMin();
             const ImVec2 text_pos = ImVec2{
               viewport_min.x + 8.0f,
               viewport_min.y + 6.0f};
@@ -357,22 +378,33 @@ void imgui_draw_viewport_panel(
             }
             if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
             {
-                const bool using_local_camera =
-                  (viewport.get_camera_type(scene) == ViewportCameraType::Local);
-                if(ImGui::MenuItem("Perspective", nullptr, using_local_camera))
+                ViewportDisplaySettings display_settings = viewport.get_display_settings();
+                const bool showing_spotlight_depth =
+                  display_settings.debug_spotlight_depth;
+                bool update_display_settings = false;
+
+                for(int view_index = 0;
+                    view_index <= static_cast<int>(EditorCameraView::Orthographic);
+                    ++view_index)
                 {
-                    viewport.use_local_camera();
+                    const auto view = static_cast<EditorCameraView>(view_index);
+                    if(ImGui::MenuItem(
+                         to_string(view).data(),
+                         nullptr,
+                         !showing_spotlight_depth
+                           && viewport.is_editor_camera_view_active(scene, view)))
+                    {
+                        display_settings.debug_spotlight_depth = false;
+                        update_display_settings = true;
+                        viewport.use_local_camera();
+                        viewport.set_editor_camera_view(view);
+                    }
                 }
 
-                ImGui::BeginDisabled(true);
-                ImGui::MenuItem("Orthographic", nullptr, false);
-                ImGui::EndDisabled();
-
-                const std::optional<ObjectId> selected_scene_camera_id =
-                  viewport.get_scene_camera_id();
+                ImGui::Separator();
                 const std::vector<Camera*> scene_cameras = scene.get_cameras();
 
-                if(ImGui::BeginMenu("Cameras"))
+                if(ImGui::BeginMenu("Scene Cameras"))
                 {
                     bool has_any_scene_camera = false;
                     for(const Camera* camera: scene_cameras)
@@ -382,15 +414,16 @@ void imgui_draw_viewport_panel(
                             continue;
                         }
                         has_any_scene_camera = true;
-                        const bool selected =
-                          selected_scene_camera_id.has_value()
-                          && selected_scene_camera_id.value() == camera->get_object_id()
-                          && viewport.get_camera_type(scene) == ViewportCameraType::Scene;
                         if(ImGui::MenuItem(
                              camera->get_name().c_str(),
                              nullptr,
-                             selected))
+                             !showing_spotlight_depth
+                               && viewport.is_scene_camera_active(
+                                 scene,
+                                 camera->get_object_id())))
                         {
+                            display_settings.debug_spotlight_depth = false;
+                            update_display_settings = true;
                             viewport.use_scene_camera(camera->get_object_id());
                         }
                     }
@@ -405,9 +438,51 @@ void imgui_draw_viewport_panel(
                     ImGui::EndMenu();
                 }
 
+                const bool using_scene_camera =
+                  camera_type == ViewportCameraType::Scene;
+                ImGui::Separator();
+                if(using_scene_camera)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if(ImGui::MenuItem("Reset Cameras") && !using_scene_camera)
+                {
+                    display_settings.debug_spotlight_depth = false;
+                    update_display_settings = true;
+                    viewport.reset_editor_camera();
+                }
+                if(using_scene_camera)
+                {
+                    ImGui::EndDisabled();
+                }
+
+                if(ImGui::BeginMenu("Debug"))
+                {
+                    if(ImGui::MenuItem(
+                         "Spotlight Depth",
+                         nullptr,
+                         display_settings.debug_spotlight_depth))
+                    {
+                        display_settings.debug_spotlight_depth =
+                          !display_settings.debug_spotlight_depth;
+                        update_display_settings = true;
+                    }
+                    ImGui::EndMenu();
+                }
+
+                if(update_display_settings)
+                {
+                    viewport.set_display_settings(display_settings);
+                }
+
                 ImGui::EndPopup();
             }
         }
+    }
+    else
+    {
+        viewport_input.viewport_hovered = false;
+        viewport_input.viewport_rect_valid = false;
     }
 
     ImGui::End();
@@ -427,16 +502,41 @@ struct GearBuildParams
     float tooth_depth;
 };
 
+void expand_mesh_handle_bounds(
+  MeshBounds& bounds,
+  const RenderDevice& device,
+  std::uint32_t mesh_handle)
+{
+    const MeshBounds* mesh_bounds = device.get_mesh_bounds(mesh_handle);
+    if(mesh_bounds != nullptr)
+    {
+        expand_bounds(bounds, *mesh_bounds);
+    }
+}
+
+MeshBounds calculate_mesh_section_bounds(
+  const RenderDevice& device,
+  const std::vector<MeshSection>& sections)
+{
+    MeshBounds bounds;
+    for(const MeshSection& section: sections)
+    {
+        expand_mesh_handle_bounds(
+          bounds,
+          device,
+          section.mesh_handle);
+    }
+
+    return bounds;
+}
+
 GearParameters create_gear_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
   const GearBuildParams& p)
 {
-    auto* flat_shader = shader_cache.add<shader::ColorFlat>(p.color);
-    auto* smooth_shader = shader_cache.add<shader::ColorSmooth>(p.color);
-
-    auto flat_material = device.create_material(*flat_shader);
-    auto smooth_material = device.create_material(*smooth_shader);
+    auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
+    auto lit_material = device.create_material(*lit_shader);
 
     auto geom = make_gear(
       p.inner_radius,
@@ -446,26 +546,43 @@ GearParameters create_gear_resources(
       p.tooth_depth);
 
     auto inner_mesh = device.create_mesh(
-      geom.inner_indices,
-      geom.inner_vertices,
-      geom.inner_normals,
-      PrimitiveType::Triangles);
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.inner_indices),
+        .vertices = std::move(geom.inner_vertices),
+        .normals = std::move(geom.inner_normals),
+        .texcoords = {}});
 
     auto outer_mesh = device.create_mesh(
-      geom.outer_indices,
-      geom.outer_vertices,
-      geom.outer_normals,
-      PrimitiveType::Triangles);
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.outer_indices),
+        .vertices = std::move(geom.outer_vertices),
+        .normals = std::move(geom.outer_normals),
+        .texcoords = {}});
+
+    MeshBounds bounds;
+    expand_mesh_handle_bounds(
+      bounds,
+      device,
+      inner_mesh);
+    expand_mesh_handle_bounds(
+      bounds,
+      device,
+      outer_mesh);
 
     return GearParameters{
-      .inner = RenderData{
+      .inner = MeshSection{
         .mesh_handle = inner_mesh,
-        .material_handle = smooth_material,
+        .material_handle = lit_material,
+        .color = p.color,
       },
-      .outer = RenderData{
+      .outer = MeshSection{
         .mesh_handle = outer_mesh,
-        .material_handle = flat_material,
+        .material_handle = lit_material,
+        .color = p.color,
       },
+      .bounds = bounds,
       .inner_radius = p.inner_radius,
       .outer_radius = p.outer_radius,
       .width = p.width,
@@ -495,10 +612,354 @@ public:
     {
         auto params = create_gear_resources(device, shader_cache, build);
         auto* gear = scene.add_object<Gear>(params);
+        gear->casts_shadows = true;
         gear->set_transform(transform);
         return *gear;
     }
 };
+
+MeshBounds calculate_imported_mesh_bounds(
+  const ImportedStaticMesh& imported_mesh)
+{
+    MeshBounds bounds;
+    for(const auto& mesh: imported_mesh.meshes)
+    {
+        expand_bounds(
+          bounds,
+          calculate_mesh_bounds(mesh.mesh_data));
+    }
+
+    return bounds;
+}
+
+float calculate_max_half_extent(
+  const MeshBounds& bounds)
+{
+    if(!bounds.valid)
+    {
+        return 0.f;
+    }
+
+    const ml::vec3 extents = bounds.max - bounds.min;
+    return 0.5f * std::max({extents.x, extents.y, extents.z});
+}
+
+ml::vec3 calculate_center(
+  const MeshBounds& bounds)
+{
+    return (bounds.min + bounds.max) * 0.5f;
+}
+
+ml::mat4x4 make_static_mesh_fit_transform(
+  const MeshBounds& bounds,
+  float target_half_extent)
+{
+    const float max_half_extent = calculate_max_half_extent(bounds);
+    if(max_half_extent <= std::numeric_limits<float>::epsilon())
+    {
+        return ml::mat4x4::identity();
+    }
+
+    const ml::vec3 center = calculate_center(bounds);
+    const float scale = target_half_extent / max_half_extent;
+
+    ml::mat4x4 fit_transform =
+      ml::matrices::scaling(scale)
+      * ml::matrices::translation(-center);
+
+    return fit_transform;
+}
+
+struct StaticMeshAssetResources
+{
+    std::vector<StaticMeshLod> lods;
+    ml::mat4x4 fit_transform;
+    std::string name;
+};
+
+constexpr std::string_view floor_object_name = "Stone Floor";
+
+swr::program_base* get_floor_shader_program(
+  FloorShaderType type,
+  ShaderCache& shader_cache)
+{
+    switch(type)
+    {
+    case FloorShaderType::TexturedFloor:
+        return shader_cache.get_or_create<shader::TexturedFloor>();
+    case FloorShaderType::TexturedShinyFloor:
+        return shader_cache.get_or_create<shader::TexturedShinyFloor>();
+    default:
+        throw std::runtime_error{"Unknown shader type for the floor."};
+    }
+}
+
+std::vector<StaticMeshLod> create_static_mesh_resources(
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  ImportedStaticMesh imported_mesh)
+{
+    const StaticMeshLodBuildSettings lod_settings{
+      .preserve_boundaries = false,
+      .recompute_normals = true,
+    };
+
+    std::vector<StaticMeshLod> result_lods;
+    result_lods.resize(lod_settings.lods.size());
+
+    for(std::size_t i = 0; i < lod_settings.lods.size(); ++i)
+    {
+        result_lods[i].min_screen_height = lod_settings.lods[i].min_screen_height;
+    }
+
+    StaticMeshLodBuilder lod_builder;
+
+    for(auto& mesh: imported_mesh.meshes)
+    {
+        auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
+
+        const std::uint32_t material = device.create_material(*shader);
+
+        const StaticMeshLodBuildResult lod_build_result =
+          lod_builder.build(
+            mesh.mesh_data,
+            lod_settings);
+
+        for(std::size_t lod_index = 0;
+            lod_index < lod_build_result.lod_meshes.size() && lod_index < result_lods.size();
+            ++lod_index)
+        {
+            const auto& stats = lod_build_result.simplify_stats[lod_index];
+            auto& lod_mesh = lod_build_result.lod_meshes[lod_index];
+
+            logging::logf(
+              "LOD frac {}, indices {}, tris {}, accepted {}, rejected {}, queued {}, boundary {}",
+              lod_settings.lods[lod_index].triangle_fraction,
+              lod_mesh.mesh.indices.size(),
+              lod_mesh.mesh.indices.size() / 3,
+              stats.accepted_collapses,
+              stats.rejected_collapses,
+              stats.queued_edges,
+              stats.boundary_vertices);
+
+            const std::uint32_t mesh_handle =
+              device.create_mesh(std::move(lod_mesh.mesh));
+            expand_mesh_handle_bounds(
+              result_lods[lod_index].bounds,
+              device,
+              mesh_handle);
+
+            result_lods[lod_index].mesh_sections.push_back(
+              MeshSection{
+                .mesh_handle = mesh_handle,
+                .material_handle = material,
+                .color = mesh.diffuse_color,
+              });
+        }
+    }
+
+    std::erase_if(
+      result_lods,
+      [](const StaticMeshLod& lod)
+      {
+          return lod.mesh_sections.empty();
+      });
+
+    return result_lods;
+}
+
+std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_file(
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  const std::filesystem::path& path)
+{
+    if(!std::filesystem::exists(path))
+    {
+        logging::logf(
+          "static mesh asset not found: {}",
+          path.string());
+        return std::nullopt;
+    }
+
+    try
+    {
+        constexpr float preview_half_extent = 2.f;
+
+        ImportedStaticMesh imported_mesh = import_static_mesh(path);
+        const MeshBounds mesh_bounds =
+          calculate_imported_mesh_bounds(imported_mesh);
+        const ml::mat4x4 fit_transform = make_static_mesh_fit_transform(
+          mesh_bounds,
+          preview_half_extent);
+        auto lods = create_static_mesh_resources(
+          device,
+          shader_cache,
+          std::move(imported_mesh));
+
+        if(lods.empty())
+        {
+            logging::warningf(
+              "static mesh asset has no renderable meshes: {}",
+              path.string());
+            return std::nullopt;
+        }
+
+        logging::logf(
+          "imported static mesh: {}",
+          path.string());
+
+        return StaticMeshAssetResources{
+          .lods = std::move(lods),
+          .fit_transform = fit_transform,
+          .name = path.filename().string(),
+        };
+    }
+    catch(const std::exception& e)
+    {
+        logging::warningf(
+          "failed to import static mesh '{}': {}",
+          path.string(),
+          e.what());
+    }
+
+    return std::nullopt;
+}
+
+MeshData make_floor_mesh(
+  float half_extent,
+  float uv_repeat)
+{
+    const ml::vec4 up_normal{0.f, 1.f, 0.f, 0.f};
+
+    return MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = {0, 2, 1, 0, 3, 2},
+      .vertices = {
+        {-half_extent, 0.f, -half_extent, 1.f},
+        {half_extent, 0.f, -half_extent, 1.f},
+        {half_extent, 0.f, half_extent, 1.f},
+        {-half_extent, 0.f, half_extent, 1.f},
+      },
+      .normals = {
+        up_normal,
+        up_normal,
+        up_normal,
+        up_normal,
+      },
+      .texcoords = {
+        {0.f, uv_repeat, 0.f, 0.f},
+        {uv_repeat, uv_repeat, 0.f, 0.f},
+        {uv_repeat, 0.f, 0.f, 0.f},
+        {0.f, 0.f, 0.f, 0.f},
+      },
+    };
+}
+
+void try_add_textured_floor(
+  Scene& scene,
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  FloorShaderType floor_shader_type,
+  std::array<std::uint32_t, 2>* out_texture_handles = nullptr)
+{
+    const std::filesystem::path diffuse_path{
+      "assets/textures/tiles/tiles_0080_color_1k.png"};
+    const std::filesystem::path normal_path{
+      "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"};
+
+    if(!std::filesystem::exists(diffuse_path)
+       || !std::filesystem::exists(normal_path))
+    {
+        logging::warningf(
+          "floor textures not found: '{}' or '{}'",
+          diffuse_path.string(),
+          normal_path.string());
+        return;
+    }
+
+    std::optional<std::uint32_t> diffuse_texture;
+    std::optional<std::uint32_t> normal_texture;
+    std::optional<std::uint32_t> mesh_handle;
+
+    try
+    {
+        constexpr float floor_half_extent = 28.f;
+        constexpr float uv_repeat = 1.f;
+        constexpr float floor_height = -6.25f;
+
+        diffuse_texture = device.create_texture(
+          assets::load_texture_rgba8(diffuse_path));
+        normal_texture = device.create_texture(
+          assets::load_normal_map_rgba8(
+            normal_path,
+            assets::NormalMapConvention::DirectX));
+        swr::program_base* shader = get_floor_shader_program(
+          floor_shader_type,
+          shader_cache);
+
+        mesh_handle = device.create_mesh(
+          make_floor_mesh(
+            floor_half_extent,
+            uv_repeat));
+        const std::array<std::uint32_t, 2> textures = {
+          *diffuse_texture,
+          *normal_texture};
+        const std::uint32_t material_handle = device.create_material(
+          *shader,
+          textures);
+        if(out_texture_handles != nullptr)
+        {
+            *out_texture_handles = textures;
+        }
+        diffuse_texture.reset();
+        normal_texture.reset();
+        const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
+
+        auto* floor = scene.add_object<StaticMesh>(
+          std::vector<MeshSection>{
+            MeshSection{
+              .mesh_handle = *mesh_handle,
+              .material_handle = material_handle,
+              .color = {1.f, 1.f, 1.f, 1.f},
+            }},
+          bounds);
+        floor->set_name(std::string{floor_object_name});
+        floor->casts_shadows = false;
+        floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
+        floor->capture_snapshot();
+    }
+    catch(const std::exception& e)
+    {
+        if(mesh_handle.has_value())
+        {
+            device.delete_mesh(*mesh_handle);
+        }
+        if(diffuse_texture.has_value())
+        {
+            device.delete_texture(*diffuse_texture);
+        }
+        if(normal_texture.has_value())
+        {
+            device.delete_texture(*normal_texture);
+        }
+        logging::warningf(
+          "failed to create textured floor: {}",
+          e.what());
+    }
+}
+
+StaticMesh* create_static_mesh_instance(
+  Scene& scene,
+  const StaticMeshAssetResources& resources,
+  const ml::mat4x4& transform)
+{
+    StaticMesh* mesh = scene.add_object<StaticMesh>(
+      resources.lods);
+    mesh->set_name(resources.name);
+    mesh->set_transform(transform * resources.fit_transform);
+    mesh->capture_snapshot();
+    return mesh;
+}
 
 void rebuild_gear_mesh_if_needed(
   RenderDevice& device,
@@ -520,8 +981,8 @@ void rebuild_gear_mesh_if_needed(
       gear_limits::min_teeth,
       gear_limits::max_teeth);
 
-    const auto old_meshes = gear->get_meshes();
-    if(old_meshes.size() != 2)
+    const auto old_mesh_sections = gear->get_mesh_sections();
+    if(old_mesh_sections.size() != 2)
     {
         return;
     }
@@ -533,36 +994,95 @@ void rebuild_gear_mesh_if_needed(
       teeth,
       gear->get_tooth_depth());
 
-    const std::uint32_t old_inner_mesh = old_meshes[0].mesh_handle;
-    const std::uint32_t old_outer_mesh = old_meshes[1].mesh_handle;
+    const std::uint32_t old_inner_mesh = old_mesh_sections[0].mesh_handle;
+    const std::uint32_t old_outer_mesh = old_mesh_sections[1].mesh_handle;
 
     const bool inner_updated = device.update_mesh(
       old_inner_mesh,
-      std::move(geom.inner_indices),
-      std::move(geom.inner_vertices),
-      std::move(geom.inner_normals));
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.inner_indices),
+        .vertices = std::move(geom.inner_vertices),
+        .normals = std::move(geom.inner_normals),
+        .texcoords = {}});
     const bool outer_updated = device.update_mesh(
       old_outer_mesh,
-      std::move(geom.outer_indices),
-      std::move(geom.outer_vertices),
-      std::move(geom.outer_normals));
+      MeshData{
+        .primitive_type = PrimitiveType::Triangles,
+        .indices = std::move(geom.outer_indices),
+        .vertices = std::move(geom.outer_vertices),
+        .normals = std::move(geom.outer_normals),
+        .texcoords = {}});
 
     if(!inner_updated || !outer_updated)
     {
         return;
     }
 
+    gear->set_mesh_sections(
+      old_mesh_sections,
+      calculate_mesh_section_bounds(
+        device,
+        old_mesh_sections));
     gear->mark_rebuilt();
+}
+
+void configure_default_directional_lights(Scene& scene)
+{
+    auto* key_light = scene.add_object<DirectionalLight>();
+    key_light->enabled = false;
+    key_light->set_name("Key Light");
+    key_light->behavior = DirectionalLightBehavior::Rotating;
+    key_light->brightness = 0.55f;
+    key_light->set_transform(
+      ml::matrices::rotation_y(ml::to_radians(210.f))
+      * ml::matrices::rotation_x(ml::to_radians(-35.f)));
+    key_light->set_position({5.f, 8.f, 10.f});
+    key_light->capture_snapshot();
+
+    auto* fill_light = scene.add_object<DirectionalLight>();
+    fill_light->set_name("Fill Light");
+    fill_light->behavior = DirectionalLightBehavior::Stationary;
+    fill_light->brightness = 0.75f;
+    fill_light->set_transform(
+      ml::matrices::rotation_y(ml::to_radians(35.f))
+      * ml::matrices::rotation_x(ml::to_radians(-55.f)));
+    fill_light->set_position({-10.f, 12.f, -6.f});
+    fill_light->capture_snapshot();
+}
+
+void configure_default_spot_lights(Scene& scene)
+{
+    auto* spotlight = scene.add_object<SpotLight>();
+    spotlight->set_name("Spot Light");
+    spotlight->casts_shadows = true;
+    spotlight->color = {0.42f, 0.62f, 1.f, 1.f};
+    spotlight->brightness = 7.f;
+    spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
+    spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
+    spotlight->range = 45.f;
+
+    const ml::vec3 spotlight_position{0.f, 11.f, 12.f};
+    const ml::vec3 direction_to_origin =
+      (-spotlight_position).normalized();
+    const float spotlight_pitch =
+      std::asin(direction_to_origin.y);
+    const float spotlight_yaw =
+      std::atan2(-direction_to_origin.x, -direction_to_origin.z);
+
+    spotlight->set_transform(
+      ml::matrices::rotation_y(spotlight_yaw)
+      * ml::matrices::rotation_x(spotlight_pitch));
+    spotlight->set_position(spotlight_position);
+    spotlight->capture_snapshot();
 }
 
 }    // namespace
 
 void Application::setup_scene()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
+    configure_default_directional_lights(scene);
+    configure_default_spot_lights(scene);
 
     struct GearInit
     {
@@ -597,45 +1117,88 @@ void Application::setup_scene()
       },
     }};
 
-    GearFactory factory{*render_device, renderer->get_shader_cache()};
+    GearFactory factory{render_device, renderer.get_shader_cache()};
+    ShaderCache& shader_cache = renderer.get_shader_cache();
+
+    try_add_textured_floor(
+      scene,
+      render_device,
+      shader_cache,
+      active_floor_shader,
+      &floor_texture_handles);
+    has_floor_textures =
+      floor_texture_handles[0] != 0
+      && floor_texture_handles[1] != 0;
 
     for(std::size_t i = 0; i < gears.size(); ++i)
     {
-        gear_objs[i] = &factory.create(*scene, gears[i].build, gears[i].transform);
-        scene->set_spin_animation(
-          gear_objs[i]->get_object_id(),
+        Gear& gear = factory.create(scene, gears[i].build, gears[i].transform);
+        scene.set_spin_animation(
+          gear.get_object_id(),
           {.translation = gears[i].translation,
            .angular_speed = gears[i].angular_speed,
            .phase_offset = gears[i].phase_offset});
     }
 
-    // Local viewport camera stays the modifiable camera.
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+    // Temporary placeholder until asset path resolution moves behind an asset manager.
+    const std::filesystem::path static_mesh_path{
+      "assets/models/bunny.obj"};
 
-    Camera* camera = scene->add_object<Camera>();
-    camera->set_transform(viewport->get_local_camera().get_transform());
+    const auto mesh_resources = try_create_static_mesh_resources_from_file(
+      render_device,
+      shader_cache,
+      static_mesh_path);
+
+    if(mesh_resources.has_value())
+    {
+        // for(int x = -4; x < 5; ++x)
+        // {
+        //     for(int y = -4; y < 5; ++y)
+        //     {
+        //         StaticMesh* bunny = create_static_mesh_instance(
+        //           scene,
+        //           *mesh_resources,
+        //           ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
+        //         bunny->casts_shadows = true;
+        //     }
+        // }
+
+        StaticMesh* bunny = create_static_mesh_instance(
+          scene,
+          *mesh_resources,
+          ml::matrices::translation(0.f, 0.f, 5.f));
+        bunny->casts_shadows = true;
+    }
+
+    viewport.reset_editor_camera();
+
+    Camera* camera = scene.add_object<Camera>();
+    camera->set_transform(viewport.get_local_camera().get_transform());
     camera->set_name("Editor Camera");
     camera->capture_snapshot();
 
-    viewport->use_local_camera();
+    viewport.use_local_camera();
 }
 
 void Application::setup_viewport()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
-
-    // Keep the local camera in sync as a fallback if the bound scene camera is removed.
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+    // Keep the local camera initialized as a fallback if the bound scene camera is removed.
+    viewport.reset_editor_camera();
 }
 
 Application::Application(
-  std::string_view title)
+  std::string_view title,
+  logging::BufferedLogDevice& log_device,
+  RenderDevice& render_device,
+  Renderer& renderer,
+  Scene& scene,
+  Viewport& viewport)
 : title{title}
+, log_device{log_device}
+, render_device{render_device}
+, renderer{renderer}
+, scene{scene}
+, viewport{viewport}
 {
     window = SDL_CreateWindow(
       "SWR Playground",
@@ -671,14 +1234,35 @@ Application::Application(
     SDL_GetWindowSize(window, &window_w, &window_h);
     SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
 
-    std::println("display scale: {}", display_scale);
-    std::println("pixel density: {}", pixel_density);
-    std::println("window size: {} x {}", window_w, window_h);
-    std::println("pixel size: {} x {}", pixel_w, pixel_h);
+    logging::logf("display scale: {}", display_scale);
+    logging::logf("pixel density: {}", pixel_density);
+    logging::logf("window size: {} x {}", window_w, window_h);
+    logging::logf("pixel size: {} x {}", pixel_w, pixel_h);
+
+    /*
+     * viewport setup.
+     */
+
+    viewport_texture = create_viewport_texture(
+      render_device.get_width(),
+      render_device.get_height());
+    viewport.set_resolution(
+      render_device.get_width(),
+      render_device.get_height());
+
+    /*
+     * scene setup.
+     */
+
+    setup_scene();
+    scene.add_default_systems();
+    setup_viewport();
 }
 
 Application::~Application()
 {
+    set_viewport_mouse_capture(false);
+
     imgui::shutdown();
 
     destroy_viewport_texture(viewport_texture);
@@ -693,103 +1277,152 @@ Application::~Application()
     }
 }
 
-void Application::initialize(
-  RenderDevice& render_device,
-  Renderer& renderer,
-  Scene& scene,
-  Viewport& viewport)
+void Application::set_viewport_mouse_capture(
+  bool enabled)
 {
-    if(initialized)
+    if(viewport_mouse_captured == enabled || window == nullptr)
     {
-        throw std::runtime_error{
-          "Application already initialized."};
+        return;
     }
-    initialized = true;
 
-    this->render_device = &render_device;
-    this->renderer = &renderer;
-    this->scene = &scene;
-    this->viewport = &viewport;
+    if(!SDL_SetWindowRelativeMouseMode(window, enabled))
+    {
+        logging::warningf(
+          "failed to {} viewport mouse capture: {}",
+          enabled ? "enable" : "disable",
+          SDL_GetError());
+        return;
+    }
 
-    viewport_texture = create_viewport_texture(
-      render_device.get_width(),
-      render_device.get_height());
-    viewport.set_resolution(
-      render_device.get_width(),
-      render_device.get_height());
+    viewport_mouse_captured = enabled;
+    viewport_input.mouse_delta_x = 0.f;
+    viewport_input.mouse_delta_y = 0.f;
+}
 
-    setup_scene();
-    scene.add_default_systems();
-    setup_viewport();
+void Application::update_viewport_mouse_capture()
+{
+    if(!viewport.is_editor_camera_modification_enabled()
+       || !viewport.is_local_camera_active(scene))
+    {
+        set_viewport_mouse_capture(false);
+        return;
+    }
+
+    float mouse_x = 0.f;
+    float mouse_y = 0.f;
+    const SDL_MouseButtonFlags mouse_buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
+    const bool right_mouse_down = (mouse_buttons & SDL_BUTTON_RMASK) != 0;
+    const bool should_capture =
+      viewport_mouse_captured
+        ? right_mouse_down
+        : viewport_contains_mouse_position(viewport_input, mouse_x, mouse_y)
+            && right_mouse_down;
+
+    set_viewport_mouse_capture(should_capture);
 }
 
 void Application::run()
 {
-    if(!initialized)
-    {
-        throw std::runtime_error{"Application not initialized."};
-    }
-
-    std::vector<std::string> log_lines = {
-      "[info] editor started",
-      "[info] dock layout initialized",
-      "[info] viewport ready"};
-
     bool running = true;
     int frame_index = 0;
 
-    float last_update_time = static_cast<float>(SDL_GetTicks()) / 1000.0f;
+    auto last_update_time = std::chrono::steady_clock::now();
 
     ImGuiIO& io = ImGui::GetIO();
     imgui::State ui_state;
 
     while(running)
     {
+        const auto current_time = std::chrono::steady_clock::now();
+        const float delta_time = std::chrono::duration<float>(
+                                   current_time - last_update_time)
+                                   .count();
+        last_update_time = current_time;
+        if(delta_time > 0.f)
+        {
+            tick(delta_time);
+        }
+
         viewport_input.mouse_delta_x = 0.f;
         viewport_input.mouse_delta_y = 0.f;
+        viewport_input.mouse_wheel_delta = 0.f;
 
         SDL_Event event;
+        bool suppress_imgui_mouse = viewport_mouse_captured;
         while(SDL_PollEvent(&event))
         {
+            if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
+               && event.button.button == SDL_BUTTON_RIGHT
+               && viewport.is_editor_camera_modification_enabled()
+               && viewport.is_local_camera_active(scene)
+               && viewport_contains_mouse_position(
+                 viewport_input,
+                 event.button.x,
+                 event.button.y))
+            {
+                set_viewport_mouse_capture(true);
+            }
+            suppress_imgui_mouse = suppress_imgui_mouse || viewport_mouse_captured;
+
             ImGui_ImplSDL3_ProcessEvent(&event);
 
             if(event.type == SDL_EVENT_QUIT)
             {
+                set_viewport_mouse_capture(false);
                 running = false;
+            }
+            else if(event.type == SDL_EVENT_WINDOW_FOCUS_LOST)
+            {
+                set_viewport_mouse_capture(false);
+            }
+            else if(event.type == SDL_EVENT_MOUSE_BUTTON_UP
+                    && event.button.button == SDL_BUTTON_RIGHT)
+            {
+                set_viewport_mouse_capture(false);
             }
             else if(event.type == SDL_EVENT_MOUSE_MOTION)
             {
                 viewport_input.mouse_delta_x += event.motion.xrel;
                 viewport_input.mouse_delta_y += event.motion.yrel;
             }
+            else if(event.type == SDL_EVENT_MOUSE_WHEEL)
+            {
+                viewport_input.mouse_wheel_delta += event.wheel.y;
+            }
         }
 
+        set_imgui_mouse_interactions_enabled(!suppress_imgui_mouse);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
         imgui::draw_main_dockspace(running);
         imgui_draw_viewport_panel(
-          *this,
-          *render_device,
-          *renderer,
-          *scene,
-          *viewport,
+          render_device,
+          renderer,
+          scene,
+          viewport,
           viewport_texture,
-          log_lines,
-          last_update_time,
           running,
-          viewport_input.viewport_hovered);
-        imgui::draw_console_panel(log_lines);
+          viewport_input);
+        imgui::draw_console_panel(log_device);
         imgui::draw_tools_panel(
-          *render_device,
-          *viewport,
-          *scene,
-          *renderer,
+          *this,
+          render_device,
+          viewport,
+          scene,
+          renderer,
           frame_index,
           pixel_density,
           io);
-        imgui::draw_scene_inspector_panel(ui_state, *scene);
+
+        // Check if benchmark was requested
+        if(imgui::check_and_clear_sorting_benchmark_request())
+        {
+            renderer.start_sorting_benchmark(scene, viewport);
+        }
+
+        imgui::draw_scene_inspector_panel(ui_state, scene);
         imgui::draw_class_inspector_panel(ui_state);
 
         ImGui::Render();
@@ -808,18 +1441,122 @@ void Application::run()
 
 void Application::tick(float delta_time)
 {
-    const ViewportCameraControllerInput controller_input =
-      gather_viewport_camera_input(viewport_input, ImGui::GetIO());
-    update_viewport_camera_controller(
-      viewport_camera_controller,
-      controller_input,
-      delta_time);
-    viewport->get_local_camera().set_transform(
-      make_view_matrix(viewport_camera_controller));
+    update_viewport_mouse_capture();
+    const ViewportNavigationMode navigation_mode = viewport.get_navigation_mode();
+    const ViewportEditorCameraInput controller_input =
+      viewport.is_editor_camera_modification_enabled()
+        ? gather_viewport_camera_input(
+            viewport_input,
+            ImGui::GetIO(),
+            viewport_mouse_captured,
+            navigation_mode)
+        : ViewportEditorCameraInput{};
+    viewport.update_editor_camera(
+      delta_time,
+      controller_input);
 
-    scene->tick(delta_time);
-    for(auto* gear: gear_objs)
+    // Handle SPACE key for play/pause toggle
+    const bool* keys = SDL_GetKeyboardState(nullptr);
+    const bool space_pressed = keys != nullptr && keys[SDL_SCANCODE_SPACE];
+    if(space_pressed && !prev_space_pressed)
     {
-        rebuild_gear_mesh_if_needed(*render_device, gear);
+        scene.set_paused(!scene.is_paused());
     }
+    prev_space_pressed = space_pressed;
+
+    // FIXME temporary until a better update mechanism is in place
+    scene.for_each_object<Gear>(
+      [&](Gear& gear)
+      {
+          rebuild_gear_mesh_if_needed(render_device, &gear);
+      });
+
+    scene.tick(delta_time);
+}
+
+void Application::set_static_mesh_shader(StaticMeshShaderType type)
+{
+    active_static_mesh_shader = type;
+    ShaderCache& shader_cache = renderer.get_shader_cache();
+
+    scene.for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          // skip gears for now.
+          if(mesh.is_a<Gear>())
+          {
+              return;
+          }
+          if(mesh.get_name() == floor_object_name)
+          {
+              return;
+          }
+
+          for(auto& lod: mesh.get_lods())
+          {
+              for(auto& section: lod.mesh_sections)
+              {
+                  render_device.delete_material(section.material_handle);
+
+                  swr::program_base* new_shader = nullptr;
+                  switch(type)
+                  {
+                  case StaticMeshShaderType::ColorFlat:
+                      new_shader = shader_cache.get_or_create<shader::ColorFlat>();
+                      break;
+                  case StaticMeshShaderType::ColorSmooth:
+                      new_shader = shader_cache.get_or_create<shader::ColorSmooth>();
+                      break;
+                  case StaticMeshShaderType::PhongSmooth:
+                      new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
+                      break;
+                  case StaticMeshShaderType::LitSmooth:
+                      new_shader = shader_cache.get_or_create<shader::LitSmooth>();
+                      break;
+                  default:
+                      throw std::runtime_error{"Unknown shader type for static meshes."};
+                  }
+
+                  section.material_handle = render_device.create_material(*new_shader);
+              }
+          }
+      });
+}
+
+void Application::set_floor_shader(FloorShaderType type)
+{
+    active_floor_shader = type;
+    if(!has_floor_textures)
+    {
+        return;
+    }
+
+    ShaderCache& shader_cache = renderer.get_shader_cache();
+    swr::program_base* new_shader = get_floor_shader_program(
+      type,
+      shader_cache);
+
+    scene.for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          if(mesh.get_name() != floor_object_name)
+          {
+              return;
+          }
+
+          for(auto& lod: mesh.get_lods())
+          {
+              for(auto& section: lod.mesh_sections)
+              {
+                  render_device.delete_material(
+                    section.material_handle,
+                    false);
+
+                  section.material_handle =
+                    render_device.create_material(
+                      *new_shader,
+                      floor_texture_handles);
+              }
+          }
+      });
 }

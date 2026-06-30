@@ -36,10 +36,7 @@ public:
             const float angle =
               animation.angular_speed * time + animation.phase_offset;
             object_it->second->set_transform(
-              ml::matrices::translation(
-                animation.translation.x,
-                animation.translation.y,
-                animation.translation.z)
+              ml::matrices::translation(animation.translation)
               * ml::matrices::rotation_z(angle));
         }
     }
