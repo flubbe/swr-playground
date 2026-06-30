@@ -92,11 +92,73 @@ inline std::array<SpotLightData, max_spot_lights> load_spot_lights(
     return lights;
 }
 
+// Helper: Bilinear comparison of depth (emulates sampler2DShadow)
+// Samples 4 texels around a fractional uv coordinate and bilinearly blends comparison results
+inline float shadow_compare_bilinear(
+  const swr::sampler_2d* shadow_map,
+  const ml::vec2& uv,
+  float receiver_depth,
+  float depth_bias)
+{
+    const ml::tvec2<int> shadow_map_size = shadow_map->size(0);
+    const float texel_u = 1.f / shadow_map_size.x;
+    const float texel_v = 1.f / shadow_map_size.y;
+
+    // Find the fractional part for interpolation
+    ml::vec2 uv_texel{uv.x / texel_u, uv.y / texel_v};
+    ml::vec2 frac{
+      uv_texel.x - std::floor(uv_texel.x),
+      uv_texel.y - std::floor(uv_texel.y),
+    };
+    ml::vec2 one_minus_frac{1.f - frac.x, 1.f - frac.y};
+
+    // Sample 4 texels
+    float c00, c10, c01, c11;
+    {
+        const swr::varying uv_varying{
+          ml::vec4{uv.x - frac.x * texel_u, uv.y - frac.y * texel_v, 0.f, 0.f},
+          ml::vec4::zero(),
+          ml::vec4::zero(),
+        };
+        c00 = receiver_depth - depth_bias <= shadow_map->sample_at(uv_varying).x ? 1.f : 0.f;
+    }
+    {
+        const swr::varying uv_varying{
+          ml::vec4{uv.x + (1.f - frac.x) * texel_u, uv.y - frac.y * texel_v, 0.f, 0.f},
+          ml::vec4::zero(),
+          ml::vec4::zero(),
+        };
+        c10 = receiver_depth - depth_bias <= shadow_map->sample_at(uv_varying).x ? 1.f : 0.f;
+    }
+    {
+        const swr::varying uv_varying{
+          ml::vec4{uv.x - frac.x * texel_u, uv.y + (1.f - frac.y) * texel_v, 0.f, 0.f},
+          ml::vec4::zero(),
+          ml::vec4::zero(),
+        };
+        c01 = receiver_depth - depth_bias <= shadow_map->sample_at(uv_varying).x ? 1.f : 0.f;
+    }
+    {
+        const swr::varying uv_varying{
+          ml::vec4{uv.x + (1.f - frac.x) * texel_u, uv.y + (1.f - frac.y) * texel_v, 0.f, 0.f},
+          ml::vec4::zero(),
+          ml::vec4::zero(),
+        };
+        c11 = receiver_depth - depth_bias <= shadow_map->sample_at(uv_varying).x ? 1.f : 0.f;
+    }
+
+    // Bilinearly blend the 4 comparison results
+    const float c0 = ml::lerp(frac.x, c00, c10);
+    const float c1 = ml::lerp(frac.x, c01, c11);
+    return ml::lerp(frac.y, c0, c1);
+}
+
 inline float sample_shadow_map(
   std::span<const swr::uniform> uniforms,
   std::span<swr::sampler_2d* const> samplers,
   const swr::varying& shadow_clip_position,
-  float depth_bias)
+  float depth_bias,
+  int pcf_mode)
 {
     if(uniforms[shadow_map_enabled_uniform_index].i == 0
        || samplers.size() <= shadow_map_sampler_unit
@@ -137,14 +199,59 @@ inline float sample_shadow_map(
     uv.y = std::clamp(uv.y, 0.f, 1.f);
     receiver_depth = std::clamp(receiver_depth, 0.f, 1.f);
 
-    const swr::varying uv_varying{
-      ml::vec4{uv.x, uv.y, 0.f, 0.f},
-      ml::vec4::zero(),
-      ml::vec4::zero(),
-    };
-    const float stored_depth =
-      samplers[shadow_map_sampler_unit]->sample_at(uv_varying).x;
-    return receiver_depth - depth_bias <= stored_depth ? 1.f : 0.f;
+    if(pcf_mode == 0)
+    {
+        // No PCF: Single nearest-neighbor sample
+        const swr::varying uv_varying{
+          ml::vec4{uv.x, uv.y, 0.f, 0.f},
+          ml::vec4::zero(),
+          ml::vec4::zero(),
+        };
+        const float stored_depth =
+          samplers[shadow_map_sampler_unit]->sample_at(uv_varying).x;
+        return receiver_depth - depth_bias <= stored_depth ? 1.f : 0.f;
+    }
+    else if(pcf_mode == 2)
+    {
+        // PCF with bilinear comparison (sampler2DShadow-like)
+        return shadow_compare_bilinear(shadow_map, uv, receiver_depth, depth_bias);
+    }
+
+    // pcf_mode == 1: 3x3 PCF with nearest comparisons
+    const float texel_size_u = 1.f / shadow_map_size.x;
+    const float texel_size_v = 1.f / shadow_map_size.y;
+
+    float shadow_sum = 0.f;
+    for(int dy = -1; dy <= 1; ++dy)
+    {
+        for(int dx = -1; dx <= 1; ++dx)
+        {
+            const ml::vec2 sample_uv{
+              uv.x + dx * texel_size_u,
+              uv.y + dy * texel_size_v,
+            };
+
+            // Clamp sample to valid range
+            const ml::vec2 clamped_uv{
+              std::clamp(sample_uv.x, 0.f, 1.f),
+              std::clamp(sample_uv.y, 0.f, 1.f),
+            };
+
+            const swr::varying sample_uv_varying{
+              ml::vec4{clamped_uv.x, clamped_uv.y, 0.f, 0.f},
+              ml::vec4::zero(),
+              ml::vec4::zero(),
+            };
+            const float stored_depth =
+              samplers[shadow_map_sampler_unit]->sample_at(sample_uv_varying).x;
+
+            // Compare: in shadow if receiver_depth > stored_depth
+            shadow_sum += receiver_depth - depth_bias <= stored_depth ? 1.f : 0.f;
+        }
+    }
+
+    // Average the 9 samples
+    return shadow_sum / 9.f;
 }
 
 inline float accumulate_directional_light(
@@ -805,7 +912,8 @@ public:
                 uniforms,
                 samplers,
                 varyings[2],
-                uniforms[shadow_map_params_uniform_index].v4.x)
+                uniforms[shadow_map_params_uniform_index].v4.x,
+                static_cast<int>(uniforms[shadow_map_params_uniform_index].v4.y + 0.5f))
             : 1.f;
 
         const ml::vec4 material_color = uniforms[material_color_uniform_index].v4;
@@ -1080,7 +1188,8 @@ public:
           uniforms,
           samplers,
           varyings[6],
-          uniforms[shadow_map_params_uniform_index].v4.x);
+          uniforms[shadow_map_params_uniform_index].v4.x,
+          static_cast<int>(uniforms[shadow_map_params_uniform_index].v4.y + 0.5f));
 
         const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
         const ml::vec3 material_normal =
@@ -1233,7 +1342,8 @@ public:
           uniforms,
           samplers,
           varyings[6],
-          uniforms[shadow_map_params_uniform_index].v4.x);
+          uniforms[shadow_map_params_uniform_index].v4.x,
+          uniforms[shadow_map_params_uniform_index].v4.y > 0.5f);
 
         const ml::vec4 base_color = samplers[0]->sample_at(tex_coords);
         const ml::vec3 material_normal =

@@ -89,6 +89,14 @@ struct ComparativeBenchmarkState
     std::size_t iterations_per_mode{0};
 };
 
+/** Shadow map PCF filtering mode. */
+enum class ShadowPcfMode : int
+{
+    Off = 0,        /** No PCF filtering. */
+    Nearest3x3 = 1, /** 3x3 PCF with nearest-neighbor comparisons. */
+    Bilinear3x3 = 2 /** 3x3 PCF with bilinear comparisons (sampler2DShadow-like). */
+};
+
 class Renderer final
 {
     static constexpr int shadow_map_resolution = 1024;
@@ -103,6 +111,7 @@ class Renderer final
     SortMode sort_mode{SortMode::FullSort};
     std::size_t depth_bin_count{8};
     ComparativeBenchmarkState comparative_state{};
+    ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
     /*
      * Viewport overlays.
@@ -110,9 +119,7 @@ class Renderer final
 
     MeshSection overlay_grid;
     MeshSection overlay_spotlight_depth;
-    std::uint32_t shadow_map_texture{0};
-    std::uint32_t shadow_map_framebuffer{0};
-    std::uint32_t shadow_map_depth_renderbuffer{0};
+    ShadowMapHandle shadow_map{0};
 
     void create_grid_mesh();
     void release_grid_mesh();
@@ -216,6 +223,17 @@ public:
     void set_depth_bin_count(std::size_t n) noexcept
     {
         depth_bin_count = n > 0 ? n : 1;
+    }
+
+    [[nodiscard]]
+    ShadowPcfMode get_shadow_pcf_mode() const noexcept
+    {
+        return shadow_pcf_mode;
+    }
+
+    void set_shadow_pcf_mode(ShadowPcfMode mode) noexcept
+    {
+        shadow_pcf_mode = mode;
     }
 
     void start_sorting_benchmark(

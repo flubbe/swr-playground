@@ -126,6 +126,16 @@ struct RasterizerState
     }
 };
 
+/** GPU-side shadow-map render target data. */
+struct ShadowMapTargetGpuData
+{
+    std::uint32_t texture_handle{0};
+    std::uint32_t framebuffer_handle{0};
+    std::uint32_t depth_renderbuffer_handle{0};
+    int width{0};
+    int height{0};
+};
+
 /** Render device. */
 class RenderDevice
 {
@@ -153,10 +163,20 @@ class RenderDevice
     /** materials. */
     std::unordered_map<std::uint32_t, Material> materials;
 
+    /** shadow-map render targets. */
+    std::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
+
     /** state cache. */
     RasterizerState current_rasterizer_state;
     std::size_t current_bound_texture_count{0};
     std::optional<ShadowMapBinding> current_shadow_map_binding;
+    ShadowMapHandle active_shadow_map_pass{0};
+
+    void apply_rasterizer_state(const RasterizerState& state);
+
+    [[nodiscard]]
+    const ShadowMapTargetGpuData* find_shadow_map_target(
+      ShadowMapHandle handle) const;
 
 protected:
     void initialize()
@@ -181,6 +201,10 @@ protected:
         while(!materials.empty())
         {
             delete_material(materials.begin()->first);
+        }
+        while(!shadow_map_targets.empty())
+        {
+            delete_shadow_map(shadow_map_targets.begin()->first);
         }
 
         if(context != nullptr)
@@ -263,6 +287,12 @@ public:
 
     void delete_texture(std::uint32_t handle);
 
+    ShadowMapHandle create_shadow_map(
+      int width,
+      int height);
+
+    void delete_shadow_map(ShadowMapHandle handle);
+
     std::uint32_t create_material(
       const swr::program_base& shader);
 
@@ -301,8 +331,12 @@ public:
     void bind_lighting_uniforms(const LightingUniforms& uniforms);
     void bind_material_uniforms(const MaterialUniforms& uniforms);
     void bind_shadow_map(const ShadowMapBinding& binding);
-    void clear_shadow_map();
     void bind_shadow_uniforms(const ShadowUniforms& uniforms);
+
+    void clear_shadow_map();
+
+    void begin_shadow_map_pass(ShadowMapHandle handle);
+    void end_shadow_map_pass();
 
     /*
      * drawing functions.

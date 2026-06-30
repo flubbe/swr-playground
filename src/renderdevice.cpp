@@ -19,6 +19,34 @@
 #include "scene/scene.h"
 #include "renderdevice.h"
 
+void RenderDevice::apply_rasterizer_state(const RasterizerState& state)
+{
+    if(state.wireframe)
+    {
+        swr::SetPolygonMode(swr::polygon_mode::line);
+    }
+    else
+    {
+        swr::SetPolygonMode(swr::polygon_mode::fill);
+    }
+
+    swr::SetState(
+      swr::state::cull_face,
+      state.cull_face);
+}
+
+const ShadowMapTargetGpuData* RenderDevice::find_shadow_map_target(
+  ShadowMapHandle handle) const
+{
+    const auto it = shadow_map_targets.find(handle);
+    if(it == shadow_map_targets.end())
+    {
+        return nullptr;
+    }
+
+    return &it->second;
+}
+
 void RenderDevice::resize(
   int width,
   int height)
@@ -234,6 +262,87 @@ void RenderDevice::delete_texture(std::uint32_t handle)
     }
 }
 
+ShadowMapHandle RenderDevice::create_shadow_map(
+  int width,
+  int height)
+{
+    ShadowMapTargetGpuData gpu_data{};
+    gpu_data.width = std::max(1, width);
+    gpu_data.height = std::max(1, height);
+    gpu_data.texture_handle = create_empty_texture(gpu_data.width, gpu_data.height);
+
+    swr::ActiveTexture(shader::shadow_map_sampler_unit);
+    swr::BindTexture(
+      swr::texture_target::texture_2d,
+      gpu_data.texture_handle);
+    swr::SetTextureWrapMode(
+      gpu_data.texture_handle,
+      swr::wrap_mode::clamp_to_edge,
+      swr::wrap_mode::clamp_to_edge);
+    swr::SetTextureMinificationFilter(swr::texture_filter::nearest);
+    swr::SetTextureMagnificationFilter(swr::texture_filter::nearest);
+    swr::BindTexture(swr::texture_target::texture_2d, 0);
+
+    gpu_data.framebuffer_handle = swr::CreateFramebufferObject();
+    gpu_data.depth_renderbuffer_handle = swr::CreateDepthRenderbuffer(
+      gpu_data.width,
+      gpu_data.height);
+
+    swr::FramebufferTexture(
+      gpu_data.framebuffer_handle,
+      swr::framebuffer_attachment::color_attachment_0,
+      gpu_data.texture_handle,
+      0);
+    swr::FramebufferRenderbuffer(
+      gpu_data.framebuffer_handle,
+      swr::framebuffer_attachment::depth_attachment,
+      gpu_data.depth_renderbuffer_handle);
+
+    ShadowMapHandle handle = 1;
+    while(shadow_map_targets.contains(handle))
+    {
+        ++handle;
+    }
+
+    shadow_map_targets.emplace(handle, gpu_data);
+    return handle;
+}
+
+void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
+{
+    const auto it = shadow_map_targets.find(handle);
+    if(it == shadow_map_targets.end())
+    {
+        return;
+    }
+
+    if(active_shadow_map_pass == handle)
+    {
+        end_shadow_map_pass();
+    }
+
+    if(current_shadow_map_binding.has_value()
+       && current_shadow_map_binding->handle == handle)
+    {
+        current_shadow_map_binding.reset();
+    }
+
+    if(it->second.depth_renderbuffer_handle != 0)
+    {
+        swr::ReleaseDepthRenderbuffer(it->second.depth_renderbuffer_handle);
+    }
+    if(it->second.framebuffer_handle != 0)
+    {
+        swr::ReleaseFramebufferObject(it->second.framebuffer_handle);
+    }
+    if(it->second.texture_handle != 0)
+    {
+        delete_texture(it->second.texture_handle);
+    }
+
+    shadow_map_targets.erase(it);
+}
+
 std::uint32_t RenderDevice::create_material(
   const swr::program_base& shader)
 {
@@ -300,19 +409,7 @@ void RenderDevice::bind_rasterizer_state(
         return;
     }
     current_rasterizer_state = state;
-
-    if(current_rasterizer_state.wireframe)
-    {
-        swr::SetPolygonMode(swr::polygon_mode::line);
-    }
-    else
-    {
-        swr::SetPolygonMode(swr::polygon_mode::fill);
-    }
-
-    swr::SetState(
-      swr::state::cull_face,
-      current_rasterizer_state.cull_face);
+    apply_rasterizer_state(current_rasterizer_state);
 }
 
 void RenderDevice::bind_material(std::uint32_t handle)
@@ -326,10 +423,15 @@ void RenderDevice::bind_material(std::uint32_t handle)
     swr::BindShader(it->second.shader_handle);
 
     const std::size_t texture_count = it->second.texture_handles.size();
+    const ShadowMapTargetGpuData* shadow_target =
+      current_shadow_map_binding.has_value()
+        ? find_shadow_map_target(current_shadow_map_binding->handle)
+        : nullptr;
     const bool has_shadow_texture =
       current_shadow_map_binding.has_value()
       && current_shadow_map_binding->enabled
-      && current_shadow_map_binding->texture_handle != 0;
+      && shadow_target != nullptr
+      && shadow_target->texture_handle != 0;
     swr::SetState(
       swr::state::texture,
       texture_count > 0 || has_shadow_texture);
@@ -353,7 +455,7 @@ void RenderDevice::bind_material(std::uint32_t handle)
         swr::ActiveTexture(shader::shadow_map_sampler_unit);
         swr::BindTexture(
           swr::texture_target::texture_2d,
-          current_shadow_map_binding->texture_handle);
+          shadow_target->texture_handle);
     }
     current_bound_texture_count = std::max(
       texture_count,
@@ -426,7 +528,8 @@ void RenderDevice::bind_material_uniforms(const MaterialUniforms& uniforms)
 void RenderDevice::bind_shadow_map(const ShadowMapBinding& binding)
 {
     if(binding.enabled
-       && binding.texture_handle != 0)
+       && binding.handle != 0
+       && find_shadow_map_target(binding.handle) != nullptr)
     {
         current_shadow_map_binding = binding;
         return;
@@ -451,6 +554,47 @@ void RenderDevice::bind_shadow_uniforms(const ShadowUniforms& uniforms)
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::shadow_map_params_uniform_index),
       uniforms.params);
+}
+
+void RenderDevice::begin_shadow_map_pass(ShadowMapHandle handle)
+{
+    const ShadowMapTargetGpuData* target = find_shadow_map_target(handle);
+    if(target == nullptr)
+    {
+        return;
+    }
+
+    active_shadow_map_pass = handle;
+    swr::BindFramebufferObject(
+      swr::framebuffer_target::draw,
+      target->framebuffer_handle);
+    swr::SetViewport(0, 0, target->width, target->height);
+    swr::SetClearColor(1.f, 1.f, 1.f, 1.f);
+    swr::SetClearDepth(1.f);
+    swr::ClearColorBuffer();
+    swr::ClearDepthBuffer();
+    swr::SetState(swr::state::depth_test, true);
+    swr::SetState(swr::state::depth_write, true);
+    swr::SetState(swr::state::texture, false);
+    swr::SetState(swr::state::cull_face, true);
+    swr::SetState(swr::state::polygon_offset_fill, true);
+    swr::PolygonOffset(1.5f, 2.f);
+    swr::SetPolygonMode(swr::polygon_mode::fill);
+}
+
+void RenderDevice::end_shadow_map_pass()
+{
+    if(active_shadow_map_pass == 0)
+    {
+        return;
+    }
+
+    swr::SetState(swr::state::polygon_offset_fill, false);
+    swr::BindFramebufferObject(swr::framebuffer_target::draw, 0);
+    swr::SetViewport(0, 0, width, height);
+    swr::SetClearColor(0.f, 0.f, 0.f, 1.f);
+    apply_rasterizer_state(current_rasterizer_state);
+    active_shadow_map_pass = 0;
 }
 
 void RenderDevice::draw_mesh(std::uint32_t handle)

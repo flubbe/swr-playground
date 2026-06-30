@@ -533,62 +533,23 @@ Renderer::~Renderer()
 
 void Renderer::ensure_shadow_map_resources()
 {
-    if(shadow_map_texture != 0
-       && shadow_map_framebuffer != 0
-       && shadow_map_depth_renderbuffer != 0)
+    if(shadow_map != 0)
     {
         return;
     }
 
     release_shadow_map_resources();
-
-    shadow_map_texture = device.create_empty_texture(
+    shadow_map = device.create_shadow_map(
       shadow_map_resolution,
       shadow_map_resolution);
-    swr::ActiveTexture(shader::shadow_map_sampler_unit);
-    swr::BindTexture(
-      swr::texture_target::texture_2d,
-      shadow_map_texture);
-    swr::SetTextureWrapMode(
-      shadow_map_texture,
-      swr::wrap_mode::clamp_to_edge,
-      swr::wrap_mode::clamp_to_edge);
-    swr::SetTextureMinificationFilter(swr::texture_filter::linear);
-    swr::SetTextureMagnificationFilter(swr::texture_filter::linear);
-    swr::BindTexture(swr::texture_target::texture_2d, 0);
-
-    shadow_map_framebuffer = swr::CreateFramebufferObject();
-    shadow_map_depth_renderbuffer = swr::CreateDepthRenderbuffer(
-      shadow_map_resolution,
-      shadow_map_resolution);
-
-    swr::FramebufferTexture(
-      shadow_map_framebuffer,
-      swr::framebuffer_attachment::color_attachment_0,
-      shadow_map_texture,
-      0);
-    swr::FramebufferRenderbuffer(
-      shadow_map_framebuffer,
-      swr::framebuffer_attachment::depth_attachment,
-      shadow_map_depth_renderbuffer);
 }
 
 void Renderer::release_shadow_map_resources()
 {
-    if(shadow_map_depth_renderbuffer != 0)
+    if(shadow_map != 0)
     {
-        swr::ReleaseDepthRenderbuffer(shadow_map_depth_renderbuffer);
-        shadow_map_depth_renderbuffer = 0;
-    }
-    if(shadow_map_framebuffer != 0)
-    {
-        swr::ReleaseFramebufferObject(shadow_map_framebuffer);
-        shadow_map_framebuffer = 0;
-    }
-    if(shadow_map_texture != 0)
-    {
-        device.delete_texture(shadow_map_texture);
-        shadow_map_texture = 0;
+        device.delete_shadow_map(shadow_map);
+        shadow_map = 0;
     }
 }
 
@@ -627,22 +588,7 @@ void Renderer::render_shadow_map(const Scene& scene)
           }
       });
 
-    swr::BindFramebufferObject(
-      swr::framebuffer_target::draw,
-      shadow_map_framebuffer);
-    swr::SetViewport(0, 0, shadow_map_resolution, shadow_map_resolution);
-    swr::SetClearColor(1.f, 1.f, 1.f, 1.f);
-    swr::SetClearDepth(1.f);
-    swr::ClearColorBuffer();
-    swr::ClearDepthBuffer();
-    swr::SetState(swr::state::depth_test, true);
-    swr::SetState(swr::state::depth_write, true);
-    swr::SetState(swr::state::texture, false);
-    swr::SetState(swr::state::cull_face, true);
-    swr::SetState(swr::state::polygon_offset_fill, true);
-    swr::PolygonOffset(1.5f, 2.f);
-    swr::SetPolygonMode(swr::polygon_mode::fill);
-
+    device.begin_shadow_map_pass(shadow_map);
     device.bind_material(shadow_material);
     device.bind_lighting_uniforms({});
     device.bind_material_uniforms({});
@@ -656,11 +602,7 @@ void Renderer::render_shadow_map(const Scene& scene)
         device.draw_mesh(submission.mesh_handle);
     }
 
-    swr::SetState(swr::state::polygon_offset_fill, false);
-    swr::BindFramebufferObject(swr::framebuffer_target::draw, 0);
-    swr::SetViewport(0, 0, device.get_width(), device.get_height());
-    swr::SetClearColor(0.f, 0.f, 0.f, 1.f);
-
+    device.end_shadow_map_pass();
     device.delete_material(shadow_material, false);
 }
 
@@ -754,8 +696,8 @@ void Renderer::render_scene(
                   .enabled =
                     shadow_camera.has_value()
                     && static_mesh.receives_shadows
-                    && shadow_map_texture != 0,
-                  .texture_handle = shadow_map_texture,
+                    && shadow_map != 0,
+                  .handle = shadow_map,
                   .clip_from_mesh = shadow_clip_from_mesh,
                   .depth_bias = 0.0008f,
                 },
@@ -811,13 +753,14 @@ void Renderer::render_scene(
           .clip_from_mesh = submission.shadow_map.clip_from_mesh,
           .params = {
             submission.shadow_map.depth_bias,
-            0.f,
+            static_cast<float>(shadow_pcf_mode),
             0.f,
             0.f,
           },
         });
         device.draw_mesh(submission.mesh_handle);
     }
+
     device.clear_shadow_map();
 }
 
@@ -848,7 +791,7 @@ void Renderer::render_grid(
 
 bool Renderer::render_spotlight_depth_debug()
 {
-    if(shadow_map_texture == 0)
+    if(shadow_map == 0)
     {
         return false;
     }
@@ -860,7 +803,7 @@ bool Renderer::render_spotlight_depth_debug()
 
     device.bind_shadow_map({
       .enabled = true,
-      .texture_handle = shadow_map_texture,
+      .handle = shadow_map,
       .clip_from_mesh = ml::mat4x4::identity(),
       .depth_bias = 0.f,
     });
@@ -876,7 +819,7 @@ bool Renderer::render_spotlight_depth_debug()
     device.bind_shadow_uniforms({
       .enabled = true,
       .clip_from_mesh = ml::mat4x4::identity(),
-      .params = {0.f, 0.f, 0.f, 0.f},
+      .params = {0.f, static_cast<float>(ShadowPcfMode::Off), 0.f, 0.f},
     });
     device.draw_mesh(overlay_spotlight_depth.mesh_handle);
     device.clear_shadow_map();
@@ -1054,6 +997,7 @@ void Renderer::update_sorting_benchmark(
     benchmark_display_settings.sort_meshes = benchmark_state.sorted_phase;
 
     auto start_time = std::chrono::steady_clock::now();
+
     device.begin_frame();
     render_scene(scene, benchmark_camera, benchmark_display_settings);
     if(overlay_settings.show_grid)
@@ -1061,6 +1005,7 @@ void Renderer::update_sorting_benchmark(
         render_grid(benchmark_camera);
     }
     device.end_frame();
+
     const float elapsed = std::chrono::duration<float>(
                             std::chrono::steady_clock::now() - start_time)
                             .count();

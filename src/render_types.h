@@ -27,11 +27,14 @@ struct MeshSection
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
 };
 
+/** Handle to a shadow-map render target owned by the render device. */
+using ShadowMapHandle = std::uint32_t;
+
 /** One shadow map input for a draw call. */
 struct ShadowMapBinding
 {
     bool enabled{false};
-    std::uint32_t texture_handle{0};
+    ShadowMapHandle handle{0};
     ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
     float depth_bias{0.0015f};
 };

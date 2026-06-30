@@ -1455,6 +1455,15 @@ void Application::tick(float delta_time)
       delta_time,
       controller_input);
 
+    // Handle SPACE key for play/pause toggle
+    const bool* keys = SDL_GetKeyboardState(nullptr);
+    const bool space_pressed = keys != nullptr && keys[SDL_SCANCODE_SPACE];
+    if(space_pressed && !prev_space_pressed)
+    {
+        scene.set_paused(!scene.is_paused());
+    }
+    prev_space_pressed = space_pressed;
+
     // FIXME temporary until a better update mechanism is in place
     scene.for_each_object<Gear>(
       [&](Gear& gear)

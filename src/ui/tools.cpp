@@ -181,6 +181,15 @@ void draw_tools_panel(
             }
         }
 
+        {
+            const char* pcf_modes[] = {"Off", "3x3 Nearest", "3x3 Bilinear"};
+            int pcf_mode_int = static_cast<int>(renderer.get_shadow_pcf_mode());
+            if(ImGui::Combo("Shadow PCF Mode", &pcf_mode_int, pcf_modes, IM_ARRAYSIZE(pcf_modes)))
+            {
+                renderer.set_shadow_pcf_mode(static_cast<ShadowPcfMode>(pcf_mode_int));
+            }
+        }
+
         if(update_overlay_settings)
         {
             viewport.set_overlay_settings(overlay_settings);

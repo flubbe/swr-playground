@@ -90,6 +90,7 @@ class Application
 
     ViewportInputState viewport_input{};
     bool viewport_mouse_captured{false};
+    bool prev_space_pressed{false};
 
     void set_viewport_mouse_capture(bool enabled);
     void update_viewport_mouse_capture();
