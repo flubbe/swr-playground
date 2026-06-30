@@ -15,30 +15,16 @@ TEST(MeshTests, MeshSimplifierCollapsesClosedMeshEdges)
       .primitive_type = PrimitiveType::Triangles,
       .indices =
         {
-          0,
-          4,
-          3,
-          0,
-          3,
-          5,
-          0,
-          5,
-          2,
-          0,
-          2,
-          4,
-          1,
-          3,
-          4,
-          1,
-          5,
-          3,
-          1,
-          2,
-          5,
-          1,
-          4,
-          2,
+          // clang-format off
+          0, 4, 3,
+          0, 3, 5,
+          0, 5, 2,
+          0, 2, 4,
+          1, 3, 4,
+          1, 5, 3,
+          1, 2, 5,
+          1, 4, 2,
+          // clang-format on
         },
       .vertices =
         {
@@ -58,7 +44,7 @@ TEST(MeshTests, MeshSimplifierCollapsesClosedMeshEdges)
           {0.f, 0.f, 1.f, 0.f},
           {0.f, 0.f, -1.f, 0.f},
         },
-    };
+      .texcoords = {}};
 
     MeshSimplifier simplifier;
     const MeshData lod = simplifier.simplify(

@@ -64,7 +64,7 @@ MeshData import_mesh_data(const aiMesh& mesh)
       .indices = {},
       .vertices = {},
       .normals = {},
-    };
+      .texcoords = {}};
 
     result.vertices.reserve(mesh.mNumVertices);
     result.normals.reserve(mesh.mNumVertices);

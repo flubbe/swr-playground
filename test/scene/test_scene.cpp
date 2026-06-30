@@ -130,7 +130,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
               },
             },
           .min_screen_height = 0.4f,
-        },
+          .bounds = {}},
         StaticMeshLod{
           .mesh_sections =
             {
@@ -140,7 +140,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
               },
             },
           .min_screen_height = 0.15f,
-        },
+          .bounds = {}},
         StaticMeshLod{
           .mesh_sections =
             {
@@ -150,7 +150,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
               },
             },
           .min_screen_height = 0.f,
-        },
+          .bounds = {}},
       }};
 
     EXPECT_EQ(mesh.get_lod_count(), 3U);

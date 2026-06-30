@@ -551,7 +551,7 @@ GearParameters create_gear_resources(
         .indices = std::move(geom.inner_indices),
         .vertices = std::move(geom.inner_vertices),
         .normals = std::move(geom.inner_normals),
-      });
+        .texcoords = {}});
 
     auto outer_mesh = device.create_mesh(
       MeshData{
@@ -559,7 +559,7 @@ GearParameters create_gear_resources(
         .indices = std::move(geom.outer_indices),
         .vertices = std::move(geom.outer_vertices),
         .normals = std::move(geom.outer_normals),
-      });
+        .texcoords = {}});
 
     MeshBounds bounds;
     expand_mesh_handle_bounds(
@@ -1004,7 +1004,7 @@ void rebuild_gear_mesh_if_needed(
         .indices = std::move(geom.inner_indices),
         .vertices = std::move(geom.inner_vertices),
         .normals = std::move(geom.inner_normals),
-      });
+        .texcoords = {}});
     const bool outer_updated = device.update_mesh(
       old_outer_mesh,
       MeshData{
@@ -1012,7 +1012,7 @@ void rebuild_gear_mesh_if_needed(
         .indices = std::move(geom.outer_indices),
         .vertices = std::move(geom.outer_vertices),
         .normals = std::move(geom.outer_normals),
-      });
+        .texcoords = {}});
 
     if(!inner_updated || !outer_updated)
     {

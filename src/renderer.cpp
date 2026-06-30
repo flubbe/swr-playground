@@ -448,7 +448,7 @@ void Renderer::create_grid_mesh()
           .indices = std::move(ib),
           .vertices = std::move(vb),
           .normals = std::move(nb),
-        }),
+          .texcoords = {}}),
       .material_handle = gray_material,
       .color = color_gray};
 }
