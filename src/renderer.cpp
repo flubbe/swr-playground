@@ -55,6 +55,16 @@ ml::mat4x4 make_camera_view_matrix(
     return ml::matrices::look_at(eye, target, up);
 }
 
+ml::mat4x4 make_shadow_bias_matrix()
+{
+    return {
+      {0.5f, 0.f, 0.f, 0.5f},
+      {0.f, 0.5f, 0.f, 0.5f},
+      {0.f, 0.f, 0.5f, 0.5f},
+      {0.f, 0.f, 0.f, 1.f},
+    };
+}
+
 std::array<ml::vec3, 16> make_benchmark_positions()
 {
     constexpr float benchmark_distance = 40.f;
@@ -641,7 +651,8 @@ void Renderer::render_scene(
           const auto obj_clip = projection * obj_view;
           const ml::mat4x4 shadow_clip_from_mesh =
             shadow_camera.has_value()
-              ? shadow_camera->proj
+              ? make_shadow_bias_matrix()
+                  * shadow_camera->proj
                   * shadow_camera->view
                   * static_mesh.get_transform()
               : ml::mat4x4::identity();
@@ -700,6 +711,7 @@ void Renderer::render_scene(
                   .handle = shadow_map,
                   .clip_from_mesh = shadow_clip_from_mesh,
                   .depth_bias = 0.0008f,
+                  .linear_filter = shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3,
                 },
               });
               ++render_stats.mesh_sections_drawn;
@@ -806,6 +818,7 @@ bool Renderer::render_spotlight_depth_debug()
       .handle = shadow_map,
       .clip_from_mesh = ml::mat4x4::identity(),
       .depth_bias = 0.f,
+      .linear_filter = false,
     });
     device.bind_material(overlay_spotlight_depth.material_handle);
     device.bind_camera_uniforms({

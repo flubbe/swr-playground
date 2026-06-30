@@ -92,9 +92,11 @@ struct ComparativeBenchmarkState
 /** Shadow map PCF filtering mode. */
 enum class ShadowPcfMode : int
 {
-    Off = 0,        /** No PCF filtering. */
-    Nearest3x3 = 1, /** 3x3 PCF with nearest-neighbor comparisons. */
-    Bilinear3x3 = 2 /** 3x3 PCF with bilinear comparisons (sampler2DShadow-like). */
+    Off = 0,              /** No PCF filtering. */
+    LegacyNearest3x3 = 1, /** Legacy 3x3 PCF with nearest-neighbor depth compares. */
+    LegacyBilinear = 2,   /** Legacy single bilinear depth compare. */
+    ModernNearest3x3 = 3, /** Shadow-sampler 3x3 PCF with nearest compare filtering. */
+    ModernBilinear3x3 = 4 /** Shadow-sampler 3x3 PCF with bilinear compare filtering. */
 };
 
 class Renderer final

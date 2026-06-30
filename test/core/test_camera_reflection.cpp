@@ -66,7 +66,7 @@ TEST(CameraReflectionTests, UsesOrthographicProjectionWhenRequested)
     const ml::mat4x4 projection = camera.get_projection_matrix();
     EXPECT_NEAR(projection.rows[0].x, 0.05f, eps);
     EXPECT_NEAR(projection.rows[1].y, 0.1f, eps);
-    EXPECT_NEAR(projection.rows[2].z, -2.f / 199.f, eps);
+    EXPECT_NEAR(projection.rows[2].z, 2.f / 199.f, eps);
     EXPECT_NEAR(projection.rows[2].w, -201.f / 199.f, eps);
     EXPECT_NEAR(projection.rows[3].w, 1.f, eps);
 }

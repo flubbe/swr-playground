@@ -131,7 +131,6 @@ struct ShadowMapTargetGpuData
 {
     std::uint32_t texture_handle{0};
     std::uint32_t framebuffer_handle{0};
-    std::uint32_t depth_renderbuffer_handle{0};
     int width{0};
     int height{0};
 };
@@ -280,10 +279,6 @@ public:
 
     std::uint32_t create_texture(
       const assets::ImageRgba8& image);
-
-    std::uint32_t create_empty_texture(
-      int width,
-      int height);
 
     void delete_texture(std::uint32_t handle);
 

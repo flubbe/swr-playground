@@ -241,19 +241,6 @@ std::uint32_t RenderDevice::create_texture(
     return texture_id;
 }
 
-std::uint32_t RenderDevice::create_empty_texture(
-  int width,
-  int height)
-{
-    assets::ImageRgba8 image;
-    image.width = std::max(1, width);
-    image.height = std::max(1, height);
-    image.pixels.resize(
-      static_cast<std::size_t>(image.width * image.height * 4),
-      0u);
-    return create_texture(image);
-}
-
 void RenderDevice::delete_texture(std::uint32_t handle)
 {
     if(handle != 0)
@@ -269,12 +256,23 @@ ShadowMapHandle RenderDevice::create_shadow_map(
     ShadowMapTargetGpuData gpu_data{};
     gpu_data.width = std::max(1, width);
     gpu_data.height = std::max(1, height);
-    gpu_data.texture_handle = create_empty_texture(gpu_data.width, gpu_data.height);
+    gpu_data.texture_handle = swr::CreateTexture();
+    if(gpu_data.texture_handle == 0)
+    {
+        throw std::runtime_error{"Unable to create shadow-map texture handle"};
+    }
 
     swr::ActiveTexture(shader::shadow_map_sampler_unit);
     swr::BindTexture(
       swr::texture_target::texture_2d,
       gpu_data.texture_handle);
+    swr::SetImage(
+      gpu_data.texture_handle,
+      0,
+      static_cast<std::size_t>(gpu_data.width),
+      static_cast<std::size_t>(gpu_data.height),
+      swr::pixel_format::depth32f,
+      {});
     swr::SetTextureWrapMode(
       gpu_data.texture_handle,
       swr::wrap_mode::clamp_to_edge,
@@ -282,21 +280,35 @@ ShadowMapHandle RenderDevice::create_shadow_map(
     swr::SetTextureMinificationFilter(swr::texture_filter::nearest);
     swr::SetTextureMagnificationFilter(swr::texture_filter::nearest);
     swr::BindTexture(swr::texture_target::texture_2d, 0);
+    swr::SetTextureCompareMode(
+      gpu_data.texture_handle,
+      swr::texture_compare_mode::ref_to_texture);
+    swr::SetTextureCompareFunc(
+      gpu_data.texture_handle,
+      swr::comparison_func::less_equal);
+    if(swr::GetLastError() != swr::error::none)
+    {
+        delete_texture(gpu_data.texture_handle);
+        throw std::runtime_error{"Unable to allocate shadow-map texture"};
+    }
 
     gpu_data.framebuffer_handle = swr::CreateFramebufferObject();
-    gpu_data.depth_renderbuffer_handle = swr::CreateDepthRenderbuffer(
-      gpu_data.width,
-      gpu_data.height);
-
+    if(gpu_data.framebuffer_handle == 0)
+    {
+        delete_texture(gpu_data.texture_handle);
+        throw std::runtime_error{"Unable to create shadow-map framebuffer"};
+    }
     swr::FramebufferTexture(
       gpu_data.framebuffer_handle,
-      swr::framebuffer_attachment::color_attachment_0,
+      swr::framebuffer_attachment::depth_attachment,
       gpu_data.texture_handle,
       0);
-    swr::FramebufferRenderbuffer(
-      gpu_data.framebuffer_handle,
-      swr::framebuffer_attachment::depth_attachment,
-      gpu_data.depth_renderbuffer_handle);
+    if(swr::GetLastError() != swr::error::none)
+    {
+        swr::ReleaseFramebufferObject(gpu_data.framebuffer_handle);
+        delete_texture(gpu_data.texture_handle);
+        throw std::runtime_error{"Unable to attach shadow-map depth texture"};
+    }
 
     ShadowMapHandle handle = 1;
     while(shadow_map_targets.contains(handle))
@@ -327,10 +339,6 @@ void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
         current_shadow_map_binding.reset();
     }
 
-    if(it->second.depth_renderbuffer_handle != 0)
-    {
-        swr::ReleaseDepthRenderbuffer(it->second.depth_renderbuffer_handle);
-    }
     if(it->second.framebuffer_handle != 0)
     {
         swr::ReleaseFramebufferObject(it->second.framebuffer_handle);
@@ -456,6 +464,12 @@ void RenderDevice::bind_material(std::uint32_t handle)
         swr::BindTexture(
           swr::texture_target::texture_2d,
           shadow_target->texture_handle);
+        const swr::texture_filter filter =
+          current_shadow_map_binding->linear_filter
+            ? swr::texture_filter::linear
+            : swr::texture_filter::nearest;
+        swr::SetTextureMinificationFilter(filter);
+        swr::SetTextureMagnificationFilter(filter);
     }
     current_bound_texture_count = std::max(
       texture_count,
@@ -569,9 +583,7 @@ void RenderDevice::begin_shadow_map_pass(ShadowMapHandle handle)
       swr::framebuffer_target::draw,
       target->framebuffer_handle);
     swr::SetViewport(0, 0, target->width, target->height);
-    swr::SetClearColor(1.f, 1.f, 1.f, 1.f);
     swr::SetClearDepth(1.f);
-    swr::ClearColorBuffer();
     swr::ClearDepthBuffer();
     swr::SetState(swr::state::depth_test, true);
     swr::SetState(swr::state::depth_write, true);

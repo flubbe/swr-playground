@@ -58,7 +58,7 @@ set(SWR_ENABLE_MULTI_THREADING ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG bcb94ad
+    GIT_TAG e988fc5
 )
 set(FETCHCONTENT_UPDATES_DISCONNECTED_SWR_SRC OFF)
 FetchContent_MakeAvailable(swr_src)

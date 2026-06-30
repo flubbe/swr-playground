@@ -37,4 +37,5 @@ struct ShadowMapBinding
     ShadowMapHandle handle{0};
     ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
     float depth_bias{0.0015f};
+    bool linear_filter{false};
 };

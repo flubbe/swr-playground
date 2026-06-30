@@ -182,7 +182,12 @@ void draw_tools_panel(
         }
 
         {
-            const char* pcf_modes[] = {"Off", "3x3 Nearest", "3x3 Bilinear"};
+            const char* pcf_modes[] = {
+              "Off",
+              "Legacy 3x3 Nearest",
+              "Legacy Bilinear",
+              "Modern 3x3 Nearest",
+              "Modern 3x3 Bilinear"};
             int pcf_mode_int = static_cast<int>(renderer.get_shadow_pcf_mode());
             if(ImGui::Combo("Shadow PCF Mode", &pcf_mode_int, pcf_modes, IM_ARRAYSIZE(pcf_modes)))
             {
