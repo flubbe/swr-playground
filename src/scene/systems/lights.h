@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 #include "ml/all.h"
 
@@ -46,7 +47,7 @@ class LightSystem final : public SceneSystem
       float angle,
       float pitch_radians)
     {
-        return ml::matrices::rotation_y(angle + static_cast<float>(M_PI))
+        return ml::matrices::rotation_y(angle + std::numbers::pi_v<float>)
                * ml::matrices::rotation_x(pitch_radians);
     }
 
@@ -75,13 +76,12 @@ public:
             const float phase_offset =
               (light_index == 0)
                 ? 0.f
-                : static_cast<float>(M_PI);
+                : std::numbers::pi_v<float>;
             const float angle = scene.get_time() * orbit_speed + phase_offset;
             light.set_transform(make_orbit_orientation(angle, orbit_pitch_radians));
-            light.set_position({
-              (orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
-              orbit_height + static_cast<float>(light_index) * 2.f,
-              (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
+            light.set_position({(orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
+                                orbit_height + static_cast<float>(light_index) * 2.f,
+                                (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
         }
 
         auto spot_lights = scene.get_spot_lights();
@@ -90,7 +90,7 @@ public:
             SpotLight& light = *spot_lights[light_index];
             const float phase_offset =
               static_cast<float>(light_index)
-              * (2.f * static_cast<float>(M_PI)
+              * (2.f * std::numbers::pi_v<float>
                  / std::max<std::size_t>(spot_lights.size(), 1));
             const float angle =
               scene.get_time() * spot_orbit_speed + phase_offset;

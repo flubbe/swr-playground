@@ -104,14 +104,14 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     StaticMesh* mesh = scene.add_object<StaticMesh>(
       std::vector{
         MeshSection{
-          .mesh_handle = 12,
-          .material_handle = 34}});
+          .mesh_handle = {.value = 12},
+          .material_handle = {.value = 34}}});
     ASSERT_NE(mesh, nullptr);
 
     EXPECT_TRUE(mesh->is_a<StaticMesh>());
     ASSERT_EQ(mesh->get_mesh_sections().size(), 1U);
-    EXPECT_EQ(mesh->get_mesh_sections()[0].mesh_handle, 12U);
-    EXPECT_EQ(mesh->get_mesh_sections()[0].material_handle, 34U);
+    EXPECT_EQ(mesh->get_mesh_sections()[0].mesh_handle, MeshHandle{.value = 12U});
+    EXPECT_EQ(mesh->get_mesh_sections()[0].material_handle, MaterialHandle{.value = 34U});
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
 
@@ -125,8 +125,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
           .mesh_sections =
             {
               MeshSection{
-                .mesh_handle = 10,
-                .material_handle = 20,
+                .mesh_handle = {.value = 10},
+                .material_handle = {.value = 20},
               },
             },
           .min_screen_height = 0.4f,
@@ -135,8 +135,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
           .mesh_sections =
             {
               MeshSection{
-                .mesh_handle = 11,
-                .material_handle = 21,
+                .mesh_handle = {.value = 11},
+                .material_handle = {.value = 21},
               },
             },
           .min_screen_height = 0.15f,
@@ -145,8 +145,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
           .mesh_sections =
             {
               MeshSection{
-                .mesh_handle = 12,
-                .material_handle = 22,
+                .mesh_handle = {.value = 12},
+                .material_handle = {.value = 22},
               },
             },
           .min_screen_height = 0.f,
@@ -172,8 +172,8 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
     StaticMesh mesh{
       std::vector{
         MeshSection{
-          .mesh_handle = 10,
-          .material_handle = 20,
+          .mesh_handle = {.value = 10},
+          .material_handle = {.value = 20},
         },
       },
       bounds};
@@ -196,8 +196,8 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     StaticMesh* mesh = scene.add_object<StaticMesh>(
       std::vector{
         MeshSection{
-          .mesh_handle = 56,
-          .material_handle = 78}});
+          .mesh_handle = {.value = 56},
+          .material_handle = {.value = 78}}});
     ASSERT_NE(mesh, nullptr);
 
     int mutable_visit_count = 0;

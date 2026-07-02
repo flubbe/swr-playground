@@ -74,7 +74,7 @@ std::array<ml::vec3, 16> make_benchmark_positions()
     for(std::size_t index = 0; index < positions.size(); ++index)
     {
         const float yaw = static_cast<float>(index)
-                          * (2.f * static_cast<float>(M_PI) / positions.size());
+                          * (2.f * std::numbers::pi_v<float> / positions.size());
         positions[index] = {
           std::cos(yaw) * benchmark_distance,
           benchmark_height,
@@ -209,8 +209,8 @@ float estimate_sort_depth(
 struct DrawSubmission
 {
     float sort_depth{0.f};
-    std::uint32_t mesh_handle{0};
-    std::uint32_t material_handle{0};
+    MeshHandle mesh_handle{};
+    MaterialHandle material_handle{};
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
     ml::mat4x4 view_from_mesh;
     ShadowMapBinding shadow_map;
@@ -218,7 +218,7 @@ struct DrawSubmission
 
 struct ShadowCasterSubmission
 {
-    std::uint32_t mesh_handle{0};
+    MeshHandle mesh_handle{};
     ml::mat4x4 light_view_from_mesh;
 };
 
@@ -455,15 +455,15 @@ void Renderer::create_grid_mesh()
 
 void Renderer::release_grid_mesh()
 {
-    if(overlay_grid.mesh_handle != 0)
+    if(overlay_grid.mesh_handle)
     {
         device.delete_mesh(overlay_grid.mesh_handle);
-        overlay_grid.mesh_handle = 0;
+        overlay_grid.mesh_handle = {};
     }
-    if(overlay_grid.material_handle != 0)
+    if(overlay_grid.material_handle)
     {
         device.delete_material(overlay_grid.material_handle, false);
-        overlay_grid.material_handle = 0;
+        overlay_grid.material_handle = {};
     }
 }
 
@@ -522,15 +522,15 @@ void Renderer::create_spotlight_depth_debug_mesh()
 
 void Renderer::release_spotlight_depth_debug_mesh()
 {
-    if(overlay_spotlight_depth.mesh_handle != 0)
+    if(overlay_spotlight_depth.mesh_handle)
     {
         device.delete_mesh(overlay_spotlight_depth.mesh_handle);
-        overlay_spotlight_depth.mesh_handle = 0;
+        overlay_spotlight_depth.mesh_handle = {};
     }
-    if(overlay_spotlight_depth.material_handle != 0)
+    if(overlay_spotlight_depth.material_handle)
     {
         device.delete_material(overlay_spotlight_depth.material_handle, false);
-        overlay_spotlight_depth.material_handle = 0;
+        overlay_spotlight_depth.material_handle = {};
     }
 }
 
@@ -543,7 +543,7 @@ Renderer::~Renderer()
 
 void Renderer::ensure_shadow_map_resources()
 {
-    if(shadow_map != 0)
+    if(shadow_map)
     {
         return;
     }
@@ -556,10 +556,10 @@ void Renderer::ensure_shadow_map_resources()
 
 void Renderer::release_shadow_map_resources()
 {
-    if(shadow_map != 0)
+    if(shadow_map)
     {
         device.delete_shadow_map(shadow_map);
-        shadow_map = 0;
+        shadow_map = {};
     }
 }
 
@@ -574,7 +574,7 @@ void Renderer::render_shadow_map(const Scene& scene)
     ensure_shadow_map_resources();
 
     auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
-    const std::uint32_t shadow_material = device.create_material(*shadow_shader);
+    const MaterialHandle shadow_material = device.create_material(*shadow_shader);
 
     std::vector<ShadowCasterSubmission> submissions;
     scene.for_each_object<StaticMesh>(
@@ -707,11 +707,16 @@ void Renderer::render_scene(
                   .enabled =
                     shadow_camera.has_value()
                     && static_mesh.receives_shadows
-                    && shadow_map != 0,
+                    && static_cast<bool>(shadow_map),
                   .handle = shadow_map,
                   .clip_from_mesh = shadow_clip_from_mesh,
                   .depth_bias = 0.0008f,
-                  .linear_filter = shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3,
+                  .linear_filter =
+                    shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
+                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4Tap
+                    || shadow_pcf_mode == ShadowPcfMode::Stochastic5Tap
+                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapStable
+                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapInterleaved,
                 },
               });
               ++render_stats.mesh_sections_drawn;
@@ -803,7 +808,7 @@ void Renderer::render_grid(
 
 bool Renderer::render_spotlight_depth_debug()
 {
-    if(shadow_map == 0)
+    if(!shadow_map)
     {
         return false;
     }

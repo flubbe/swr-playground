@@ -16,7 +16,7 @@
 #include "gear.h"
 #include "renderdevice.h"
 
-/** create a gear and upload it to the graphics driver. the code here is adapted from glxgears.c. */
+/** create the gear geometry. the code here is adapted from glxgears.c. */
 GearGeometry make_gear(
   float inner_radius,
   float outer_radius,

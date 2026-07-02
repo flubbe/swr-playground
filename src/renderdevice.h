@@ -151,16 +151,16 @@ class RenderDevice
     swr::context_handle context{nullptr};
 
     /** meshes. */
-    std::unordered_map<std::uint32_t, MeshData> meshes;
+    std::unordered_map<MeshHandle, MeshData> meshes;
 
     /** uploaded mesh data. */
-    std::unordered_map<std::uint32_t, MeshGpuData> mesh_gpu_data;
+    std::unordered_map<MeshHandle, MeshGpuData> mesh_gpu_data;
 
     /** Mesh bounds. */
-    std::unordered_map<std::uint32_t, MeshBounds> mesh_bounds;
+    std::unordered_map<MeshHandle, MeshBounds> mesh_bounds;
 
     /** materials. */
-    std::unordered_map<std::uint32_t, Material> materials;
+    std::unordered_map<MaterialHandle, Material> materials;
 
     /** shadow-map render targets. */
     std::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
@@ -169,7 +169,7 @@ class RenderDevice
     RasterizerState current_rasterizer_state;
     std::size_t current_bound_texture_count{0};
     std::optional<ShadowMapBinding> current_shadow_map_binding;
-    ShadowMapHandle active_shadow_map_pass{0};
+    ShadowMapHandle active_shadow_map_pass{};
 
     void apply_rasterizer_state(const RasterizerState& state);
 
@@ -260,22 +260,22 @@ public:
      * resource management.
      */
 
-    std::uint32_t create_mesh(MeshData mesh);
+    MeshHandle create_mesh(MeshData mesh);
 
     bool update_mesh(
-      std::uint32_t handle,
+      MeshHandle handle,
       MeshData mesh);
 
     [[nodiscard]]
     const MeshBounds* get_mesh_bounds(
-      std::uint32_t handle) const;
+      MeshHandle handle) const;
 
     // FIXME temporary?
     [[nodiscard]]
     std::size_t get_mesh_triangle_count(
-      std::uint32_t handle) const;
+      MeshHandle handle) const;
 
-    void delete_mesh(std::uint32_t handle);
+    void delete_mesh(MeshHandle handle);
 
     std::uint32_t create_texture(
       const assets::ImageRgba8& image);
@@ -288,15 +288,15 @@ public:
 
     void delete_shadow_map(ShadowMapHandle handle);
 
-    std::uint32_t create_material(
+    MaterialHandle create_material(
       const swr::program_base& shader);
 
-    std::uint32_t create_material(
+    MaterialHandle create_material(
       const swr::program_base& shader,
       std::span<const std::uint32_t> texture_handles);
 
     void delete_material(
-      std::uint32_t handle,
+      MaterialHandle handle,
       bool delete_textures = true);
 
     /*
@@ -321,7 +321,7 @@ public:
      */
 
     void bind_rasterizer_state(const RasterizerState& state);
-    void bind_material(std::uint32_t handle);
+    void bind_material(MaterialHandle handle);
     void bind_camera_uniforms(const CameraUniforms& uniforms);
     void bind_lighting_uniforms(const LightingUniforms& uniforms);
     void bind_material_uniforms(const MaterialUniforms& uniforms);
@@ -337,5 +337,5 @@ public:
      * drawing functions.
      */
 
-    void draw_mesh(std::uint32_t handle);
+    void draw_mesh(MeshHandle handle);
 };

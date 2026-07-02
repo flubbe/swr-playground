@@ -505,7 +505,7 @@ struct GearBuildParams
 void expand_mesh_handle_bounds(
   MeshBounds& bounds,
   const RenderDevice& device,
-  std::uint32_t mesh_handle)
+  MeshHandle mesh_handle)
 {
     const MeshBounds* mesh_bounds = device.get_mesh_bounds(mesh_handle);
     if(mesh_bounds != nullptr)
@@ -718,7 +718,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
     {
         auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
 
-        const std::uint32_t material = device.create_material(*shader);
+        const MaterialHandle material = device.create_material(*shader);
 
         const StaticMeshLodBuildResult lod_build_result =
           lod_builder.build(
@@ -742,7 +742,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
               stats.queued_edges,
               stats.boundary_vertices);
 
-            const std::uint32_t mesh_handle =
+            const MeshHandle mesh_handle =
               device.create_mesh(std::move(lod_mesh.mesh));
             expand_mesh_handle_bounds(
               result_lods[lod_index].bounds,
@@ -879,7 +879,7 @@ void try_add_textured_floor(
 
     std::optional<std::uint32_t> diffuse_texture;
     std::optional<std::uint32_t> normal_texture;
-    std::optional<std::uint32_t> mesh_handle;
+    std::optional<MeshHandle> mesh_handle;
 
     try
     {
@@ -904,7 +904,7 @@ void try_add_textured_floor(
         const std::array<std::uint32_t, 2> textures = {
           *diffuse_texture,
           *normal_texture};
-        const std::uint32_t material_handle = device.create_material(
+        const MaterialHandle material_handle = device.create_material(
           *shader,
           textures);
         if(out_texture_handles != nullptr)
@@ -994,8 +994,8 @@ void rebuild_gear_mesh_if_needed(
       teeth,
       gear->get_tooth_depth());
 
-    const std::uint32_t old_inner_mesh = old_mesh_sections[0].mesh_handle;
-    const std::uint32_t old_outer_mesh = old_mesh_sections[1].mesh_handle;
+    const MeshHandle old_inner_mesh = old_mesh_sections[0].mesh_handle;
+    const MeshHandle old_outer_mesh = old_mesh_sections[1].mesh_handle;
 
     const bool inner_updated = device.update_mesh(
       old_inner_mesh,

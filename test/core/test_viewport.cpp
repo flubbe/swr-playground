@@ -20,6 +20,29 @@ void ensure_scene_reflection_ready()
     initialized = true;
 }
 
+void expect_matrix_near(
+  const ml::mat4x4& actual,
+  const ml::mat4x4& expected,
+  float epsilon = 1e-5f)
+{
+    EXPECT_NEAR(actual.rows[0].x, expected.rows[0].x, epsilon);
+    EXPECT_NEAR(actual.rows[0].y, expected.rows[0].y, epsilon);
+    EXPECT_NEAR(actual.rows[0].z, expected.rows[0].z, epsilon);
+    EXPECT_NEAR(actual.rows[0].w, expected.rows[0].w, epsilon);
+    EXPECT_NEAR(actual.rows[1].x, expected.rows[1].x, epsilon);
+    EXPECT_NEAR(actual.rows[1].y, expected.rows[1].y, epsilon);
+    EXPECT_NEAR(actual.rows[1].z, expected.rows[1].z, epsilon);
+    EXPECT_NEAR(actual.rows[1].w, expected.rows[1].w, epsilon);
+    EXPECT_NEAR(actual.rows[2].x, expected.rows[2].x, epsilon);
+    EXPECT_NEAR(actual.rows[2].y, expected.rows[2].y, epsilon);
+    EXPECT_NEAR(actual.rows[2].z, expected.rows[2].z, epsilon);
+    EXPECT_NEAR(actual.rows[2].w, expected.rows[2].w, epsilon);
+    EXPECT_NEAR(actual.rows[3].x, expected.rows[3].x, epsilon);
+    EXPECT_NEAR(actual.rows[3].y, expected.rows[3].y, epsilon);
+    EXPECT_NEAR(actual.rows[3].z, expected.rows[3].z, epsilon);
+    EXPECT_NEAR(actual.rows[3].w, expected.rows[3].w, epsilon);
+}
+
 }    // namespace
 
 TEST(ViewportTests, DefaultsToLocalCamera)
@@ -137,4 +160,36 @@ TEST(ViewportTests, EditorCameraViewIsOwnedByViewportLocalCamera)
     EXPECT_STREQ(
       to_string(EditorCameraView::Orthographic).data(),
       "Orthographic");
+}
+
+TEST(ViewportTests, TopViewLooksStraightDownInOrbitMode)
+{
+    Viewport viewport;
+
+    viewport.set_editor_camera_view(EditorCameraView::Top);
+
+    const ml::mat4x4 expected = ml::matrices::look_at(
+      {0.f, 40.f, 0.f},
+      {0.f, 0.f, 0.f},
+      {0.f, 0.f, -1.f});
+    expect_matrix_near(
+      viewport.get_local_camera().get_transform(),
+      expected);
+}
+
+TEST(ViewportTests, TopViewRemainsStableWhenSwitchingToFpsMode)
+{
+    Viewport viewport;
+
+    viewport.set_editor_camera_view(EditorCameraView::Top);
+    viewport.set_navigation_mode(ViewportNavigationMode::Fps);
+    viewport.update_editor_camera(1.f / 60.f, {});
+
+    const ml::mat4x4 expected = ml::matrices::look_at(
+      {0.f, 40.f, 0.f},
+      {0.f, 39.f, 0.f},
+      {0.f, 0.f, -1.f});
+    expect_matrix_near(
+      viewport.get_local_camera().get_transform(),
+      expected);
 }

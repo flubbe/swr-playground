@@ -92,11 +92,15 @@ struct ComparativeBenchmarkState
 /** Shadow map PCF filtering mode. */
 enum class ShadowPcfMode : int
 {
-    Off = 0,              /** No PCF filtering. */
-    LegacyNearest3x3 = 1, /** Legacy 3x3 PCF with nearest-neighbor depth compares. */
-    LegacyBilinear = 2,   /** Legacy single bilinear depth compare. */
-    ModernNearest3x3 = 3, /** Shadow-sampler 3x3 PCF with nearest compare filtering. */
-    ModernBilinear3x3 = 4 /** Shadow-sampler 3x3 PCF with bilinear compare filtering. */
+    Off = 0,               /** No PCF filtering. */
+    LegacyNearest3x3 = 1,  /** Legacy 3x3 PCF with nearest-neighbor depth compares. */
+    LegacyBilinear = 2,    /** Legacy single bilinear depth compare. */
+    ModernNearest3x3 = 3,  /** Shadow-sampler 3x3 PCF with nearest compare filtering. */
+    ModernBilinear3x3 = 4, /** Shadow-sampler 3x3 PCF with bilinear compare filtering. */
+    Stochastic4Tap = 5,    /** Four jittered shadow-sampler taps for cheaper soft shadows. */
+    Stochastic5Tap = 6,    /** Four jittered taps plus a center tap for slightly higher quality. */
+    Stochastic4TapStable = 7, /** Four jittered taps with shadow-texel-stable rotation. */
+    Stochastic4TapInterleaved = 8 /** Four jittered taps with an interleaved rotation pattern. */
 };
 
 class Renderer final
@@ -121,7 +125,7 @@ class Renderer final
 
     MeshSection overlay_grid;
     MeshSection overlay_spotlight_depth;
-    ShadowMapHandle shadow_map{0};
+    ShadowMapHandle shadow_map{};
 
     void create_grid_mesh();
     void release_grid_mesh();

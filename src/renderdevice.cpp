@@ -92,17 +92,17 @@ void RenderDevice::resize(
     }
 }
 
-std::uint32_t RenderDevice::create_mesh(
+MeshHandle RenderDevice::create_mesh(
   MeshData mesh)
 {
     const MeshBounds bounds = calculate_mesh_bounds(mesh);
 
-    std::uint32_t mesh_id = 0;
+    MeshHandle mesh_id{1};
     while(meshes.contains(mesh_id)
           || mesh_gpu_data.contains(mesh_id)
           || mesh_bounds.contains(mesh_id))
     {
-        ++mesh_id;
+        ++mesh_id.value;
     }
 
     MeshGpuData gpu_data{
@@ -123,7 +123,7 @@ std::uint32_t RenderDevice::create_mesh(
 }
 
 bool RenderDevice::update_mesh(
-  std::uint32_t handle,
+  MeshHandle handle,
   MeshData mesh)
 {
     auto mesh_it = meshes.find(handle);
@@ -155,7 +155,7 @@ bool RenderDevice::update_mesh(
 }
 
 const MeshBounds* RenderDevice::get_mesh_bounds(
-  std::uint32_t handle) const
+  MeshHandle handle) const
 {
     auto it = mesh_bounds.find(handle);
     if(it == mesh_bounds.end())
@@ -167,7 +167,7 @@ const MeshBounds* RenderDevice::get_mesh_bounds(
 }
 
 std::size_t RenderDevice::get_mesh_triangle_count(
-  std::uint32_t handle) const
+  MeshHandle handle) const
 {
     const auto mesh_it = meshes.find(handle);
     if(mesh_it == meshes.end()
@@ -179,7 +179,7 @@ std::size_t RenderDevice::get_mesh_triangle_count(
     return mesh_it->second.indices.size() / 3;
 }
 
-void RenderDevice::delete_mesh(std::uint32_t handle)
+void RenderDevice::delete_mesh(MeshHandle handle)
 {
     auto gpu_it = mesh_gpu_data.find(handle);
     if(gpu_it != mesh_gpu_data.end())
@@ -310,10 +310,10 @@ ShadowMapHandle RenderDevice::create_shadow_map(
         throw std::runtime_error{"Unable to attach shadow-map depth texture"};
     }
 
-    ShadowMapHandle handle = 1;
+    ShadowMapHandle handle{1};
     while(shadow_map_targets.contains(handle))
     {
-        ++handle;
+        ++handle.value;
     }
 
     shadow_map_targets.emplace(handle, gpu_data);
@@ -351,7 +351,7 @@ void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
     shadow_map_targets.erase(it);
 }
 
-std::uint32_t RenderDevice::create_material(
+MaterialHandle RenderDevice::create_material(
   const swr::program_base& shader)
 {
     return create_material(
@@ -359,7 +359,7 @@ std::uint32_t RenderDevice::create_material(
       std::span<const std::uint32_t>{});
 }
 
-std::uint32_t RenderDevice::create_material(
+MaterialHandle RenderDevice::create_material(
   const swr::program_base& shader,
   std::span<const std::uint32_t> texture_handles)
 {
@@ -369,10 +369,10 @@ std::uint32_t RenderDevice::create_material(
         throw std::runtime_error{"Unable to register shader"};
     }
 
-    std::uint32_t material_id = 0;
+    MaterialHandle material_id{1};
     while(materials.contains(material_id))
     {
-        ++material_id;
+        ++material_id.value;
     }
 
     materials.insert({material_id,
@@ -385,7 +385,7 @@ std::uint32_t RenderDevice::create_material(
 }
 
 void RenderDevice::delete_material(
-  std::uint32_t handle,
+  MaterialHandle handle,
   bool delete_textures)
 {
     auto it = materials.find(handle);
@@ -420,7 +420,7 @@ void RenderDevice::bind_rasterizer_state(
     apply_rasterizer_state(current_rasterizer_state);
 }
 
-void RenderDevice::bind_material(std::uint32_t handle)
+void RenderDevice::bind_material(MaterialHandle handle)
 {
     auto it = materials.find(handle);
     if(it == materials.end())
@@ -542,7 +542,7 @@ void RenderDevice::bind_material_uniforms(const MaterialUniforms& uniforms)
 void RenderDevice::bind_shadow_map(const ShadowMapBinding& binding)
 {
     if(binding.enabled
-       && binding.handle != 0
+       && binding.handle
        && find_shadow_map_target(binding.handle) != nullptr)
     {
         current_shadow_map_binding = binding;
@@ -596,7 +596,7 @@ void RenderDevice::begin_shadow_map_pass(ShadowMapHandle handle)
 
 void RenderDevice::end_shadow_map_pass()
 {
-    if(active_shadow_map_pass == 0)
+    if(!active_shadow_map_pass)
     {
         return;
     }
@@ -606,10 +606,10 @@ void RenderDevice::end_shadow_map_pass()
     swr::SetViewport(0, 0, width, height);
     swr::SetClearColor(0.f, 0.f, 0.f, 1.f);
     apply_rasterizer_state(current_rasterizer_state);
-    active_shadow_map_pass = 0;
+    active_shadow_map_pass = {};
 }
 
-void RenderDevice::draw_mesh(std::uint32_t handle)
+void RenderDevice::draw_mesh(MeshHandle handle)
 {
     auto it = meshes.find(handle);
     auto gpu_it = mesh_gpu_data.find(handle);

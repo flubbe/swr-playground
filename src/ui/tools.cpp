@@ -187,7 +187,11 @@ void draw_tools_panel(
               "Legacy 3x3 Nearest",
               "Legacy Bilinear",
               "Modern 3x3 Nearest",
-              "Modern 3x3 Bilinear"};
+              "Modern 3x3 Bilinear",
+              "Stochastic 4-Tap",
+              "Stochastic 5-Tap",
+              "Stochastic 4-Tap Stable",
+              "Stochastic 4-Tap Interleaved"};
             int pcf_mode_int = static_cast<int>(renderer.get_shadow_pcf_mode());
             if(ImGui::Combo("Shadow PCF Mode", &pcf_mode_int, pcf_modes, IM_ARRAYSIZE(pcf_modes)))
             {

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <numbers>
 
 #include "ml/all.h"
 
@@ -29,7 +30,7 @@ class Camera
     CameraProjectionMode projection_mode{CameraProjectionMode::Perspective};
 
     /** Vertical field-of-view in radians. */
-    float fov_y{static_cast<float>(M_PI) / 8.f};
+    float fov_y{std::numbers::pi_v<float> / 8.f};
 
     /** Orthographic view height. */
     float orthographic_height{40.f};

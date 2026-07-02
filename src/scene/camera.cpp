@@ -25,7 +25,7 @@ void Camera::register_properties(reflect::ClassInfo& class_info)
 {
     reflect::RangeConstraint<float> fov_constraints{};
     fov_constraints.min = 0.1;
-    fov_constraints.max = M_PI;
+    fov_constraints.max = std::numbers::pi_v<float>;
     fov_constraints.clamp = true;
 
     reflect::RangeConstraint<float> orthographic_height_constraints{};
@@ -98,8 +98,8 @@ void Camera::update_projection_matrix(float aspect_ratio)
           half_width,
           -half_height,
           half_height,
-          -near_plane,
-          -far_plane);
+          near_plane,
+          far_plane);
     }
     else
     {
