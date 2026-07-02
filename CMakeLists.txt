@@ -144,6 +144,25 @@ if(NOT TARGET assimp::assimp)
 endif()
 
 #
+# Playground options.
+#
+add_library(swr_playground_options INTERFACE)
+
+target_compile_features(swr_playground_options INTERFACE cxx_std_23)
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    target_compile_options(swr_playground_options INTERFACE
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-msse4.1>
+    )
+endif()
+
+if(MSVC)
+    target_compile_options(swr_playground_options INTERFACE /W4)
+else()
+    target_compile_options(swr_playground_options INTERFACE -Wall -Wextra)
+endif()
+
+#
 # Playground executable
 #
 add_executable(swr_playground
@@ -178,19 +197,8 @@ add_executable(swr_playground
 
 target_include_directories(swr_playground PRIVATE src)
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
-    target_compile_options(swr_playground PRIVATE
-        -msse
-        -msse2
-        -msse3
-        -msse4
-        -msse4.1
-        -msse4.2
-        -mfpmath=sse
-    )
-endif()
-
 target_link_libraries(swr_playground PRIVATE
+    swr_playground_options
     swrast
     imgui
     Microsoft.GSL::GSL

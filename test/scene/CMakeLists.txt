@@ -12,14 +12,9 @@ target_include_directories(object_tests PRIVATE
 )
 
 target_link_libraries(object_tests PRIVATE
+    swr_playground_options
     GTest::gtest_main
 )
-
-if(MSVC)
-    target_compile_options(object_tests PRIVATE /W4)
-else()
-    target_compile_options(object_tests PRIVATE -Wall -Wextra)
-endif()
 
 include(GoogleTest)
 gtest_discover_tests(object_tests)

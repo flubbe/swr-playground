@@ -90,7 +90,7 @@ TEST(MeshTests, MeshSimplifierLeavesLinesUnchanged)
           {0.f, 1.f, 0.f, 0.f},
           {0.f, 1.f, 0.f, 0.f},
         },
-    };
+      .texcoords = {}};
 
     MeshSimplifier simplifier;
     const MeshData lod = simplifier.simplify(
