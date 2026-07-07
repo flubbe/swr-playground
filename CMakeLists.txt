@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
+
+# Use Boost package config mode; FindBoost is removed in newer CMake versions.
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(swr_playground LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -15,6 +21,7 @@ set(BUILD_TESTING OFF)
 set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
 
 find_package(OpenGL REQUIRED)
+find_package(Boost CONFIG REQUIRED)
 
 #
 # Guidelines Support Library
@@ -149,6 +156,16 @@ endif()
 add_library(swr_playground_options INTERFACE)
 
 target_compile_features(swr_playground_options INTERFACE cxx_std_23)
+
+if(TARGET Boost::headers)
+    target_link_libraries(swr_playground_options INTERFACE Boost::headers)
+elseif(TARGET Boost::boost)
+    target_link_libraries(swr_playground_options INTERFACE Boost::boost)
+else()
+    message(FATAL_ERROR
+        "Boost was found in CONFIG mode, but neither Boost::headers nor Boost::boost is available."
+    )
+endif()
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
     target_compile_options(swr_playground_options INTERFACE

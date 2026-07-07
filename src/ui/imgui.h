@@ -20,6 +20,7 @@
  */
 
 struct ImGuiIO;
+struct ImFont;
 class RenderDevice;
 class Renderer;
 class Scene;
@@ -53,14 +54,19 @@ bool init(
 /** Shut down ImGui. */
 void shutdown();
 
-void draw_main_dockspace(
-  bool& running);
+/** Smaller UI font for compact controls. */
+ImFont* get_small_ui_font();
+
+/** Monospace font for console/log output. */
+ImFont* get_console_monospace_font();
+
+void draw_main_dockspace();
 
 void draw_console_panel(
   logging::BufferedLogDevice& log_device);
 
 void draw_tools_panel(
-  Application& app,
+  class Application& app,
   RenderDevice& render_device,
   Viewport& viewport,
   Scene& scene,

@@ -13,11 +13,16 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "application.h"
 #include "logging.h"
 #include "ui/imgui.h"
 
 namespace
 {
+
+// FIXME Should not be global.
+ImFont* small_ui_font = nullptr;
+ImFont* console_monospace_font = nullptr;
 
 void apply_editor_theme()
 {
@@ -109,6 +114,24 @@ void load_fonts()
         throw std::runtime_error{"Unable to load font."};
     }
 
+    small_ui_font = io.Fonts->AddFontFromFileTTF(
+      "assets/fonts/inter/Inter-Regular.ttf",
+      14.0f,
+      &cfg);
+    if(small_ui_font == nullptr)
+    {
+        small_ui_font = font;
+    }
+
+    console_monospace_font = io.Fonts->AddFontFromFileTTF(
+      "assets/fonts/source-code-pro/SourceCodePro-Regular.ttf",
+      14.0f,
+      &cfg);
+    if(console_monospace_font == nullptr)
+    {
+        console_monospace_font = font;
+    }
+
     io.FontGlobalScale = 1.0f;
 }
 
@@ -197,6 +220,16 @@ void shutdown()
     ImGui::DestroyContext();
 }
 
+ImFont* get_small_ui_font()
+{
+    return small_ui_font;
+}
+
+ImFont* get_console_monospace_font()
+{
+    return console_monospace_font;
+}
+
 /**
  * Helper for deferring ImGui window focus requests across multiple frames.
  *
@@ -250,7 +283,7 @@ struct DeferredWindowFocus
     }
 };
 
-void draw_main_dockspace(bool& running)
+void draw_main_dockspace()
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
@@ -281,7 +314,9 @@ void draw_main_dockspace(bool& running)
         {
             if(ImGui::MenuItem("Quit", nullptr, false, true))
             {
-                running = false;
+                SDL_Event quit_event{};
+                quit_event.type = SDL_EVENT_QUIT;
+                SDL_PushEvent(&quit_event);
             }
             ImGui::EndMenu();
         }
