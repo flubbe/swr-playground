@@ -1396,7 +1396,7 @@ void Application::run()
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        imgui::draw_main_dockspace(running);
+        imgui::draw_main_dockspace();
         imgui_draw_viewport_panel(
           render_device,
           renderer,
