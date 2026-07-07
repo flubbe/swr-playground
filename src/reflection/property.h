@@ -650,7 +650,7 @@ std::unique_ptr<Property> construct_member(
  * @param label Display name / label (e.g. for UI/editor).
  * @param flags Static property flags.
  * @param constraint Constraint for the property values.
- * @return A unique pointer to the constructed property.
+ * @returns A unique pointer to the constructed property.
  *
  * @throws `instance_error` If `obj` is `nullptr`.
  * @throws `instance_error` If `obj` does not point to a compatible owner type.

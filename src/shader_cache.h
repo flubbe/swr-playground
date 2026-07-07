@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "swr/shaders.h"
+#include <swr/shaders.h>
 
 using ShaderCacheKey = void*;
 

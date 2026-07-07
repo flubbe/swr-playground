@@ -18,9 +18,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ml/all.h"
-#include "swr/swr.h"
-#include "swr/shaders.h"
+#include <ml/all.h>
+#include <swr/swr.h>
+#include <swr/shaders.h>
 
 #include "assets/texture.h"
 #include "mesh.h"

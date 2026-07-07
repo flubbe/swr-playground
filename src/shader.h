@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * shaders.
+ * Shaders.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -16,9 +16,10 @@
 #include <cmath>
 #include <numbers>
 
+#include <swr/swr.h>
+#include <swr/shaders.h>
+
 #include "shader_constants.h"
-#include "swr/swr.h"
-#include "swr/shaders.h"
 
 namespace shader
 {
@@ -142,10 +143,22 @@ inline float interleaved_shadow_rotation(
   int texel_y)
 {
     static constexpr std::array<float, 16> rotation_steps{{
-      0.f / 16.f,  8.f / 16.f,  2.f / 16.f, 10.f / 16.f,
-      12.f / 16.f, 4.f / 16.f, 14.f / 16.f, 6.f / 16.f,
-      3.f / 16.f, 11.f / 16.f, 1.f / 16.f,  9.f / 16.f,
-      15.f / 16.f, 7.f / 16.f, 13.f / 16.f, 5.f / 16.f,
+      0.f / 16.f,
+      8.f / 16.f,
+      2.f / 16.f,
+      10.f / 16.f,
+      12.f / 16.f,
+      4.f / 16.f,
+      14.f / 16.f,
+      6.f / 16.f,
+      3.f / 16.f,
+      11.f / 16.f,
+      1.f / 16.f,
+      9.f / 16.f,
+      15.f / 16.f,
+      7.f / 16.f,
+      13.f / 16.f,
+      5.f / 16.f,
     }};
 
     const int pattern_x = texel_x & 3;
