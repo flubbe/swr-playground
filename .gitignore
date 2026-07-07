@@ -3,6 +3,7 @@
 /.vscode
 
 /build
+/logs
 /out
 
 CMakePresets.json
