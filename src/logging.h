@@ -52,6 +52,32 @@ struct LogRecord
 
     std::string timestamp_short; /** Formatted short form timestamp (lazy). */
     std::string display_line;    /** Display-ready log line (lazy). */
+
+    /** Constructors. */
+    LogRecord() = default;
+    LogRecord(const LogRecord&) = default;
+    LogRecord(LogRecord&&) = default;
+
+    /**
+     * Initialize a log record with label, level and message.
+     *
+     * @param label Label.
+     * @param level Log level.
+     * @param message Logged message.
+     */
+    LogRecord(
+      std::string_view label,
+      LogLevel level,
+      std::string_view message)
+    : label{label}
+    , level{level}
+    , message{message}
+    {
+    }
+
+    /** Assignments. */
+    LogRecord& operator=(const LogRecord&) = default;
+    LogRecord& operator=(LogRecord&&) = default;
 };
 
 /** Return the log level as a readable string. */
@@ -125,10 +151,9 @@ public:
     {
         write(
           LogRecord{
-            .label = std::string{default_logger_label},
-            .level = LogLevel::Log,
-            .message = std::vformat(format, args),
-          });
+            default_logger_label,
+            LogLevel::Log,
+            std::vformat(format, args)});
     }
 
     /**
@@ -157,9 +182,9 @@ public:
     {
         write(
           LogRecord{
-            .label = std::string{default_logger_label},
-            .level = LogLevel::Warn,
-            .message = std::vformat(format, args),
+            default_logger_label,
+            LogLevel::Warn,
+            std::vformat(format, args),
           });
     }
 
@@ -189,9 +214,9 @@ public:
     {
         write(
           LogRecord{
-            .label = std::string{default_logger_label},
-            .level = LogLevel::Error,
-            .message = std::vformat(format, args),
+            default_logger_label,
+            LogLevel::Error,
+            std::vformat(format, args),
           });
     }
 
@@ -264,9 +289,9 @@ public:
     {
         log_device.write(
           LogRecord{
-            .label = label,
-            .level = LogLevel::Log,
-            .message = std::vformat(format, args),
+            label,
+            LogLevel::Log,
+            std::vformat(format, args),
           });
     }
 
@@ -296,9 +321,9 @@ public:
     {
         log_device.write(
           LogRecord{
-            .label = label,
-            .level = LogLevel::Warn,
-            .message = std::vformat(format, args),
+            label,
+            LogLevel::Warn,
+            std::vformat(format, args),
           });
     }
 
@@ -328,9 +353,9 @@ public:
     {
         log_device.write(
           LogRecord{
-            .label = label,
-            .level = LogLevel::Error,
-            .message = std::vformat(format, args),
+            label,
+            LogLevel::Error,
+            std::vformat(format, args),
           });
     }
 

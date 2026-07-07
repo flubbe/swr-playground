@@ -104,9 +104,9 @@ LogRecord make_dropped_record(
 {
     return prepare_record(
       LogRecord{
-        .label = "FileLogDevice",
-        .level = LogLevel::Warn,
-        .message = std::format(
+        "FileLogDevice",
+        LogLevel::Warn,
+        std::format(
           "Dropped {} log records due to file logging backpressure.",
           dropped_records),
       });
@@ -118,9 +118,9 @@ LogRecord make_lifecycle_record(
 {
     return prepare_record(
       LogRecord{
-        .label = std::string{default_logger_label},
-        .level = LogLevel::Log,
-        .message = std::string{message},
+        default_logger_label,
+        LogLevel::Log,
+        message,
       });
 }
 
@@ -208,9 +208,9 @@ void BufferedLogDevice::log_n(
   std::string_view message)
 {
     LogRecord record{
-      .label = std::string{default_logger_label},
-      .level = LogLevel::Log,
-      .message = std::string{message},
+      default_logger_label,
+      LogLevel::Log,
+      message,
     };
 
     write_record(record);
