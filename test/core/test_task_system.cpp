@@ -318,3 +318,91 @@ TEST(TaskSystemTests, SubmitTaskSpecsSkippedTaskUnblocksDependents)
     EXPECT_EQ(execution_order[0], 1u);
     EXPECT_EQ(execution_order[1], 2u);
 }
+
+TEST(TaskSystemTests, SubmitTaskSpecsFailureDoesNotPoisonSubsequentSubmissions)
+{
+    TaskSystem task_system{4};
+
+    std::atomic<bool> first_task_ran{false};
+    std::atomic<bool> trailing_task_ran{false};
+    std::atomic<bool> second_submission_task_ran{false};
+
+    std::vector<TaskSpec> failing_tasks;
+    failing_tasks.reserve(3);
+
+    failing_tasks.push_back(TaskSpec{
+      .name = "First Task",
+      .weight = 1.f,
+      .run = [&](TaskExecutionContext&)
+      {
+          first_task_ran.store(true, std::memory_order_relaxed);
+      },
+    });
+
+    failing_tasks.push_back(TaskSpec{
+      .name = "Failing Task",
+      .weight = 1.f,
+      .dependencies = {0},
+      .run = [&](TaskExecutionContext&)
+      {
+          throw std::runtime_error{"Synthetic failure in first submission"};
+      },
+    });
+
+    failing_tasks.push_back(TaskSpec{
+      .name = "Trailing Task",
+      .weight = 1.f,
+      .dependencies = {1},
+      .run = [&](TaskExecutionContext&)
+      {
+          trailing_task_ran.store(true, std::memory_order_relaxed);
+      },
+    });
+
+    auto failing_submission = task_system.submit_task_specs(std::move(failing_tasks));
+    ASSERT_TRUE(failing_submission.future.valid());
+
+    try
+    {
+        failing_submission.future.get();
+        FAIL() << "Expected runtime_error from failing task";
+    }
+    catch(const std::runtime_error& e)
+    {
+        EXPECT_STREQ(e.what(), "Synthetic failure in first submission");
+    }
+    catch(...)
+    {
+        FAIL() << "Expected std::runtime_error";
+    }
+
+    EXPECT_TRUE(first_task_ran.load(std::memory_order_relaxed));
+    EXPECT_FALSE(trailing_task_ran.load(std::memory_order_relaxed));
+
+    const TaskGroupSnapshot failing_snapshot = failing_submission.handle.snapshot();
+    ASSERT_EQ(failing_snapshot.tasks.size(), 3u);
+    EXPECT_EQ(failing_snapshot.tasks[0].state, TaskState::Completed);
+    EXPECT_EQ(failing_snapshot.tasks[1].state, TaskState::Failed);
+    EXPECT_EQ(failing_snapshot.tasks[2].state, TaskState::Cancelled);
+
+    std::vector<TaskSpec> succeeding_tasks;
+    succeeding_tasks.push_back(TaskSpec{
+      .name = "Recovery Task",
+      .weight = 1.f,
+      .run = [&](TaskExecutionContext&)
+      {
+          second_submission_task_ran.store(true, std::memory_order_relaxed);
+      },
+    });
+
+    auto succeeding_submission = task_system.submit_task_specs(std::move(succeeding_tasks));
+    ASSERT_TRUE(succeeding_submission.future.valid());
+
+    EXPECT_NO_THROW(succeeding_submission.future.get());
+    EXPECT_TRUE(second_submission_task_ran.load(std::memory_order_relaxed));
+
+    const TaskGroupSnapshot succeeding_snapshot = succeeding_submission.handle.snapshot();
+    ASSERT_EQ(succeeding_snapshot.tasks.size(), 1u);
+    EXPECT_EQ(succeeding_snapshot.tasks[0].state, TaskState::Completed);
+    EXPECT_FLOAT_EQ(succeeding_snapshot.progress, 1.f);
+}
