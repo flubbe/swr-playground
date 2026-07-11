@@ -1,12 +1,17 @@
 add_executable(core_tests
     test_logging.cpp
     test_mesh.cpp
+    test_task_system.cpp
     test_utils.cpp
     test_viewport.cpp
     test_camera_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh_simplifier.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
@@ -21,6 +26,7 @@ add_executable(core_tests
 
 target_include_directories(core_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
+    ${concurrency_utils_src_SOURCE_DIR}/include
     $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
 )
 

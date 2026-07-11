@@ -151,6 +151,16 @@ if(NOT TARGET assimp::assimp)
 endif()
 
 #
+# Concurrency Utils
+#
+FetchContent_Declare(
+    concurrency_utils_src
+    GIT_REPOSITORY https://github.com/flubbe/concurrency_utils.git
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(concurrency_utils_src)
+
+#
 # Playground options.
 #
 add_library(swr_playground_options INTERFACE)
@@ -162,8 +172,8 @@ if(TARGET Boost::headers)
 elseif(TARGET Boost::boost)
     target_link_libraries(swr_playground_options INTERFACE Boost::boost)
 else()
-    message(FATAL_ERROR
-        "Boost was found in CONFIG mode, but neither Boost::headers nor Boost::boost is available."
+    target_include_directories(swr_playground_options SYSTEM INTERFACE
+        ${Boost_INCLUDE_DIRS}
     )
 endif()
 
@@ -204,15 +214,24 @@ add_executable(swr_playground
     src/application.cpp
     src/logging.cpp
     src/main.cpp
+    src/main_loop.cpp
     src/mesh.cpp
     src/mesh_simplifier.cpp
     src/platform.cpp
     src/renderdevice.cpp
     src/renderer.cpp
+    src/startup_tasks.cpp
+    src/tasks/dag.cpp
+    src/tasks/scheduler.cpp
+    src/tasks/state.cpp
+    src/tasks/task_system.cpp
     src/viewport.cpp
 )
 
-target_include_directories(swr_playground PRIVATE src)
+target_include_directories(swr_playground PRIVATE
+    src
+    ${concurrency_utils_src_SOURCE_DIR}/include
+)
 
 target_link_libraries(swr_playground PRIVATE
     swr_playground_options

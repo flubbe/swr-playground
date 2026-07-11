@@ -1,0 +1,60 @@
+#pragma once
+
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "assets/texture.h"
+#include "mesh.h"
+#include "ml/all.h"
+#include "scene/gear.h"
+
+struct PreparedGearInstance
+{
+    ml::vec4 color;
+    float inner_radius{1.f};
+    float outer_radius{2.f};
+    float width{1.f};
+    int teeth{10};
+    float tooth_depth{0.7f};
+    GearGeometry geometry;
+    ml::mat4x4 transform;
+    ml::vec3 translation;
+    float angular_speed{0.f};
+    float phase_offset{0.f};
+};
+
+struct PreparedFloorData
+{
+    MeshData mesh;
+    assets::ImageRgba8 diffuse_texture;
+    assets::ImageRgba8 normal_texture;
+};
+
+struct PreparedStaticMeshSectionLod
+{
+    MeshData mesh;
+    float min_screen_height{0.f};
+    MeshBounds bounds;
+};
+
+struct PreparedStaticMeshSection
+{
+    ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.f};
+    std::vector<PreparedStaticMeshSectionLod> lods;
+};
+
+struct PreparedStaticMeshAsset
+{
+    std::string name;
+    ml::mat4x4 fit_transform{ml::mat4x4::identity()};
+    std::vector<PreparedStaticMeshSection> sections;
+};
+
+struct PreparedStartupScene
+{
+    std::vector<PreparedGearInstance> gears;
+    std::optional<PreparedFloorData> floor;
+    std::optional<PreparedStaticMeshAsset> sample_mesh;
+    std::vector<std::string> notices;
+};

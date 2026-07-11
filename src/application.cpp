@@ -15,10 +15,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <future>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <imgui.h>
@@ -39,12 +41,141 @@
 #include "renderer.h"
 #include "shader.h"
 #include "shader_cache.h"
+#include "startup_tasks.h"
+#include "startup_scene.h"
+#include "tasks/task_system.h"
 #include "viewport.h"
+
+using task_system::TaskCancelledError;
+using task_system::TaskExecutionContext;
+using task_system::TaskGroupSnapshot;
+using task_system::TaskHandle;
+using task_system::TaskSnapshot;
+using task_system::TaskSpec;
+using task_system::TaskState;
 
 namespace
 {
 
-class SDLError : public std::runtime_error
+struct DisplayProgress
+{
+    std::string status_text;
+    float progress{0.f};
+};
+
+[[nodiscard]]
+std::string task_display_text(const TaskSnapshot& task)
+{
+    if(!task.status_text.empty())
+    {
+        return task.status_text;
+    }
+
+    if(!task.name.empty())
+    {
+        return task.name;
+    }
+
+    switch(task.state)
+    {
+    case TaskState::Queued:
+        return "Queued...";
+    case TaskState::Running:
+        return "Working...";
+    case TaskState::Skipped:
+        return "Skipped.";
+    case TaskState::Completed:
+        return "Done.";
+    case TaskState::Cancelled:
+        return "Cancelled.";
+    case TaskState::Failed:
+        return "Failed.";
+    }
+
+    return "Working...";
+}
+
+[[nodiscard]]
+DisplayProgress summarize_task_display(
+  const std::vector<TaskSnapshot>& tasks,
+  float progress,
+  std::string_view default_status)
+{
+    std::size_t running_count = 0;
+    const TaskSnapshot* running_task = nullptr;
+    const TaskSnapshot* failed_task = nullptr;
+    const TaskSnapshot* cancelled_task = nullptr;
+
+    for(const TaskSnapshot& task: tasks)
+    {
+        if(task.state == TaskState::Failed && failed_task == nullptr)
+        {
+            failed_task = &task;
+        }
+        if(task.state == TaskState::Cancelled && cancelled_task == nullptr)
+        {
+            cancelled_task = &task;
+        }
+        if(task.state == TaskState::Running)
+        {
+            ++running_count;
+            if(running_task == nullptr)
+            {
+                running_task = &task;
+            }
+        }
+    }
+
+    if(failed_task != nullptr)
+    {
+        return DisplayProgress{
+          .status_text = task_display_text(*failed_task),
+          .progress = progress,
+        };
+    }
+
+    if(running_count == 1 && running_task != nullptr)
+    {
+        return DisplayProgress{
+          .status_text = task_display_text(*running_task),
+          .progress = progress,
+        };
+    }
+
+    if(running_count > 1)
+    {
+        return DisplayProgress{
+          .status_text = std::format(
+            "Waiting for {} running tasks...",
+            running_count),
+          .progress = progress,
+        };
+    }
+
+    if(cancelled_task != nullptr)
+    {
+        return DisplayProgress{
+          .status_text = task_display_text(*cancelled_task),
+          .progress = progress,
+        };
+    }
+
+    if(progress >= 1.f)
+    {
+        return DisplayProgress{
+          .status_text = "Done.",
+          .progress = progress,
+        };
+    }
+
+    return DisplayProgress{
+      .status_text = std::string{default_status},
+      .progress = progress,
+    };
+}
+
+class SDLError final
+: public std::runtime_error
 {
 public:
     explicit SDLError(
@@ -210,6 +341,9 @@ bool viewport_contains_mouse_position(
            && y >= viewport_input.viewport_min_y
            && y < viewport_input.viewport_max_y;
 }
+
+void configure_default_directional_lights(Scene& scene);
+void configure_default_spot_lights(Scene& scene);
 
 void imgui_draw_viewport_panel(
   RenderDevice& render_device,
@@ -489,18 +623,8 @@ void imgui_draw_viewport_panel(
 }
 
 /*
- * Debug scene creation.
+ * Startup scene finalization.
  */
-
-struct GearBuildParams
-{
-    ml::vec4 color;
-    float inner_radius;
-    float outer_radius;
-    float width;
-    int teeth;
-    float tooth_depth;
-};
 
 void expand_mesh_handle_bounds(
   MeshBounds& bounds,
@@ -533,32 +657,25 @@ MeshBounds calculate_mesh_section_bounds(
 GearParameters create_gear_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const GearBuildParams& p)
+  const PreparedGearInstance& prepared)
 {
     auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
     auto lit_material = device.create_material(*lit_shader);
 
-    auto geom = make_gear(
-      p.inner_radius,
-      p.outer_radius,
-      p.width,
-      p.teeth,
-      p.tooth_depth);
-
     auto inner_mesh = device.create_mesh(
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = std::move(geom.inner_indices),
-        .vertices = std::move(geom.inner_vertices),
-        .normals = std::move(geom.inner_normals),
+        .indices = prepared.geometry.inner_indices,
+        .vertices = prepared.geometry.inner_vertices,
+        .normals = prepared.geometry.inner_normals,
         .texcoords = {}});
 
     auto outer_mesh = device.create_mesh(
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = std::move(geom.outer_indices),
-        .vertices = std::move(geom.outer_vertices),
-        .normals = std::move(geom.outer_normals),
+        .indices = prepared.geometry.outer_indices,
+        .vertices = prepared.geometry.outer_vertices,
+        .normals = prepared.geometry.outer_normals,
         .texcoords = {}});
 
     MeshBounds bounds;
@@ -575,107 +692,44 @@ GearParameters create_gear_resources(
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
         .material_handle = lit_material,
-        .color = p.color,
+        .color = prepared.color,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
         .material_handle = lit_material,
-        .color = p.color,
+        .color = prepared.color,
       },
       .bounds = bounds,
-      .inner_radius = p.inner_radius,
-      .outer_radius = p.outer_radius,
-      .width = p.width,
-      .teeth = p.teeth,
-      .tooth_depth = p.tooth_depth,
+      .inner_radius = prepared.inner_radius,
+      .outer_radius = prepared.outer_radius,
+      .width = prepared.width,
+      .teeth = prepared.teeth,
+      .tooth_depth = prepared.tooth_depth,
     };
 }
 
-class GearFactory
+void add_prepared_gears(
+  Scene& scene,
+  RenderDevice& device,
+  ShaderCache& shader_cache,
+  const std::vector<PreparedGearInstance>& gears)
 {
-    RenderDevice& device;
-    ShaderCache& shader_cache;
-
-public:
-    GearFactory(
-      RenderDevice& device,
-      ShaderCache& shader_cache)
-    : device{device}
-    , shader_cache{shader_cache}
+    for(const PreparedGearInstance& prepared: gears)
     {
-    }
-
-    Gear& create(
-      Scene& scene,
-      const GearBuildParams& build,
-      const ml::mat4x4& transform)
-    {
-        auto params = create_gear_resources(device, shader_cache, build);
+        auto params = create_gear_resources(
+          device,
+          shader_cache,
+          prepared);
         auto* gear = scene.add_object<Gear>(params);
         gear->casts_shadows = true;
-        gear->set_transform(transform);
-        return *gear;
+        gear->set_transform(prepared.transform);
+        scene.set_spin_animation(
+          gear->get_object_id(),
+          {.translation = prepared.translation,
+           .angular_speed = prepared.angular_speed,
+           .phase_offset = prepared.phase_offset});
     }
-};
-
-MeshBounds calculate_imported_mesh_bounds(
-  const ImportedStaticMesh& imported_mesh)
-{
-    MeshBounds bounds;
-    for(const auto& mesh: imported_mesh.meshes)
-    {
-        expand_bounds(
-          bounds,
-          calculate_mesh_bounds(mesh.mesh_data));
-    }
-
-    return bounds;
 }
-
-float calculate_max_half_extent(
-  const MeshBounds& bounds)
-{
-    if(!bounds.valid)
-    {
-        return 0.f;
-    }
-
-    const ml::vec3 extents = bounds.max - bounds.min;
-    return 0.5f * std::max({extents.x, extents.y, extents.z});
-}
-
-ml::vec3 calculate_center(
-  const MeshBounds& bounds)
-{
-    return (bounds.min + bounds.max) * 0.5f;
-}
-
-ml::mat4x4 make_static_mesh_fit_transform(
-  const MeshBounds& bounds,
-  float target_half_extent)
-{
-    const float max_half_extent = calculate_max_half_extent(bounds);
-    if(max_half_extent <= std::numeric_limits<float>::epsilon())
-    {
-        return ml::mat4x4::identity();
-    }
-
-    const ml::vec3 center = calculate_center(bounds);
-    const float scale = target_half_extent / max_half_extent;
-
-    ml::mat4x4 fit_transform =
-      ml::matrices::scaling(scale)
-      * ml::matrices::translation(-center);
-
-    return fit_transform;
-}
-
-struct StaticMeshAssetResources
-{
-    std::vector<StaticMeshLod> lods;
-    ml::mat4x4 fit_transform;
-    std::string name;
-};
 
 constexpr std::string_view floor_object_name = "Stone Floor";
 
@@ -696,64 +750,40 @@ swr::program_base* get_floor_shader_program(
 
 std::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
-  ShaderCache& shader_cache,
-  ImportedStaticMesh imported_mesh)
+  MaterialHandle material,
+  const PreparedStaticMeshAsset& prepared_asset)
 {
-    const StaticMeshLodBuildSettings lod_settings{
-      .preserve_boundaries = false,
-      .recompute_normals = true,
-    };
-
     std::vector<StaticMeshLod> result_lods;
-    result_lods.resize(lod_settings.lods.size());
-
-    for(std::size_t i = 0; i < lod_settings.lods.size(); ++i)
+    if(prepared_asset.sections.empty())
     {
-        result_lods[i].min_screen_height = lod_settings.lods[i].min_screen_height;
+        return result_lods;
     }
 
-    StaticMeshLodBuilder lod_builder;
+    result_lods.resize(prepared_asset.sections.front().lods.size());
 
-    for(auto& mesh: imported_mesh.meshes)
+    for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
-        auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
+        result_lods[i].min_screen_height =
+          prepared_asset.sections.front().lods[i].min_screen_height;
+    }
 
-        const MaterialHandle material = device.create_material(*shader);
-
-        const StaticMeshLodBuildResult lod_build_result =
-          lod_builder.build(
-            mesh.mesh_data,
-            lod_settings);
-
+    for(const PreparedStaticMeshSection& section: prepared_asset.sections)
+    {
         for(std::size_t lod_index = 0;
-            lod_index < lod_build_result.lod_meshes.size() && lod_index < result_lods.size();
+            lod_index < section.lods.size() && lod_index < result_lods.size();
             ++lod_index)
         {
-            const auto& stats = lod_build_result.simplify_stats[lod_index];
-            auto& lod_mesh = lod_build_result.lod_meshes[lod_index];
-
-            logging::logf(
-              "LOD frac {}, indices {}, tris {}, accepted {}, rejected {}, queued {}, boundary {}",
-              lod_settings.lods[lod_index].triangle_fraction,
-              lod_mesh.mesh.indices.size(),
-              lod_mesh.mesh.indices.size() / 3,
-              stats.accepted_collapses,
-              stats.rejected_collapses,
-              stats.queued_edges,
-              stats.boundary_vertices);
-
-            const MeshHandle mesh_handle =
-              device.create_mesh(std::move(lod_mesh.mesh));
-            expand_mesh_handle_bounds(
+            const PreparedStaticMeshSectionLod& prepared_lod =
+              section.lods[lod_index];
+            const MeshHandle mesh_handle = device.create_mesh(prepared_lod.mesh);
+            expand_bounds(
               result_lods[lod_index].bounds,
-              device,
-              mesh_handle);
-
+              prepared_lod.bounds);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .mesh_handle = mesh_handle,
                 .material_handle = material,
-                .color = mesh.diffuse_color,
+                .color = section.diffuse_color,
               });
         }
     }
@@ -764,95 +794,7 @@ std::vector<StaticMeshLod> create_static_mesh_resources(
       {
           return lod.mesh_sections.empty();
       });
-
     return result_lods;
-}
-
-std::optional<StaticMeshAssetResources> try_create_static_mesh_resources_from_file(
-  RenderDevice& device,
-  ShaderCache& shader_cache,
-  const std::filesystem::path& path)
-{
-    if(!std::filesystem::exists(path))
-    {
-        logging::logf(
-          "static mesh asset not found: {}",
-          path.string());
-        return std::nullopt;
-    }
-
-    try
-    {
-        constexpr float preview_half_extent = 2.f;
-
-        ImportedStaticMesh imported_mesh = import_static_mesh(path);
-        const MeshBounds mesh_bounds =
-          calculate_imported_mesh_bounds(imported_mesh);
-        const ml::mat4x4 fit_transform = make_static_mesh_fit_transform(
-          mesh_bounds,
-          preview_half_extent);
-        auto lods = create_static_mesh_resources(
-          device,
-          shader_cache,
-          std::move(imported_mesh));
-
-        if(lods.empty())
-        {
-            logging::warningf(
-              "static mesh asset has no renderable meshes: {}",
-              path.string());
-            return std::nullopt;
-        }
-
-        logging::logf(
-          "imported static mesh: {}",
-          path.string());
-
-        return StaticMeshAssetResources{
-          .lods = std::move(lods),
-          .fit_transform = fit_transform,
-          .name = path.filename().string(),
-        };
-    }
-    catch(const std::exception& e)
-    {
-        logging::warningf(
-          "failed to import static mesh '{}': {}",
-          path.string(),
-          e.what());
-    }
-
-    return std::nullopt;
-}
-
-MeshData make_floor_mesh(
-  float half_extent,
-  float uv_repeat)
-{
-    const ml::vec4 up_normal{0.f, 1.f, 0.f, 0.f};
-
-    return MeshData{
-      .primitive_type = PrimitiveType::Triangles,
-      .indices = {0, 2, 1, 0, 3, 2},
-      .vertices = {
-        {-half_extent, 0.f, -half_extent, 1.f},
-        {half_extent, 0.f, -half_extent, 1.f},
-        {half_extent, 0.f, half_extent, 1.f},
-        {-half_extent, 0.f, half_extent, 1.f},
-      },
-      .normals = {
-        up_normal,
-        up_normal,
-        up_normal,
-        up_normal,
-      },
-      .texcoords = {
-        {0.f, uv_repeat, 0.f, 0.f},
-        {uv_repeat, uv_repeat, 0.f, 0.f},
-        {uv_repeat, 0.f, 0.f, 0.f},
-        {0.f, 0.f, 0.f, 0.f},
-      },
-    };
 }
 
 void try_add_textured_floor(
@@ -860,47 +802,27 @@ void try_add_textured_floor(
   RenderDevice& device,
   ShaderCache& shader_cache,
   FloorShaderType floor_shader_type,
+  const PreparedFloorData& floor_data,
   std::array<std::uint32_t, 2>* out_texture_handles = nullptr)
 {
-    const std::filesystem::path diffuse_path{
-      "assets/textures/tiles/tiles_0080_color_1k.png"};
-    const std::filesystem::path normal_path{
-      "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"};
-
-    if(!std::filesystem::exists(diffuse_path)
-       || !std::filesystem::exists(normal_path))
-    {
-        logging::warningf(
-          "floor textures not found: '{}' or '{}'",
-          diffuse_path.string(),
-          normal_path.string());
-        return;
-    }
-
     std::optional<std::uint32_t> diffuse_texture;
     std::optional<std::uint32_t> normal_texture;
     std::optional<MeshHandle> mesh_handle;
 
     try
     {
-        constexpr float floor_half_extent = 28.f;
-        constexpr float uv_repeat = 1.f;
         constexpr float floor_height = -6.25f;
 
         diffuse_texture = device.create_texture(
-          assets::load_texture_rgba8(diffuse_path));
+          floor_data.diffuse_texture);
         normal_texture = device.create_texture(
-          assets::load_normal_map_rgba8(
-            normal_path,
-            assets::NormalMapConvention::DirectX));
+          floor_data.normal_texture);
         swr::program_base* shader = get_floor_shader_program(
           floor_shader_type,
           shader_cache);
 
         mesh_handle = device.create_mesh(
-          make_floor_mesh(
-            floor_half_extent,
-            uv_repeat));
+          floor_data.mesh);
         const std::array<std::uint32_t, 2> textures = {
           *diffuse_texture,
           *normal_texture};
@@ -950,15 +872,164 @@ void try_add_textured_floor(
 
 StaticMesh* create_static_mesh_instance(
   Scene& scene,
-  const StaticMeshAssetResources& resources,
+  const PreparedStaticMeshAsset& resources,
+  std::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
     StaticMesh* mesh = scene.add_object<StaticMesh>(
-      resources.lods);
+      std::move(lods));
     mesh->set_name(resources.name);
     mesh->set_transform(transform * resources.fit_transform);
     mesh->capture_snapshot();
     return mesh;
+}
+
+void finalize_startup_scene(
+  Scene& scene,
+  Viewport& viewport,
+  RenderDevice& render_device,
+  Renderer& renderer,
+  FloorShaderType floor_shader_type,
+  bool& has_floor_textures,
+  std::array<std::uint32_t, 2>& floor_texture_handles,
+  const PreparedStartupScene& prepared_scene)
+{
+    ShaderCache& shader_cache = renderer.get_shader_cache();
+
+    configure_default_directional_lights(scene);
+    configure_default_spot_lights(scene);
+
+    add_prepared_gears(
+      scene,
+      render_device,
+      shader_cache,
+      prepared_scene.gears);
+
+    has_floor_textures = false;
+    floor_texture_handles = {};
+    if(prepared_scene.floor.has_value())
+    {
+        try_add_textured_floor(
+          scene,
+          render_device,
+          shader_cache,
+          floor_shader_type,
+          *prepared_scene.floor,
+          &floor_texture_handles);
+        has_floor_textures =
+          floor_texture_handles[0] != 0
+          && floor_texture_handles[1] != 0;
+    }
+
+    if(prepared_scene.sample_mesh.has_value())
+    {
+        auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
+        const MaterialHandle material = render_device.create_material(*shader);
+        auto lods = create_static_mesh_resources(
+          render_device,
+          material,
+          *prepared_scene.sample_mesh);
+
+        if(!lods.empty())
+        {
+            StaticMesh* sample_mesh = create_static_mesh_instance(
+              scene,
+              *prepared_scene.sample_mesh,
+              std::move(lods),
+              ml::matrices::translation(0.f, 0.f, 5.f));
+            sample_mesh->casts_shadows = true;
+        }
+    }
+
+    Camera* camera = scene.add_object<Camera>();
+    camera->set_transform(viewport.get_local_camera().get_transform());
+    camera->set_name("Editor Camera");
+    camera->capture_snapshot();
+
+    viewport.use_local_camera();
+}
+
+void draw_loading_screen(
+  SDL_Window*,
+  const DisplayProgress& progress,
+  const std::optional<std::string>& error_message)
+{
+    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(main_viewport->Pos);
+    ImGui::SetNextWindowSize(main_viewport->Size);
+
+    const ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoDecoration
+      | ImGuiWindowFlags_NoMove
+      | ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::Begin("SplashScreen", nullptr, flags);
+
+    const ImVec2 content_size = ImGui::GetContentRegionAvail();
+    const char* heading_text = error_message.has_value()
+                                 ? "Startup failed"
+                                 : "Loading scene";
+
+    const ImVec2 heading_size = ImGui::CalcTextSize(heading_text);
+    const ImVec2 status_size = ImGui::CalcTextSize(progress.status_text.c_str());
+    const float total_height =
+      heading_size.y + 16.f + status_size.y;
+    const float start_y =
+      std::max(0.f, (content_size.y - total_height) * 0.5f);
+
+    ImGui::SetCursorPosY(start_y);
+    ImGui::SetCursorPosX(std::max(0.f, (content_size.x - heading_size.x) * 0.5f));
+    ImGui::TextUnformatted(heading_text);
+
+    ImGui::Spacing();
+    ImGui::Spacing();
+    ImGui::SetCursorPosX(std::max(0.f, (content_size.x - status_size.x) * 0.5f));
+    if(error_message.has_value())
+    {
+        ImGui::TextWrapped("%s", error_message->c_str());
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Close the window to exit.");
+    }
+    else
+    {
+        ImGui::TextUnformatted(progress.status_text.c_str());
+    }
+
+    ImGui::End();
+}
+
+TaskSpec make_wait_task(
+  std::string name,
+  int iterations,
+  std::chrono::milliseconds per_iteration,
+  float weight)
+{
+    const std::string task_name = name;
+
+    return TaskSpec{
+      .name = task_name,
+      .weight = weight,
+      .run = [task_name, iterations, per_iteration](TaskExecutionContext& context)
+      {
+          const int safe_iterations = std::max(1, iterations);
+          for(int i = 0; i < safe_iterations; ++i)
+          {
+              if(context.is_cancel_requested())
+              {
+                  throw TaskCancelledError{};
+              }
+
+              std::this_thread::sleep_for(per_iteration);
+              context.update(
+                std::format(
+                  "{} ({}/{})",
+                  task_name,
+                  i + 1,
+                  safe_iterations),
+                static_cast<float>(i + 1) / static_cast<float>(safe_iterations));
+          }
+      },
+    };
 }
 
 void rebuild_gear_mesh_if_needed(
@@ -1077,107 +1148,213 @@ void configure_default_spot_lights(Scene& scene)
     spotlight->capture_snapshot();
 }
 
+DisplayProgress aggregate_startup_progress(
+  const std::vector<TaskHandle>& handles,
+  const std::vector<float>& weights)
+{
+    if(handles.empty() || handles.size() != weights.size())
+    {
+        return DisplayProgress{
+          .status_text = "Starting...",
+          .progress = 0.f,
+        };
+    }
+
+    float total_weight = 0.f;
+    float completed_weight = 0.f;
+    std::vector<TaskSnapshot> task_snapshots;
+
+    for(std::size_t i = 0; i < handles.size(); ++i)
+    {
+        const float weight = std::max(1.f, weights[i]);
+        const TaskGroupSnapshot task_group_snapshot = handles[i].snapshot();
+        const float task_progress = std::clamp(task_group_snapshot.progress, 0.f, 1.f);
+
+        total_weight += weight;
+        completed_weight += task_progress * weight;
+
+        task_snapshots.insert(
+          task_snapshots.end(),
+          task_group_snapshot.tasks.begin(),
+          task_group_snapshot.tasks.end());
+    }
+
+    if(total_weight <= 0.f)
+    {
+        return DisplayProgress{
+          .status_text = "Starting...",
+          .progress = 0.f,
+        };
+    }
+
+    return summarize_task_display(
+      task_snapshots,
+      std::clamp(completed_weight / total_weight, 0.f, 1.f),
+      "Loading scene");
+}
+
 }    // namespace
 
-void Application::setup_scene()
+bool Application::pump_messages()
 {
-    configure_default_directional_lights(scene);
-    configure_default_spot_lights(scene);
+    bool running = true;
 
-    struct GearInit
+    viewport_input.mouse_delta_x = 0.f;
+    viewport_input.mouse_delta_y = 0.f;
+    viewport_input.mouse_wheel_delta = 0.f;
+
+    SDL_Event event;
+    bool suppress_imgui_mouse = viewport_mouse_captured;
+    while(SDL_PollEvent(&event))
     {
-        GearBuildParams build;
-        ml::mat4x4 transform;
-        ml::vec3 translation;
-        float angular_speed;
-        float phase_offset;
-    };
+        if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
+           && event.button.button == SDL_BUTTON_RIGHT
+           && viewport.is_editor_camera_modification_enabled()
+           && viewport.is_local_camera_active(scene)
+           && viewport_contains_mouse_position(
+             viewport_input,
+             event.button.x,
+             event.button.y))
+        {
+            set_viewport_mouse_capture(true);
+        }
+        suppress_imgui_mouse = suppress_imgui_mouse || viewport_mouse_captured;
 
-    std::array<GearInit, 3> gears = {{
-      {
-        .build = {.color = {1, 0, 0, 1}, .inner_radius = 1.0f, .outer_radius = 4.0f, .width = 1.0f, .teeth = 20, .tooth_depth = 0.7f},
-        .transform = ml::matrices::translation(-3.f, -2.f, 0.f),
-        .translation = {-3.f, -2.f, 0.f},
-        .angular_speed = 1.f,
-        .phase_offset = 0.f,
-      },
-      {
-        .build = {.color = {0, 1, 0, 1}, .inner_radius = 0.5f, .outer_radius = 2.0f, .width = 2.0f, .teeth = 10, .tooth_depth = 0.7f},
-        .transform = ml::matrices::translation(3.1f, -2.f, 0.f),
-        .translation = {3.1f, -2.f, 0.f},
-        .angular_speed = -2.f,
-        .phase_offset = -9.f,
-      },
-      {
-        .build = {.color = {0, 0, 1, 1}, .inner_radius = 1.3f, .outer_radius = 2.0f, .width = 0.5f, .teeth = 10, .tooth_depth = 0.7f},
-        .transform = ml::matrices::translation(-3.1f, 4.2f, 0.f),
-        .translation = {-3.1f, 4.2f, 0.f},
-        .angular_speed = -2.f,
-        .phase_offset = -25.f,
-      },
-    }};
+        ImGui_ImplSDL3_ProcessEvent(&event);
 
-    GearFactory factory{render_device, renderer.get_shader_cache()};
-    ShaderCache& shader_cache = renderer.get_shader_cache();
+        if(event.type == SDL_EVENT_QUIT)
+        {
+            set_viewport_mouse_capture(false);
+            running = false;
+        }
+        else if(event.type == SDL_EVENT_WINDOW_FOCUS_LOST)
+        {
+            set_viewport_mouse_capture(false);
+        }
+        else if(event.type == SDL_EVENT_MOUSE_BUTTON_UP
+                && event.button.button == SDL_BUTTON_RIGHT)
+        {
+            set_viewport_mouse_capture(false);
+        }
+        else if(event.type == SDL_EVENT_MOUSE_MOTION)
+        {
+            viewport_input.mouse_delta_x += event.motion.xrel;
+            viewport_input.mouse_delta_y += event.motion.yrel;
+        }
+        else if(event.type == SDL_EVENT_MOUSE_WHEEL)
+        {
+            viewport_input.mouse_wheel_delta += event.wheel.y;
+        }
+    }
 
-    try_add_textured_floor(
+    set_imgui_mouse_interactions_enabled(!suppress_imgui_mouse);
+    return running;
+}
+
+void Application::prepare_frame()
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+}
+
+void Application::render_loading_frame()
+{
+    const DisplayProgress startup_progress = aggregate_startup_progress(
+      startup_task_handles,
+      startup_task_weights);
+
+    draw_loading_screen(
+      window,
+      startup_progress,
+      startup_error);
+
+    ImGui::Render();
+
+    SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
+    glViewport(0, 0, pixel_w, pixel_h);
+    glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    SDL_GL_SwapWindow(window);
+}
+
+void Application::render_main_frame()
+{
+    update_runtime_test_task();
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    imgui::draw_main_dockspace(*this);
+    imgui_draw_viewport_panel(
+      render_device,
+      renderer,
       scene,
+      viewport,
+      viewport_texture,
+      viewport_panel_running,
+      viewport_input);
+    imgui::draw_console_panel(log_device);
+    imgui::draw_tools_panel(
+      *this,
       render_device,
-      shader_cache,
+      viewport,
+      scene,
+      renderer,
+      frame_index,
+      pixel_density,
+      io);
+
+    if(imgui::check_and_clear_sorting_benchmark_request())
+    {
+        renderer.start_sorting_benchmark(scene, viewport);
+    }
+
+    imgui::draw_scene_inspector_panel(ui_state, scene);
+    imgui::draw_class_inspector_panel(ui_state);
+
+    draw_runtime_test_modal();
+
+    ImGui::Render();
+
+    SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
+    glViewport(0, 0, pixel_w, pixel_h);
+    glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    SDL_GL_SwapWindow(window);
+
+    ++frame_index;
+}
+
+void Application::on_startup_complete(const PreparedStartupScene& prepared_scene)
+{
+    const logging::Logger startup_logger{"Startup"};
+
+    for(const std::string& notice: prepared_scene.notices)
+    {
+        startup_logger.warningf("{}", notice);
+    }
+    finalize_startup_scene(
+      scene,
+      viewport,
+      render_device,
+      renderer,
       active_floor_shader,
-      &floor_texture_handles);
-    has_floor_textures =
-      floor_texture_handles[0] != 0
-      && floor_texture_handles[1] != 0;
+      has_floor_textures,
+      floor_texture_handles,
+      prepared_scene);
+    scene.add_default_systems();
+    setup_viewport();
+}
 
-    for(std::size_t i = 0; i < gears.size(); ++i)
-    {
-        Gear& gear = factory.create(scene, gears[i].build, gears[i].transform);
-        scene.set_spin_animation(
-          gear.get_object_id(),
-          {.translation = gears[i].translation,
-           .angular_speed = gears[i].angular_speed,
-           .phase_offset = gears[i].phase_offset});
-    }
-
-    // Temporary placeholder until asset path resolution moves behind an asset manager.
-    const std::filesystem::path static_mesh_path{
-      "assets/models/bunny.obj"};
-
-    const auto mesh_resources = try_create_static_mesh_resources_from_file(
-      render_device,
-      shader_cache,
-      static_mesh_path);
-
-    if(mesh_resources.has_value())
-    {
-        // for(int x = -4; x < 5; ++x)
-        // {
-        //     for(int y = -4; y < 5; ++y)
-        //     {
-        //         StaticMesh* bunny = create_static_mesh_instance(
-        //           scene,
-        //           *mesh_resources,
-        //           ml::matrices::translation(x * 5.f, 0.f, y * 5.f));
-        //         bunny->casts_shadows = true;
-        //     }
-        // }
-
-        StaticMesh* bunny = create_static_mesh_instance(
-          scene,
-          *mesh_resources,
-          ml::matrices::translation(0.f, 0.f, 5.f));
-        bunny->casts_shadows = true;
-    }
-
-    viewport.reset_editor_camera();
-
-    Camera* camera = scene.add_object<Camera>();
-    camera->set_transform(viewport.get_local_camera().get_transform());
-    camera->set_name("Editor Camera");
-    camera->capture_snapshot();
-
-    viewport.use_local_camera();
+void Application::on_startup_complete_error(const std::string& error_message)
+{
+    const logging::Logger startup_logger{"startup"};
+    startup_logger.errorf("loading failed: {}", error_message);
+    startup_error = error_message;
 }
 
 void Application::setup_viewport()
@@ -1192,18 +1369,20 @@ Application::Application(
   RenderDevice& render_device,
   Renderer& renderer,
   Scene& scene,
-  Viewport& viewport)
+  Viewport& viewport,
+  std::size_t thread_pool_workers)
 : title{title}
 , log_device{log_device}
 , render_device{render_device}
 , renderer{renderer}
 , scene{scene}
 , viewport{viewport}
+, task_system{thread_pool_workers}
 {
     window = SDL_CreateWindow(
-      "SWR Playground",
-      1280,
-      800,
+      this->title.c_str(),
+      1280,    // TODO load from config
+      800,     // TODO load from config
       SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if(!window)
     {
@@ -1250,17 +1429,22 @@ Application::Application(
       render_device.get_width(),
       render_device.get_height());
 
-    /*
-     * scene setup.
-     */
-
-    setup_scene();
-    scene.add_default_systems();
     setup_viewport();
 }
 
 Application::~Application()
 {
+    if(runtime_test_task_handle.valid())
+    {
+        runtime_test_task_handle.cancel();
+        runtime_test_task_handle.wait();
+    }
+    runtime_test_task_handle = TaskHandle{};
+    runtime_test_task_future = std::future<void>{};
+
+    cancel_startup();
+    startup_error.reset();
+
     set_viewport_mouse_capture(false);
 
     imgui::shutdown();
@@ -1285,8 +1469,28 @@ void Application::set_viewport_mouse_capture(
         return;
     }
 
+    if(enabled)
+    {
+        SDL_GetMouseState(
+          &viewport_mouse_restore_x,
+          &viewport_mouse_restore_y);
+        viewport_mouse_restore_valid = true;
+    }
+    else if(viewport_mouse_restore_valid)
+    {
+        // SDL recommends warping before disabling relative mode when restoring cursor position.
+        SDL_WarpMouseInWindow(
+          window,
+          viewport_mouse_restore_x,
+          viewport_mouse_restore_y);
+    }
+
     if(!SDL_SetWindowRelativeMouseMode(window, enabled))
     {
+        if(enabled)
+        {
+            viewport_mouse_restore_valid = false;
+        }
         logging::warningf(
           "failed to {} viewport mouse capture: {}",
           enabled ? "enable" : "disable",
@@ -1295,6 +1499,10 @@ void Application::set_viewport_mouse_capture(
     }
 
     viewport_mouse_captured = enabled;
+    if(!enabled)
+    {
+        viewport_mouse_restore_valid = false;
+    }
     viewport_input.mouse_delta_x = 0.f;
     viewport_input.mouse_delta_y = 0.f;
 }
@@ -1321,122 +1529,307 @@ void Application::update_viewport_mouse_capture()
     set_viewport_mouse_capture(should_capture);
 }
 
-void Application::run()
+void Application::begin_startup()
 {
-    bool running = true;
-    int frame_index = 0;
+    /*
+     * Startup / initialization.
+     */
 
-    auto last_update_time = std::chrono::steady_clock::now();
+    cancel_startup();
+    startup_error.reset();
 
-    ImGuiIO& io = ImGui::GetIO();
-    imgui::State ui_state;
+    startup_scene = std::make_shared<PreparedStartupScene>();
+    auto tasks = startup_tasks::create_startup_tasks(*startup_scene);
 
-    while(running)
+    startup_task_handles.clear();
+    startup_task_futures.clear();
+    startup_task_weights.clear();
+    startup_task_handles.reserve(tasks.size());
+    startup_task_futures.reserve(tasks.size());
+    startup_task_weights.reserve(tasks.size());
+
+    for(TaskSpec& task: tasks)
     {
-        const auto current_time = std::chrono::steady_clock::now();
-        const float delta_time = std::chrono::duration<float>(
-                                   current_time - last_update_time)
-                                   .count();
-        last_update_time = current_time;
-        if(delta_time > 0.f)
-        {
-            tick(delta_time);
-        }
+        startup_task_weights.push_back(std::max(task.weight, 1.f));
 
-        viewport_input.mouse_delta_x = 0.f;
-        viewport_input.mouse_delta_y = 0.f;
-        viewport_input.mouse_wheel_delta = 0.f;
+        auto startup_submission = task_system.submit(
+          [task = std::move(task)](TaskExecutionContext& context) mutable
+          {
+              if(context.is_cancel_requested())
+              {
+                  throw TaskCancelledError{};
+              }
 
-        SDL_Event event;
-        bool suppress_imgui_mouse = viewport_mouse_captured;
-        while(SDL_PollEvent(&event))
-        {
-            if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
-               && event.button.button == SDL_BUTTON_RIGHT
-               && viewport.is_editor_camera_modification_enabled()
-               && viewport.is_local_camera_active(scene)
-               && viewport_contains_mouse_position(
-                 viewport_input,
-                 event.button.x,
-                 event.button.y))
-            {
-                set_viewport_mouse_capture(true);
-            }
-            suppress_imgui_mouse = suppress_imgui_mouse || viewport_mouse_captured;
+              if(!task.name.empty())
+              {
+                  context.update(task.name, 0.f);
+              }
 
-            ImGui_ImplSDL3_ProcessEvent(&event);
+              if(task.run)
+              {
+                  task.run(context);
+              }
 
-            if(event.type == SDL_EVENT_QUIT)
-            {
-                set_viewport_mouse_capture(false);
-                running = false;
-            }
-            else if(event.type == SDL_EVENT_WINDOW_FOCUS_LOST)
-            {
-                set_viewport_mouse_capture(false);
-            }
-            else if(event.type == SDL_EVENT_MOUSE_BUTTON_UP
-                    && event.button.button == SDL_BUTTON_RIGHT)
-            {
-                set_viewport_mouse_capture(false);
-            }
-            else if(event.type == SDL_EVENT_MOUSE_MOTION)
-            {
-                viewport_input.mouse_delta_x += event.motion.xrel;
-                viewport_input.mouse_delta_y += event.motion.yrel;
-            }
-            else if(event.type == SDL_EVENT_MOUSE_WHEEL)
-            {
-                viewport_input.mouse_wheel_delta += event.wheel.y;
-            }
-        }
+              if(context.is_cancel_requested())
+              {
+                  throw TaskCancelledError{};
+              }
 
-        set_imgui_mouse_interactions_enabled(!suppress_imgui_mouse);
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
+              if(!task.name.empty())
+              {
+                  context.update(task.name, 1.f);
+              }
+          });
 
-        imgui::draw_main_dockspace();
-        imgui_draw_viewport_panel(
-          render_device,
-          renderer,
-          scene,
-          viewport,
-          viewport_texture,
-          running,
-          viewport_input);
-        imgui::draw_console_panel(log_device);
-        imgui::draw_tools_panel(
-          *this,
-          render_device,
-          viewport,
-          scene,
-          renderer,
-          frame_index,
-          pixel_density,
-          io);
-
-        // Check if benchmark was requested
-        if(imgui::check_and_clear_sorting_benchmark_request())
-        {
-            renderer.start_sorting_benchmark(scene, viewport);
-        }
-
-        imgui::draw_scene_inspector_panel(ui_state, scene);
-        imgui::draw_class_inspector_panel(ui_state);
-
-        ImGui::Render();
-
-        SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
-        glViewport(0, 0, pixel_w, pixel_h);
-        glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        SDL_GL_SwapWindow(window);
-
-        ++frame_index;
+        startup_task_handles.push_back(startup_submission.handle);
+        startup_task_futures.push_back(std::move(startup_submission.future));
     }
+}
+
+bool Application::is_startup_ready() const
+{
+    if(startup_task_futures.empty())
+    {
+        return false;
+    }
+
+    for(const auto& startup_task_future: startup_task_futures)
+    {
+        if(!startup_task_future.valid()
+           || startup_task_future.wait_for(std::chrono::milliseconds{0})
+                != std::future_status::ready)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool Application::finish_startup_if_ready()
+{
+    if(!is_startup_ready())
+    {
+        return false;
+    }
+
+    try
+    {
+        for(auto& startup_task_future: startup_task_futures)
+        {
+            if(startup_task_future.valid())
+            {
+                startup_task_future.get();
+            }
+        }
+
+        if(startup_scene == nullptr)
+        {
+            throw std::runtime_error{"startup scene state is missing"};
+        }
+
+        on_startup_complete(*startup_scene);
+        startup_task_handles.clear();
+        startup_task_futures.clear();
+        startup_task_weights.clear();
+        startup_scene.reset();
+        return true;
+    }
+    catch(const std::exception& e)
+    {
+        on_startup_complete_error(e.what());
+        startup_task_handles.clear();
+        startup_task_futures.clear();
+        startup_task_weights.clear();
+        startup_scene.reset();
+        return false;
+    }
+}
+
+void Application::cancel_startup()
+{
+    for(const TaskHandle& startup_task_handle: startup_task_handles)
+    {
+        startup_task_handle.cancel();
+    }
+
+    for(const TaskHandle& startup_task_handle: startup_task_handles)
+    {
+        startup_task_handle.wait();
+    }
+
+    startup_task_handles.clear();
+    startup_task_futures.clear();
+    startup_task_weights.clear();
+    startup_scene.reset();
+}
+
+void Application::start_debug_test_tasks()
+{
+    if(runtime_test_task_handle.valid())
+    {
+        return;
+    }
+
+    runtime_test_task_error.reset();
+    runtime_test_modal_open = true;
+
+    std::vector<TaskSpec> tasks;
+    tasks.reserve(3);
+
+    tasks.push_back(make_wait_task(
+      "Loading assets...",
+      8,
+      std::chrono::milliseconds{100},
+      2.f));
+
+    tasks.push_back(make_wait_task(
+      "Preparing scene data...",
+      10,
+      std::chrono::milliseconds{90},
+      3.f));
+
+    TaskSpec finalizing = make_wait_task(
+      "Finalizing...",
+      6,
+      std::chrono::milliseconds{110},
+      1.f);
+    finalizing.dependencies = {0, 1};
+    tasks.push_back(std::move(finalizing));
+
+    auto submission = task_system.submit_task_specs(std::move(tasks));
+
+    runtime_test_task_handle = submission.handle;
+    runtime_test_task_future = std::move(submission.future);
+}
+
+bool Application::is_debug_test_tasks_running() const noexcept
+{
+    return runtime_test_task_handle.valid();
+}
+
+void Application::update_runtime_test_task()
+{
+    if(!runtime_test_task_future.valid())
+    {
+        return;
+    }
+
+    if(runtime_test_task_future.wait_for(std::chrono::milliseconds{0})
+       != std::future_status::ready)
+    {
+        return;
+    }
+
+    bool task_succeeded = true;
+    try
+    {
+        runtime_test_task_future.get();
+    }
+    catch(const TaskCancelledError&)
+    {
+        task_succeeded = false;
+        runtime_test_task_error = "Task run cancelled.";
+    }
+    catch(const std::exception& e)
+    {
+        task_succeeded = false;
+        runtime_test_task_error = e.what();
+    }
+
+    if(task_succeeded)
+    {
+        runtime_test_modal_open = false;
+        runtime_test_task_error.reset();
+    }
+
+    runtime_test_task_handle = TaskHandle{};
+    runtime_test_task_future = std::future<void>{};
+}
+
+void Application::draw_runtime_test_modal()
+{
+    if(runtime_test_modal_open)
+    {
+        ImGui::OpenPopup("Loading...");
+    }
+
+    if(!ImGui::BeginPopupModal(
+         "Loading...",
+         nullptr,
+         ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    if(!runtime_test_modal_open)
+    {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return;
+    }
+
+    const TaskGroupSnapshot snapshot = runtime_test_task_handle.valid()
+                                         ? runtime_test_task_handle.snapshot()
+                                         : TaskGroupSnapshot{};
+    const DisplayProgress progress = summarize_task_display(
+      snapshot.tasks,
+      snapshot.progress,
+      "Working...");
+
+    const char* status_text = progress.status_text.empty()
+                                ? "Working..."
+                                : progress.status_text.c_str();
+
+    ImGui::TextUnformatted(status_text);
+    ImGui::Spacing();
+    ImGui::ProgressBar(progress.progress, ImVec2{320.f, 0.f});
+
+    if(!snapshot.tasks.empty())
+    {
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        for(const TaskSnapshot& task: snapshot.tasks)
+        {
+            const std::string detail_text = task_display_text(task);
+            const std::string label = task.name.empty()
+                                        ? detail_text
+                                        : std::format("{}: {}", task.name, detail_text);
+            ImGui::BulletText(
+              "%s (%.0f%%)",
+              label.c_str(),
+              std::clamp(task.progress, 0.f, 1.f) * 100.f);
+        }
+    }
+
+    if(runtime_test_task_handle.valid())
+    {
+        ImGui::Spacing();
+        if(ImGui::Button("Cancel", ImVec2{120.f, 0.f}))
+        {
+            runtime_test_task_handle.cancel();
+        }
+    }
+    else
+    {
+        if(runtime_test_task_error.has_value())
+        {
+            ImGui::Spacing();
+            ImGui::TextWrapped("%s", runtime_test_task_error->c_str());
+        }
+
+        ImGui::Spacing();
+        if(ImGui::Button("Close", ImVec2{120.f, 0.f}))
+        {
+            runtime_test_modal_open = false;
+            runtime_test_task_error.reset();
+            ImGui::CloseCurrentPopup();
+        }
+    }
+
+    ImGui::EndPopup();
 }
 
 void Application::tick(float delta_time)
