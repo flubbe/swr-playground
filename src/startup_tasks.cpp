@@ -21,13 +21,11 @@
 namespace
 {
 
-std::mutex startup_notice_mutex;
-
 void add_startup_notice(
   PreparedStartupScene& scene,
   std::string notice)
 {
-    std::lock_guard lock{startup_notice_mutex};
+    std::lock_guard lock{scene.notices_mutex};
     scene.notices.push_back(std::move(notice));
 }
 
@@ -167,7 +165,7 @@ std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
 
         PreparedStaticMeshSection section{
           .diffuse_color = mesh.diffuse_color,
-        };
+          .lods = {}};
         section.lods.reserve(lod_build_result.lod_meshes.size());
 
         for(const auto& lod_mesh: lod_build_result.lod_meshes)

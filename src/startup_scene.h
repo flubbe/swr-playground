@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -56,5 +57,7 @@ struct PreparedStartupScene
     std::vector<PreparedGearInstance> gears;
     std::optional<PreparedFloorData> floor;
     std::optional<PreparedStaticMeshAsset> sample_mesh;
+
+    mutable std::mutex notices_mutex;
     std::vector<std::string> notices;
 };
