@@ -245,6 +245,7 @@ public:
             state->snapshot.progress = 0.f;
             state->snapshot.tasks = {
               TaskSnapshot{
+                .name = {},
                 .status_text = "Queued...",
               },
             };

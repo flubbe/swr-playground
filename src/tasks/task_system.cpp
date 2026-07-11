@@ -55,8 +55,8 @@ void initialize_task_group_snapshot(
     {
         state.snapshot.tasks.push_back(TaskSnapshot{
           .name = task.name,
-          .state = TaskState::Queued,
-        });
+          .status_text = "Queued...",
+          .state = TaskState::Queued});
     }
     state.task_weights = weights;
     state.total_weight = 0.f;
