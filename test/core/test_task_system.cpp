@@ -90,8 +90,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
     tasks.push_back(TaskSpec{
       .name = "Branch A",
       .weight = 1.f,
-      .dependencies = {},
-      .start_condition = {},
       .run = [&](TaskExecutionContext& context)
       {
           parallel_branch(
@@ -104,8 +102,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
     tasks.push_back(TaskSpec{
       .name = "Branch B",
       .weight = 1.f,
-      .dependencies = {},
-      .start_condition = {},
       .run = [&](TaskExecutionContext& context)
       {
           parallel_branch(
@@ -119,7 +115,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
       .name = "Finalize",
       .weight = 1.f,
       .dependencies = {0, 1},
-      .start_condition = {},
       .run = [&](TaskExecutionContext&)
       {
           if(!task_a_done.load(std::memory_order_relaxed)
@@ -170,8 +165,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
     tasks.push_back(TaskSpec{
       .name = "Failing Branch",
       .weight = 1.f,
-      .dependencies = {},
-      .start_condition = {},
       .run = [&](TaskExecutionContext&)
       {
           const auto deadline =
@@ -192,8 +185,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
     tasks.push_back(TaskSpec{
       .name = "Long Running Branch",
       .weight = 1.f,
-      .dependencies = {},
-      .start_condition = {},
       .run = [&](TaskExecutionContext& context)
       {
           branch_started.store(true, std::memory_order_relaxed);
@@ -219,7 +210,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
       .name = "Finalizer",
       .weight = 1.f,
       .dependencies = {0, 1},
-      .start_condition = {},
       .run = [&](TaskExecutionContext&)
       {
           finalizer_ran.store(true, std::memory_order_relaxed);
@@ -280,7 +270,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsSkippedTaskUnblocksDependents)
     tasks.push_back(TaskSpec{
       .name = "Skipped Root",
       .weight = 1.f,
-      .dependencies = {},
       .start_condition = []()
       { return false; },
       .run = [&](TaskExecutionContext&)
@@ -290,8 +279,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsSkippedTaskUnblocksDependents)
     tasks.push_back(TaskSpec{
       .name = "Normal Dependency",
       .weight = 1.f,
-      .dependencies = {},
-      .start_condition = {},
       .run = [&](TaskExecutionContext&)
       {
           dependency_ran.store(true, std::memory_order_relaxed);
@@ -304,7 +291,6 @@ TEST(TaskSystemTests, SubmitTaskSpecsSkippedTaskUnblocksDependents)
       .name = "Dependent",
       .weight = 1.f,
       .dependencies = {0, 1},
-      .start_condition = {},
       .run = [&](TaskExecutionContext&)
       {
           dependent_ran.store(true, std::memory_order_relaxed);

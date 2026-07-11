@@ -106,19 +106,19 @@ using Task = std::function<void(TaskExecutionContext&)>;
 struct TaskSpec
 {
     /** Optional task name used for progress status reporting. */
-    std::string name;
+    std::string name{};
 
     /** Relative task weight used for weighted aggregate progress. */
     float weight{1.f};
 
     /** Indices of prerequisite tasks. */
-    std::vector<std::size_t> dependencies;
+    std::vector<std::size_t> dependencies{};
 
     /** Optional predicate deciding whether the task should run. */
-    std::function<bool()> start_condition;
+    std::function<bool()> start_condition{};
 
     /** Task body to execute when scheduled. */
-    Task run;
+    Task run{};
 };
 
 /**
