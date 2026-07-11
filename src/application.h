@@ -29,7 +29,7 @@
 class RenderDevice;
 class Renderer;
 class Scene;
-struct PreparedStartupScene;
+struct StagedStartupScene;
 class Viewport;
 class MainLoop;
 
@@ -123,7 +123,7 @@ class Application
     bool prev_space_pressed{false};
 
     // Startup task state (parallel submissions aggregated by the main thread).
-    std::shared_ptr<PreparedStartupScene> startup_scene;
+    std::shared_ptr<StagedStartupScene> startup_scene;
     std::vector<task_system::TaskHandle> startup_task_handles;
     std::vector<std::future<void>> startup_task_futures;
     std::vector<float> startup_task_weights;
@@ -178,9 +178,9 @@ private:
     /**
      * Called when startup completes successfully.
      *
-     * @param prepared_scene The prepared startup scene.
+     * @param staged_scene The staged startup scene.
      */
-    void on_startup_complete(const PreparedStartupScene& prepared_scene);
+    void on_startup_complete(const StagedStartupScene& staged_scene);
 
     /**
      * Called when startup encounters an error.

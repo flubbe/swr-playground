@@ -22,7 +22,7 @@ namespace
 {
 
 void add_startup_notice(
-  PreparedStartupScene& scene,
+  StagedStartupScene& scene,
   std::string notice)
 {
     std::lock_guard lock{scene.notices_mutex};
@@ -120,7 +120,7 @@ MeshData make_floor_mesh(
     };
 }
 
-std::optional<PreparedFloorData> try_prepare_floor_data()
+std::optional<StagedFloorData> try_prepare_floor_data()
 {
     const std::filesystem::path diffuse_path{
       "assets/textures/tiles/tiles_0080_color_1k.png"};
@@ -135,7 +135,7 @@ std::optional<PreparedFloorData> try_prepare_floor_data()
 
     constexpr float floor_half_extent = 28.f;
     constexpr float uv_repeat = 1.f;
-    return PreparedFloorData{
+    return StagedFloorData{
       .mesh = make_floor_mesh(floor_half_extent, uv_repeat),
       .diffuse_texture = assets::load_texture_rgba8(diffuse_path),
       .normal_texture = assets::load_normal_map_rgba8(
@@ -144,7 +144,7 @@ std::optional<PreparedFloorData> try_prepare_floor_data()
     };
 }
 
-std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
+std::vector<StagedStaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
 {
     const StaticMeshLodBuildSettings lod_settings{
@@ -153,7 +153,7 @@ std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
     };
 
     StaticMeshLodBuilder lod_builder;
-    std::vector<PreparedStaticMeshSection> sections;
+    std::vector<StagedStaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
@@ -163,7 +163,7 @@ std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
             mesh.mesh_data,
             lod_settings);
 
-        PreparedStaticMeshSection section{
+        StagedStaticMeshSection section{
           .diffuse_color = mesh.diffuse_color,
           .lods = {}};
         section.lods.reserve(lod_build_result.lod_meshes.size());
@@ -171,7 +171,7 @@ std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
         for(const auto& lod_mesh: lod_build_result.lod_meshes)
         {
             section.lods.push_back(
-              PreparedStaticMeshSectionLod{
+              StagedStaticMeshSectionLod{
                 .mesh = lod_mesh.mesh,
                 .min_screen_height = lod_mesh.min_screen_height,
                 .bounds = calculate_mesh_bounds(lod_mesh.mesh),
@@ -184,7 +184,7 @@ std::vector<PreparedStaticMeshSection> build_static_mesh_sections(
     return sections;
 }
 
-std::optional<PreparedStaticMeshAsset> try_prepare_sample_mesh(
+std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
   const std::filesystem::path& static_mesh_path)
 {
     if(!std::filesystem::exists(static_mesh_path))
@@ -201,7 +201,7 @@ std::optional<PreparedStaticMeshAsset> try_prepare_sample_mesh(
     auto sections = build_static_mesh_sections(std::move(imported_mesh));
     std::erase_if(
       sections,
-      [](const PreparedStaticMeshSection& section)
+      [](const StagedStaticMeshSection& section)
       {
           return section.lods.empty();
       });
@@ -211,7 +211,7 @@ std::optional<PreparedStaticMeshAsset> try_prepare_sample_mesh(
         return std::nullopt;
     }
 
-    return PreparedStaticMeshAsset{
+    return StagedStaticMeshAsset{
       .name = static_mesh_path.filename().string(),
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,
@@ -239,7 +239,7 @@ const logging::Logger& get_startup_logger()
 
 // Create a task that generates procedural gears
 [[nodiscard]]
-TaskSpec make_gear_task(PreparedStartupScene& scene)
+TaskSpec make_gear_task(StagedStartupScene& scene)
 {
     return TaskSpec{
       .name = "Generating procedural scene data...",
@@ -292,7 +292,7 @@ TaskSpec make_gear_task(PreparedStartupScene& scene)
           for(const GearInit& gear: gears)
           {
               scene.gears.push_back(
-                PreparedGearInstance{
+                StagedGearInstance{
                   .color = gear.color,
                   .inner_radius = gear.inner_radius,
                   .outer_radius = gear.outer_radius,
@@ -319,7 +319,7 @@ TaskSpec make_gear_task(PreparedStartupScene& scene)
 
 // Create a task that loads floor textures and mesh
 [[nodiscard]]
-TaskSpec make_floor_task(PreparedStartupScene& scene)
+TaskSpec make_floor_task(StagedStartupScene& scene)
 {
     return TaskSpec{
       .name = "Loading floor textures...",
@@ -342,7 +342,7 @@ TaskSpec make_floor_task(PreparedStartupScene& scene)
 
 // Create a task that imports the sample mesh
 [[nodiscard]]
-TaskSpec make_sample_mesh_task(PreparedStartupScene& scene)
+TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
 {
     return TaskSpec{
       .name = "Importing sample mesh...",
@@ -372,7 +372,7 @@ TaskSpec make_sample_mesh_task(PreparedStartupScene& scene)
     };
 }
 
-std::vector<TaskSpec> create_startup_tasks(PreparedStartupScene& scene)
+std::vector<TaskSpec> create_startup_tasks(StagedStartupScene& scene)
 {
     return {
       make_gear_task(scene),

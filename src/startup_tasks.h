@@ -12,8 +12,8 @@
 
 #include <vector>
 
-#include "startup_scene.h"
 #include "tasks/task_system.h"
+#include "staged_data.h"
 
 namespace startup_tasks
 {
@@ -25,6 +25,6 @@ namespace startup_tasks
  */
 [[nodiscard]]
 std::vector<task_system::TaskSpec> create_startup_tasks(
-  PreparedStartupScene& scene);
+  StagedStartupScene& scene);
 
 } /* namespace startup_tasks */

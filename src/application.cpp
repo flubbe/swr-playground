@@ -42,7 +42,7 @@
 #include "shader.h"
 #include "shader_cache.h"
 #include "startup_tasks.h"
-#include "startup_scene.h"
+#include "staged_data.h"
 #include "tasks/task_system.h"
 #include "viewport.h"
 
@@ -657,7 +657,7 @@ MeshBounds calculate_mesh_section_bounds(
 GearParameters create_gear_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const PreparedGearInstance& prepared)
+  const StagedGearInstance& staged)
 {
     auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
     auto lit_material = device.create_material(*lit_shader);
@@ -665,17 +665,17 @@ GearParameters create_gear_resources(
     auto inner_mesh = device.create_mesh(
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = prepared.geometry.inner_indices,
-        .vertices = prepared.geometry.inner_vertices,
-        .normals = prepared.geometry.inner_normals,
+        .indices = staged.geometry.inner_indices,
+        .vertices = staged.geometry.inner_vertices,
+        .normals = staged.geometry.inner_normals,
         .texcoords = {}});
 
     auto outer_mesh = device.create_mesh(
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = prepared.geometry.outer_indices,
-        .vertices = prepared.geometry.outer_vertices,
-        .normals = prepared.geometry.outer_normals,
+        .indices = staged.geometry.outer_indices,
+        .vertices = staged.geometry.outer_vertices,
+        .normals = staged.geometry.outer_normals,
         .texcoords = {}});
 
     MeshBounds bounds;
@@ -692,42 +692,42 @@ GearParameters create_gear_resources(
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
         .material_handle = lit_material,
-        .color = prepared.color,
+        .color = staged.color,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
         .material_handle = lit_material,
-        .color = prepared.color,
+        .color = staged.color,
       },
       .bounds = bounds,
-      .inner_radius = prepared.inner_radius,
-      .outer_radius = prepared.outer_radius,
-      .width = prepared.width,
-      .teeth = prepared.teeth,
-      .tooth_depth = prepared.tooth_depth,
+      .inner_radius = staged.inner_radius,
+      .outer_radius = staged.outer_radius,
+      .width = staged.width,
+      .teeth = staged.teeth,
+      .tooth_depth = staged.tooth_depth,
     };
 }
 
-void add_prepared_gears(
+void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const std::vector<PreparedGearInstance>& gears)
+  const std::vector<StagedGearInstance>& gears)
 {
-    for(const PreparedGearInstance& prepared: gears)
+    for(const StagedGearInstance& staged: gears)
     {
         auto params = create_gear_resources(
           device,
           shader_cache,
-          prepared);
+          staged);
         auto* gear = scene.add_object<Gear>(params);
         gear->casts_shadows = true;
-        gear->set_transform(prepared.transform);
+        gear->set_transform(staged.transform);
         scene.set_spin_animation(
           gear->get_object_id(),
-          {.translation = prepared.translation,
-           .angular_speed = prepared.angular_speed,
-           .phase_offset = prepared.phase_offset});
+          {.translation = staged.translation,
+           .angular_speed = staged.angular_speed,
+           .phase_offset = staged.phase_offset});
     }
 }
 
@@ -751,34 +751,34 @@ swr::program_base* get_floor_shader_program(
 std::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   MaterialHandle material,
-  const PreparedStaticMeshAsset& prepared_asset)
+  const StagedStaticMeshAsset& staged_asset)
 {
     std::vector<StaticMeshLod> result_lods;
-    if(prepared_asset.sections.empty())
+    if(staged_asset.sections.empty())
     {
         return result_lods;
     }
 
-    result_lods.resize(prepared_asset.sections.front().lods.size());
+    result_lods.resize(staged_asset.sections.front().lods.size());
 
     for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
         result_lods[i].min_screen_height =
-          prepared_asset.sections.front().lods[i].min_screen_height;
+          staged_asset.sections.front().lods[i].min_screen_height;
     }
 
-    for(const PreparedStaticMeshSection& section: prepared_asset.sections)
+    for(const StagedStaticMeshSection& section: staged_asset.sections)
     {
         for(std::size_t lod_index = 0;
             lod_index < section.lods.size() && lod_index < result_lods.size();
             ++lod_index)
         {
-            const PreparedStaticMeshSectionLod& prepared_lod =
+            const StagedStaticMeshSectionLod& staged_lod =
               section.lods[lod_index];
-            const MeshHandle mesh_handle = device.create_mesh(prepared_lod.mesh);
+            const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
             expand_bounds(
               result_lods[lod_index].bounds,
-              prepared_lod.bounds);
+              staged_lod.bounds);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .mesh_handle = mesh_handle,
@@ -802,7 +802,7 @@ void try_add_textured_floor(
   RenderDevice& device,
   ShaderCache& shader_cache,
   FloorShaderType floor_shader_type,
-  const PreparedFloorData& floor_data,
+  const StagedFloorData& floor_data,
   std::array<std::uint32_t, 2>* out_texture_handles = nullptr)
 {
     std::optional<std::uint32_t> diffuse_texture;
@@ -872,7 +872,7 @@ void try_add_textured_floor(
 
 StaticMesh* create_static_mesh_instance(
   Scene& scene,
-  const PreparedStaticMeshAsset& resources,
+  const StagedStaticMeshAsset& resources,
   std::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
@@ -892,49 +892,49 @@ void finalize_startup_scene(
   FloorShaderType floor_shader_type,
   bool& has_floor_textures,
   std::array<std::uint32_t, 2>& floor_texture_handles,
-  const PreparedStartupScene& prepared_scene)
+  const StagedStartupScene& staged_scene)
 {
     ShaderCache& shader_cache = renderer.get_shader_cache();
 
     configure_default_directional_lights(scene);
     configure_default_spot_lights(scene);
 
-    add_prepared_gears(
+    add_staged_gears(
       scene,
       render_device,
       shader_cache,
-      prepared_scene.gears);
+      staged_scene.gears);
 
     has_floor_textures = false;
     floor_texture_handles = {};
-    if(prepared_scene.floor.has_value())
+    if(staged_scene.floor.has_value())
     {
         try_add_textured_floor(
           scene,
           render_device,
           shader_cache,
           floor_shader_type,
-          *prepared_scene.floor,
+          *staged_scene.floor,
           &floor_texture_handles);
         has_floor_textures =
           floor_texture_handles[0] != 0
           && floor_texture_handles[1] != 0;
     }
 
-    if(prepared_scene.sample_mesh.has_value())
+    if(staged_scene.sample_mesh.has_value())
     {
         auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
         const MaterialHandle material = render_device.create_material(*shader);
         auto lods = create_static_mesh_resources(
           render_device,
           material,
-          *prepared_scene.sample_mesh);
+          *staged_scene.sample_mesh);
 
         if(!lods.empty())
         {
             StaticMesh* sample_mesh = create_static_mesh_instance(
               scene,
-              *prepared_scene.sample_mesh,
+              *staged_scene.sample_mesh,
               std::move(lods),
               ml::matrices::translation(0.f, 0.f, 5.f));
             sample_mesh->casts_shadows = true;
@@ -1329,11 +1329,11 @@ void Application::render_main_frame()
     ++frame_index;
 }
 
-void Application::on_startup_complete(const PreparedStartupScene& prepared_scene)
+void Application::on_startup_complete(const StagedStartupScene& staged_scene)
 {
     const logging::Logger startup_logger{"Startup"};
 
-    for(const std::string& notice: prepared_scene.notices)
+    for(const std::string& notice: staged_scene.notices)
     {
         startup_logger.warningf("{}", notice);
     }
@@ -1345,7 +1345,7 @@ void Application::on_startup_complete(const PreparedStartupScene& prepared_scene
       active_floor_shader,
       has_floor_textures,
       floor_texture_handles,
-      prepared_scene);
+      staged_scene);
     scene.add_default_systems();
     setup_viewport();
 }
@@ -1560,7 +1560,7 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
-    startup_scene = std::make_shared<PreparedStartupScene>();
+    startup_scene = std::make_shared<StagedStartupScene>();
     auto tasks = startup_tasks::create_startup_tasks(*startup_scene);
 
     startup_task_handles.clear();
