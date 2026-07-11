@@ -17,13 +17,14 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include <concurrency_utils/thread_pool.h>
 
-#include "logging.h"
+#include "task_logger.h"
 #include "state.h"
 
 namespace task_system
@@ -196,8 +197,8 @@ struct TaskSubmission
 /** Schedules background tasks on a deferred thread pool. */
 class TaskSystem
 {
-    /** Component logger for task-system lifecycle messages. */
-    const logging::Logger logger;
+    /** Logger used for task-system lifecycle messages. */
+    const TaskLogger& logger;
 
     /** Worker pool used to run submitted tasks. */
     concurrency_utils::deferred_thread_pool<> thread_pool;
@@ -207,11 +208,11 @@ public:
      * Creates a task system with a fixed number of worker threads.
      *
      * @param worker_count Number of worker threads in the pool.
-     * @param log_device Log device for the task system. Defaults to the global log device.
+     * @param task_logger Logger for task-system messages. Defaults to a null logger.
      */
     explicit TaskSystem(
       std::size_t worker_count,
-      logging::LogDevice& log_device = logging::LogDevice::get());
+      const TaskLogger& task_logger = NullTaskLogger::instance());
 
     /**
      * Submits dependency-aware task specs and returns handle/future pair.

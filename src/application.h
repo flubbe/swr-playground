@@ -22,6 +22,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
+#include "logging.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
 
@@ -64,6 +65,20 @@ namespace logging
 class BufferedLogDevice;
 }    // namespace logging
 
+class ApplicationTaskSystemLogger final
+: public task_system::TaskLogger
+{
+    const logging::Logger logger;
+
+public:
+    explicit ApplicationTaskSystemLogger(
+      logging::LogDevice& log_device);
+
+    void log(std::string_view message) const override;
+    void warn(std::string_view message) const override;
+    void error(std::string_view message) const override;
+};
+
 class Application
 {
     std::string title;
@@ -78,6 +93,7 @@ class Application
     Scene& scene;
     Viewport& viewport;
 
+    ApplicationTaskSystemLogger task_system_logger;
     task_system::TaskSystem task_system;
 
     int window_w{0};

@@ -306,8 +306,8 @@ void TaskHandle::wait() const
 
 TaskSystem::TaskSystem(
   std::size_t worker_count,
-  logging::LogDevice& log_device)
-: logger{"TaskSystem", log_device}
+  const TaskLogger& task_logger)
+: logger{task_logger}
 , thread_pool{worker_count}
 {
     logger.logf(

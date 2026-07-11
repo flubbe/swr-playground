@@ -1363,6 +1363,27 @@ void Application::setup_viewport()
     viewport.reset_editor_camera();
 }
 
+ApplicationTaskSystemLogger::ApplicationTaskSystemLogger(
+  logging::LogDevice& log_device)
+: logger{"TaskSystem", log_device}
+{
+}
+
+void ApplicationTaskSystemLogger::log(std::string_view message) const
+{
+    logger.logf("{}", message);
+}
+
+void ApplicationTaskSystemLogger::warn(std::string_view message) const
+{
+    logger.warningf("{}", message);
+}
+
+void ApplicationTaskSystemLogger::error(std::string_view message) const
+{
+    logger.errorf("{}", message);
+}
+
 Application::Application(
   std::string_view title,
   logging::BufferedLogDevice& log_device,
@@ -1377,7 +1398,8 @@ Application::Application(
 , renderer{renderer}
 , scene{scene}
 , viewport{viewport}
-, task_system{thread_pool_workers}
+, task_system_logger{log_device}
+, task_system{thread_pool_workers, task_system_logger}
 {
     window = SDL_CreateWindow(
       this->title.c_str(),
