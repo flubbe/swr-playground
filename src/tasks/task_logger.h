@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Task-system logging abstraction.
+ * Task system logging abstraction.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
