@@ -4,18 +4,18 @@ This module provides asynchronous task execution with dependency-aware schedulin
 
 ## Components
 
-- `task_system.h/.cpp`: public API (`TaskSystem`, `TaskExecutionContext`, `TaskHandle`, `TaskSubmission`, `TaskSpec`).
-- `task_logger.h`: logging abstraction (`TaskLogger`) plus no-op default (`NullTaskLogger`).
-- `state.h/.cpp`: shared snapshot/cancellation/completion state and internal state update helpers.
 - `dag.h/.cpp`: task graph validation and deterministic topological ordering.
 - `scheduler.h/.cpp`: parallel DAG scheduler that dispatches ready tasks and propagates failures/cancellation.
+- `state.h/.cpp`: shared snapshot/cancellation/completion state and internal state update helpers.
+- `task_logger.h`: logging abstraction (`TaskLogger`) plus no-op default (`NullTaskLogger`).
+- `task_system.h/.cpp`: public API (`TaskSystem`, `TaskExecutionContext`, `TaskHandle`, `TaskSubmission`, `TaskSpec`).
 
 ## Submission Model
 
 `TaskSystem` supports two submission paths:
 
-- `submit_task_specs(std::vector<TaskSpec>)`: submits a dependency graph.
 - `submit(Fn&&)`: submits one callable that receives `TaskExecutionContext&`.
+- `submit_task_specs(std::vector<TaskSpec>)`: submits a dependency graph.
 
 Both return `TaskSubmission<Result>`:
 
