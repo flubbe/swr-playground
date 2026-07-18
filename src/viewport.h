@@ -182,7 +182,7 @@ public:
      * Try to get the the camera from the scene.
      *
      * @param scene The scene containing the camera.
-     * @return The camera, or `nullptr` if either there is no scene camera set, or
+     * @returns The camera, or `nullptr` if either there is no scene camera set, or
      *         the camera is not found in the scene.
      */
     Camera* try_get_scene_camera(Scene& scene)
@@ -200,7 +200,7 @@ public:
      * Try to get the the camera from the scene.
      *
      * @param scene The scene containing the camera.
-     * @return The camera, or `nullptr` if either there is no scene camera set, or
+     * @returns The camera, or `nullptr` if either there is no scene camera set, or
      *         the camera is not found in the scene.
      */
     const Camera* try_get_scene_camera(const Scene& scene) const

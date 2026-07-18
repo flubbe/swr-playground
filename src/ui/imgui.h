@@ -60,7 +60,7 @@ ImFont* get_small_ui_font();
 /** Monospace font for console/log output. */
 ImFont* get_console_monospace_font();
 
-void draw_main_dockspace();
+void draw_main_dockspace(Application& app);
 
 void draw_console_panel(
   logging::BufferedLogDevice& log_device);

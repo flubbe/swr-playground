@@ -18,6 +18,7 @@
 #include "scene/scene.h"
 #include "application.h"
 #include "logging.h"
+#include "main_loop.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "platform.h"
@@ -113,9 +114,11 @@ int main(int argc, char* argv[])
           render_device,
           renderer,
           scene,
-          viewport};
+          viewport,
+          std::thread::hardware_concurrency()};
 
-        app.run();
+        MainLoop main_loop{app};
+        main_loop.run();
     }
     catch(const std::exception& e)
     {

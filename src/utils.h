@@ -19,7 +19,7 @@
  * and return a copy.
  *
  * @param value The string.
- * @return Returns the lower-case string copy.
+ * @returns Returns the lower-case string copy.
  */
 inline std::string to_lower_copy(
   std::string value)

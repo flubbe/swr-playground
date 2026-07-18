@@ -283,7 +283,7 @@ struct DeferredWindowFocus
     }
 };
 
-void draw_main_dockspace()
+void draw_main_dockspace(Application& app)
 {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
@@ -318,6 +318,19 @@ void draw_main_dockspace()
                 quit_event.type = SDL_EVENT_QUIT;
                 SDL_PushEvent(&quit_event);
             }
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Debug"))
+        {
+            if(ImGui::MenuItem(
+                 "Test tasks",
+                 nullptr,
+                 false,
+                 !app.is_debug_test_tasks_running()))
+            {
+                app.start_debug_test_tasks();
+            }
+
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
