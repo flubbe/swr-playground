@@ -34,17 +34,12 @@ bool MainLoop::run_startup()
 {
     bool running = true;
 
-    while(running)
+    while(running
+          && !application.finish_startup_if_ready())
     {
         running = application.pump_messages();
 
         application.prepare_frame();
-
-        if(application.finish_startup_if_ready())
-        {
-            break;
-        }
-
         application.render_loading_frame();
     }
 
