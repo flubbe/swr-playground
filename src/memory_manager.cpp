@@ -436,10 +436,12 @@ void* operator new(
     auto* raw = static_cast<std::byte*>(
       allocator->allocate(offset + bytes, alignment));
 
-    auto* header = reinterpret_cast<memory::MemoryBlockHeader*>(raw);
-    header->allocator = allocator;
-    header->alignment = alignment;
-    header->size = bytes;
+    std::construct_at(
+      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
+      memory::MemoryBlockHeader{
+        .allocator = allocator,
+        .alignment = alignment,
+        .size = bytes});
 
     auto* user = raw + offset;
 
@@ -462,10 +464,12 @@ void* operator new[](
     auto* raw = static_cast<std::byte*>(
       allocator->allocate(offset + bytes, alignment));
 
-    auto* header = reinterpret_cast<memory::MemoryBlockHeader*>(raw);
-    header->allocator = allocator;
-    header->alignment = alignment;
-    header->size = bytes;
+    std::construct_at(
+      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
+      memory::MemoryBlockHeader{
+        .allocator = allocator,
+        .alignment = alignment,
+        .size = bytes});
 
     auto* user = raw + offset;
 
@@ -489,10 +493,12 @@ void* operator new(
     auto* raw = static_cast<std::byte*>(
       allocator->allocate(offset + bytes, align));
 
-    auto* header = reinterpret_cast<memory::MemoryBlockHeader*>(raw);
-    header->allocator = allocator;
-    header->alignment = static_cast<std::uint32_t>(alignment);
-    header->size = bytes;
+    std::construct_at(
+      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
+      memory::MemoryBlockHeader{
+        .allocator = allocator,
+        .alignment = static_cast<std::uint32_t>(alignment),
+        .size = bytes});
 
     auto* user = raw + offset;
 
@@ -516,10 +522,12 @@ void* operator new[](
     auto* raw = static_cast<std::byte*>(
       allocator->allocate(offset + bytes, align));
 
-    auto* header = reinterpret_cast<memory::MemoryBlockHeader*>(raw);
-    header->allocator = allocator;
-    header->alignment = static_cast<std::uint32_t>(alignment);
-    header->size = bytes;
+    std::construct_at(
+      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
+      memory::MemoryBlockHeader{
+        .allocator = allocator,
+        .alignment = static_cast<std::uint32_t>(alignment),
+        .size = bytes});
 
     auto* user = raw + offset;
 
