@@ -35,7 +35,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install \
-            libbenchmark-dev
+            libbenchmark-dev \
             libboost-dev \
             libboost-test-dev \
             libfreetype-dev \
