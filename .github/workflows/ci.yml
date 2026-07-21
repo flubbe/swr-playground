@@ -33,13 +33,13 @@ jobs:
 
       - name: Install additional packages
         run: |
-          sudo apt-get update \
+          sudo apt-get update
           sudo apt-get install \
-          libbenchmark-dev \
-          libboost-dev \
-          libboost-test-dev \
-          libfreetype-dev \
-          libharfbuzz-dev
+            libbenchmark-dev
+            libboost-dev \
+            libboost-test-dev \
+            libfreetype-dev \
+            libharfbuzz-dev
         shell: bash
 
       - name: Use GCC 14
