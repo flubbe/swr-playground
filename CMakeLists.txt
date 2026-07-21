@@ -53,6 +53,24 @@ if(NOT TARGET SDL3::SDL3)
 endif()
 
 #
+# SDL3_ttf
+#
+find_package(SDL3_ttf QUIET CONFIG)
+if(NOT TARGET SDL3_ttf::SDL3_ttf)
+    message(STATUS "SDL3_ttf not found on system; fetching SDL3_ttf.")
+    FetchContent_Declare(
+        SDL3_ttf_src
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
+        GIT_TAG release-3.2.2
+    )
+    FetchContent_MakeAvailable(SDL3_ttf_src)
+endif()
+
+if(NOT TARGET SDL3_ttf::SDL3_ttf)
+    message(FATAL_ERROR "SDL3_ttf::SDL3_ttf target is not available.")
+endif()
+
+#
 # swr
 #
 set(SWR_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
@@ -101,6 +119,24 @@ target_link_libraries(imgui PUBLIC
     SDL3::SDL3
     OpenGL::GL
 )
+
+#
+# SDL3_image
+#
+find_package(SDL3_image QUIET CONFIG)
+if(NOT TARGET SDL3_image::SDL3_image)
+    message(STATUS "SDL3_image not found on system; fetching SDL3_image.")
+    FetchContent_Declare(
+        SDL3_image_src
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
+        GIT_TAG release-3.4.4
+    )
+    FetchContent_MakeAvailable(SDL3_image_src)
+endif()
+
+if(NOT TARGET SDL3_image::SDL3_image)
+    message(FATAL_ERROR "SDL3_image::SDL3_image target is not available.")
+endif()
 
 #
 # stb
@@ -240,6 +276,8 @@ target_link_libraries(swr_playground PRIVATE
     Microsoft.GSL::GSL
     OpenGL::GL
     SDL3::SDL3
+    SDL3_ttf::SDL3_ttf
+    SDL3_image::SDL3_image
     assimp::assimp
     stb
 )

@@ -13,44 +13,22 @@
 #include "application.h"
 #include "main_loop.h"
 
-MainLoop::MainLoop(Application& application) noexcept
-: application{application}
+MainLoop::MainLoop(
+  SplashScreen& splash_screen,
+  Application& application) noexcept
+: splash_screen{splash_screen}
+, application{application}
 {
 }
 
 void MainLoop::run()
 {
-    application.begin_startup();
-
-    if(!run_startup())
-    {
-        return;
-    }
-
-    run_main();
-}
-
-bool MainLoop::run_startup()
-{
-    bool running = true;
-
-    while(running
-          && !application.finish_startup_if_ready())
-    {
-        running = application.pump_messages();
-
-        application.prepare_frame();
-        application.render_loading_frame();
-    }
-
-    return running;
-}
-
-void MainLoop::run_main()
-{
     auto last_update_time = std::chrono::steady_clock::now();
-
     bool running = true;
+
+    // ensure the application window is shown.
+    application.show_window();
+
     while(running)
     {
         running = application.pump_messages();
@@ -64,6 +42,43 @@ void MainLoop::run_main()
 
         application.tick(delta_time);
 
-        application.render_main_frame();
+        application.render_frame();
     }
+}
+
+bool MainLoop::run_startup()
+{
+    bool running = true;
+
+    constexpr auto frame_time = std::chrono::milliseconds(100);
+    auto next_frame_time = std::chrono::steady_clock::now();
+
+    application.begin_startup();
+    while(running
+          && !application.finish_startup_if_ready())
+    {
+        running = application.pump_messages();
+
+        // Update startup progress.
+        // We naively always update, even if there's no change.
+        splash_screen.set_status(
+          application.get_startup_status());
+
+        // wait for next frame.
+        next_frame_time += frame_time;
+
+        if(auto now = std::chrono::steady_clock::now();
+           next_frame_time > now)
+        {
+            std::this_thread::sleep_until(
+              next_frame_time);
+        }
+        else
+        {
+            // We've fallen behind; don't try to catch up.
+            next_frame_time = now;
+        }
+    }
+
+    return running;
 }

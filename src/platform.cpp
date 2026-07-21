@@ -11,6 +11,7 @@
 #include <thread>
 
 #include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 #include "logging.h"
 
@@ -52,6 +53,13 @@ bool platform_init(
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    // Initialize SDL3 TTF support for splash screen.
+    if(!TTF_Init())
+    {
+        logging::errorf("Couldn't initialize SDL_ttf: {}", SDL_GetError());
+        return false;
+    }
 
     return true;
 }

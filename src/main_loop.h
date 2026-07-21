@@ -11,6 +11,7 @@
 #pragma once
 
 class Application;
+class SplashScreen;
 
 /**
  * Orchestrates the application's main loop and startup sequence.
@@ -28,15 +29,9 @@ public:
      *
      * @param application Reference to the application object to orchestrate.
      */
-    explicit MainLoop(Application& application) noexcept;
-
-    /**
-     * Runs the complete application: startup initialization, startup sequence, and main loop.
-     */
-    void run();
-
-private:
-    Application& application;
+    explicit MainLoop(
+      SplashScreen& splash_screen,
+      Application& application) noexcept;
 
     /**
      * Runs the startup phase with a loading screen.
@@ -51,5 +46,9 @@ private:
     /**
      * Runs the main loop until the application quits.
      */
-    void run_main();
+    void run();
+
+private:
+    SplashScreen& splash_screen;
+    Application& application;
 };
