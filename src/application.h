@@ -183,7 +183,7 @@ private:
     /**
      * Renders the main application frame (viewport, panels, etc).
      */
-    void render_main_frame();
+    void render_frame();
 
     /**
      * Called when startup completes successfully.

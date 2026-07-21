@@ -44,7 +44,7 @@ public:
     bool run_startup();
 
     /**
-     * Runs the complete application: startup initialization, startup sequence, and main loop.
+     * Runs main loop until the application quits.
      */
     void run();
 

@@ -42,7 +42,7 @@ void MainLoop::run()
 
         application.tick(delta_time);
 
-        application.render_main_frame();
+        application.render_frame();
     }
 }
 

@@ -1260,7 +1260,7 @@ void Application::prepare_frame()
     ImGui::NewFrame();
 }
 
-void Application::render_main_frame()
+void Application::render_frame()
 {
     update_runtime_test_task();
 
