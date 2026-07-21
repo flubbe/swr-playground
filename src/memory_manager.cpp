@@ -8,8 +8,6 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "memory_manager.h"
-
 #include <algorithm>
 #include <atomic>
 #include <bit>
@@ -18,6 +16,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+
+#include "memory_manager.h"
 
 #if defined(_MSC_VER)
 #    include <malloc.h>
