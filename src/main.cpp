@@ -94,6 +94,13 @@ int main(int argc, char* argv[])
             return EXIT_FAILURE;
         }
 
+        // This seems to be the earliest point where we can easily display
+        // the splash screen. It needs logging to be set up in case of errors,
+        // and the platform initialization also sets up TTF support.
+        auto splash_screen = std::make_unique<SplashScreen>(
+          640, 480);
+        splash_screen->set_status("Loading...");
+
         reflect::ReflectionSystem::allow_auto_registration(false);
         reflect::ReflectionSystem::process_pending_registrations();
 
@@ -117,7 +124,14 @@ int main(int argc, char* argv[])
           viewport,
           std::thread::hardware_concurrency()};
 
-        MainLoop main_loop{app};
+        // Set up the main loop and exit the splash screen just before entering.
+        MainLoop main_loop{*splash_screen, app};
+        if(!main_loop.run_startup())
+        {
+            return EXIT_FAILURE;
+        }
+
+        splash_screen.reset();
         main_loop.run();
     }
     catch(const std::exception& e)

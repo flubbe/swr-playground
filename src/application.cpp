@@ -949,55 +949,6 @@ void finalize_startup_scene(
     viewport.use_local_camera();
 }
 
-void draw_loading_screen(
-  SDL_Window*,
-  const DisplayProgress& progress,
-  const std::optional<std::string>& error_message)
-{
-    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(main_viewport->Pos);
-    ImGui::SetNextWindowSize(main_viewport->Size);
-
-    const ImGuiWindowFlags flags =
-      ImGuiWindowFlags_NoDecoration
-      | ImGuiWindowFlags_NoMove
-      | ImGuiWindowFlags_NoSavedSettings;
-
-    ImGui::Begin("SplashScreen", nullptr, flags);
-
-    const ImVec2 content_size = ImGui::GetContentRegionAvail();
-    const char* heading_text = error_message.has_value()
-                                 ? "Startup failed"
-                                 : "Loading scene";
-
-    const ImVec2 heading_size = ImGui::CalcTextSize(heading_text);
-    const ImVec2 status_size = ImGui::CalcTextSize(progress.status_text.c_str());
-    const float total_height =
-      heading_size.y + 16.f + status_size.y;
-    const float start_y =
-      std::max(0.f, (content_size.y - total_height) * 0.5f);
-
-    ImGui::SetCursorPosY(start_y);
-    ImGui::SetCursorPosX(std::max(0.f, (content_size.x - heading_size.x) * 0.5f));
-    ImGui::TextUnformatted(heading_text);
-
-    ImGui::Spacing();
-    ImGui::Spacing();
-    ImGui::SetCursorPosX(std::max(0.f, (content_size.x - status_size.x) * 0.5f));
-    if(error_message.has_value())
-    {
-        ImGui::TextWrapped("%s", error_message->c_str());
-        ImGui::Spacing();
-        ImGui::TextUnformatted("Close the window to exit.");
-    }
-    else
-    {
-        ImGui::TextUnformatted(progress.status_text.c_str());
-    }
-
-    ImGui::End();
-}
-
 TaskSpec make_wait_task(
   std::string name,
   int iterations,
@@ -1195,6 +1146,57 @@ DisplayProgress aggregate_startup_progress(
 
 }    // namespace
 
+void Application::show_window()
+{
+    if(window == nullptr)
+    {
+        logging::errorf("Cannot show window: No window.");
+        return;
+    }
+
+    if(!SDL_ShowWindow(window))
+    {
+        logging::errorf(
+          "SDL_ShowWindow failed: {}",
+          SDL_GetError());
+    }
+}
+
+void Application::hide_window()
+{
+    if(window == nullptr)
+    {
+        logging::errorf("Cannot hide window: No window.");
+        return;
+    }
+
+    if(!SDL_HideWindow(window))
+    {
+        logging::errorf(
+          "SDL_HideWindow failed: {}",
+          SDL_GetError());
+    }
+}
+
+bool Application::is_window_shown() const
+{
+    if(window == nullptr)
+    {
+        logging::errorf("Cannot query window flags: No window.");
+        return false;
+    }
+
+    return (SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN) == 0;
+}
+
+std::string Application::get_startup_status() const
+{
+    return aggregate_startup_progress(
+             startup_task_handles,
+             startup_task_weights)
+      .status_text;
+}
+
 bool Application::pump_messages()
 {
     bool running = true;
@@ -1258,33 +1260,9 @@ void Application::prepare_frame()
     ImGui::NewFrame();
 }
 
-void Application::render_loading_frame()
-{
-    const DisplayProgress startup_progress = aggregate_startup_progress(
-      startup_task_handles,
-      startup_task_weights);
-
-    draw_loading_screen(
-      window,
-      startup_progress,
-      startup_error);
-
-    ImGui::Render();
-
-    SDL_GetWindowSizeInPixels(window, &pixel_w, &pixel_h);
-    glViewport(0, 0, pixel_w, pixel_h);
-    glClearColor(0.12f, 0.12f, 0.12f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    SDL_GL_SwapWindow(window);
-}
-
 void Application::render_main_frame()
 {
     update_runtime_test_task();
-
-    ImGuiIO& io = ImGui::GetIO();
 
     imgui::draw_main_dockspace(*this);
     imgui_draw_viewport_panel(
@@ -1303,8 +1281,9 @@ void Application::render_main_frame()
       scene,
       renderer,
       frame_index,
-      pixel_density,
-      io);
+      pixel_density);
+    imgui::draw_profiler_panel(renderer);
+    imgui::draw_memory_profiler_panel();
 
     if(imgui::check_and_clear_sorting_benchmark_request())
     {
@@ -1405,7 +1384,7 @@ Application::Application(
       this->title.c_str(),
       1280,    // TODO load from config
       800,     // TODO load from config
-      SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+      SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN);
     if(!window)
     {
         throw SDLError{"SDL_CreateWindow failed"};

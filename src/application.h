@@ -23,6 +23,7 @@
 #include <SDL3/SDL_opengl.h>
 
 #include "logging.h"
+#include "splash.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
 
@@ -83,6 +84,8 @@ class Application
 {
     std::string title;
     logging::BufferedLogDevice& log_device;
+
+    std::unique_ptr<SplashScreen> splash_screen;
 
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
@@ -153,6 +156,18 @@ protected:
 private:
     friend class MainLoop;
 
+    /** Show the application window. */
+    void show_window();
+
+    /** Hide the application window. */
+    void hide_window();
+
+    /** Return whether the allocation window is shown. */
+    bool is_window_shown() const;
+
+    /** Return the startup status text. */
+    std::string get_startup_status() const;
+
     /**
      * Pumps SDL messages and updates input state.
      *
@@ -169,11 +184,6 @@ private:
      * Renders the main application frame (viewport, panels, etc).
      */
     void render_main_frame();
-
-    /**
-     * Renders the loading screen frame.
-     */
-    void render_loading_frame();
 
     /**
      * Called when startup completes successfully.
