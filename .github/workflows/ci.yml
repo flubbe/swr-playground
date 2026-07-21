@@ -32,7 +32,12 @@ jobs:
           version-sdl-image: 3-latest
 
       - name: Install additional packages
-        run: sudo apt-get install libbenchmark-dev libboost-dev libboost-test-dev
+        run: sudo apt-get install \
+          libbenchmark-dev \
+          libboost-dev \
+          libboost-test-dev \
+          libfreetype-dev \
+          libharfbuzz-dev
         shell: bash
 
       - name: Use GCC 14
