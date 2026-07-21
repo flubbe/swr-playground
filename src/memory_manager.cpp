@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <new>
 
 #if defined(_MSC_VER)
