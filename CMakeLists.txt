@@ -245,12 +245,15 @@ add_executable(swr_playground
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
+    src/ui/memory_profiler.cpp
+    src/ui/profiler.cpp
     src/ui/scene_inspector.cpp
     src/ui/tools.cpp
     src/application.cpp
     src/logging.cpp
     src/main.cpp
     src/main_loop.cpp
+    src/memory_manager.cpp
     src/mesh.cpp
     src/mesh_simplifier.cpp
     src/platform.cpp

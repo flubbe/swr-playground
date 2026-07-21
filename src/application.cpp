@@ -1281,8 +1281,9 @@ void Application::render_frame()
       scene,
       renderer,
       frame_index,
-      pixel_density,
-      ImGui::GetIO());
+      pixel_density);
+    imgui::draw_profiler_panel(renderer);
+    imgui::draw_memory_profiler_panel();
 
     if(imgui::check_and_clear_sorting_benchmark_request())
     {

@@ -35,8 +35,7 @@ void draw_tools_panel(
   Scene& scene,
   Renderer& renderer,
   int frame_index,
-  float pixel_density,
-  const ImGuiIO& io)
+  float pixel_density)
 {
     ImGui::Begin("Tools");
 
@@ -216,39 +215,7 @@ void draw_tools_panel(
     {
         const RendererStats& stats = renderer.get_stats();
 
-        if(ImGui::BeginTable(
-             "FrameStats",
-             2,
-             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
-        {
-            ImGui::TableSetupColumn("Metric");
-            ImGui::TableSetupColumn("Value");
-            ImGui::TableHeadersRow();
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("FPS");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.1f", io.Framerate);
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("Frame");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.3f ms", 1000.0f / std::max(io.Framerate, 0.001f));
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("Render");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.3f ms", 1000.f * renderer.get_render_time());
-
-            ImGui::EndTable();
-        }
-
-        ImGui::Spacing();
         ImGui::TextUnformatted("Meshes");
-
         if(ImGui::BeginTable(
              "MeshStats",
              2,

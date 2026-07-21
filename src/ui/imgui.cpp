@@ -171,6 +171,8 @@ void setup_dock_layout(ImGuiID dockspace_id)
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("Console", dock_bottom);
     ImGui::DockBuilderDockWindow("Tools", dock_right);
+    ImGui::DockBuilderDockWindow("Profiler", dock_right);
+    ImGui::DockBuilderDockWindow("Memory", dock_right);
     ImGui::DockBuilderDockWindow("Scene Inspector", dock_left);
     ImGui::DockBuilderDockWindow("Class Inspector", dock_left);
 

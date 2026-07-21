@@ -19,6 +19,7 @@
 #include "application.h"
 #include "logging.h"
 #include "main_loop.h"
+#include "memory_manager.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "platform.h"
@@ -77,8 +78,15 @@ std::filesystem::path resolve_log_path(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    const auto log_shutdown = gsl::finally([]() -> void
-                                           { logging::shutdown(); });
+    memory::initialize();
+    const auto memory_shutdown =
+      gsl::finally([]() -> void
+                   { memory::shutdown(); });
+    // TODO It would be nice to (automatically) log memory statistics, but logging is shut down earlier.
+
+    const auto log_shutdown =
+      gsl::finally([]() -> void
+                   { logging::shutdown(); });
 
     logging::FileLogDevice log_device{
       resolve_log_path(argc, argv),

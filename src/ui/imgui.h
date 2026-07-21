@@ -72,8 +72,12 @@ void draw_tools_panel(
   Scene& scene,
   Renderer& renderer,
   int frame_index,
-  float pixel_density,
-  const ImGuiIO& io);
+  float pixel_density);
+
+void draw_profiler_panel(
+  Renderer& renderer);
+
+void draw_memory_profiler_panel();
 
 bool check_and_clear_sorting_benchmark_request();
 
