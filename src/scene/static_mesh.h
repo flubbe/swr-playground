@@ -12,8 +12,8 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <vector>
 
+#include "containers/vector.h"
 #include "mesh.h"
 #include "render_types.h"
 #include "object.h"
@@ -22,7 +22,7 @@
 struct StaticMeshLod
 {
     /** Sections to draw when this LOD is selected. */
-    std::vector<MeshSection> mesh_sections;
+    swr::vector<MeshSection> mesh_sections;
 
     /** Minimum projected screen-height fraction required to select this LOD. */
     float min_screen_height{0.f};
@@ -34,7 +34,7 @@ struct StaticMeshLod
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
-    std::vector<StaticMeshLod> mesh_lods;
+    swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
 
     void update_bounds() noexcept;
@@ -50,28 +50,28 @@ public:
 
     StaticMesh() = default;
 
-    explicit StaticMesh(std::vector<MeshSection> sections);
+    explicit StaticMesh(swr::vector<MeshSection> sections);
 
     StaticMesh(
-      std::vector<MeshSection> sections,
+      swr::vector<MeshSection> sections,
       MeshBounds bounds);
 
-    explicit StaticMesh(std::vector<StaticMeshLod> lods);
+    explicit StaticMesh(swr::vector<StaticMeshLod> lods);
 
-    void set_mesh_sections(std::vector<MeshSection> sections);
+    void set_mesh_sections(swr::vector<MeshSection> sections);
 
     void set_mesh_sections(
-      std::vector<MeshSection> sections,
+      swr::vector<MeshSection> sections,
       MeshBounds bounds);
 
-    void set_lods(std::vector<StaticMeshLod> lods);
+    void set_lods(swr::vector<StaticMeshLod> lods);
 
     void clear_mesh_sections() noexcept;
 
     [[nodiscard]]
-    const std::vector<MeshSection>& get_mesh_sections() const
+    const swr::vector<MeshSection>& get_mesh_sections() const
     {
-        static const std::vector<MeshSection> empty;
+        static const swr::vector<MeshSection> empty;
         if(mesh_lods.empty())
         {
             return empty;
@@ -81,7 +81,7 @@ public:
     }
 
     [[nodiscard]]
-    const std::vector<StaticMeshLod>& get_lods() const
+    const swr::vector<StaticMeshLod>& get_lods() const
     {
         return mesh_lods;
     }
@@ -91,7 +91,7 @@ public:
      *       changable at run-time.
      */
     [[nodiscard]]
-    std::vector<StaticMeshLod>& get_lods()
+    swr::vector<StaticMeshLod>& get_lods()
     {
         return mesh_lods;
     }

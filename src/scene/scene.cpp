@@ -94,68 +94,68 @@ const Camera* Scene::find_camera(ObjectId id) const
     return find_object<Camera>(id);
 }
 
-std::vector<Camera*> Scene::get_cameras()
+void Scene::get_cameras(
+  swr::vector<Camera*>& cameras)
 {
-    std::vector<Camera*> cameras;
+    cameras.clear();
     for_each_object<Camera>(
       [&cameras](Camera& camera)
       {
           cameras.push_back(&camera);
       });
-    return cameras;
 }
 
-std::vector<const Camera*> Scene::get_cameras() const
+void Scene::get_cameras(
+  swr::vector<const Camera*>& cameras) const
 {
-    std::vector<const Camera*> cameras;
+    cameras.clear();
     for_each_object<Camera>(
       [&cameras](const Camera& camera)
       {
           cameras.push_back(&camera);
       });
-    return cameras;
 }
 
-std::vector<DirectionalLight*> Scene::get_directional_lights()
+void Scene::get_directional_lights(
+  swr::vector<DirectionalLight*>& lights)
 {
-    std::vector<DirectionalLight*> lights;
+    lights.clear();
     for_each_object<DirectionalLight>(
       [&lights](DirectionalLight& light)
       {
           lights.push_back(&light);
       });
-    return lights;
 }
 
-std::vector<const DirectionalLight*> Scene::get_directional_lights() const
+void Scene::get_directional_lights(
+  swr::vector<const DirectionalLight*>& lights) const
 {
-    std::vector<const DirectionalLight*> lights;
+    lights.clear();
     for_each_object<DirectionalLight>(
       [&lights](const DirectionalLight& light)
       {
           lights.push_back(&light);
       });
-    return lights;
 }
 
-std::vector<SpotLight*> Scene::get_spot_lights()
+void Scene::get_spot_lights(
+  swr::vector<SpotLight*>& lights)
 {
-    std::vector<SpotLight*> lights;
+    lights.clear();
     for_each_object<SpotLight>(
       [&lights](SpotLight& light)
       {
           lights.push_back(&light);
       });
-    return lights;
 }
 
-std::vector<const SpotLight*> Scene::get_spot_lights() const
+void Scene::get_spot_lights(
+  swr::vector<const SpotLight*>& lights) const
 {
-    std::vector<const SpotLight*> lights;
+    lights.clear();
     for_each_object<SpotLight>(
       [&lights](const SpotLight& light)
       {
           lights.push_back(&light);
       });
-    return lights;
 }

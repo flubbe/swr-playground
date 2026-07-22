@@ -27,10 +27,10 @@ namespace
  * @returns Returns the `ready` indices into `indegree`.
  */
 [[nodiscard]]
-std::vector<std::size_t> build_sorted_ready_queue(
-  const std::vector<std::size_t>& indegree)
+swr::vector<std::size_t> build_sorted_ready_queue(
+  const swr::vector<std::size_t>& indegree)
 {
-    std::vector<std::size_t> ready;
+    swr::vector<std::size_t> ready;
     ready.reserve(indegree.size());
 
     for(std::size_t i = 0; i < indegree.size(); ++i)
@@ -47,12 +47,12 @@ std::vector<std::size_t> build_sorted_ready_queue(
 
 }    // namespace
 
-std::vector<std::size_t> build_task_execution_order(
-  const std::vector<TaskSpec>& tasks)
+swr::vector<std::size_t> build_task_execution_order(
+  const swr::vector<TaskSpec>& tasks)
 {
     const std::size_t task_count = tasks.size();
-    std::vector<std::size_t> indegree(task_count, 0);
-    std::vector<std::vector<std::size_t>> dependents(task_count);
+    swr::vector<std::size_t> indegree(task_count, 0);
+    swr::vector<swr::vector<std::size_t>> dependents(task_count);
 
     for(std::size_t task_index = 0; task_index < task_count; ++task_index)
     {
@@ -75,9 +75,9 @@ std::vector<std::size_t> build_task_execution_order(
         }
     }
 
-    std::vector<std::size_t> execution_order;
+    swr::vector<std::size_t> execution_order;
     execution_order.reserve(task_count);
-    std::vector<std::size_t> ready = build_sorted_ready_queue(indegree);
+    swr::vector<std::size_t> ready = build_sorted_ready_queue(indegree);
 
     while(!ready.empty())
     {
@@ -112,8 +112,8 @@ std::vector<std::size_t> build_task_execution_order(
 }
 
 TaskSchedulingData build_task_scheduling_data(
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<std::size_t>& execution_order)
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<std::size_t>& execution_order)
 {
     const std::size_t task_count = tasks.size();
 

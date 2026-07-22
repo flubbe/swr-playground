@@ -19,8 +19,8 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
+#include "containers/vector.h"
 #include "class_info.h"
 
 namespace reflect
@@ -253,11 +253,13 @@ public:
       std::string_view module_name);
 
     /**
-     * Return all currently registered classes.
+     * Get all currently registered classes.
      *
-     * @returns Returns a stable, sorted snapshot of registered classes.
+     * @note The output buffer is cleared.
+     * @param registered_classes Buffer for a stable, sorted snapshot of registered classes.
      */
-    static std::vector<const ClassInfo*> get_registered_classes();
+    static void get_registered_classes(
+      swr::vector<const ClassInfo*>& registered_classes);
 
     /** Clear the registry. */
     static void clear();
@@ -384,14 +386,14 @@ protected:
     const ClassInfo* class_info{Base::static_class()};
 
     /** Reflected properties, filled in by `initialize_properties`. */
-    std::vector<std::unique_ptr<Property>> properties;
+    swr::vector<std::unique_ptr<Property>> properties;
 
     /** Initialize the property list from the class metadata. */
     void initialize_properties()
     {
         properties.clear();
 
-        std::vector<const reflect::ClassInfo*> class_chain;
+        swr::vector<const reflect::ClassInfo*> class_chain;
 
         // Gather class chain so base class properties come first.
         for(const auto* cls = get_class(); cls != nullptr; cls = cls->get_super())

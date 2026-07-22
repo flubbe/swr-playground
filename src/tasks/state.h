@@ -16,7 +16,8 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
+
+#include "containers/vector.h"
 
 namespace task_system
 {
@@ -55,7 +56,7 @@ struct TaskGroupSnapshot
     float progress{0.f};
 
     /** Current per-task snapshots for the submission. */
-    std::vector<TaskSnapshot> tasks;
+    swr::vector<TaskSnapshot> tasks;
 };
 
 /** Shared state instance used across task execution, handle, and scheduler. */
@@ -68,7 +69,7 @@ struct TaskSharedState
     TaskGroupSnapshot snapshot;
 
     /** Per-task weights used to compute aggregate submission progress. */
-    std::vector<float> task_weights;
+    swr::vector<float> task_weights;
 
     /** Sum of normalized task weights. */
     float total_weight{0.f};

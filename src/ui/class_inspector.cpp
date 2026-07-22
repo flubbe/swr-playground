@@ -8,7 +8,6 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -17,6 +16,7 @@
 
 #include "ml/all.h"
 
+#include "containers/vector.h"
 #include "reflection/class_registry.h"
 #include "imgui.h"
 #include "utils.h"
@@ -32,7 +32,9 @@ void validate_selected_class(
         return;
     }
 
-    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    static swr::vector<const reflect::ClassInfo*> classes;
+    reflect::ReflectionSystem::get_registered_classes(classes);
+
     const auto it = std::ranges::find(
       classes,
       ui_state.selected_class);
@@ -166,7 +168,7 @@ std::string descriptor_default_summary(
 
 using ClassChildrenMap = std::unordered_map<
   const reflect::ClassInfo*,
-  std::vector<const reflect::ClassInfo*>>;
+  swr::vector<const reflect::ClassInfo*>>;
 
 bool class_tree_contains_match(
   const reflect::ClassInfo* cls,
@@ -264,12 +266,12 @@ namespace imgui
 struct ClassInspectorCache
 {
     const reflect::ClassInfo* cls{nullptr};
-    std::vector<const reflect::ClassInfo*> class_chain;
+    swr::vector<const reflect::ClassInfo*> class_chain;
     std::unordered_map<
       const reflect::PropertyDescriptor*,
       std::array<std::size_t, 3>>
       layout_by_descriptor;
-    std::vector<
+    swr::vector<
       std::pair<
         const reflect::PropertyDescriptor*,
         const reflect::ClassInfo*>>
@@ -282,10 +284,13 @@ void draw_class_inspector_panel(
     ImGui::Begin("Class Inspector");
     validate_selected_class(ui_state);
 
-    static std::string filter_text;
-    std::string filter = to_lower_copy(filter_text);
+    static std::string filter_text;    // FIXME Assigned below.
+    static std::string filter;
 
-    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    filter = to_lower_copy(filter_text);
+
+    static swr::vector<const reflect::ClassInfo*> classes;
+    reflect::ReflectionSystem::get_registered_classes(classes);
     if(classes.empty())
     {
         ImGui::TextUnformatted("No reflected classes registered.");
@@ -296,9 +301,15 @@ void draw_class_inspector_panel(
     std::unordered_set<const reflect::ClassInfo*> known_classes{
       classes.begin(),
       classes.end()};
-    ClassChildrenMap children_by_parent;
-    std::vector<const reflect::ClassInfo*> roots;
-    roots.reserve(classes.size());
+
+    static ClassChildrenMap children_by_parent;
+    for(auto& [parent, children]: children_by_parent)
+    {
+        children.clear();
+    }
+
+    static swr::vector<const reflect::ClassInfo*> roots;
+    roots.clear();
 
     for(const auto* cls: classes)
     {
@@ -318,6 +329,19 @@ void draw_class_inspector_panel(
         else
         {
             roots.push_back(cls);
+        }
+    }
+
+    for(auto it = children_by_parent.begin();
+        it != children_by_parent.end();)
+    {
+        if(it->second.empty())
+        {
+            it = children_by_parent.erase(it);
+        }
+        else
+        {
+            ++it;
         }
     }
 

@@ -12,7 +12,6 @@
 #include <cmath>
 #include <span>
 #include <utility>
-#include <vector>
 
 #include "scene/camera.h"
 #include "scene/scene.h"
@@ -377,7 +376,7 @@ MaterialHandle RenderDevice::create_material(
     materials.insert({material_id,
                       {.shader = &shader,
                        .shader_handle = shader_handle,
-                       .texture_handles = std::vector<std::uint32_t>(
+                       .texture_handles = swr::vector<std::uint32_t>(
                          texture_handles.begin(),
                          texture_handles.end())}});
     return material_id;

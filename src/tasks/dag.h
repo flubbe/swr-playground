@@ -11,8 +11,8 @@
 #pragma once
 
 #include <cstddef>
-#include <vector>
 
+#include "containers/vector.h"
 #include "task_system.h"
 
 namespace task_system
@@ -21,12 +21,12 @@ namespace task_system
 /** Scheduling metadata derived from a topologically ordered task graph. */
 struct TaskSchedulingData
 {
-    std::vector<float> weights;
-    std::vector<float> task_progress_base;
-    std::vector<float> task_progress_span;
-    std::vector<std::size_t> indegree;
-    std::vector<std::vector<std::size_t>> dependents;
-    std::vector<std::size_t> execution_rank;
+    swr::vector<float> weights;
+    swr::vector<float> task_progress_base;
+    swr::vector<float> task_progress_span;
+    swr::vector<std::size_t> indegree;
+    swr::vector<swr::vector<std::size_t>> dependents;
+    swr::vector<std::size_t> execution_rank;
 };
 
 /**
@@ -38,8 +38,8 @@ struct TaskSchedulingData
  * @throws std::runtime_error if the graph contains a cycle or self-dependency.
  */
 [[nodiscard]]
-std::vector<std::size_t> build_task_execution_order(
-  const std::vector<TaskSpec>& tasks);
+swr::vector<std::size_t> build_task_execution_order(
+  const swr::vector<TaskSpec>& tasks);
 
 /**
  * Computes per-task scheduling metadata from a topologically ordered task list.
@@ -50,7 +50,7 @@ std::vector<std::size_t> build_task_execution_order(
  */
 [[nodiscard]]
 TaskSchedulingData build_task_scheduling_data(
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<std::size_t>& execution_order);
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<std::size_t>& execution_order);
 
 }    // namespace task_system

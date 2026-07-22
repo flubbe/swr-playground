@@ -216,10 +216,14 @@ void BufferedLogDevice::log_n(
     write_record(record);
 }
 
-std::vector<LogRecord> BufferedLogDevice::get_records() const
+void BufferedLogDevice::get_records(
+  swr::vector<LogRecord>& records) const
 {
     std::scoped_lock lock{mutex};
-    return std::vector<LogRecord>{records.begin(), records.end()};
+    records.reserve(this->records.size());
+    records.assign(
+      this->records.cbegin(),
+      this->records.cend());
 }
 
 void BufferedLogDevice::clear()

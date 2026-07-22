@@ -25,14 +25,14 @@ struct SchedulerShared
 {
     std::mutex mutex;
     std::condition_variable cv;
-    std::vector<std::size_t> finished_tasks;
+    swr::vector<std::size_t> finished_tasks;
     std::size_t running_tasks{0};
     std::exception_ptr first_error;
 };
 
 struct SchedulerProgress
 {
-    std::vector<std::size_t> finished_tasks;
+    swr::vector<std::size_t> finished_tasks;
     std::size_t running_tasks{0};
     std::exception_ptr error;
 };
@@ -44,10 +44,10 @@ struct SchedulerProgress
  * @returns Returns the `ready` indices into `indegree`.
  */
 [[nodiscard]]
-std::vector<std::size_t> build_sorted_ready_queue(
-  const std::vector<std::size_t>& indegree)
+swr::vector<std::size_t> build_sorted_ready_queue(
+  const swr::vector<std::size_t>& indegree)
 {
-    std::vector<std::size_t> ready;
+    swr::vector<std::size_t> ready;
     ready.reserve(indegree.size());
 
     for(std::size_t i = 0; i < indegree.size(); ++i)
@@ -155,8 +155,8 @@ void run_scheduled_task_worker(
 }
 
 void sort_ready_tasks(
-  std::vector<std::size_t>& ready,
-  const std::vector<std::size_t>& execution_rank)
+  swr::vector<std::size_t>& ready,
+  const swr::vector<std::size_t>& execution_rank)
 {
     std::ranges::sort(
       ready,
@@ -169,9 +169,9 @@ void sort_ready_tasks(
 void mark_task_completed_and_release_dependents(
   const std::size_t finished_task_index,
   std::size_t& completed_tasks,
-  std::vector<std::size_t>& ready,
-  std::vector<std::size_t>& indegree,
-  const std::vector<std::vector<std::size_t>>& dependents)
+  swr::vector<std::size_t>& ready,
+  swr::vector<std::size_t>& indegree,
+  const swr::vector<swr::vector<std::size_t>>& dependents)
 {
     ++completed_tasks;
     for(const std::size_t dependent_index: dependents[finished_task_index])
@@ -191,13 +191,13 @@ void dispatch_ready_tasks(
   concurrency_utils::deferred_thread_pool<>& thread_pool,
   const std::shared_ptr<TaskSharedState>& state,
   const std::shared_ptr<SchedulerShared>& scheduler_shared,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<float>& task_progress_base,
-  const std::vector<float>& task_progress_span,
-  std::vector<std::size_t>& ready,
-  std::vector<std::size_t>& indegree,
-  const std::vector<std::vector<std::size_t>>& dependents,
-  const std::vector<std::size_t>& execution_rank,
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<float>& task_progress_base,
+  const swr::vector<float>& task_progress_span,
+  swr::vector<std::size_t>& ready,
+  swr::vector<std::size_t>& indegree,
+  const swr::vector<swr::vector<std::size_t>>& dependents,
+  const swr::vector<std::size_t>& execution_rank,
   std::size_t& completed_tasks)
 {
     while(!ready.empty()
@@ -323,20 +323,20 @@ void run_task_specs_scheduler(
   concurrency_utils::deferred_thread_pool<>& thread_pool,
   const std::shared_ptr<TaskSharedState>& state,
   const std::shared_ptr<std::promise<void>>& promise,
-  std::vector<TaskSpec> tasks,
+  swr::vector<TaskSpec> tasks,
   TaskSchedulingData scheduling_data)
 {
     auto scheduler_shared = std::make_shared<SchedulerShared>();
 
     try
     {
-        std::vector<std::size_t>& indegree = scheduling_data.indegree;
-        std::vector<std::vector<std::size_t>>& dependents = scheduling_data.dependents;
-        std::vector<std::size_t>& execution_rank = scheduling_data.execution_rank;
-        std::vector<float>& task_progress_base = scheduling_data.task_progress_base;
-        std::vector<float>& task_progress_span = scheduling_data.task_progress_span;
+        swr::vector<std::size_t>& indegree = scheduling_data.indegree;
+        swr::vector<swr::vector<std::size_t>>& dependents = scheduling_data.dependents;
+        swr::vector<std::size_t>& execution_rank = scheduling_data.execution_rank;
+        swr::vector<float>& task_progress_base = scheduling_data.task_progress_base;
+        swr::vector<float>& task_progress_span = scheduling_data.task_progress_span;
 
-        std::vector<std::size_t> ready = build_sorted_ready_queue(indegree);
+        swr::vector<std::size_t> ready = build_sorted_ready_queue(indegree);
         sort_ready_tasks(ready, execution_rank);
         std::size_t completed_tasks = 0;
 

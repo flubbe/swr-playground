@@ -321,7 +321,7 @@ DEFINE_REFLECTION(Gear);
 Gear::Gear(
   const GearParameters& params)
 : Reflected<Gear, StaticMesh>{
-    std::vector{
+    swr::vector{
       MeshSection{
         .mesh_handle = params.inner.mesh_handle,
         .material_handle = params.inner.material_handle,

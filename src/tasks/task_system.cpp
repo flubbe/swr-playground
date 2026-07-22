@@ -45,8 +45,8 @@ std::optional<std::size_t> resolve_task_index_locked(
 
 void initialize_task_group_snapshot(
   TaskSharedState& state,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<float>& weights)
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<float>& weights)
 {
     std::scoped_lock lock{state.snapshot_mutex};
     state.snapshot.tasks.clear();
@@ -69,8 +69,8 @@ void initialize_task_group_snapshot(
 
 void run_task_specs(
   TaskExecutionContext& context,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<std::size_t>& execution_order)
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<std::size_t>& execution_order)
 {
     if(tasks.empty())
     {
@@ -83,7 +83,7 @@ void run_task_specs(
         throw std::runtime_error{"Task execution order size mismatch"};
     }
 
-    std::vector<float> normalized_weights;
+    swr::vector<float> normalized_weights;
     normalized_weights.reserve(tasks.size());
     float total_weight = 0.f;
     for(const TaskSpec& task: tasks)
@@ -316,10 +316,10 @@ TaskSystem::TaskSystem(
 }
 
 TaskSubmission<void> TaskSystem::submit_task_specs(
-  std::vector<TaskSpec> tasks)
+  swr::vector<TaskSpec> tasks)
 {
     // Validate and freeze deterministic topological order at submission time.
-    const std::vector<std::size_t> execution_order =
+    const swr::vector<std::size_t> execution_order =
       build_task_execution_order(tasks);
 
     TaskSchedulingData scheduling_data = build_task_scheduling_data(

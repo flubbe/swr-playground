@@ -97,7 +97,7 @@ std::string task_display_text(const TaskSnapshot& task)
 
 [[nodiscard]]
 DisplayProgress summarize_task_display(
-  const std::vector<TaskSnapshot>& tasks,
+  const swr::vector<TaskSnapshot>& tasks,
   float progress,
   std::string_view default_status)
 {
@@ -536,7 +536,8 @@ void imgui_draw_viewport_panel(
                 }
 
                 ImGui::Separator();
-                const std::vector<Camera*> scene_cameras = scene.get_cameras();
+                static swr::vector<Camera*> scene_cameras;
+                scene.get_cameras(scene_cameras);
 
                 if(ImGui::BeginMenu("Scene Cameras"))
                 {
@@ -640,7 +641,7 @@ void expand_mesh_handle_bounds(
 
 MeshBounds calculate_mesh_section_bounds(
   const RenderDevice& device,
-  const std::vector<MeshSection>& sections)
+  const swr::vector<MeshSection>& sections)
 {
     MeshBounds bounds;
     for(const MeshSection& section: sections)
@@ -712,7 +713,7 @@ void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const std::vector<StagedGearInstance>& gears)
+  const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
     {
@@ -748,12 +749,12 @@ swr::program_base* get_floor_shader_program(
     }
 }
 
-std::vector<StaticMeshLod> create_static_mesh_resources(
+swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   MaterialHandle material,
   const StagedStaticMeshAsset& staged_asset)
 {
-    std::vector<StaticMeshLod> result_lods;
+    swr::vector<StaticMeshLod> result_lods;
     if(staged_asset.sections.empty())
     {
         return result_lods;
@@ -838,7 +839,7 @@ void try_add_textured_floor(
         const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
 
         auto* floor = scene.add_object<StaticMesh>(
-          std::vector<MeshSection>{
+          swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
               .material_handle = material_handle,
@@ -873,7 +874,7 @@ void try_add_textured_floor(
 StaticMesh* create_static_mesh_instance(
   Scene& scene,
   const StagedStaticMeshAsset& resources,
-  std::vector<StaticMeshLod> lods,
+  swr::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
     StaticMesh* mesh = scene.add_object<StaticMesh>(
@@ -1100,8 +1101,8 @@ void configure_default_spot_lights(Scene& scene)
 }
 
 DisplayProgress aggregate_startup_progress(
-  const std::vector<TaskHandle>& handles,
-  const std::vector<float>& weights)
+  const swr::vector<TaskHandle>& handles,
+  const swr::vector<float>& weights)
 {
     if(handles.empty() || handles.size() != weights.size())
     {
@@ -1113,7 +1114,7 @@ DisplayProgress aggregate_startup_progress(
 
     float total_weight = 0.f;
     float completed_weight = 0.f;
-    std::vector<TaskSnapshot> task_snapshots;
+    swr::vector<TaskSnapshot> task_snapshots;
 
     for(std::size_t i = 0; i < handles.size(); ++i)
     {
@@ -1675,7 +1676,7 @@ void Application::start_debug_test_tasks()
     runtime_test_task_error.reset();
     runtime_test_modal_open = true;
 
-    std::vector<TaskSpec> tasks;
+    swr::vector<TaskSpec> tasks;
     tasks.reserve(3);
 
     tasks.push_back(make_wait_task(

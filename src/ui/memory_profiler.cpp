@@ -14,7 +14,7 @@
 
 #include <imgui.h>
 
-#include "memory_manager.h"
+#include "memory/manager.h"
 #include "ui/imgui.h"
 
 namespace imgui

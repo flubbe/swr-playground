@@ -124,7 +124,9 @@ void draw_tools_panel(
           "Stationary",
         };
 
-        auto directional_lights = scene.get_directional_lights();
+        static swr::vector<DirectionalLight*> directional_lights;
+        scene.get_directional_lights(directional_lights);
+
         for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
         {
             DirectionalLight& light = *directional_lights[light_index];

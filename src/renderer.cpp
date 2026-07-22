@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "containers/vector.h"
 #include "renderdevice.h"
 #include "renderer.h"
 #include "shader.h"
@@ -247,7 +248,9 @@ LightingUniforms collect_light_uniforms(
   const ml::mat4x4& camera_view)
 {
     LightingUniforms uniforms{};
-    const auto directional_lights = scene.get_directional_lights();
+
+    static swr::vector<const DirectionalLight*> directional_lights;
+    scene.get_directional_lights(directional_lights);
 
     std::size_t active_light_index = 0;
     for(const DirectionalLight* light: directional_lights)
@@ -270,7 +273,9 @@ LightingUniforms collect_light_uniforms(
 
     uniforms.directional_light_count = static_cast<int>(active_light_index);
 
-    const auto spot_lights = scene.get_spot_lights();
+    static swr::vector<const SpotLight*> spot_lights;
+    scene.get_spot_lights(spot_lights);
+
     active_light_index = 0;
     for(const SpotLight* light: spot_lights)
     {
@@ -309,7 +314,9 @@ LightingUniforms collect_light_uniforms(
 std::optional<ShadowCamera> collect_shadow_camera(
   const Scene& scene)
 {
-    const auto spot_lights = scene.get_spot_lights();
+    static swr::vector<const SpotLight*> spot_lights;
+    scene.get_spot_lights(spot_lights);
+
     for(const SpotLight* light: spot_lights)
     {
         if(light == nullptr
@@ -353,7 +360,7 @@ std::optional<ShadowCamera> collect_shadow_camera(
 }
 
 void bin_submissions_by_depth(
-  std::vector<DrawSubmission>& submissions,
+  swr::vector<DrawSubmission>& submissions,
   float near_depth,
   float far_depth,
   std::size_t bin_count)
@@ -363,7 +370,7 @@ void bin_submissions_by_depth(
 
     const float bin_size = (far_depth - near_depth) / static_cast<float>(bin_count);
 
-    std::vector<std::vector<DrawSubmission>> bins;
+    swr::vector<swr::vector<DrawSubmission>> bins;
     bins.resize(bin_count);
 
     // Distribute submissions into bins
@@ -576,9 +583,11 @@ void Renderer::render_shadow_map(const Scene& scene)
     auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
     const MaterialHandle shadow_material = device.create_material(*shadow_shader);
 
-    std::vector<ShadowCasterSubmission> submissions;
+    static swr::vector<ShadowCasterSubmission> submissions;
+    submissions.clear();
+
     scene.for_each_object<StaticMesh>(
-      [&shadow_camera, &submissions](const StaticMesh& static_mesh)
+      [&shadow_camera](const StaticMesh& static_mesh)
       {
           if(!static_mesh.is_visible()
              || !static_mesh.casts_shadows
@@ -629,10 +638,11 @@ void Renderer::render_scene(
     const LightingUniforms lighting_uniforms = collect_light_uniforms(scene, view);
     const auto shadow_camera = collect_shadow_camera(scene);
 
-    std::vector<DrawSubmission> submissions;
+    static swr::vector<DrawSubmission> submissions;
+    submissions.clear();
 
     scene.for_each_object<StaticMesh>(
-      [this, &display_settings, &projection, &view, &submissions, &shadow_camera](
+      [this, &display_settings, &projection, &view, &shadow_camera](
         const StaticMesh& static_mesh)
       {
           if(!static_mesh.is_visible())

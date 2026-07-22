@@ -13,9 +13,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 #include "ml/all.h"
+
+#include "containers/vector.h"
 
 /** Primitive type for a mesh. */
 enum class PrimitiveType
@@ -116,7 +117,7 @@ std::uint64_t make_mesh_simplify_edge_key(
 
 ml::vec3 mesh_simplify_triangle_normal(
   const std::array<std::uint32_t, 3>& roots,
-  const std::vector<ml::vec3>& positions);
+  const swr::vector<ml::vec3>& positions);
 
 }    // namespace detail
 

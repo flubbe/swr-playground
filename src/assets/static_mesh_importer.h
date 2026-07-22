@@ -12,10 +12,11 @@
 
 #include <filesystem>
 #include <string>
-#include <vector>
 
-#include "mesh.h"
 #include "ml/all.h"
+
+#include "containers/vector.h"
+#include "mesh.h"
 
 struct ImportedMesh
 {
@@ -26,7 +27,7 @@ struct ImportedMesh
 
 struct ImportedStaticMesh
 {
-    std::vector<ImportedMesh> meshes;
+    swr::vector<ImportedMesh> meshes;
 };
 
 ImportedStaticMesh import_static_mesh(

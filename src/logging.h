@@ -20,10 +20,10 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 #include <boost/circular_buffer.hpp>
 
+#include "containers/vector.h"
 namespace logging
 {
 
@@ -456,7 +456,7 @@ protected:
 
 public:
     /** Get a thread-safe snapshot of stored log records. */
-    std::vector<LogRecord> get_records() const;
+    void get_records(swr::vector<LogRecord>& records) const;
 
     /** Clear all stored log lines. */
     void clear();

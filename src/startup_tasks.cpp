@@ -144,7 +144,7 @@ std::optional<StagedFloorData> try_prepare_floor_data()
     };
 }
 
-std::vector<StagedStaticMeshSection> build_static_mesh_sections(
+swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
 {
     const StaticMeshLodBuildSettings lod_settings{
@@ -153,7 +153,7 @@ std::vector<StagedStaticMeshSection> build_static_mesh_sections(
     };
 
     StaticMeshLodBuilder lod_builder;
-    std::vector<StagedStaticMeshSection> sections;
+    swr::vector<StagedStaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
@@ -372,7 +372,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
     };
 }
 
-std::vector<TaskSpec> create_startup_tasks(StagedStartupScene& scene)
+swr::vector<TaskSpec> create_startup_tasks(StagedStartupScene& scene)
 {
     return {
       make_gear_task(scene),

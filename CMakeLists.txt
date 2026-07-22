@@ -242,6 +242,7 @@ add_executable(swr_playground
     src/scene/scene.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
+    src/memory/manager.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
@@ -253,7 +254,6 @@ add_executable(swr_playground
     src/logging.cpp
     src/main.cpp
     src/main_loop.cpp
-    src/memory_manager.cpp
     src/mesh.cpp
     src/mesh_simplifier.cpp
     src/platform.cpp

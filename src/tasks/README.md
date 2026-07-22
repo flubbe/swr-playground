@@ -15,7 +15,7 @@ This module provides asynchronous task execution with dependency-aware schedulin
 `TaskSystem` supports two submission paths:
 
 - `submit(Fn&&)`: submits one callable that receives `TaskExecutionContext&`.
-- `submit_task_specs(std::vector<TaskSpec>)`: submits a dependency graph.
+- `submit_task_specs(swr::vector<TaskSpec>)`: submits a dependency graph.
 
 Both return `TaskSubmission<Result>`:
 
@@ -100,7 +100,7 @@ public:
 ```cpp
 task_system::TaskSystem tasks{4};
 
-std::vector<task_system::TaskSpec> graph;
+swr::vector<task_system::TaskSpec> graph;
 graph.push_back(task_system::TaskSpec{
   .name = "Load A",
   .weight = 1.f,

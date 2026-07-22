@@ -12,10 +12,11 @@
 
 #include <filesystem>
 #include <random>
-#include <vector>
 
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
+
+#include "containers/vector.h"
 
 /**
  * Get a random PNG image from a folder.
@@ -27,7 +28,7 @@
 inline std::filesystem::path get_random_png(
   const std::filesystem::path& folder)
 {
-    std::vector<std::filesystem::path> splashes;
+    swr::vector<std::filesystem::path> splashes;
 
     for(const auto& entry: std::filesystem::directory_iterator(folder))
     {

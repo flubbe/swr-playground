@@ -20,10 +20,10 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include <concurrency_utils/thread_pool.h>
 
+#include "containers/vector.h"
 #include "task_logger.h"
 #include "state.h"
 
@@ -113,7 +113,7 @@ struct TaskSpec
     float weight{1.f};
 
     /** Indices of prerequisite tasks. */
-    std::vector<std::size_t> dependencies{};
+    swr::vector<std::size_t> dependencies{};
 
     /** Optional predicate deciding whether the task should run. */
     std::function<bool()> start_condition{};
@@ -131,8 +131,8 @@ struct TaskSpec
  */
 void run_task_specs(
   TaskExecutionContext& context,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<std::size_t>& execution_order);
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<std::size_t>& execution_order);
 
 /** Lightweight handle for controlling and observing submitted work. */
 class TaskHandle
@@ -222,7 +222,7 @@ public:
      * @returns Submission object containing a handle and completion future.
      */
     TaskSubmission<void> submit_task_specs(
-      std::vector<TaskSpec> tasks);
+      swr::vector<TaskSpec> tasks);
 
     /**
      * Submits a callable that receives a TaskExecutionContext.

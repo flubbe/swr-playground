@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <string_view>
-#include <vector>
 
+#include "containers/vector.h"
 #include "reflection/class_registry.h"
 #include "scene/camera.h"
 
@@ -32,7 +32,7 @@ TEST(CameraReflectionTests, ExposesCameraPropertiesOnInstance)
     ASSERT_EQ(camera.get_class(), Camera::static_class());
 
     const auto& properties = camera.get_properties();
-    std::vector<std::string_view> names;
+    swr::vector<std::string_view> names;
     names.reserve(properties.size());
     for(const auto& property: properties)
     {

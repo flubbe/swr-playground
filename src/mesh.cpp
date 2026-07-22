@@ -200,7 +200,7 @@ std::uint64_t make_mesh_simplify_edge_key(
 
 ml::vec3 mesh_simplify_triangle_normal(
   const std::array<std::uint32_t, 3>& roots,
-  const std::vector<ml::vec3>& positions)
+  const swr::vector<ml::vec3>& positions)
 {
     const ml::vec3 e0 = positions[roots[1]] - positions[roots[0]];
     const ml::vec3 e1 = positions[roots[2]] - positions[roots[0]];

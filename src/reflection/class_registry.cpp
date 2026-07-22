@@ -11,9 +11,9 @@
 #include <format>
 #include <algorithm>
 #include <stdexcept>
-#include <vector>
 #include <unordered_map>
 
+#include "containers/vector.h"
 #include "class_registry.h"
 
 namespace
@@ -203,7 +203,7 @@ void ReflectionSystem::process_pending_registrations()
           "ReflectionSystem::process_pending_registrations called while auto registration is enabled"};
     }
 
-    std::vector<ClassInfo*> newly_registered;
+    swr::vector<ClassInfo*> newly_registered;
     while(pending_head() != nullptr)
     {
         detail::PendingClassNode* node = pending_head();
@@ -339,21 +339,22 @@ std::size_t ReflectionSystem::unregister_module(
     return removed_count;
 }
 
-std::vector<const ClassInfo*> ReflectionSystem::get_registered_classes()
+void ReflectionSystem::get_registered_classes(
+  swr::vector<const ClassInfo*>& registered_classes)
 {
-    std::vector<const ClassInfo*> result;
-    result.reserve(classes().size());
+    registered_classes.clear();
+    registered_classes.reserve(classes().size());
 
     for(const auto& [_, cls]: classes())
     {
         if(cls != nullptr)
         {
-            result.push_back(cls);
+            registered_classes.push_back(cls);
         }
     }
 
     std::ranges::sort(
-      result,
+      registered_classes,
       [](const ClassInfo* a, const ClassInfo* b)
       {
           if(a->qualified_name != b->qualified_name)
@@ -363,8 +364,6 @@ std::vector<const ClassInfo*> ReflectionSystem::get_registered_classes()
 
           return std::less<>{}(a->root_tag, b->root_tag);
       });
-
-    return result;
 }
 
 void ReflectionSystem::clear()

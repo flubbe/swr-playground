@@ -15,10 +15,10 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include "ml/all.h"
 
+#include "containers/vector.h"
 #include "reflection/cast.h"
 #include "systems/system.h"
 #include "animation.h"
@@ -30,10 +30,10 @@
 class Scene
 {
     /** scene objects. */
-    std::vector<std::unique_ptr<Object>> objects;
+    swr::vector<std::unique_ptr<Object>> objects;
 
     /** scene update systems. */
-    std::vector<std::unique_ptr<SceneSystem>> systems;
+    swr::vector<std::unique_ptr<SceneSystem>> systems;
 
     /** automatic name tracking. */
     std::unordered_map<
@@ -111,12 +111,12 @@ public:
 
     Camera* find_camera(ObjectId id);
     const Camera* find_camera(ObjectId id) const;
-    std::vector<Camera*> get_cameras();
-    std::vector<const Camera*> get_cameras() const;
-    std::vector<DirectionalLight*> get_directional_lights();
-    std::vector<const DirectionalLight*> get_directional_lights() const;
-    std::vector<SpotLight*> get_spot_lights();
-    std::vector<const SpotLight*> get_spot_lights() const;
+    void get_cameras(swr::vector<Camera*>& cameras);
+    void get_cameras(swr::vector<const Camera*>& cameras) const;
+    void get_directional_lights(swr::vector<DirectionalLight*>& lights);
+    void get_directional_lights(swr::vector<const DirectionalLight*>& lights) const;
+    void get_spot_lights(swr::vector<SpotLight*>& spot_lights);
+    void get_spot_lights(swr::vector<const SpotLight*>& spot_lights) const;
 
     template<typename T, typename Fn>
         requires(
@@ -184,12 +184,12 @@ public:
         return ptr;
     }
 
-    const std::vector<std::unique_ptr<Object>>& get_objects() const
+    const swr::vector<std::unique_ptr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    std::vector<std::unique_ptr<Object>>& get_objects()
+    swr::vector<std::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

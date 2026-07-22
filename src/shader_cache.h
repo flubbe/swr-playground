@@ -6,9 +6,10 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include <swr/shaders.h>
+
+#include "containers/vector.h"
 
 using ShaderCacheKey = void*;
 
@@ -42,7 +43,7 @@ ShaderCacheKey shader_cache_tag() noexcept
 class ShaderCache
 {
     /** Cached shaders. */
-    std::vector<
+    swr::vector<
       std::unique_ptr<
         swr::program_base>>
       shaders;

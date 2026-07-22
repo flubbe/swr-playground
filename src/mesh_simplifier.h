@@ -7,8 +7,8 @@
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
 
+#include "containers/vector.h"
 #include "mesh.h"
 
 struct MeshSimplifySettings
@@ -49,25 +49,25 @@ private:
     using EdgeMap =
       std::unordered_map<
         std::uint64_t,
-        std::vector<std::size_t>>;
+        swr::vector<std::size_t>>;
 
     using EdgeQueue =
       std::priority_queue<
         detail::MeshSimplifyEdgeCandidate,
-        std::vector<detail::MeshSimplifyEdgeCandidate>,
+        swr::vector<detail::MeshSimplifyEdgeCandidate>,
         detail::MeshSimplifyEdgeCandidateCompare>;
 
     const MeshData* source_mesh = nullptr;
     MeshSimplifySettings simplify_settings;
     MeshSimplifyStats simplify_stats;
 
-    std::vector<detail::MeshSimplifyTriangle> triangles;
-    std::vector<std::uint32_t> vertex_parents;
-    std::vector<ml::vec3> vertex_positions;
-    std::vector<bool> active_triangles;
-    std::vector<bool> boundary_vertices;
-    std::vector<std::vector<std::size_t>> vertex_triangles;
-    std::vector<detail::MeshSimplifyQuadric> vertex_quadrics;
+    swr::vector<detail::MeshSimplifyTriangle> triangles;
+    swr::vector<std::uint32_t> vertex_parents;
+    swr::vector<ml::vec3> vertex_positions;
+    swr::vector<bool> active_triangles;
+    swr::vector<bool> boundary_vertices;
+    swr::vector<swr::vector<std::size_t>> vertex_triangles;
+    swr::vector<detail::MeshSimplifyQuadric> vertex_quadrics;
     std::unordered_set<std::uint64_t> active_triangle_keys;
     float area_epsilon = mesh_simplify_area_epsilon;
 
@@ -118,7 +118,7 @@ private:
     EdgeQueue build_edge_queue();
 
     [[nodiscard]]
-    std::vector<std::size_t> collect_affected_triangles(
+    swr::vector<std::size_t> collect_affected_triangles(
       std::uint32_t a,
       std::uint32_t b);
 
@@ -143,7 +143,7 @@ private:
       std::uint32_t kept,
       std::uint32_t removed,
       const ml::vec3& collapse_position,
-      const std::vector<std::size_t>& affected);
+      const swr::vector<std::size_t>& affected);
 
     void simplify_until_target();
 

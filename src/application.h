@@ -127,9 +127,9 @@ class Application
 
     // Startup task state (parallel submissions aggregated by the main thread).
     std::shared_ptr<StagedStartupScene> startup_scene;
-    std::vector<task_system::TaskHandle> startup_task_handles;
-    std::vector<std::future<void>> startup_task_futures;
-    std::vector<float> startup_task_weights;
+    swr::vector<task_system::TaskHandle> startup_task_handles;
+    swr::vector<std::future<void>> startup_task_futures;
+    swr::vector<float> startup_task_weights;
 
     // Runtime loader test task state (Debug -> Test tasks).
     task_system::TaskHandle runtime_test_task_handle;

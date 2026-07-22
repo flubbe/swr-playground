@@ -16,13 +16,13 @@
 #include <optional>
 #include <span>
 #include <unordered_map>
-#include <vector>
 
 #include <ml/all.h>
 #include <swr/swr.h>
 #include <swr/shaders.h>
 
 #include "assets/texture.h"
+#include "containers/vector.h"
 #include "mesh.h"
 #include "render_types.h"
 #include "shader_constants.h"
@@ -53,7 +53,7 @@ struct Material
     std::uint32_t shader_handle{0};
 
     /** Bound 2D textures by texture unit index. */
-    std::vector<std::uint32_t> texture_handles{};
+    swr::vector<std::uint32_t> texture_handles{};
 };
 
 /** Camera-related shader uniforms. */

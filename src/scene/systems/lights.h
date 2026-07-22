@@ -62,7 +62,12 @@ public:
       Scene& scene,
       [[maybe_unused]] float delta_time) override
     {
-        auto directional_lights = scene.get_directional_lights();
+        // TODO needs object iterator.
+
+        static swr::vector<DirectionalLight*> directional_lights;
+        directional_lights.clear();
+        scene.get_directional_lights(directional_lights);
+
         for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
         {
             DirectionalLight& light = *directional_lights[light_index];
@@ -84,7 +89,10 @@ public:
                                 (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
         }
 
-        auto spot_lights = scene.get_spot_lights();
+        static swr::vector<SpotLight*> spot_lights;
+        spot_lights.clear();
+        scene.get_spot_lights(spot_lights);
+
         for(std::size_t light_index = 0; light_index < spot_lights.size(); ++light_index)
         {
             SpotLight& light = *spot_lights[light_index];

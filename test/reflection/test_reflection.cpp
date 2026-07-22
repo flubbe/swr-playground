@@ -3,7 +3,6 @@
 #include <functional>
 #include <cstdint>
 #include <memory>
-#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -693,7 +692,8 @@ TEST(ReflectionSystemTests, RegisteredClassesAreSorted)
 {
     ensure_reflection_ready();
 
-    const auto classes = reflect::ReflectionSystem::get_registered_classes();
+    swr::vector<const reflect::ClassInfo*> classes;
+    reflect::ReflectionSystem::get_registered_classes(classes);
     ASSERT_FALSE(classes.empty());
 
     for(std::size_t i = 1; i < classes.size(); ++i)

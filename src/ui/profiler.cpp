@@ -12,13 +12,13 @@
 #include <array>
 #include <cstddef>
 #include <numeric>
-#include <vector>
 
 #include <imgui.h>
 #include <swr/swr.h>
 
-#include "renderer.h"
+#include "containers/vector.h"
 #include "ui/imgui.h"
+#include "renderer.h"
 
 namespace imgui
 {
@@ -29,7 +29,7 @@ namespace
 constexpr std::size_t timing_history_samples = 300;
 
 float percentile(
-  std::vector<float> values,
+  swr::vector<float>& values,
   float p)
 {
     if(values.empty())
@@ -47,7 +47,8 @@ float percentile(
     return values[index];
 }
 
-float average(const std::vector<float>& values)
+float average(
+  const swr::vector<float>& values)
 {
     if(values.empty())
     {
@@ -82,13 +83,17 @@ void draw_profiler_panel(Renderer& renderer)
     history_index = (history_index + 1) % timing_history_samples;
     sample_count = std::min(sample_count + 1, timing_history_samples);
 
-    std::vector<float> frame_samples;
-    std::vector<float> render_samples;
-    std::vector<float> fps_samples;
+    static swr::vector<float> frame_samples;
+    static swr::vector<float> render_samples;
+    static swr::vector<float> fps_samples;
 
-    frame_samples.reserve(sample_count);
-    render_samples.reserve(sample_count);
-    fps_samples.reserve(sample_count);
+    frame_samples.clear();
+    render_samples.clear();
+    fps_samples.clear();
+
+    frame_samples.reserve(timing_history_samples);
+    render_samples.reserve(timing_history_samples);
+    fps_samples.reserve(timing_history_samples);
 
     for(std::size_t i = 0; i < sample_count; ++i)
     {
@@ -106,8 +111,25 @@ void draw_profiler_panel(Renderer& renderer)
     const float render_max = render_samples.empty() ? 0.f : *std::max_element(render_samples.begin(), render_samples.end());
 
     const float fps_avg = average(fps_samples);
-    const float fps_p1 = percentile(fps_samples, 0.01f);
-    const float fps_p99 = percentile(fps_samples, 0.99f);
+
+    static swr::vector<float> fps_scratch;
+    fps_scratch.reserve(timing_history_samples);
+
+    fps_scratch.clear();
+    std::ranges::copy(
+      fps_samples.begin(),
+      fps_samples.end(),
+      std::back_inserter(fps_scratch));
+
+    const float fps_p1 = percentile(fps_scratch, 0.01f);
+
+    fps_scratch.clear();
+    std::ranges::copy(
+      fps_samples.begin(),
+      fps_samples.end(),
+      std::back_inserter(fps_scratch));
+
+    const float fps_p99 = percentile(fps_scratch, 0.99f);
 
     ImGui::Begin("Profiler");
 

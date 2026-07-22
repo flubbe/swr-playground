@@ -13,8 +13,8 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
 
+#include "containers/vector.h"
 #include "assets/texture.h"
 #include "mesh.h"
 #include "ml/all.h"
@@ -41,14 +41,14 @@ struct StagedStaticMeshSectionLod
 struct StagedStaticMeshSection
 {
     ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.f};
-    std::vector<StagedStaticMeshSectionLod> lods;
+    swr::vector<StagedStaticMeshSectionLod> lods;
 };
 
 struct StagedStaticMeshAsset
 {
     std::string name;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
-    std::vector<StagedStaticMeshSection> sections;
+    swr::vector<StagedStaticMeshSection> sections;
 };
 
 /*
@@ -72,10 +72,10 @@ struct StagedGearInstance
 
 struct StagedStartupScene
 {
-    std::vector<StagedGearInstance> gears;
+    swr::vector<StagedGearInstance> gears;
     std::optional<StagedFloorData> floor;
     std::optional<StagedStaticMeshAsset> sample_mesh;
 
     mutable std::mutex notices_mutex;
-    std::vector<std::string> notices;
+    swr::vector<std::string> notices;
 };

@@ -9,15 +9,15 @@
  */
 
 #include <string>
-#include <vector>
 #include <algorithm>
 #include <unordered_map>
 #include <cfloat>
 
 #include <imgui.h>
 
-#include "logging.h"
+#include "containers/vector.h"
 #include "ui/imgui.h"
+#include "logging.h"
 
 namespace imgui
 {
@@ -62,11 +62,12 @@ void draw_console_panel(
     static bool show_log = true;
     static bool show_warn = true;
     static bool show_error = true;
-    static std::vector<SystemFilterEntry> label_filters;
+    static swr::vector<SystemFilterEntry> label_filters;
 
     ImGui::Begin("Console");
 
-    const std::vector<logging::LogRecord> records = log_device.get_records();
+    static swr::vector<logging::LogRecord> records;
+    log_device.get_records(records);
 
     std::unordered_map<std::string, std::size_t> label_index;
     label_index.reserve(label_filters.size());
@@ -222,7 +223,7 @@ void draw_console_panel(
         visible_text.push_back('\n');
     }
 
-    std::vector<char> visible_buffer;
+    static swr::vector<char> visible_buffer;
     visible_buffer.assign(visible_text.begin(), visible_text.end());
     visible_buffer.push_back('\0');
 

@@ -16,8 +16,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <utility>
 
-#include "memory_manager.h"
+#include <print>
+
+#include "memory/manager.h"
 
 #if defined(_MSC_VER)
 #    include <malloc.h>
@@ -34,11 +37,11 @@ std::atomic<bool> strict_global_allocation_guards_armed{false};
 std::atomic<bool> memory_manager_initialized{false};
 std::atomic<Allocator*> global_allocator{nullptr};
 
-/** Return the bootstrap allocator (malloc). */
-static memory::MallocAllocator& get_bootstrap_allocator()
+/** Return the system allocator (malloc). */
+static memory::MallocAllocator& get_system_allocator()
 {
-    static memory::MallocAllocator allocator;
-    return allocator;
+    static memory::MallocAllocator system_allocator;
+    return system_allocator;
 };
 
 }    // namespace
@@ -64,10 +67,13 @@ struct MemoryBlockHeader
     Allocator* allocator{nullptr};
 
     /** Alignment used when allocating the block. */
-    std::uint32_t alignment{0};
+    std::size_t alignment{0};
 
     /** Requested block size (i.e., excluding header and alignment). */
-    std::size_t size{0};
+    std::size_t requested_size{0};
+
+    /** Allocated block size (k.e., including header and alignment). */
+    std::size_t allocated_size{0};
 };
 
 /** Type for the offset between memory block header and user data (needed for alignment). */
@@ -149,11 +155,9 @@ void* MallocAllocator::allocate(
 
 void MallocAllocator::deallocate(
   void* p,
-  std::size_t,
-  std::size_t alignment)
+  [[maybe_unused]] std::size_t bytes,
+  [[maybe_unused]] std::size_t alignment) noexcept
 {
-    (void)alignment;
-
     if(p == nullptr)
     {
         return;
@@ -167,34 +171,27 @@ void MallocAllocator::deallocate(
 }
 
 /*
- * TrackingMemoryResource.
+ * TrackingAllocator.
  */
 
-TrackingMemoryResource::TrackingMemoryResource(
+std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
+std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
+
+TrackingAllocator::TrackingAllocator(
   Allocator* allocator)
 : allocator{allocator}
 {
+    assert(allocator != nullptr);
 }
 
-MemoryStats TrackingMemoryResource::stats() const
-{
-    return MemoryStats{
-      .bytes_live = bytes_live.load(std::memory_order_relaxed),
-      .bytes_peak = bytes_peak.load(std::memory_order_relaxed),
-      .bytes_total_allocated = bytes_total_allocated.load(std::memory_order_relaxed),
-      .allocate_calls = allocate_calls.load(std::memory_order_relaxed),
-      .deallocate_calls = deallocate_calls.load(std::memory_order_relaxed),
-    };
-}
-
-void* TrackingMemoryResource::do_allocate(
+void* TrackingAllocator::allocate(
   std::size_t bytes,
   std::size_t alignment)
 {
     void* allocation = allocator->allocate(bytes, alignment);
 
-    allocate_calls.fetch_add(1, std::memory_order_relaxed);
-    bytes_total_allocated.fetch_add(bytes, std::memory_order_relaxed);
+    allocations.fetch_add(1, std::memory_order_relaxed);
+    bytes_total.fetch_add(bytes, std::memory_order_relaxed);
 
     const std::size_t live_after =
       bytes_live.fetch_add(bytes, std::memory_order_relaxed) + bytes;
@@ -209,23 +206,52 @@ void* TrackingMemoryResource::do_allocate(
     {
     }
 
+    auto b = std::min<size_t>(15, std::bit_width(bytes));
+    ++buckets[b];
+
+    if(bytes < exact_sizes.size())
+        ++exact_sizes[bytes];
+
     return allocation;
 }
 
-void TrackingMemoryResource::do_deallocate(
+void TrackingAllocator::deallocate(
   void* p,
   std::size_t bytes,
-  std::size_t alignment)
+  std::size_t alignment) noexcept
 {
-    deallocate_calls.fetch_add(1, std::memory_order_relaxed);
+    deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
     allocator->deallocate(p, bytes, alignment);
 }
 
-bool TrackingMemoryResource::do_is_equal(
-  const std::pmr::memory_resource& other) const noexcept
+MemoryStats TrackingAllocator::stats() const
 {
-    return this == &other;
+    return MemoryStats{
+      .bytes_live = bytes_live.load(std::memory_order_relaxed),
+      .bytes_peak = bytes_peak.load(std::memory_order_relaxed),
+      .bytes_total_allocated = bytes_total.load(std::memory_order_relaxed),
+      .allocate_calls = allocations.load(std::memory_order_relaxed),
+      .deallocate_calls = deallocations.load(std::memory_order_relaxed),
+    };
+}
+
+void TrackingAllocator::print_histogram() const
+{
+    std::println("Allocation histogram:");
+    for(std::size_t i = 0; i < 16; ++i)
+    {
+        std::println("   {}: {}", i, buckets[i].load(std::memory_order::relaxed));
+    }
+    std::println("Exact sizes:");
+    for(std::size_t i = 0; i < 256; ++i)
+    {
+        auto s = exact_sizes[i].load(std::memory_order::relaxed);
+        if(s != 0)
+        {
+            std::println("    {}: {}", i, s);
+        }
+    }
 }
 
 /*
@@ -260,11 +286,12 @@ void ScratchArena::reset()
 MemoryManager::MemoryManager()
 : system_malloc_allocator{}
 , global_allocator{&system_malloc_allocator}
+, tracking_allocator{global_allocator}
 , tracking_resource{global_allocator}
 , frame_scratch_arena{&tracking_resource}
 {
     ::memory::global_allocator.store(
-      global_allocator,
+      &tracking_allocator,
       std::memory_order_release);
 }
 
@@ -318,7 +345,7 @@ bool MemoryManager::is_initialized() const
 Allocator* MemoryManager::get_allocator()
 {
     std::scoped_lock lock{mutex};
-    return global_allocator;
+    return &tracking_allocator;
 }
 
 ScratchAllocator& MemoryManager::frame_scratch() noexcept
@@ -333,7 +360,12 @@ std::pmr::memory_resource* MemoryManager::default_resource() noexcept
 
 MemoryStats MemoryManager::stats() const
 {
-    return tracking_resource.stats();
+    return tracking_allocator.stats() + tracking_resource.stats();
+}
+
+void MemoryManager::print_histogram()
+{
+    tracking_allocator.print_histogram();
 }
 
 /*
@@ -375,168 +407,53 @@ MemoryStats stats()
     return MemoryManager::instance().stats();
 }
 
+void print_histogram()
+{
+    MemoryManager::instance().print_histogram();
+}
+
 }    // namespace memory
 
 /*
  * Global operator new/delete.
  */
 
-namespace
-{
-
-[[noreturn]]
-void fail_memory_manager_unavailable()
-{
-    // NOTE Uses fputs since it might be called during static initialization.
-    std::fputs(
-      "FATAL: global operator new/delete called before memory manager initialization.\n",
-      stderr);
-    std::abort();
-}
-
-memory::Allocator* checked_allocator()
-{
-    // NOTE Bootstrapping might be needed for tests.
-#if defined(SWR_MEMORY_ALLOCATOR_ALLOW_BOOTSTRAP)
-    if(!memory::memory_manager_initialized.load(std::memory_order_acquire))
-    {
-        return &memory::get_bootstrap_allocator();
-    }
-#else
-    if(!memory::memory_manager_initialized.load(std::memory_order_acquire))
-    {
-        if(memory::strict_global_allocation_guards_armed.load(std::memory_order_acquire))
-        {
-            fail_memory_manager_unavailable();
-        }
-
-        return &memory::get_bootstrap_allocator();
-    }
-#endif
-
-    if(memory::Allocator* allocator = memory::global_allocator.load(std::memory_order_acquire);
-       allocator != nullptr)
-    {
-        return allocator;
-    }
-
-    fail_memory_manager_unavailable();
-}
-
-}    // namespace
-
 void* operator new(
   std::size_t bytes)
 {
-    auto* allocator = checked_allocator();
-
-    constexpr std::size_t alignment = alignof(std::max_align_t);
-    auto offset = memory::header_offset(alignment);
-
-    auto* raw = static_cast<std::byte*>(
-      allocator->allocate(offset + bytes, alignment));
-
-    std::construct_at(
-      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
-      memory::MemoryBlockHeader{
-        .allocator = allocator,
-        .alignment = alignment,
-        .size = bytes});
-
-    auto* user = raw + offset;
-
-    auto stored_offset = static_cast<memory::offset_type>(offset);
-    std::memcpy(user - sizeof(stored_offset),
-                &stored_offset,
-                sizeof(stored_offset));
-
-    return user;
+    return memory::get_system_allocator()
+      .allocate(
+        bytes,
+        alignof(std::max_align_t));
 }
 
 void* operator new[](
   std::size_t bytes)
 {
-    auto* allocator = checked_allocator();
-
-    constexpr std::size_t alignment = alignof(std::max_align_t);
-    auto offset = memory::header_offset(alignment);
-
-    auto* raw = static_cast<std::byte*>(
-      allocator->allocate(offset + bytes, alignment));
-
-    std::construct_at(
-      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
-      memory::MemoryBlockHeader{
-        .allocator = allocator,
-        .alignment = alignment,
-        .size = bytes});
-
-    auto* user = raw + offset;
-
-    auto stored_offset = static_cast<memory::offset_type>(offset);
-    std::memcpy(user - sizeof(stored_offset),
-                &stored_offset,
-                sizeof(stored_offset));
-
-    return user;
+    return memory::get_system_allocator()
+      .allocate(
+        bytes,
+        alignof(std::max_align_t));
 }
 
 void* operator new(
   std::size_t bytes,
   std::align_val_t alignment)
 {
-    auto* allocator = checked_allocator();
-
-    auto align = static_cast<std::size_t>(alignment);
-    auto offset = memory::header_offset(align);
-
-    auto* raw = static_cast<std::byte*>(
-      allocator->allocate(offset + bytes, align));
-
-    std::construct_at(
-      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
-      memory::MemoryBlockHeader{
-        .allocator = allocator,
-        .alignment = static_cast<std::uint32_t>(alignment),
-        .size = bytes});
-
-    auto* user = raw + offset;
-
-    auto stored_offset = static_cast<memory::offset_type>(offset);
-    std::memcpy(user - sizeof(stored_offset),
-                &stored_offset,
-                sizeof(stored_offset));
-
-    return user;
+    return memory::get_system_allocator()
+      .allocate(
+        bytes,
+        std::to_underlying(alignment));
 }
 
 void* operator new[](
   std::size_t bytes,
   std::align_val_t alignment)
 {
-    auto* allocator = checked_allocator();
-
-    auto align = static_cast<std::size_t>(alignment);
-    auto offset = memory::header_offset(align);
-
-    auto* raw = static_cast<std::byte*>(
-      allocator->allocate(offset + bytes, align));
-
-    std::construct_at(
-      reinterpret_cast<memory::MemoryBlockHeader*>(raw),
-      memory::MemoryBlockHeader{
-        .allocator = allocator,
-        .alignment = static_cast<std::uint32_t>(alignment),
-        .size = bytes});
-
-    auto* user = raw + offset;
-
-    auto stored_offset = static_cast<memory::offset_type>(offset);
-    std::memcpy(user - sizeof(stored_offset),
-                &stored_offset,
-                sizeof(stored_offset));
-
-    return user;
+    return memory::get_system_allocator()
+      .allocate(
+        bytes,
+        std::to_underlying(alignment));
 }
 
 void* operator new(
@@ -604,13 +521,8 @@ void operator delete(void* p) noexcept
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, 0, 0);
 }
 
 void operator delete[](void* p) noexcept
@@ -620,129 +532,86 @@ void operator delete[](void* p) noexcept
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, 0, 0);
 }
 
 void operator delete(
   void* p,
-  [[maybe_unused]] std::size_t bytes) noexcept
+  std::size_t bytes) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->size == bytes);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, bytes, 0);
 }
 
 void operator delete[](
   void* p,
-  [[maybe_unused]] std::size_t bytes) noexcept
+  std::size_t bytes) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->size == bytes);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, bytes, 0);
 }
 
 void operator delete(
   void* p,
-  [[maybe_unused]] std::align_val_t alignment) noexcept
+  std::align_val_t alignment) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->alignment == static_cast<std::uint32_t>(alignment));
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, 0, std::to_underlying(alignment));
 }
 
 void operator delete[](
   void* p,
-  [[maybe_unused]] std::align_val_t alignment) noexcept
+  std::align_val_t alignment) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->alignment == static_cast<std::uint32_t>(alignment));
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, 0, std::to_underlying(alignment));
 }
 
 void operator delete(
   void* p,
-  [[maybe_unused]] std::size_t bytes,
-  [[maybe_unused]] std::align_val_t alignment) noexcept
+  std::size_t bytes,
+  std::align_val_t alignment) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->alignment == static_cast<std::uint32_t>(alignment));
-    assert(header->size == bytes);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, bytes, std::to_underlying(alignment));
 }
 
 void operator delete[](
   void* p,
-  [[maybe_unused]] std::size_t bytes,
-  [[maybe_unused]] std::align_val_t alignment) noexcept
+  std::size_t bytes,
+  std::align_val_t alignment) noexcept
 {
     if(p == nullptr)
     {
         return;
     }
 
-    auto* header = memory::header_from_user(p);
-    assert(header->allocator != nullptr);
-    assert(header->alignment == static_cast<std::uint32_t>(alignment));
-    assert(header->size == bytes);
-
-    header->allocator->deallocate(
-      header,
-      header->size,
-      header->alignment);
+    memory::get_system_allocator()
+      .deallocate(p, bytes, std::to_underlying(alignment));
 }

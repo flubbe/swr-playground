@@ -33,13 +33,13 @@ void StaticMesh::register_properties(
 }
 
 StaticMesh::StaticMesh(
-  std::vector<MeshSection> sections)
+  swr::vector<MeshSection> sections)
 {
     set_mesh_sections(std::move(sections));
 }
 
 StaticMesh::StaticMesh(
-  std::vector<MeshSection> sections,
+  swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
     set_mesh_sections(
@@ -48,13 +48,13 @@ StaticMesh::StaticMesh(
 }
 
 StaticMesh::StaticMesh(
-  std::vector<StaticMeshLod> lods)
+  swr::vector<StaticMeshLod> lods)
 {
     set_lods(std::move(lods));
 }
 
 void StaticMesh::set_mesh_sections(
-  std::vector<MeshSection> sections)
+  swr::vector<MeshSection> sections)
 {
     set_mesh_sections(
       std::move(sections),
@@ -62,7 +62,7 @@ void StaticMesh::set_mesh_sections(
 }
 
 void StaticMesh::set_mesh_sections(
-  std::vector<MeshSection> sections,
+  swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
     mesh_lods.clear();
@@ -80,7 +80,7 @@ void StaticMesh::set_mesh_sections(
 }
 
 void StaticMesh::set_lods(
-  std::vector<StaticMeshLod> lods)
+  swr::vector<StaticMeshLod> lods)
 {
     mesh_lods = std::move(lods);
     update_bounds();
