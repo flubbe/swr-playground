@@ -84,9 +84,6 @@ int main(int argc, char* argv[])
                    { memory::shutdown(); });
     // TODO It would be nice to (automatically) log memory statistics, but logging is shut down earlier.
 
-    auto memstats = memory::stats();
-    std::println("Allocs [mem init]: {}", memstats.allocate_calls);
-
     const auto log_shutdown =
       gsl::finally([]() -> void
                    { logging::shutdown(); });
@@ -98,9 +95,6 @@ int main(int argc, char* argv[])
       }};
     logging::initialize(&log_device);
 
-    memstats = memory::stats();
-    std::println("Allocs [logging init]: {}", memstats.allocate_calls);
-
     try
     {
         if(!platform_init(argc, argv))
@@ -111,9 +105,6 @@ int main(int argc, char* argv[])
         const auto shutdown = gsl::finally([]() -> void
                                            { platform_shutdown(); });
 
-        memstats = memory::stats();
-        std::println("Allocs [platform init]: {}", memstats.allocate_calls);
-
         // This seems to be the earliest point where we can easily display
         // the splash screen. It needs logging to be set up in case of errors,
         // and the platform initialization also sets up TTF support.
@@ -123,9 +114,6 @@ int main(int argc, char* argv[])
 
         reflect::ReflectionSystem::allow_auto_registration(false);
         reflect::ReflectionSystem::process_pending_registrations();
-
-        memstats = memory::stats();
-        std::println("Allocs [reflection init]: {}", memstats.allocate_calls);
 
         RenderDevice render_device{
           initial_framebuffer_width,
@@ -144,11 +132,6 @@ int main(int argc, char* argv[])
           viewport,
           std::thread::hardware_concurrency()};
 
-        memstats = memory::stats();
-        std::println("Allocs [app init]: {}", memstats.allocate_calls);
-
-        memory::print_histogram();
-
         // Set up the main loop and exit the splash screen just before entering.
         MainLoop main_loop{*splash_screen, app};
         if(!main_loop.run_startup())
@@ -157,12 +140,6 @@ int main(int argc, char* argv[])
         }
 
         splash_screen.reset();
-
-        memstats = memory::stats();
-        std::println("Allocs [main loop]: {}", memstats.allocate_calls);
-
-        memory::print_histogram();
-
         main_loop.run();
     }
     catch(const std::exception& e)
