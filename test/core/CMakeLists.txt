@@ -1,4 +1,5 @@
 add_executable(core_tests
+    test_allocators.cpp
     test_logging.cpp
     test_mesh.cpp
     test_task_system.cpp

@@ -142,8 +142,8 @@ struct PropertyFactory<ml::vec4>
       const std::shared_ptr<const PropertyConstraint>&)
     {
         return std::make_unique<Vec4Property>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags);
@@ -203,8 +203,8 @@ struct PropertyFactory<ml::mat4x4>
       const std::shared_ptr<const PropertyConstraint>&)
     {
         return std::make_unique<Mat4Property>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags);

@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cassert>
 #include <new>
+#include <stdexcept>
 
 #include "memory/allocator.h"
 
@@ -47,7 +48,17 @@ public:
       Allocator* allocator)
     : allocator{allocator}
     {
-        assert(bytes > 0);
+        if(bytes == 0)
+        {
+            throw std::invalid_argument{
+              "BumpAllocator size must be greater than zero"};
+        }
+
+        if(allocator == nullptr)
+        {
+            throw std::invalid_argument{
+              "allocator must not be null"};
+        }
 
         memory = allocator->allocate(
           bytes,

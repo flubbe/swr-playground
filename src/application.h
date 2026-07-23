@@ -134,7 +134,7 @@ class Application
     // Runtime loader test task state (Debug -> Test tasks).
     task_system::TaskHandle runtime_test_task_handle;
     std::future<void> runtime_test_task_future;
-    std::optional<std::string> runtime_test_task_error;
+    std::optional<swr::string> runtime_test_task_error;
     bool runtime_test_modal_open{false};
 
     // Frame state for rendering
@@ -142,7 +142,7 @@ class Application
     imgui::State ui_state;
 
     // Startup error tracking
-    std::optional<std::string> startup_error;
+    std::optional<swr::string> startup_error;
 
     // Temporary running flag for viewport rendering (can be set to false by viewport panel on error)
     mutable bool viewport_panel_running{true};

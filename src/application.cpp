@@ -851,7 +851,7 @@ void try_add_textured_floor(
               .color = {1.f, 1.f, 1.f, 1.f},
             }},
           bounds);
-        floor->set_name(std::string{floor_object_name});
+        floor->set_name(floor_object_name);
         floor->casts_shadows = false;
         floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
         floor->capture_snapshot();
