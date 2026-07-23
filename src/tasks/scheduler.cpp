@@ -8,12 +8,13 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "scheduler.h"
-
 #include <algorithm>
 #include <exception>
 #include <format>
 #include <stdexcept>
+
+#include "containers/format.h"
+#include "scheduler.h"
 
 namespace task_system
 {
@@ -78,7 +79,7 @@ void run_scheduled_task_worker(
     };
 
     auto fail_task_and_cancel =
-      [&](TaskState task_state_value, std::string status_text)
+      [&](TaskState task_state_value, swr::string status_text)
     {
         detail::set_task_state(
           *task_state,
@@ -126,8 +127,8 @@ void run_scheduled_task_worker(
           task_index,
           TaskState::Completed,
           task.name.empty()
-            ? std::make_optional<std::string>("Done.")
-            : std::make_optional<std::string>(task.name),
+            ? std::make_optional<swr::string>("Done.")
+            : std::make_optional<swr::string>(task.name),
           1.f);
     }
     catch(const TaskCancelledError&)
@@ -220,9 +221,9 @@ void dispatch_ready_tasks(
 
         if(!should_run)
         {
-            const std::string skipped_status = task.name.empty()
+            const swr::string skipped_status = task.name.empty()
                                                  ? "Skipped task"
-                                                 : std::format(
+                                                 : swr::format(
                                                      "{} (skipped)",
                                                      task.name);
             detail::set_task_state(
@@ -251,7 +252,9 @@ void dispatch_ready_tasks(
           *state,
           task_index,
           TaskState::Running,
-          task.name.empty() ? std::nullopt : std::make_optional<std::string>(task.name),
+          task.name.empty()
+            ? std::nullopt
+            : std::make_optional<swr::string>(task.name),
           0.f);
 
         TaskSpec task_copy = task;

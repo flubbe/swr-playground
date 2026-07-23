@@ -10,27 +10,31 @@
 
 #pragma once
 
+#include "containers/type_traits.h"
 #include "memory/manager.h"
 
 namespace swr
 {
 
+/** Memory tags (container types). */
 enum class MemoryTag
 {
     Unknown,
     Deque,
-    List,
     String,
+    UnorderedSet,
     UnorderedMap,
     Vector,
 };
 
 template<
   typename T,
-  MemoryTag Tag = MemoryTag::Unknown>
+  MemoryTag Tag = MemoryTag::Unknown,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
 struct StdAllocator
 {
     static constexpr MemoryTag tag = Tag;
+    static constexpr memory::MemoryDomain domain = Domain;
 
     using value_type = T;
     using size_type = std::size_t;
@@ -41,36 +45,75 @@ struct StdAllocator
       typename U>
     struct rebind
     {
-        using other = StdAllocator<U, Tag>;
+        using other = StdAllocator<U, Tag, Domain>;
     };
 
     StdAllocator() noexcept = default;
 
     template<
       typename U,
-      MemoryTag OtherTag>
+      MemoryTag OtherTag,
+      memory::MemoryDomain OtherDomain>
     StdAllocator(
-      const StdAllocator<U, OtherTag>&) noexcept
+      const StdAllocator<U, OtherTag, OtherDomain>&) noexcept
     {
     }
 
     T* allocate(
       std::size_t n)
     {
-        return static_cast<T*>(
-          memory::get_allocator()->allocate(
-            n * sizeof(T),
-            alignof(T)));
+        if constexpr(Domain == memory::MemoryDomain::Heap)
+        {
+            return static_cast<T*>(
+              memory::heap()->allocate(
+                n * sizeof(T),
+                alignof(T)));
+        }
+        else if constexpr(Domain == memory::MemoryDomain::Frame)
+        {
+            return static_cast<T*>(
+              memory::frame_bump()->allocate(
+                n * sizeof(T),
+                alignof(T)));
+        }
+        else
+        {
+            static_assert(
+              swr::false_type_v<
+                std::integral_constant<
+                  memory::MemoryDomain,
+                  Domain>>,
+              "Memory domain not supported by this allocator");
+        }
     }
 
     void deallocate(
       T* p,
       std::size_t n)
     {
-        memory::get_allocator()->deallocate(
-          p,
-          n * sizeof(T),
-          alignof(T));
+        if constexpr(Domain == memory::MemoryDomain::Heap)
+        {
+            memory::heap()->deallocate(
+              p,
+              n * sizeof(T),
+              alignof(T));
+        }
+        else if constexpr(Domain == memory::MemoryDomain::Frame)
+        {
+            memory::frame_bump()->deallocate(
+              p,
+              n * sizeof(T),
+              alignof(T));
+        }
+        else
+        {
+            static_assert(
+              swr::false_type_v<
+                std::integral_constant<
+                  memory::MemoryDomain,
+                  Domain>>,
+              "Memory domain not supported by this allocator");
+        }
     }
 };
 

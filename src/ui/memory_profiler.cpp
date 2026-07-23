@@ -42,6 +42,7 @@ void draw_memory_profiler_panel()
     static std::size_t previous_allocate_calls = 0;
 
     const memory::MemoryStats memory_stats = memory::stats();
+    const memory::BumpAllocatorStats bump_stats = memory::frame_bump()->get_stats();
 
     const float live_mb = to_megabytes(memory_stats.bytes_live);
     const float peak_mb = to_megabytes(memory_stats.bytes_peak);
@@ -106,6 +107,18 @@ void draw_memory_profiler_panel()
         ImGui::TextUnformatted("Allocs/frame");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", allocate_delta);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bump size/frame");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", bump_stats.used_before_reset);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bump peak");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", bump_stats.used_peak);
 
         ImGui::EndTable();
     }

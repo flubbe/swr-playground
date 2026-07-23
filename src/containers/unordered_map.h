@@ -17,7 +17,10 @@
 namespace swr
 {
 
-template<typename K, typename V>
+template<
+  typename K,
+  typename V,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
 using unordered_map =
   std::unordered_map<
     K,
@@ -26,6 +29,7 @@ using unordered_map =
     std::equal_to<K>,
     swr::StdAllocator<
       std::pair<const K, V>,
-      MemoryTag::UnorderedMap>>;
+      MemoryTag::UnorderedMap,
+      Domain>>;
 
 }    // namespace swr

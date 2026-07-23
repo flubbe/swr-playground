@@ -13,11 +13,11 @@
 #include <format>
 #include <memory>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
 #include "ml/all.h"
 
+#include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
 #include "systems/system.h"
@@ -36,7 +36,7 @@ class Scene
     swr::vector<std::unique_ptr<SceneSystem>> systems;
 
     /** automatic name tracking. */
-    std::unordered_map<
+    swr::unordered_map<
       const reflect::ClassInfo*,
       std::uint32_t>
       object_name_counters;
@@ -45,13 +45,13 @@ class Scene
     std::uint32_t next_id{0};
 
     /** per-object spin animations. */
-    std::unordered_map<
+    swr::unordered_map<
       ObjectId,
       SpinAnimation>
       spin_animations;
 
     /** map object id into objects list. */
-    std::unordered_map<
+    swr::unordered_map<
       ObjectId,
       Object*>
       objects_by_id;
@@ -194,12 +194,12 @@ public:
         return objects;
     }
 
-    const std::unordered_map<ObjectId, SpinAnimation>& get_spin_animations() const
+    const swr::unordered_map<ObjectId, SpinAnimation>& get_spin_animations() const
     {
         return spin_animations;
     }
 
-    const std::unordered_map<ObjectId, Object*>& get_objects_by_id() const
+    const swr::unordered_map<ObjectId, Object*>& get_objects_by_id() const
     {
         return objects_by_id;
     }

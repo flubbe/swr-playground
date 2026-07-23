@@ -16,6 +16,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+#include "containers/string.h"
 #include "containers/vector.h"
 
 /**
@@ -58,7 +59,7 @@ class SplashScreen final
     static constexpr float status_height = 28.f;
 
     /** Status displayed in the splash screen. */
-    std::string status;
+    swr::string status;
 
     TTF_Font* font{nullptr};
     SDL_Window* window{nullptr};

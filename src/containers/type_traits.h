@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * std list adapter.
+ * type traits.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -10,18 +10,18 @@
 
 #pragma once
 
-#include <list>
-
-#include "containers/allocator.h"
+#include <type_traits>
 
 namespace swr
 {
 
+/** Same as `std::false_type`, but taking a parameter argument. */
 template<typename T>
-using list = std::list<
-  T,
-  swr::StdAllocator<
-    T,
-    MemoryTag::List>>;
+struct false_type : public std::false_type
+{
+};
+
+template<typename T>
+inline constexpr bool false_type_v = false_type<T>::value;
 
 }    // namespace swr

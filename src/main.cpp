@@ -95,8 +95,10 @@ int main(int argc, char* argv[])
       }};
     logging::initialize(&log_device);
 
+#ifndef DEBUG
     try
     {
+#endif
         if(!platform_init(argc, argv))
         {
             return EXIT_FAILURE;
@@ -141,6 +143,8 @@ int main(int argc, char* argv[])
 
         splash_screen.reset();
         main_loop.run();
+
+#ifndef DEBUG
     }
     catch(const std::exception& e)
     {
@@ -152,6 +156,7 @@ int main(int argc, char* argv[])
         logging::errorf("Terminating after uncaught exception.");
         return EXIT_FAILURE;
     }
+#endif
 
     return 0;
 }

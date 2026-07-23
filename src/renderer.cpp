@@ -580,8 +580,12 @@ void Renderer::render_shadow_map(const Scene& scene)
 
     ensure_shadow_map_resources();
 
+    // FIXME Don't create shaders/materials in render calls.
     auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
-    const MaterialHandle shadow_material = device.create_material(*shadow_shader);
+    if(!shadow_material)
+    {
+        shadow_material = device.create_material(*shadow_shader);
+    }
 
     static swr::vector<ShadowCasterSubmission> submissions;
     submissions.clear();

@@ -24,6 +24,13 @@
 namespace memory
 {
 
+/** Memory domain / lifetime. */
+enum class MemoryDomain
+{
+    Heap,
+    Frame
+};
+
 /** A memory allocator. */
 struct Allocator
 {
@@ -82,6 +89,100 @@ struct MallocAllocator final
     const char* name() const noexcept override
     {
         return "Malloc";
+    }
+};
+
+/** Bump allocator statistics. */
+struct BumpAllocatorStats
+{
+    std::size_t used_before_reset = 0;
+    std::size_t used_peak = 0;
+};
+
+/** Bump allocator. */
+class BumpAllocator final
+: public Allocator
+{
+    Allocator* allocator{nullptr};
+
+    void* memory{nullptr};
+    void* end{nullptr};
+    const std::size_t alignment{alignof(std::max_align_t)};
+
+    std::atomic<void*> base{nullptr};
+
+    BumpAllocatorStats stats;
+
+public:
+    BumpAllocator(
+      std::size_t bytes,
+      Allocator* allocator)
+    : allocator{allocator}
+    {
+        assert(bytes > 0);
+
+        memory = allocator->allocate(
+          bytes,
+          alignment);
+        if(memory == nullptr)
+        {
+            throw std::bad_alloc{};
+        }
+
+        end = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(memory) + bytes);
+        base = memory;
+    }
+    ~BumpAllocator()
+    {
+        allocator->deallocate(
+          memory,
+          capacity(),
+          alignment);
+    }
+
+    void reset() noexcept
+    {
+        stats.used_before_reset = size();
+        stats.used_peak = std::max(stats.used_peak, stats.used_before_reset);
+
+        base = memory;
+    }
+
+    std::size_t size() const noexcept
+    {
+        return reinterpret_cast<std::uintptr_t>(
+                 base.load(std::memory_order::relaxed))
+               - reinterpret_cast<std::uintptr_t>(memory);
+    }
+
+    std::size_t capacity() const noexcept
+    {
+        return reinterpret_cast<std::uintptr_t>(end)
+               - reinterpret_cast<std::uintptr_t>(memory);
+    }
+
+    BumpAllocatorStats get_stats() const noexcept
+    {
+        return stats;
+    }
+
+    [[nodiscard]]
+    void* allocate(
+      std::size_t bytes,
+      std::size_t alignment) override;
+
+    void deallocate(
+      [[maybe_unused]] void* p,
+      [[maybe_unused]] std::size_t bytes,
+      [[maybe_unused]] std::size_t alignment) noexcept override
+    {
+        /* no-op. */
+    }
+
+    [[nodiscard]]
+    const char* name() const noexcept override
+    {
+        return "Bump";
     }
 };
 
@@ -243,10 +344,14 @@ public:
     void reset() override;
 };
 
+/** Bump memory size. */
+inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory to be able to grow dynamically.
+
 class MemoryManager final
 {
     MallocAllocator system_malloc_allocator;
     Allocator* global_allocator;
+    BumpAllocator frame_bump_allocator;
     TrackingAllocator tracking_allocator;
     TrackingMemoryResource tracking_resource;
     ScratchArena frame_scratch_arena;
@@ -254,7 +359,8 @@ class MemoryManager final
     bool initialized{false};
     mutable std::mutex mutex;
 
-    MemoryManager();
+    MemoryManager(
+      std::size_t bump_size = default_bump_size);
 
 public:
     MemoryManager(const MemoryManager&) = delete;
@@ -270,10 +376,10 @@ public:
     bool is_initialized() const;
 
     [[nodiscard]]
-    Allocator* get_allocator();
+    Allocator* heap();
 
     [[nodiscard]]
-    ScratchAllocator& frame_scratch() noexcept;
+    BumpAllocator* frame_bump();
 
     [[nodiscard]]
     std::pmr::memory_resource* default_resource() noexcept;
@@ -298,9 +404,13 @@ void shutdown();
 [[nodiscard]]
 bool is_initialized();
 
-/** Get the global allocator. */
+/** Get the global heap allocator. */
 [[nodiscard]]
-Allocator* get_allocator();
+Allocator* heap();
+
+/** Get the frame bump allocator. */
+[[nodiscard]]
+BumpAllocator* frame_bump();
 
 /** Get the global frame scratch allocator. */
 [[nodiscard]]

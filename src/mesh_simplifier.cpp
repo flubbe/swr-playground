@@ -442,9 +442,9 @@ bool MeshSimplifier::collapse_preserves_triangle(
   std::uint32_t removed,
   std::uint32_t kept,
   const ml::vec3& collapse_position,
-  const std::unordered_set<std::uint64_t>& existing,
-  const std::unordered_set<std::uint64_t>& affected_keys,
-  std::unordered_set<std::uint64_t>& proposed)
+  const swr::unordered_set<std::uint64_t>& existing,
+  const swr::unordered_set<std::uint64_t>& affected_keys,
+  swr::unordered_set<std::uint64_t>& proposed)
 {
     const auto collapsed = collapsed_roots(roots, removed, kept);
 
@@ -503,8 +503,8 @@ bool MeshSimplifier::can_collapse(
   const ml::vec3& collapse_position,
   const swr::vector<std::size_t>& affected)
 {
-    std::unordered_set<std::uint64_t> affected_keys;
-    std::unordered_set<std::uint64_t> proposed;
+    swr::unordered_set<std::uint64_t> affected_keys;
+    swr::unordered_set<std::uint64_t> proposed;
     affected_keys.reserve(affected.size());
 
     for(const std::size_t triangle_index: affected)

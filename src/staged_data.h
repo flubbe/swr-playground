@@ -14,6 +14,7 @@
 #include <optional>
 #include <string>
 
+#include "containers/string.h"
 #include "containers/vector.h"
 #include "assets/texture.h"
 #include "mesh.h"
@@ -46,7 +47,7 @@ struct StagedStaticMeshSection
 
 struct StagedStaticMeshAsset
 {
-    std::string name;
+    swr::string name;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
 };
@@ -77,5 +78,5 @@ struct StagedStartupScene
     std::optional<StagedStaticMeshAsset> sample_mesh;
 
     mutable std::mutex notices_mutex;
-    swr::vector<std::string> notices;
+    swr::vector<swr::string> notices;
 };

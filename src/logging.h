@@ -23,7 +23,10 @@
 
 #include <boost/circular_buffer.hpp>
 
+#include "containers/deque.h"
+#include "containers/string.h"
 #include "containers/vector.h"
+
 namespace logging
 {
 
@@ -42,16 +45,16 @@ enum class LogLevel
 struct LogRecord
 {
     std::chrono::system_clock::time_point timestamp{}; /** Timestamp at record emission. */
-    std::string label;                                 /** Record label. */
+    swr::string label;                                 /** Record label. */
     LogLevel level{LogLevel::Log};                     /** Log level. */
-    std::string message;                               /** Log message. */
+    swr::string message;                               /** Log message. */
 
     /*
      * Caches.
      */
 
-    std::string timestamp_short; /** Formatted short form timestamp (lazy). */
-    std::string display_line;    /** Display-ready log line (lazy). */
+    swr::string timestamp_short; /** Formatted short form timestamp (lazy). */
+    swr::string display_line;    /** Display-ready log line (lazy). */
 
     /** Constructors. */
     LogRecord() = default;
@@ -260,7 +263,7 @@ class Logger
     LogDevice& log_device;
 
     /** Logger label. */
-    std::string label;
+    swr::string label;
 
 public:
     /**
@@ -516,7 +519,7 @@ class FileLogDevice : public BufferedLogDevice
     std::condition_variable file_condition;
 
     /** Queue of pending records waiting to be written to disk. */
-    std::deque<LogRecord> pending_records;
+    swr::deque<LogRecord> pending_records;
 
     /** Output stream used by the background writer. */
     std::ofstream file_stream;

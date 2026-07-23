@@ -47,8 +47,8 @@ public:
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     IntProperty(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
@@ -101,8 +101,8 @@ public:
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     UIntProperty(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
@@ -159,8 +159,8 @@ public:
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     FloatProperty(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
@@ -210,8 +210,8 @@ public:
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     BoolProperty(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
@@ -257,8 +257,8 @@ public:
      * @throws `std::invalid_argument` if `value` is `nullptr`.
      */
     StringProperty(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
@@ -294,8 +294,8 @@ struct PropertyFactory<int>
       const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<IntProperty>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags,
@@ -316,8 +316,8 @@ struct PropertyFactory<unsigned int>
       const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<UIntProperty>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags,
@@ -338,8 +338,8 @@ struct PropertyFactory<float>
       const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<FloatProperty>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags,
@@ -361,8 +361,8 @@ struct PropertyFactory<bool>
       const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<BoolProperty>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags,
@@ -382,8 +382,8 @@ struct PropertyFactory<std::string>
       const std::shared_ptr<const PropertyConstraint>& constraint)
     {
         return std::make_unique<StringProperty>(
-          std::string{name},
-          std::string{label},
+          name,
+          label,
           &value,
           offset,
           flags,

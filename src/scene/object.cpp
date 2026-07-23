@@ -60,6 +60,11 @@ bool copy_property_value(
         const auto* s = src.try_as<reflect::StringProperty>();
         return s != nullptr && p->set_value(s->get_value());
     }
+    if(auto* p = dst.try_as<reflect::SwrStringProperty>())
+    {
+        const auto* s = src.try_as<reflect::SwrStringProperty>();
+        return s != nullptr && p->set_value(s->get_value());
+    }
     if(auto* p = dst.try_as<reflect::Vec4Property>())
     {
         const auto* s = src.try_as<reflect::Vec4Property>();

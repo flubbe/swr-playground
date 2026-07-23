@@ -17,11 +17,14 @@
 namespace swr
 {
 
-template<typename T>
+template<
+  typename T,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
 using vector = std::vector<
   T,
   swr::StdAllocator<
     T,
-    MemoryTag::Vector>>;
+    MemoryTag::Vector,
+    Domain>>;
 
 }    // namespace swr

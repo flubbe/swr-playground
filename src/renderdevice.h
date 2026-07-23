@@ -15,13 +15,13 @@
 #include <cstdint>
 #include <optional>
 #include <span>
-#include <unordered_map>
 
 #include <ml/all.h>
 #include <swr/swr.h>
 #include <swr/shaders.h>
 
 #include "assets/texture.h"
+#include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "mesh.h"
 #include "render_types.h"
@@ -151,19 +151,19 @@ class RenderDevice
     swr::context_handle context{nullptr};
 
     /** meshes. */
-    std::unordered_map<MeshHandle, MeshData> meshes;
+    swr::unordered_map<MeshHandle, MeshData> meshes;
 
     /** uploaded mesh data. */
-    std::unordered_map<MeshHandle, MeshGpuData> mesh_gpu_data;
+    swr::unordered_map<MeshHandle, MeshGpuData> mesh_gpu_data;
 
     /** Mesh bounds. */
-    std::unordered_map<MeshHandle, MeshBounds> mesh_bounds;
+    swr::unordered_map<MeshHandle, MeshBounds> mesh_bounds;
 
     /** materials. */
-    std::unordered_map<MaterialHandle, Material> materials;
+    swr::unordered_map<MaterialHandle, Material> materials;
 
     /** shadow-map render targets. */
-    std::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
+    swr::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
 
     /** state cache. */
     RasterizerState current_rasterizer_state;

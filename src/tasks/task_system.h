@@ -23,6 +23,7 @@
 
 #include <concurrency_utils/thread_pool.h>
 
+#include "containers/string.h"
 #include "containers/vector.h"
 #include "task_logger.h"
 #include "state.h"
@@ -76,7 +77,7 @@ public:
      * @param progress Local progress value, clamped to [0, 1].
      */
     void update(
-      std::string status_text,
+      std::string_view status_text,
       float progress) const;
 
     /**
@@ -107,7 +108,7 @@ using Task = std::function<void(TaskExecutionContext&)>;
 struct TaskSpec
 {
     /** Optional task name used for progress status reporting. */
-    std::string name{};
+    swr::string name{};
 
     /** Relative task weight used for weighted aggregate progress. */
     float weight{1.f};

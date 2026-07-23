@@ -118,6 +118,8 @@ class Renderer final
     ComparativeBenchmarkState comparative_state{};
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
+    MaterialHandle shadow_material{0};
+
     /*
      * Viewport overlays.
      */

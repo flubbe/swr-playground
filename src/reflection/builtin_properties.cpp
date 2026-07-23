@@ -17,16 +17,16 @@ namespace reflect
 {
 
 IntProperty::IntProperty(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
   float speed,
   std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),
@@ -91,16 +91,16 @@ const void* IntProperty::get_type_tag() const noexcept
 }
 
 UIntProperty::UIntProperty(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
   float speed,
   std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),
@@ -163,8 +163,8 @@ const void* UIntProperty::get_type_tag() const noexcept
 }
 
 FloatProperty::FloatProperty(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
@@ -172,8 +172,8 @@ FloatProperty::FloatProperty(
   const char* format,
   std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),
@@ -242,15 +242,15 @@ const void* FloatProperty::get_type_tag() const noexcept
 }
 
 BoolProperty::BoolProperty(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
   std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),
@@ -286,16 +286,16 @@ const void* BoolProperty::get_type_tag() const noexcept
 }
 
 StringProperty::StringProperty(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags,
   std::size_t max_length,
   std::shared_ptr<const PropertyConstraint> constraint)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),

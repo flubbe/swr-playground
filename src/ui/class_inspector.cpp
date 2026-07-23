@@ -8,14 +8,14 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <unordered_map>
-#include <unordered_set>
-
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
 #include "ml/all.h"
 
+#include "containers/format.h"
+#include "containers/unordered_map.h"
+#include "containers/unordered_set.h"
 #include "containers/vector.h"
 #include "reflection/class_registry.h"
 #include "imgui.h"
@@ -58,7 +58,7 @@ bool class_matches_filter(
         return true;
     }
 
-    const std::string needle = to_lower_copy(std::string{filter});
+    const auto needle = to_lower_copy(filter);
 
     return to_lower_copy(cls->module_name).contains(needle)
            || to_lower_copy(cls->name).contains(needle)
@@ -75,7 +75,7 @@ const char* property_flags_badge(
     return "-";
 }
 
-std::string descriptor_constraint_summary(
+swr::string descriptor_constraint_summary(
   const reflect::PropertyDescriptor& descriptor)
 {
     if(descriptor.constraint == nullptr)
@@ -87,38 +87,38 @@ std::string descriptor_constraint_summary(
     if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<int>>())
     {
         const auto* r = static_cast<const reflect::RangeConstraint<int>*>(base);
-        return std::format(
+        return swr::format(
           "range<int> min={} max={} step={} clamp={}",
-          r->min.has_value() ? std::format("{}", *r->min) : std::string{"-"},
-          r->max.has_value() ? std::format("{}", *r->max) : std::string{"-"},
-          r->step.has_value() ? std::format("{}", *r->step) : std::string{"-"},
+          r->min.has_value() ? swr::format("{}", *r->min) : swr::string{"-"},
+          r->max.has_value() ? swr::format("{}", *r->max) : swr::string{"-"},
+          r->step.has_value() ? swr::format("{}", *r->step) : swr::string{"-"},
           r->clamp ? "true" : "false");
     }
     if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<unsigned int>>())
     {
         const auto* r = static_cast<const reflect::RangeConstraint<unsigned int>*>(base);
-        return std::format(
+        return swr::format(
           "range<uint> min={} max={} step={} clamp={}",
-          r->min.has_value() ? std::format("{}", *r->min) : std::string{"-"},
-          r->max.has_value() ? std::format("{}", *r->max) : std::string{"-"},
-          r->step.has_value() ? std::format("{}", *r->step) : std::string{"-"},
+          r->min.has_value() ? swr::format("{}", *r->min) : swr::string{"-"},
+          r->max.has_value() ? swr::format("{}", *r->max) : swr::string{"-"},
+          r->step.has_value() ? swr::format("{}", *r->step) : swr::string{"-"},
           r->clamp ? "true" : "false");
     }
     if(base->get_type_tag() == reflect::detail::type_tag<reflect::RangeConstraint<float>>())
     {
         const auto* r = static_cast<const reflect::RangeConstraint<float>*>(base);
-        return std::format(
+        return swr::format(
           "range<float> min={} max={} step={} clamp={}",
-          r->min.has_value() ? std::format("{:.3f}", *r->min) : std::string{"-"},
-          r->max.has_value() ? std::format("{:.3f}", *r->max) : std::string{"-"},
-          r->step.has_value() ? std::format("{:.3f}", *r->step) : std::string{"-"},
+          r->min.has_value() ? swr::format("{:.3f}", *r->min) : swr::string{"-"},
+          r->max.has_value() ? swr::format("{:.3f}", *r->max) : swr::string{"-"},
+          r->step.has_value() ? swr::format("{:.3f}", *r->step) : swr::string{"-"},
           r->clamp ? "true" : "false");
     }
 
     return "<custom>";
 }
 
-std::string descriptor_default_summary(
+swr::string descriptor_default_summary(
   const reflect::PropertyDescriptor& descriptor)
 {
     if(descriptor.get_default_value() == nullptr)
@@ -127,27 +127,27 @@ std::string descriptor_default_summary(
     }
     if(const auto* d = descriptor.try_get_default<int>())
     {
-        return std::format("int {}", d->value);
+        return swr::format("int {}", d->value);
     }
     if(const auto* d = descriptor.try_get_default<unsigned int>())
     {
-        return std::format("uint {}", d->value);
+        return swr::format("uint {}", d->value);
     }
     if(const auto* d = descriptor.try_get_default<float>())
     {
-        return std::format("float {:.3f}", d->value);
+        return swr::format("float {:.3f}", d->value);
     }
     if(const auto* d = descriptor.try_get_default<bool>())
     {
-        return std::format("bool {}", d->value ? "true" : "false");
+        return swr::format("bool {}", d->value ? "true" : "false");
     }
     if(const auto* d = descriptor.try_get_default<std::string>())
     {
-        return std::format("string \"{}\"", d->value);
+        return swr::format("string \"{}\"", d->value);
     }
     if(const auto* d = descriptor.try_get_default<ml::vec4>())
     {
-        return std::format(
+        return swr::format(
           "vec4 [{:.3f} {:.3f} {:.3f} {:.3f}]",
           d->value.x,
           d->value.y,
@@ -156,7 +156,7 @@ std::string descriptor_default_summary(
     }
     if(const auto* d = descriptor.try_get_default<ml::mat4x4>())
     {
-        return std::format(
+        return swr::format(
           "mat4 diag [{:.3f} {:.3f} {:.3f} {:.3f}]",
           d->value.rows[0].x,
           d->value.rows[1].y,
@@ -166,15 +166,22 @@ std::string descriptor_default_summary(
     return "<custom>";
 }
 
-using ClassChildrenMap = std::unordered_map<
+using ClassChildrenMap = swr::unordered_map<
   const reflect::ClassInfo*,
-  swr::vector<const reflect::ClassInfo*>>;
+  swr::vector<
+    const reflect::ClassInfo*,
+    memory::MemoryDomain::Frame>,
+  memory::MemoryDomain::Frame>;
 
+template<memory::MemoryDomain Domain>
 bool class_tree_contains_match(
   const reflect::ClassInfo* cls,
   const ClassChildrenMap& children_by_parent,
   std::string_view filter,
-  std::unordered_map<const reflect::ClassInfo*, bool>& memo)
+  swr::unordered_map<
+    const reflect::ClassInfo*,
+    bool,
+    Domain>& memo)
 {
     if(cls == nullptr)
     {
@@ -201,12 +208,16 @@ bool class_tree_contains_match(
     return visible;
 }
 
+template<memory::MemoryDomain Domain>
 void draw_class_tree_node(
   imgui::State& ui_state,
   const reflect::ClassInfo* cls,
   const ClassChildrenMap& children_by_parent,
   std::string_view filter,
-  std::unordered_map<const reflect::ClassInfo*, bool>& visible_memo)
+  swr::unordered_map<
+    const reflect::ClassInfo*,
+    bool,
+    Domain>& visible_memo)
 {
     if(cls == nullptr)
     {
@@ -267,7 +278,7 @@ struct ClassInspectorCache
 {
     const reflect::ClassInfo* cls{nullptr};
     swr::vector<const reflect::ClassInfo*> class_chain;
-    std::unordered_map<
+    swr::unordered_map<
       const reflect::PropertyDescriptor*,
       std::array<std::size_t, 3>>
       layout_by_descriptor;
@@ -285,7 +296,7 @@ void draw_class_inspector_panel(
     validate_selected_class(ui_state);
 
     static std::string filter_text;    // FIXME Assigned below.
-    static std::string filter;
+    static swr::string filter;
 
     filter = to_lower_copy(filter_text);
 
@@ -298,16 +309,14 @@ void draw_class_inspector_panel(
         return;
     }
 
-    std::unordered_set<const reflect::ClassInfo*> known_classes{
-      classes.begin(),
-      classes.end()};
+    swr::unordered_set<
+      const reflect::ClassInfo*,
+      memory::MemoryDomain::Frame>
+      known_classes{
+        classes.begin(),
+        classes.end()};
 
-    static ClassChildrenMap children_by_parent;
-    for(auto& [parent, children]: children_by_parent)
-    {
-        children.clear();
-    }
-
+    ClassChildrenMap children_by_parent;
     static swr::vector<const reflect::ClassInfo*> roots;
     roots.clear();
 
@@ -329,19 +338,6 @@ void draw_class_inspector_panel(
         else
         {
             roots.push_back(cls);
-        }
-    }
-
-    for(auto it = children_by_parent.begin();
-        it != children_by_parent.end();)
-    {
-        if(it->second.empty())
-        {
-            it = children_by_parent.erase(it);
-        }
-        else
-        {
-            ++it;
         }
     }
 
@@ -381,7 +377,11 @@ void draw_class_inspector_panel(
     const float hierarchy_h = std::max(150.0f, avail_h * 0.42f);
 
     ImGui::BeginChild("ClassHierarchy", ImVec2{0, hierarchy_h}, true);
-    std::unordered_map<const reflect::ClassInfo*, bool> visible_memo;
+    swr::unordered_map<
+      const reflect::ClassInfo*,
+      bool,
+      memory::MemoryDomain::Frame>
+      visible_memo;
     bool any_visible = false;
     for(const auto* root: roots)
     {
@@ -602,7 +602,7 @@ void draw_class_inspector_panel(
 
                 draw_detail_row("Label", selected_property->label);
                 draw_detail_row("Name", selected_property->name);
-                draw_detail_row("Origin", selected_property_origin->qualified_name);
+                draw_detail_row("Origin", swr::std_string_from(selected_property_origin->qualified_name));
                 draw_detail_row("Flags", property_flags_badge(selected_property->flags));
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
@@ -637,7 +637,10 @@ void draw_class_inspector_panel(
                     ImGui::TextUnformatted(has_layout ? std::format("{}", layout_it->second[1]).c_str() : "n/a");
                     ImGui::EndTable();
                 }
-                draw_detail_row("Default", descriptor_default_summary(*selected_property));
+                draw_detail_row(
+                  "Default",
+                  swr::std_string_from(
+                    descriptor_default_summary(*selected_property)));
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextUnformatted("Constraint");
@@ -698,7 +701,11 @@ void draw_class_inspector_panel(
                         else
                         {
                             draw_constraint_row("Type", "<custom>");
-                            draw_constraint_row("Value", descriptor_constraint_summary(*selected_property));
+                            draw_constraint_row(
+                              "Value",
+                              swr::std_string_from(
+                                descriptor_constraint_summary(
+                                  *selected_property)));
                         }
                     }
 

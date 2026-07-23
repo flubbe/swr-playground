@@ -5,9 +5,9 @@
 #include <cstdint>
 #include <limits>
 #include <queue>
-#include <unordered_map>
-#include <unordered_set>
 
+#include "containers/unordered_map.h"
+#include "containers/unordered_set.h"
 #include "containers/vector.h"
 #include "mesh.h"
 
@@ -47,7 +47,7 @@ private:
       std::numeric_limits<std::uint32_t>::max();
 
     using EdgeMap =
-      std::unordered_map<
+      swr::unordered_map<
         std::uint64_t,
         swr::vector<std::size_t>>;
 
@@ -68,7 +68,7 @@ private:
     swr::vector<bool> boundary_vertices;
     swr::vector<swr::vector<std::size_t>> vertex_triangles;
     swr::vector<detail::MeshSimplifyQuadric> vertex_quadrics;
-    std::unordered_set<std::uint64_t> active_triangle_keys;
+    swr::unordered_set<std::uint64_t> active_triangle_keys;
     float area_epsilon = mesh_simplify_area_epsilon;
 
 private:
@@ -134,9 +134,9 @@ private:
       std::uint32_t removed,
       std::uint32_t kept,
       const ml::vec3& collapse_position,
-      const std::unordered_set<std::uint64_t>& existing,
-      const std::unordered_set<std::uint64_t>& affected_keys,
-      std::unordered_set<std::uint64_t>& proposed);
+      const swr::unordered_set<std::uint64_t>& existing,
+      const swr::unordered_set<std::uint64_t>& affected_keys,
+      swr::unordered_set<std::uint64_t>& proposed);
 
     [[nodiscard]]
     bool can_collapse(

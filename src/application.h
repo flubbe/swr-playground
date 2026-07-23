@@ -82,7 +82,7 @@ public:
 
 class Application
 {
-    std::string title;
+    swr::string title;
     logging::BufferedLogDevice& log_device;
 
     std::unique_ptr<SplashScreen> splash_screen;
@@ -166,7 +166,7 @@ private:
     bool is_window_shown() const;
 
     /** Return the startup status text. */
-    std::string get_startup_status() const;
+    swr::string get_startup_status() const;
 
     /**
      * Pumps SDL messages and updates input state.

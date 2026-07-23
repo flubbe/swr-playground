@@ -60,6 +60,25 @@ constexpr std::size_t align_up(
     return (x + alignment - 1) & ~(alignment - 1);
 }
 
+/**
+ * Align a pointer.
+ *
+ * @param x The pointer to align.
+ * @param align Alignment, has to be a power of two.
+ */
+template<typename T>
+    requires std::is_pointer_v<T>
+constexpr T align(
+  T x,
+  std::size_t alignment)
+{
+    assert(std::has_single_bit(alignment));
+
+    auto value = reinterpret_cast<std::uintptr_t>(x);
+    value = (value + alignment - 1) & ~(alignment - 1);
+    return reinterpret_cast<T>(value);
+}
+
 /** Memory block header. */
 struct MemoryBlockHeader
 {
@@ -168,6 +187,41 @@ void MallocAllocator::deallocate(
 #else
     std::free(p);
 #endif
+}
+
+/*
+ * BumpAllocator.
+ */
+
+void* BumpAllocator::allocate(
+  std::size_t bytes,
+  std::size_t alignment)
+{
+    // always return a new address on each call.
+    const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
+
+    while(true)
+    {
+        void* current = base.load(std::memory_order_relaxed);
+
+        void* start = align(current, alignment);
+        void* next = reinterpret_cast<void*>(
+          reinterpret_cast<std::uintptr_t>(start) + safe_bytes);
+
+        if(next > end)
+        {
+            // out of scratch memory
+            throw std::bad_alloc{};
+        }
+
+        if(base.compare_exchange_weak(
+             current,
+             next,
+             std::memory_order_relaxed))
+        {
+            return start;
+        }
+    }
 }
 
 /*
@@ -283,9 +337,11 @@ void ScratchArena::reset()
  * MemoryManager.
  */
 
-MemoryManager::MemoryManager()
+MemoryManager::MemoryManager(
+  std::size_t bump_size)
 : system_malloc_allocator{}
 , global_allocator{&system_malloc_allocator}
+, frame_bump_allocator{bump_size, global_allocator}
 , tracking_allocator{global_allocator}
 , tracking_resource{global_allocator}
 , frame_scratch_arena{&tracking_resource}
@@ -338,19 +394,17 @@ void MemoryManager::shutdown()
 
 bool MemoryManager::is_initialized() const
 {
-    std::scoped_lock lock{mutex};
     return initialized;
 }
 
-Allocator* MemoryManager::get_allocator()
+Allocator* MemoryManager::heap()
 {
-    std::scoped_lock lock{mutex};
     return &tracking_allocator;
 }
 
-ScratchAllocator& MemoryManager::frame_scratch() noexcept
+BumpAllocator* MemoryManager::frame_bump()
 {
-    return frame_scratch_arena;
+    return &frame_bump_allocator;
 }
 
 std::pmr::memory_resource* MemoryManager::default_resource() noexcept
@@ -387,14 +441,14 @@ bool is_initialized()
     return MemoryManager::instance().is_initialized();
 }
 
-Allocator* get_allocator()
+Allocator* heap()
 {
-    return MemoryManager::instance().get_allocator();
+    return MemoryManager::instance().heap();
 }
 
-ScratchAllocator& frame_scratch() noexcept
+BumpAllocator* frame_bump()
 {
-    return MemoryManager::instance().frame_scratch();
+    return MemoryManager::instance().frame_bump();
 }
 
 std::pmr::memory_resource* default_resource() noexcept

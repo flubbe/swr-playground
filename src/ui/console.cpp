@@ -10,12 +10,11 @@
 
 #include <string>
 #include <algorithm>
-#include <unordered_map>
 #include <cfloat>
 
 #include <imgui.h>
 
-#include "containers/vector.h"
+#include "containers/unordered_map.h"
 #include "ui/imgui.h"
 #include "logging.h"
 
@@ -35,7 +34,7 @@ enum class ConsoleLineType
 
 struct SystemFilterEntry
 {
-    std::string name;
+    swr::string name;
     bool enabled{true};
 };
 
@@ -69,7 +68,12 @@ void draw_console_panel(
     static swr::vector<logging::LogRecord> records;
     log_device.get_records(records);
 
-    std::unordered_map<std::string, std::size_t> label_index;
+    swr::unordered_map<
+      std::string_view,
+      std::size_t,
+      memory::MemoryDomain::Frame>
+      label_index;
+    label_index.clear();
     label_index.reserve(label_filters.size());
     for(std::size_t i = 0; i < label_filters.size(); ++i)
     {
@@ -153,7 +157,12 @@ void draw_console_panel(
 
     ImGui::Separator();
 
-    std::unordered_map<std::string, bool> label_enabled;
+    swr::unordered_map<
+      swr::string,
+      bool,
+      memory::MemoryDomain::Frame>
+      label_enabled;
+    label_enabled.clear();
     label_enabled.reserve(label_filters.size());
     for(const SystemFilterEntry& filter_entry: label_filters)
     {
@@ -178,7 +187,7 @@ void draw_console_panel(
       max_scroll_y <= 0.f
       || scroll_y >= max_scroll_y - 1.f;
 
-    static std::string visible_text;
+    static swr::string visible_text;
     static bool follow_tail = true;
     static std::size_t previous_visible_text_size = 0;
     visible_text.clear();

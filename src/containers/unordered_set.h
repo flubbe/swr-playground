@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * std deque adapter.
+ * std unordered_set adapter.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <deque>
+#include <unordered_set>
 
 #include "containers/allocator.h"
 
@@ -18,13 +18,16 @@ namespace swr
 {
 
 template<
-  typename T,
+  typename K,
   memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
-using deque = std::deque<
-  T,
-  swr::StdAllocator<
-    T,
-    MemoryTag::Deque,
-    Domain>>;
+using unordered_set =
+  std::unordered_set<
+    K,
+    std::hash<K>,
+    std::equal_to<K>,
+    swr::StdAllocator<
+      K,
+      MemoryTag::UnorderedSet,
+      Domain>>;
 
 }    // namespace swr

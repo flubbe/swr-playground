@@ -13,6 +13,7 @@
 #include <format>
 #include <stdexcept>
 
+#include "containers/format.h"
 #include "task_system.h"
 #include "dag.h"
 #include "scheduler.h"
@@ -118,9 +119,9 @@ void run_task_specs(
           !task.start_condition || task.start_condition();
         if(!should_run)
         {
-            const std::string skipped_status = task.name.empty()
+            const swr::string skipped_status = task.name.empty()
                                                  ? "Skipped task"
-                                                 : std::format(
+                                                 : swr::format(
                                                      "{} (skipped)",
                                                      task.name);
             task_context.update(skipped_status, 1.f);
@@ -180,7 +181,7 @@ TaskExecutionContext::TaskExecutionContext(
 }
 
 void TaskExecutionContext::update(
-  std::string status_text,
+  std::string_view status_text,
   float progress) const
 {
     if(!state)

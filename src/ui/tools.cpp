@@ -14,6 +14,7 @@
 
 #include <imgui.h>
 
+#include "containers/format.h"
 #include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
@@ -132,7 +133,7 @@ void draw_tools_panel(
             DirectionalLight& light = *directional_lights[light_index];
             int light_mode_index = static_cast<int>(light.behavior);
 
-            const std::string label = std::format(
+            const swr::string label = swr::format(
               "Directional Light {}",
               light_index + 1);
             if(ImGui::Combo(

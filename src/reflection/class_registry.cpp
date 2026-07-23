@@ -11,8 +11,9 @@
 #include <format>
 #include <algorithm>
 #include <stdexcept>
-#include <unordered_map>
 
+#include "containers/string.h"
+#include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "class_registry.h"
 
@@ -42,8 +43,8 @@ enum class VisitState : std::uint8_t
  */
 const reflect::ClassInfo* resolve_super_eager(
   reflect::ClassInfo* cls,
-  const std::unordered_map<const reflect::ClassInfo*, reflect::ClassInfo*>& batch,
-  std::unordered_map<const reflect::ClassInfo*, VisitState>& visit_states)
+  const swr::unordered_map<const reflect::ClassInfo*, reflect::ClassInfo*>& batch,
+  swr::unordered_map<const reflect::ClassInfo*, VisitState>& visit_states)
 {
     if(cls == nullptr)
     {
@@ -89,7 +90,7 @@ const reflect::ClassInfo* resolve_super_eager(
 
 /** Class registry type, mapping qualified names to class metadata. */
 using ClassMap = std::unordered_multimap<
-  std::string,
+  swr::string,
   const reflect::ClassInfo*>;
 
 /** Head of pending class linked list. */
@@ -256,8 +257,8 @@ void ReflectionSystem::process_pending_registrations()
     // Resolve super-class links for the new batch. We do this eagerly in a separate pass with cycle detection,
     // to ensure that all super links are resolved before any object construction happens.
 
-    std::unordered_map<const ClassInfo*, VisitState> visit_states;
-    std::unordered_map<const ClassInfo*, ClassInfo*> batch;
+    swr::unordered_map<const ClassInfo*, VisitState> visit_states;
+    swr::unordered_map<const ClassInfo*, ClassInfo*> batch;
     batch.reserve(newly_registered.size());
     for(ClassInfo* cls: newly_registered)
     {
@@ -279,7 +280,7 @@ const ClassInfo* ReflectionSystem::find_class(
   std::string_view qualified_name,
   const void* root_tag)
 {
-    const auto [begin, end] = classes().equal_range(std::string{qualified_name});
+    const auto [begin, end] = classes().equal_range(swr::string{qualified_name});
     for(auto it = begin; it != end; ++it)
     {
         const ClassInfo* cls = it->second;
@@ -298,8 +299,7 @@ bool ReflectionSystem::unregister_class(
   const void* root_tag)
 {
     bool removed = false;
-    const std::string key{qualified_name};
-    const auto [begin, end] = classes().equal_range(key);
+    const auto [begin, end] = classes().equal_range(swr::string{qualified_name});
 
     for(auto it = begin; it != end;)
     {

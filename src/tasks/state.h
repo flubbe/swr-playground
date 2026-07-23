@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 
+#include "containers/string.h"
 #include "containers/vector.h"
 
 namespace task_system
@@ -37,10 +38,10 @@ enum class TaskState
 struct TaskSnapshot
 {
     /** Optional task name associated with the snapshot. */
-    std::string name;
+    swr::string name;
 
     /** Human-readable status string. */
-    std::string status_text;
+    swr::string status_text;
 
     /** Normalized progress in the range `[0, 1]`. */
     float progress{0.f};
@@ -114,7 +115,7 @@ void set_task_state(
   TaskSharedState& state,
   std::size_t task_index,
   TaskState task_state,
-  std::optional<std::string> status_text = std::nullopt,
+  std::optional<swr::string> status_text = std::nullopt,
   std::optional<float> progress = std::nullopt);
 
 /**

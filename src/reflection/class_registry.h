@@ -688,8 +688,8 @@ void register_property(
 {
     auto descriptor = std::make_unique<
       PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -725,8 +725,8 @@ void register_property(
     }
 
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -744,8 +744,8 @@ void register_property(
   std::shared_ptr<const PropertyConstraint> constraint)
 {
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -785,8 +785,8 @@ void register_property(
       "Default value type must match the reflected member type.");
 
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -836,8 +836,8 @@ void register_property(
     }
 
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -868,8 +868,8 @@ void register_property(
   std::shared_ptr<const PropertyDefault> default_value)
 {
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
@@ -898,8 +898,8 @@ void register_property(
   std::shared_ptr<const PropertyDefault> default_value)
 {
     auto descriptor = std::make_unique<PropertyDescriptor>(
-      std::string{name},
-      std::string{label},
+      name,
+      label,
       flags,
       &detail::construct_member_erased<MemberPtr>,
       std::move(class_info.first_property),
