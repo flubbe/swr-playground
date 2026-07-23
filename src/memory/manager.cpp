@@ -21,6 +21,7 @@
 #include <print>
 
 #include "memory/manager.h"
+#include "memory/utils.h"
 
 #if defined(_MSC_VER)
 #    include <malloc.h>
@@ -32,7 +33,6 @@ namespace memory
 namespace
 {
 
-constexpr std::size_t fallback_alignment = alignof(std::max_align_t);
 std::atomic<bool> strict_global_allocation_guards_armed{false};
 std::atomic<bool> memory_manager_initialized{false};
 std::atomic<Allocator*> global_allocator{nullptr};
@@ -45,39 +45,6 @@ static memory::MallocAllocator& get_system_allocator()
 };
 
 }    // namespace
-
-/**
- * Helper to round up to an alignment.
- *
- * @param x The value to round up.
- * @param align Alignment, has to be a power of two.
- */
-constexpr std::size_t align_up(
-  std::size_t x,
-  std::size_t alignment)
-{
-    assert(std::has_single_bit(alignment));
-    return (x + alignment - 1) & ~(alignment - 1);
-}
-
-/**
- * Align a pointer.
- *
- * @param x The pointer to align.
- * @param align Alignment, has to be a power of two.
- */
-template<typename T>
-    requires std::is_pointer_v<T>
-constexpr T align(
-  T x,
-  std::size_t alignment)
-{
-    assert(std::has_single_bit(alignment));
-
-    auto value = reinterpret_cast<std::uintptr_t>(x);
-    value = (value + alignment - 1) & ~(alignment - 1);
-    return reinterpret_cast<T>(value);
-}
 
 /** Memory block header. */
 struct MemoryBlockHeader
@@ -129,99 +96,6 @@ MemoryBlockHeader* header_from_user(
                 sizeof(offset));
 
     return reinterpret_cast<MemoryBlockHeader*>(user - offset);
-}
-
-/*
- * MallocAllocator.
- */
-
-void* MallocAllocator::allocate(
-  std::size_t bytes,
-  std::size_t alignment)
-{
-    const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
-    const std::size_t safe_alignment = std::max<std::size_t>(alignment, alignof(void*));
-
-    if(safe_alignment <= fallback_alignment)
-    {
-        if(void* ptr = std::malloc(safe_bytes);
-           ptr != nullptr)
-        {
-            return ptr;
-        }
-        throw std::bad_alloc{};
-    }
-
-#if defined(_MSC_VER)
-    if(void* ptr = _aligned_malloc(safe_bytes, safe_alignment);
-       ptr != nullptr)
-    {
-        return ptr;
-    }
-    throw std::bad_alloc{};
-#else
-    // NOTE Memory allocated with posix_memalign is freed via std::free.
-
-    void* ptr = nullptr;
-    if(posix_memalign(&ptr, safe_alignment, safe_bytes) == 0
-       && ptr != nullptr)
-    {
-        return ptr;
-    }
-    throw std::bad_alloc{};
-#endif
-}
-
-void MallocAllocator::deallocate(
-  void* p,
-  [[maybe_unused]] std::size_t bytes,
-  [[maybe_unused]] std::size_t alignment) noexcept
-{
-    if(p == nullptr)
-    {
-        return;
-    }
-
-#if defined(_MSC_VER)
-    _aligned_free(p);
-#else
-    std::free(p);
-#endif
-}
-
-/*
- * BumpAllocator.
- */
-
-void* BumpAllocator::allocate(
-  std::size_t bytes,
-  std::size_t alignment)
-{
-    // always return a new address on each call.
-    const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
-
-    while(true)
-    {
-        void* current = base.load(std::memory_order_relaxed);
-
-        void* start = align(current, alignment);
-        void* next = reinterpret_cast<void*>(
-          reinterpret_cast<std::uintptr_t>(start) + safe_bytes);
-
-        if(next > end)
-        {
-            // out of scratch memory
-            throw std::bad_alloc{};
-        }
-
-        if(base.compare_exchange_weak(
-             current,
-             next,
-             std::memory_order_relaxed))
-        {
-            return start;
-        }
-    }
 }
 
 /*

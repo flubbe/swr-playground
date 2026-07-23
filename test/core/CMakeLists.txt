@@ -6,6 +6,8 @@ add_executable(core_tests
     test_viewport.cpp
     test_camera_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh_simplifier.cpp

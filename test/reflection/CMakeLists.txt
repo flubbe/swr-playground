@@ -3,6 +3,8 @@ add_executable(reflection_tests
     test_builtin_property.cpp
     test_cast.cpp
     test_reflection.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp

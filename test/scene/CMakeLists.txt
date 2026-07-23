@@ -1,5 +1,7 @@
 add_executable(object_tests
     test_object_snapshot.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
@@ -22,6 +24,8 @@ gtest_discover_tests(object_tests)
 
 add_executable(scene_tests
     test_scene.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
