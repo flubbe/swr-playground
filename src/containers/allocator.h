@@ -115,6 +115,10 @@ struct StdAllocator
               "Memory domain not supported by this allocator");
         }
     }
+
+    friend constexpr bool operator==(
+      const StdAllocator&,
+      const StdAllocator&) = default;
 };
 
 }    // namespace swr
