@@ -25,9 +25,8 @@ void* MallocAllocator::allocate(
   std::size_t alignment)
 {
     const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
-    const std::size_t safe_alignment = std::max<std::size_t>(alignment, alignof(void*));
 
-    if(safe_alignment <= fallback_alignment)
+    if(alignment <= fallback_alignment)
     {
         if(void* ptr = std::malloc(safe_bytes);
            ptr != nullptr)
@@ -47,8 +46,8 @@ void* MallocAllocator::allocate(
 #else
     // NOTE Memory allocated with posix_memalign is freed via std::free.
 
-    void* ptr = nullptr;
-    if(posix_memalign(&ptr, safe_alignment, safe_bytes) == 0
+    if(void* ptr = nullptr;
+       posix_memalign(&ptr, alignment, safe_bytes) == 0
        && ptr != nullptr)
     {
         return ptr;
