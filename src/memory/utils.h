@@ -11,7 +11,7 @@
 #pragma once
 
 #include <bit>
-#include <cstddef>
+#include <cstdint>
 #include <cassert>
 #include <type_traits>
 
