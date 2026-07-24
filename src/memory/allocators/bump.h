@@ -35,11 +35,12 @@ struct BumpAllocatorStats
 class BumpAllocator final
 : public Allocator
 {
+    const std::size_t alignment{alignof(std::max_align_t)};
+
     Allocator* allocator{nullptr};
 
     void* memory{nullptr};
     void* end{nullptr};
-    const std::size_t alignment{alignof(std::max_align_t)};
 
     std::atomic<void*> base{nullptr};
 

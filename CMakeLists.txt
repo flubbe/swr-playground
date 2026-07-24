@@ -249,6 +249,7 @@ add_executable(swr_playground
     src/scene/scene.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
+    src/memory/allocators/arena.cpp
     src/memory/allocators/bump.cpp
     src/memory/allocators/malloc.cpp
     src/memory/manager.cpp

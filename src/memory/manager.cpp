@@ -176,31 +176,6 @@ void TrackingAllocator::print_histogram() const
 }
 
 /*
- * ScratchArena.
- */
-
-ScratchArena::ScratchArena(
-  std::pmr::memory_resource* upstream,
-  std::pmr::pool_options options) noexcept
-: pool{
-    options,
-    upstream != nullptr
-      ? upstream
-      : memory::default_resource()}
-{
-}
-
-std::pmr::memory_resource* ScratchArena::resource() noexcept
-{
-    return &pool;
-}
-
-void ScratchArena::reset()
-{
-    pool.release();
-}
-
-/*
  * MemoryManager.
  */
 
@@ -210,8 +185,6 @@ MemoryManager::MemoryManager(
 , global_allocator{&system_malloc_allocator}
 , frame_bump_allocator{bump_size, global_allocator}
 , tracking_allocator{global_allocator}
-, tracking_resource{global_allocator}
-, frame_scratch_arena{&tracking_resource}
 {
     ::memory::global_allocator.store(
       &tracking_allocator,
@@ -232,8 +205,6 @@ void MemoryManager::initialize()
         return;
     }
 
-    previous_default_resource = std::pmr::get_default_resource();
-    std::pmr::set_default_resource(&tracking_resource);
     initialized = true;
     memory_manager_initialized.store(true, std::memory_order_release);
     strict_global_allocation_guards_armed.store(true, std::memory_order_release);
@@ -250,12 +221,6 @@ void MemoryManager::shutdown()
     strict_global_allocation_guards_armed.store(false, std::memory_order_release);
     memory_manager_initialized.store(false, std::memory_order_release);
 
-    std::pmr::set_default_resource(
-      previous_default_resource != nullptr
-        ? previous_default_resource
-        : std::pmr::new_delete_resource());
-
-    previous_default_resource = nullptr;
     initialized = false;
 }
 
@@ -274,14 +239,9 @@ BumpAllocator* MemoryManager::frame_bump()
     return &frame_bump_allocator;
 }
 
-std::pmr::memory_resource* MemoryManager::default_resource() noexcept
-{
-    return &tracking_resource;
-}
-
 MemoryStats MemoryManager::stats() const
 {
-    return tracking_allocator.stats() + tracking_resource.stats();
+    return tracking_allocator.stats();
 }
 
 void MemoryManager::print_histogram()
@@ -316,11 +276,6 @@ Allocator* heap()
 BumpAllocator* frame_bump()
 {
     return MemoryManager::instance().frame_bump();
-}
-
-std::pmr::memory_resource* default_resource() noexcept
-{
-    return MemoryManager::instance().default_resource();
 }
 
 MemoryStats stats()

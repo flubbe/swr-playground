@@ -2,8 +2,9 @@
 
 #include <string_view>
 
-#include "memory/allocators/malloc.h"
+#include "memory/allocators/arena.h"
 #include "memory/allocators/bump.h"
+#include "memory/allocators/malloc.h"
 
 TEST(MallocAllocatorTests, Name)
 {
@@ -196,4 +197,114 @@ TEST(BumpAllocatorTests, DeallocateNull)
         nullptr,
         1,
         1));
+}
+
+TEST(ArenaAllocatorTests, Name)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    std::string name = allocator.name();
+
+    EXPECT_EQ(name, "Arena");
+}
+
+TEST(ArenaAllocatorTests, AllocateZeroBytes)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    void* p = allocator.allocate(0, alignof(std::max_align_t));
+    ASSERT_NE(p, nullptr);
+    allocator.deallocate(p, 1, alignof(std::max_align_t));
+}
+
+TEST(ArenaAllocatorTests, AllocateOneByte)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    void* p = allocator.allocate(1, alignof(std::max_align_t));
+    ASSERT_NE(p, nullptr);
+    allocator.deallocate(p, 1, alignof(std::max_align_t));
+}
+
+TEST(ArenaAllocatorTests, AllocateOneByteReset)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    void* p = allocator.allocate(1, alignof(std::max_align_t));
+    ASSERT_NE(p, nullptr);
+    allocator.deallocate(p, 1, alignof(std::max_align_t));
+
+    allocator.reset();
+
+    auto stats = allocator.get_stats();
+    EXPECT_EQ(stats.allocations, 1);
+    EXPECT_EQ(stats.deallocations, 1);
+    EXPECT_EQ(stats.pages, 1);
+}
+
+TEST(ArenaAllocatorTests, AllocateTwoPages)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    void* p1 = allocator.allocate(1, alignof(std::max_align_t));
+    ASSERT_NE(p1, nullptr);
+
+    void* p2 = allocator.allocate(128, alignof(std::max_align_t));
+    ASSERT_NE(p2, nullptr);
+
+    EXPECT_NE(p1, p2);
+
+    allocator.deallocate(p2, 1, alignof(std::max_align_t));
+    allocator.deallocate(p1, 128, alignof(std::max_align_t));
+
+    allocator.reset();
+
+    auto stats = allocator.get_stats();
+    EXPECT_EQ(stats.allocations, 2);
+    EXPECT_EQ(stats.deallocations, 2);
+    EXPECT_EQ(stats.pages, 2);
+}
+
+TEST(ArenaAllocatorTests, ReusePages)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream};
+
+    // allocate two pages
+    void* p1 = allocator.allocate(1, alignof(std::max_align_t));
+    ASSERT_NE(p1, nullptr);
+
+    void* p2 = allocator.allocate(128, alignof(std::max_align_t));
+    ASSERT_NE(p2, nullptr);
+
+    EXPECT_NE(p1, p2);
+
+    allocator.deallocate(p2, 1, alignof(std::max_align_t));
+    allocator.deallocate(p1, 128, alignof(std::max_align_t));
+
+    // reset and allocate memory fitting into the second page
+    allocator.reset();
+
+    p1 = allocator.allocate(64, alignof(std::max_align_t));
+    ASSERT_NE(p1, nullptr);
+
+    p2 = allocator.allocate(32, alignof(std::max_align_t));
+    ASSERT_NE(p2, nullptr);
+
+    EXPECT_NE(p1, p2);
+
+    allocator.deallocate(p2, 64, alignof(std::max_align_t));
+    allocator.deallocate(p1, 32, alignof(std::max_align_t));
+
+    EXPECT_EQ(allocator.size(), 96);
+
+    auto stats = allocator.get_stats();
+    EXPECT_EQ(stats.allocations, 2);
+    EXPECT_EQ(stats.deallocations, 2);
+    EXPECT_EQ(stats.pages, 2);
 }
