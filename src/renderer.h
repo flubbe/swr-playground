@@ -146,7 +146,7 @@ class Renderer final
       const Camera& camera,
       const ViewportDisplaySettings& display_settings);
 
-    bool render_spotlight_depth_debug();
+    void render_spotlight_depth_debug();
 
     void render_grid(
       const Camera& camera);

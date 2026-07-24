@@ -104,21 +104,45 @@ void draw_memory_profiler_panel()
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Active");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", memory_stats.allocate_calls - memory_stats.deallocate_calls);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
         ImGui::TextUnformatted("Allocs/frame");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", allocate_delta);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump size/frame");
+        ImGui::TextUnformatted("Bump size");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.used_before_reset);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bump free");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", bump_stats.free_before_reset);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("Bump peak");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.used_peak);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bump allocs");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", bump_stats.allocations);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bump deallocs/frame");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", bump_stats.deallocations);
 
         ImGui::EndTable();
     }

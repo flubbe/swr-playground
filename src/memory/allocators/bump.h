@@ -24,8 +24,11 @@ namespace memory
 /** Bump allocator statistics. */
 struct BumpAllocatorStats
 {
+    std::size_t allocations = 0;
+    std::size_t deallocations = 0;
     std::size_t used_before_reset = 0;
     std::size_t used_peak = 0;
+    std::size_t free_before_reset = 0;
 };
 
 /** Bump allocator. */
@@ -40,6 +43,8 @@ class BumpAllocator final
 
     std::atomic<void*> base{nullptr};
 
+    std::atomic_size_t allocations{0};
+    std::atomic_size_t deallocations{0};
     BumpAllocatorStats stats;
 
 public:
@@ -81,10 +86,15 @@ public:
 
     void reset() noexcept
     {
+        stats.allocations = allocations.load(std::memory_order::relaxed);
+        stats.deallocations = deallocations.load(std::memory_order::relaxed);
         stats.used_before_reset = size();
         stats.used_peak = std::max(stats.used_peak, stats.used_before_reset);
+        stats.free_before_reset = capacity() - stats.used_before_reset;
 
         base = memory;
+        allocations = 0;
+        deallocations = 0;
     }
 
     std::size_t size() const noexcept
@@ -115,7 +125,9 @@ public:
       [[maybe_unused]] std::size_t bytes,
       [[maybe_unused]] std::size_t alignment) noexcept override
     {
-        /* no-op. */
+        /* no-op. just update statistics. */
+
+        deallocations.fetch_add(1, std::memory_order_relaxed);
     }
 
     [[nodiscard]]

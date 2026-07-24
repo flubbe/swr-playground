@@ -820,11 +820,11 @@ void Renderer::render_grid(
     device.draw_mesh(overlay_grid.mesh_handle);
 }
 
-bool Renderer::render_spotlight_depth_debug()
+void Renderer::render_spotlight_depth_debug()
 {
     if(!shadow_map)
     {
-        return false;
+        return;
     }
 
     device.bind_rasterizer_state({
@@ -855,8 +855,6 @@ bool Renderer::render_spotlight_depth_debug()
     });
     device.draw_mesh(overlay_spotlight_depth.mesh_handle);
     device.clear_shadow_map();
-
-    return true;
 }
 
 void Renderer::render(
@@ -884,10 +882,9 @@ void Renderer::render(
     }
 
     if(display_settings.debug_spotlight_depth
-       && has_shadow_camera
-       && render_spotlight_depth_debug())
+       && has_shadow_camera)
     {
-        // Debug depth rendered.
+        render_spotlight_depth_debug();
     }
     else
     {

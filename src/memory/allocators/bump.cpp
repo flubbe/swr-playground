@@ -22,6 +22,8 @@ void* BumpAllocator::allocate(
   std::size_t bytes,
   std::size_t alignment)
 {
+    allocations.fetch_add(1, std::memory_order_relaxed);
+
     // always return a new address on each call.
     const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
 
