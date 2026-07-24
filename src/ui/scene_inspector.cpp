@@ -429,7 +429,10 @@ void draw_scene_inspector_panel(
               class_info != nullptr
                 ? swr::string{class_info->name}
                 : swr::string{"Unknown"};
+
             static swr::string object_header;
+            object_header.clear();
+
             std::format_to(
               std::back_inserter(object_header),
               "{} ({}.{})##{}",
@@ -449,9 +452,13 @@ void draw_scene_inspector_panel(
             if(ImGui::CollapsingHeader(object_header.c_str(), header_flags))
             {
                 static swr::string table_id;
-                table_id = swr::format(
+                table_id.clear();
+
+                std::format_to(
+                  std::back_inserter(table_id),
                   "ObjectProperties##{}",
                   object->get_object_id().value);
+
                 const ImGuiTableFlags table_flags =
                   ImGuiTableFlags_BordersInnerV
                   | ImGuiTableFlags_BordersOuter

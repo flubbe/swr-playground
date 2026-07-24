@@ -188,9 +188,10 @@ void draw_console_panel(
       || scroll_y >= max_scroll_y - 1.f;
 
     static swr::string visible_text;
+    visible_text.clear();
+
     static bool follow_tail = true;
     static std::size_t previous_visible_text_size = 0;
-    visible_text.clear();
 
     for(const logging::LogRecord& record: records)
     {

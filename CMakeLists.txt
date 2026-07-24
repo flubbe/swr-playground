@@ -15,8 +15,8 @@ include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
 option(SWR_PLAYGROUND_BUILD_TESTING "Build swr_playground tests" ON)
-option(SWR_USE_CUSTOM_STD_ALLOCATORS "Use custom allocator for std containers" OFF)
-option(SWR_OVERRIDE_GLOBAL_NEW "Route global new/delete call through the memory manager" OFF)
+option(SWR_USE_CUSTOM_STD_ALLOCATORS "Use custom allocator for std containers" ON)
+option(SWR_OVERRIDE_GLOBAL_NEW "Route global new/delete call through the memory manager" ON)
 
 # Keep third-party dependency tests disabled.
 set(BUILD_TESTING OFF)
