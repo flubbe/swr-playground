@@ -1295,7 +1295,10 @@ void Application::render_frame()
 
     if(imgui::check_and_clear_sorting_benchmark_request())
     {
-        renderer.start_sorting_benchmark(scene, viewport);
+        renderer.start_sorting_benchmark(
+          scene,
+          viewport,
+          benchmark_iterations);
     }
 
     imgui::draw_scene_inspector_panel(ui_state, scene);

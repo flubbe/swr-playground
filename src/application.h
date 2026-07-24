@@ -125,6 +125,9 @@ class Application
     float viewport_mouse_restore_y{0.f};
     bool prev_space_pressed{false};
 
+    // FIXME should likely be redesigned and moved somewhere else.
+    std::size_t benchmark_iterations{100};
+
     // Startup task state (parallel submissions aggregated by the main thread).
     std::shared_ptr<StagedStartupScene> startup_scene;
     swr::vector<task_system::TaskHandle> startup_task_handles;
@@ -263,5 +266,13 @@ public:
     FloorShaderType get_floor_shader() const noexcept
     {
         return active_floor_shader;
+    }
+
+    // FIXME Likely not the correct place, but convenient for experimenting.
+    std::size_t set_benchmark_iterations(
+      std::size_t iterations)
+    {
+        benchmark_iterations = std::max(1uz, iterations);
+        return benchmark_iterations;
     }
 };

@@ -312,8 +312,7 @@ void draw_tools_panel(
         else
         {
             ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
-            if(sorting_benchmark_iterations < 1)
-                sorting_benchmark_iterations = 1;
+            sorting_benchmark_iterations = app.set_benchmark_iterations(sorting_benchmark_iterations);
 
             if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
             {
@@ -323,7 +322,9 @@ void draw_tools_panel(
             ImGui::SameLine();
             ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
             if(sorting_depth_bin_count < 1)
+            {
                 sorting_depth_bin_count = 1;
+            }
             if(static_cast<std::size_t>(sorting_depth_bin_count) != renderer.get_depth_bin_count())
             {
                 renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
@@ -332,9 +333,14 @@ void draw_tools_panel(
             ImGui::SameLine();
             if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
             {
-                renderer.start_comparative_benchmark(scene, viewport, static_cast<std::size_t>(sorting_benchmark_iterations));
+                // FIXME Benchmark should not be controlled by the renderer.
+                renderer.start_comparative_benchmark(
+                  scene,
+                  viewport,
+                  static_cast<std::size_t>(sorting_benchmark_iterations));
             }
 
+            // FIXME Benchmark should not be controlled by the renderer.
             const SortingBenchmarkResults& results = renderer.get_benchmark_results();
             if(results.iterations > 0)
             {

@@ -246,7 +246,7 @@ public:
     void start_sorting_benchmark(
       Scene& scene,
       Viewport& viewport,
-      std::size_t iterations = 100);
+      std::size_t iterations);
 
     void update_sorting_benchmark(
       Scene& scene,
@@ -256,7 +256,7 @@ public:
     void start_comparative_benchmark(
       Scene& scene,
       Viewport& viewport,
-      std::size_t iterations = 100);
+      std::size_t iterations);
 
     [[nodiscard]]
     bool is_comparative_benchmark_in_progress() const noexcept
