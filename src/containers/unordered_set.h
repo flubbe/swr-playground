@@ -17,6 +17,8 @@
 namespace swr
 {
 
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
 template<
   typename K,
   memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
@@ -29,5 +31,20 @@ using unordered_set =
       K,
       MemoryTag::UnorderedSet,
       Domain>>;
+
+#else /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
+template<
+  typename K,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
+using unordered_set =
+  std::unordered_set<
+    K,
+    std::hash<K>,
+    std::equal_to<K>,
+    std::allocator<
+      K>>;
+
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
 
 }    // namespace swr

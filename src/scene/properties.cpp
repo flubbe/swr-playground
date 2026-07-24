@@ -15,6 +15,8 @@
 namespace reflect
 {
 
+#if SWR_CUSTOM_STRING_TYPE
+
 SwrStringProperty::SwrStringProperty(
   std::string_view name,
   std::string_view label,
@@ -66,6 +68,8 @@ const void* SwrStringProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<SwrStringProperty>();
 }
+
+#endif /* SWR_CUSTOM_STRING_TYPE */
 
 Vec4Property::Vec4Property(
   std::string_view name,

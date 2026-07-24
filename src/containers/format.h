@@ -10,10 +10,14 @@
 
 #pragma once
 
+#include <format>
+
 #include "containers/string.h"
 
 namespace swr
 {
+
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
 
 template<typename... Args>
 string format(
@@ -29,5 +33,19 @@ string format(
 
     return result;
 }
+
+#else
+
+template<typename... Args>
+auto format(
+  std::format_string<Args...> fmt,
+  Args&&... args)
+{
+    return std::format(
+      fmt,
+      std::forward<Args>(args)...);
+}
+
+#endif
 
 }    // namespace swr

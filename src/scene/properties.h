@@ -18,6 +18,8 @@
 namespace reflect
 {
 
+#if SWR_CUSTOM_STRING_TYPE
+
 /** Built-in reflected string property. */
 class SwrStringProperty : public Property
 {
@@ -88,6 +90,8 @@ struct PropertyFactory<swr::string>
           flags);
     }
 };
+
+#endif /* SWR_CUSTOM_STRING_TYPE */
 
 /** Reflected 4D vector property. */
 class Vec4Property : public Property

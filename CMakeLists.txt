@@ -15,6 +15,8 @@ include(FetchContent)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
 option(SWR_PLAYGROUND_BUILD_TESTING "Build swr_playground tests" ON)
+option(SWR_USE_CUSTOM_STD_ALLOCATORS "Use custom allocator for std containers" OFF)
+option(SWR_OVERRIDE_GLOBAL_NEW "Route global new/delete call through the memory manager" OFF)
 
 # Keep third-party dependency tests disabled.
 set(BUILD_TESTING OFF)
@@ -225,6 +227,11 @@ else()
     target_compile_options(swr_playground_options INTERFACE -Wall -Wextra)
 endif()
 
+target_compile_definitions(swr_playground_options INTERFACE
+    SWR_USE_CUSTOM_STD_ALLOCATORS=$<BOOL:${SWR_USE_CUSTOM_STD_ALLOCATORS}>
+    SWR_OVERRIDE_GLOBAL_NEW=$<BOOL:${SWR_OVERRIDE_GLOBAL_NEW}>
+)
+
 #
 # Playground executable
 #
@@ -245,6 +252,7 @@ add_executable(swr_playground
     src/memory/allocators/bump.cpp
     src/memory/allocators/malloc.cpp
     src/memory/manager.cpp
+    src/memory/new.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp

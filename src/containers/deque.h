@@ -17,6 +17,8 @@
 namespace swr
 {
 
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
 template<
   typename T,
   memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
@@ -26,5 +28,14 @@ using deque = std::deque<
     T,
     MemoryTag::Deque,
     Domain>>;
+
+#else /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
+template<
+  typename T,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
+using deque = std::deque<T, std::allocator<T>>;
+
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
 
 }    // namespace swr

@@ -17,6 +17,8 @@
 namespace swr
 {
 
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
 template<
   typename T,
   memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
@@ -26,5 +28,16 @@ using vector = std::vector<
     T,
     MemoryTag::Vector,
     Domain>>;
+
+#else /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
+template<
+  typename T,
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
+using vector = std::vector<
+  T,
+  std::allocator<T>>;
+
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
 
 }    // namespace swr

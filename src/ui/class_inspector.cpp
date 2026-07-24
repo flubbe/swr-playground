@@ -166,6 +166,8 @@ swr::string descriptor_default_summary(
     return "<custom>";
 }
 
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
 using ClassChildrenMap = swr::unordered_map<
   const reflect::ClassInfo*,
   swr::vector<
@@ -173,7 +175,22 @@ using ClassChildrenMap = swr::unordered_map<
     memory::MemoryDomain::Frame>,
   memory::MemoryDomain::Frame>;
 
-template<memory::MemoryDomain Domain>
+#else /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
+using ClassChildrenMap = swr::unordered_map<
+  const reflect::ClassInfo*,
+  swr::vector<
+    const reflect::ClassInfo*>>;
+
+#endif
+
+template<
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+  memory::MemoryDomain Domain
+#else  /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+  >
 bool class_tree_contains_match(
   const reflect::ClassInfo* cls,
   const ClassChildrenMap& children_by_parent,
@@ -208,7 +225,13 @@ bool class_tree_contains_match(
     return visible;
 }
 
-template<memory::MemoryDomain Domain>
+template<
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+  memory::MemoryDomain Domain
+#else  /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+  memory::MemoryDomain Domain = memory::MemoryDomain::Heap
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+  >
 void draw_class_tree_node(
   imgui::State& ui_state,
   const reflect::ClassInfo* cls,

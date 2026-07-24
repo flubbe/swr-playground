@@ -78,10 +78,12 @@ public:
         {
             render_string(*p, object);
         }
+#if SWR_CUSTOM_STRING_TYPE
         else if(auto* p = property.try_as<reflect::SwrStringProperty>())
         {
             render_string(*p, object);
         }
+#endif /* SWR_CUSTOM_STRING_TYPE */
         else if(auto* p = property.try_as<reflect::Mat4Property>())
         {
             render_mat4(*p, object);
@@ -277,7 +279,9 @@ private:
 
     template<typename T>
         requires std::is_same_v<T, reflect::StringProperty>
+#if SWR_CUSTOM_STRING_TYPE
                  || std::is_same_v<T, reflect::SwrStringProperty>
+#endif /* SWR_CUSTOM_STRING_TYPE */
     static void render_string(
       T& property,
       Object& object)
