@@ -149,6 +149,7 @@ void setup_dock_layout(ImGuiID dockspace_id)
     ImGuiID dock_left = 0;
     ImGuiID dock_right = 0;
     ImGuiID dock_bottom = 0;
+    ImGuiID dock_right_bottom = 0;
 
     dock_left = ImGui::DockBuilderSplitNode(
       dock_main,
@@ -156,23 +157,37 @@ void setup_dock_layout(ImGuiID dockspace_id)
       0.32f,
       nullptr,
       &dock_main);
+
     dock_right = ImGui::DockBuilderSplitNode(
       dock_main,
       ImGuiDir_Right,
       0.25f,
       nullptr,
       &dock_main);
+
     dock_bottom = ImGui::DockBuilderSplitNode(
       dock_main,
       ImGuiDir_Down,
-      0.25f, nullptr,
+      0.25f,
+      nullptr,
       &dock_main);
+
+    // Split the right column into top and bottom.
+    dock_right_bottom = ImGui::DockBuilderSplitNode(
+      dock_right,
+      ImGuiDir_Down,
+      0.5f,
+      nullptr,
+      &dock_right);
 
     ImGui::DockBuilderDockWindow("Viewport", dock_main);
     ImGui::DockBuilderDockWindow("Console", dock_bottom);
+
     ImGui::DockBuilderDockWindow("Tools", dock_right);
-    ImGui::DockBuilderDockWindow("Profiler", dock_right);
-    ImGui::DockBuilderDockWindow("Memory", dock_right);
+
+    ImGui::DockBuilderDockWindow("Profiler", dock_right_bottom);
+    ImGui::DockBuilderDockWindow("Memory", dock_right_bottom);
+
     ImGui::DockBuilderDockWindow("Scene Inspector", dock_left);
     ImGui::DockBuilderDockWindow("Class Inspector", dock_left);
 
