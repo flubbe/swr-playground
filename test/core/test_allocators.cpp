@@ -352,8 +352,6 @@ TEST(ArenaAllocatorTests, Alignment)
           reinterpret_cast<std::uintptr_t>(p) % alignment,
           0u);
 
-        std::print("{}\n", p);
-
         allocator.deallocate(p, 1, alignment);
     }
 }
