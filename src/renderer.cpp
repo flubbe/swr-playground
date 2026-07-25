@@ -550,7 +550,8 @@ Renderer::~Renderer()
 
 void Renderer::ensure_shadow_map_resources()
 {
-    if(shadow_map)
+    if(shadow_map
+       && shadow_material)
     {
         return;
     }
@@ -559,6 +560,12 @@ void Renderer::ensure_shadow_map_resources()
     shadow_map = device.create_shadow_map(
       shadow_map_resolution,
       shadow_map_resolution);
+
+    auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
+    if(!shadow_material)
+    {
+        shadow_material = device.create_material(*shadow_shader);
+    }
 }
 
 void Renderer::release_shadow_map_resources()
@@ -567,6 +574,12 @@ void Renderer::release_shadow_map_resources()
     {
         device.delete_shadow_map(shadow_map);
         shadow_map = {};
+    }
+
+    if(shadow_material)
+    {
+        device.delete_material(shadow_material, false);
+        shadow_material = {};
     }
 }
 
@@ -579,13 +592,6 @@ void Renderer::render_shadow_map(const Scene& scene)
     }
 
     ensure_shadow_map_resources();
-
-    // FIXME Don't create shaders/materials in render calls.
-    auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
-    if(!shadow_material)
-    {
-        shadow_material = device.create_material(*shadow_shader);
-    }
 
     static swr::vector<ShadowCasterSubmission> submissions;
     submissions.clear();
@@ -626,7 +632,6 @@ void Renderer::render_shadow_map(const Scene& scene)
     }
 
     device.end_shadow_map_pass();
-    device.delete_material(shadow_material, false);
 }
 
 void Renderer::render_scene(
