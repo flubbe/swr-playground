@@ -148,7 +148,7 @@ int main(int argc, char* argv[])
     }
     catch(const std::exception& e)
     {
-        logging::errorf("Error: {}", e.what());
+        logging::errorf("{}", e.what());
         return EXIT_FAILURE;
     }
     catch(...)
