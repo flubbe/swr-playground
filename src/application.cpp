@@ -1058,7 +1058,6 @@ void rebuild_gear_mesh_if_needed(
 void configure_default_directional_lights(Scene& scene)
 {
     auto* key_light = scene.add_object<DirectionalLight>();
-    key_light->enabled = false;
     key_light->set_name("Key Light");
     key_light->behavior = DirectionalLightBehavior::Rotating;
     key_light->brightness = 0.55f;
@@ -1071,7 +1070,7 @@ void configure_default_directional_lights(Scene& scene)
     auto* fill_light = scene.add_object<DirectionalLight>();
     fill_light->set_name("Fill Light");
     fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.75f;
+    fill_light->brightness = 0.6f;
     fill_light->set_transform(
       ml::matrices::rotation_y(ml::to_radians(35.f))
       * ml::matrices::rotation_x(ml::to_radians(-55.f)));
@@ -1084,8 +1083,8 @@ void configure_default_spot_lights(Scene& scene)
     auto* spotlight = scene.add_object<SpotLight>();
     spotlight->set_name("Spot Light");
     spotlight->casts_shadows = true;
-    spotlight->color = {0.42f, 0.62f, 1.f, 1.f};
-    spotlight->brightness = 7.f;
+    spotlight->color = {1.f, 1.f, 1.f, 1.f};
+    spotlight->brightness = 2.4f;
     spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
     spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
     spotlight->range = 45.f;
