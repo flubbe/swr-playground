@@ -8,6 +8,8 @@ namespace
 
 void ensure_object_reflection_ready()
 {
+    memory::initialize();
+
     static bool initialized = false;
     if(initialized)
     {

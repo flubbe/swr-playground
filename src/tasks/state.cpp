@@ -70,7 +70,7 @@ void set_task_state(
   TaskSharedState& state,
   std::size_t task_index,
   TaskState task_state,
-  std::optional<std::string> status_text,
+  std::optional<swr::string> status_text,
   std::optional<float> progress)
 {
     std::scoped_lock lock{state.snapshot_mutex};

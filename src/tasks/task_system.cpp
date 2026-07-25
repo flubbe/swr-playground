@@ -13,6 +13,7 @@
 #include <format>
 #include <stdexcept>
 
+#include "containers/format.h"
 #include "task_system.h"
 #include "dag.h"
 #include "scheduler.h"
@@ -45,8 +46,8 @@ std::optional<std::size_t> resolve_task_index_locked(
 
 void initialize_task_group_snapshot(
   TaskSharedState& state,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<float>& weights)
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<float>& weights)
 {
     std::scoped_lock lock{state.snapshot_mutex};
     state.snapshot.tasks.clear();
@@ -69,8 +70,8 @@ void initialize_task_group_snapshot(
 
 void run_task_specs(
   TaskExecutionContext& context,
-  const std::vector<TaskSpec>& tasks,
-  const std::vector<std::size_t>& execution_order)
+  const swr::vector<TaskSpec>& tasks,
+  const swr::vector<std::size_t>& execution_order)
 {
     if(tasks.empty())
     {
@@ -83,7 +84,7 @@ void run_task_specs(
         throw std::runtime_error{"Task execution order size mismatch"};
     }
 
-    std::vector<float> normalized_weights;
+    swr::vector<float> normalized_weights;
     normalized_weights.reserve(tasks.size());
     float total_weight = 0.f;
     for(const TaskSpec& task: tasks)
@@ -118,9 +119,9 @@ void run_task_specs(
           !task.start_condition || task.start_condition();
         if(!should_run)
         {
-            const std::string skipped_status = task.name.empty()
+            const swr::string skipped_status = task.name.empty()
                                                  ? "Skipped task"
-                                                 : std::format(
+                                                 : swr::format(
                                                      "{} (skipped)",
                                                      task.name);
             task_context.update(skipped_status, 1.f);
@@ -180,7 +181,7 @@ TaskExecutionContext::TaskExecutionContext(
 }
 
 void TaskExecutionContext::update(
-  std::string status_text,
+  std::string_view status_text,
   float progress) const
 {
     if(!state)
@@ -316,10 +317,10 @@ TaskSystem::TaskSystem(
 }
 
 TaskSubmission<void> TaskSystem::submit_task_specs(
-  std::vector<TaskSpec> tasks)
+  swr::vector<TaskSpec> tasks)
 {
     // Validate and freeze deterministic topological order at submission time.
-    const std::vector<std::size_t> execution_order =
+    const swr::vector<std::size_t> execution_order =
       build_task_execution_order(tasks);
 
     TaskSchedulingData scheduling_data = build_task_scheduling_data(

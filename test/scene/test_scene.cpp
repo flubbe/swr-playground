@@ -64,7 +64,9 @@ TEST(SceneTests, GetCamerasReturnsOnlyCameraObjects)
     ASSERT_NE(first_camera, nullptr);
     ASSERT_NE(second_camera, nullptr);
 
-    const std::vector<Camera*> cameras = scene.get_cameras();
+    static swr::vector<Camera*> cameras;
+    scene.get_cameras(cameras);
+
     ASSERT_EQ(cameras.size(), 2U);
     EXPECT_EQ(cameras[0], first_camera);
     EXPECT_EQ(cameras[1], second_camera);
@@ -102,7 +104,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
 
     Scene scene;
     StaticMesh* mesh = scene.add_object<StaticMesh>(
-      std::vector{
+      swr::vector{
         MeshSection{
           .mesh_handle = {.value = 12},
           .material_handle = {.value = 34}}});
@@ -120,7 +122,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
     ensure_scene_reflection_ready();
 
     StaticMesh mesh{
-      std::vector{
+      swr::vector{
         StaticMeshLod{
           .mesh_sections =
             {
@@ -170,7 +172,7 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
     };
 
     StaticMesh mesh{
-      std::vector{
+      swr::vector{
         MeshSection{
           .mesh_handle = {.value = 10},
           .material_handle = {.value = 20},
@@ -194,7 +196,7 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     Scene scene;
     [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
     StaticMesh* mesh = scene.add_object<StaticMesh>(
-      std::vector{
+      swr::vector{
         MeshSection{
           .mesh_handle = {.value = 56},
           .material_handle = {.value = 78}}});

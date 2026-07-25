@@ -15,6 +15,7 @@
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
+#include "containers/format.h"
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
@@ -77,6 +78,12 @@ public:
         {
             render_string(*p, object);
         }
+#if SWR_CUSTOM_STRING_TYPE
+        else if(auto* p = property.try_as<reflect::SwrStringProperty>())
+        {
+            render_string(*p, object);
+        }
+#endif /* SWR_CUSTOM_STRING_TYPE */
         else if(auto* p = property.try_as<reflect::Mat4Property>())
         {
             render_mat4(*p, object);
@@ -270,7 +277,14 @@ private:
         }
     }
 
-    static void render_string(reflect::StringProperty& property, Object& object)
+    template<typename T>
+        requires std::is_same_v<T, reflect::StringProperty>
+#if SWR_CUSTOM_STRING_TYPE
+                 || std::is_same_v<T, reflect::SwrStringProperty>
+#endif /* SWR_CUSTOM_STRING_TYPE */
+    static void render_string(
+      T& property,
+      Object& object)
     {
         if(property.is_read_only())
         {
@@ -278,7 +292,8 @@ private:
             return;
         }
 
-        std::string value = property.get_value();
+        std::string value = swr::std_string_from(property.get_value());
+
         if(value.size() > property.get_max_length())
         {
             value.resize(property.get_max_length());
@@ -410,11 +425,16 @@ void draw_scene_inspector_panel(
         for(auto& object: objects)
         {
             const auto* class_info = object->get_class();
-            const std::string type_name =
+            const swr::string type_name =
               class_info != nullptr
-                ? std::string{class_info->name}
-                : std::string{"Unknown"};
-            const std::string object_header = std::format(
+                ? swr::string{class_info->name}
+                : swr::string{"Unknown"};
+
+            static swr::string object_header;
+            object_header.clear();
+
+            std::format_to(
+              std::back_inserter(object_header),
               "{} ({}.{})##{}",
               object->get_name(),
               class_info->module_name,
@@ -431,9 +451,14 @@ void draw_scene_inspector_panel(
 
             if(ImGui::CollapsingHeader(object_header.c_str(), header_flags))
             {
-                const std::string table_id = std::format(
+                static swr::string table_id;
+                table_id.clear();
+
+                std::format_to(
+                  std::back_inserter(table_id),
                   "ObjectProperties##{}",
                   object->get_object_id().value);
+
                 const ImGuiTableFlags table_flags =
                   ImGuiTableFlags_BordersInnerV
                   | ImGuiTableFlags_BordersOuter

@@ -12,21 +12,23 @@
 
 #include <filesystem>
 #include <string>
-#include <vector>
 
-#include "mesh.h"
 #include "ml/all.h"
+
+#include "containers/string.h"
+#include "containers/vector.h"
+#include "mesh.h"
 
 struct ImportedMesh
 {
-    std::string name;
+    swr::string name;
     MeshData mesh_data;
     ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.0f};
 };
 
 struct ImportedStaticMesh
 {
-    std::vector<ImportedMesh> meshes;
+    swr::vector<ImportedMesh> meshes;
 };
 
 ImportedStaticMesh import_static_mesh(

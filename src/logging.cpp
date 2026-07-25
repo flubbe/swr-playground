@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "containers/deque.h"
+#include "containers/format.h"
 #include "logging.h"
 
 namespace logging
@@ -23,7 +25,7 @@ namespace
 {
 
 /** Return a timestamp like `14:23:51.042`. */
-std::string format_timestamp_short(
+swr::string format_timestamp_short(
   std::chrono::system_clock::time_point timestamp)
 {
     using namespace std::chrono;
@@ -36,7 +38,7 @@ std::string format_timestamp_short(
     std::tm local_time{};
     localtime_r(&time, &local_time);
 
-    return std::format(
+    return swr::format(
       "{:02}:{:02}:{:02}.{:03}",
       local_time.tm_hour,
       local_time.tm_min,
@@ -45,7 +47,7 @@ std::string format_timestamp_short(
 }
 
 /** Return a timestamp like `2026-07-07 14:23:51.042`. */
-std::string format_timestamp_long(
+swr::string format_timestamp_long(
   std::chrono::system_clock::time_point timestamp)
 {
     using namespace std::chrono;
@@ -58,7 +60,7 @@ std::string format_timestamp_long(
     std::tm local_time{};
     localtime_r(&time, &local_time);
 
-    return std::format(
+    return swr::format(
       "{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}",
       local_time.tm_year + 1900,
       local_time.tm_mon + 1,
@@ -216,10 +218,14 @@ void BufferedLogDevice::log_n(
     write_record(record);
 }
 
-std::vector<LogRecord> BufferedLogDevice::get_records() const
+void BufferedLogDevice::get_records(
+  swr::vector<LogRecord>& records) const
 {
     std::scoped_lock lock{mutex};
-    return std::vector<LogRecord>{records.begin(), records.end()};
+    records.reserve(this->records.size());
+    records.assign(
+      this->records.cbegin(),
+      this->records.cend());
 }
 
 void BufferedLogDevice::clear()
@@ -380,7 +386,7 @@ void FileLogDevice::write_record(const LogRecord& record)
 
 void FileLogDevice::writer_loop()
 {
-    std::deque<LogRecord> batch;
+    swr::deque<LogRecord> batch;
 
     while(true)
     {

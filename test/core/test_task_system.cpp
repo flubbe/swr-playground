@@ -4,10 +4,10 @@
 #include <mutex>
 #include <stdexcept>
 #include <thread>
-#include <vector>
 
 #include <gtest/gtest.h>
 
+#include "containers/vector.h"
 #include "tasks/task_system.h"
 
 namespace
@@ -51,7 +51,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
     std::atomic<bool> final_started_before_dependencies{false};
 
     std::mutex order_mutex;
-    std::vector<std::size_t> execution_order;
+    swr::vector<std::size_t> execution_order;
 
     auto parallel_branch =
       [&](TaskExecutionContext& context, std::size_t branch_index, std::atomic<bool>& done_flag)
@@ -84,7 +84,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
         running_count.fetch_sub(1, std::memory_order_relaxed);
     };
 
-    std::vector<TaskSpec> tasks;
+    swr::vector<TaskSpec> tasks;
     tasks.reserve(3);
 
     tasks.push_back(TaskSpec{
@@ -159,7 +159,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
     std::atomic<bool> branch_finished_normally{false};
     std::atomic<bool> finalizer_ran{false};
 
-    std::vector<TaskSpec> tasks;
+    swr::vector<TaskSpec> tasks;
     tasks.reserve(3);
 
     tasks.push_back(TaskSpec{
@@ -262,9 +262,9 @@ TEST(TaskSystemTests, SubmitTaskSpecsSkippedTaskUnblocksDependents)
     std::atomic<bool> dependent_ran{false};
 
     std::mutex order_mutex;
-    std::vector<std::size_t> execution_order;
+    swr::vector<std::size_t> execution_order;
 
-    std::vector<TaskSpec> tasks;
+    swr::vector<TaskSpec> tasks;
     tasks.reserve(3);
 
     tasks.push_back(TaskSpec{
@@ -327,7 +327,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsFailureDoesNotPoisonSubsequentSubmissions)
     std::atomic<bool> trailing_task_ran{false};
     std::atomic<bool> second_submission_task_ran{false};
 
-    std::vector<TaskSpec> failing_tasks;
+    swr::vector<TaskSpec> failing_tasks;
     failing_tasks.reserve(3);
 
     failing_tasks.push_back(TaskSpec{
@@ -385,7 +385,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsFailureDoesNotPoisonSubsequentSubmissions)
     EXPECT_EQ(failing_snapshot.tasks[1].state, TaskState::Failed);
     EXPECT_EQ(failing_snapshot.tasks[2].state, TaskState::Cancelled);
 
-    std::vector<TaskSpec> succeeding_tasks;
+    swr::vector<TaskSpec> succeeding_tasks;
     succeeding_tasks.push_back(TaskSpec{
       .name = "Recovery Task",
       .weight = 1.f,

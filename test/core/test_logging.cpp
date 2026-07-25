@@ -96,14 +96,14 @@ TEST(LoggingTests, FileLogDeviceWritesLifecycleMarkersAtInitializationAndShutdow
     const auto path = std::filesystem::temp_directory_path() / "swr_playground_file_log_device_lifecycle.log";
     std::filesystem::remove(path);
 
-    std::vector<logging::LogRecord> records;
+    swr::vector<logging::LogRecord> records;
 
     {
         logging::FileLogDevice device{path};
         logging::initialize(&device);
         device.logf("Between");
         logging::shutdown();
-        records = device.get_records();
+        device.get_records(records);
     }
 
     const std::string content = read_file(path);

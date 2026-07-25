@@ -14,6 +14,7 @@
 #include <mutex>
 
 #include "assets/static_mesh_importer.h"
+#include "containers/string.h"
 #include "logging.h"
 #include "mesh_lod.h"
 #include "startup_tasks.h"
@@ -23,10 +24,10 @@ namespace
 
 void add_startup_notice(
   StagedStartupScene& scene,
-  std::string notice)
+  std::string_view notice)
 {
     std::lock_guard lock{scene.notices_mutex};
-    scene.notices.push_back(std::move(notice));
+    scene.notices.emplace_back(notice.data(), notice.size());
 }
 
 struct GearInit
@@ -144,7 +145,7 @@ std::optional<StagedFloorData> try_prepare_floor_data()
     };
 }
 
-std::vector<StagedStaticMeshSection> build_static_mesh_sections(
+swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
 {
     const StaticMeshLodBuildSettings lod_settings{
@@ -153,7 +154,7 @@ std::vector<StagedStaticMeshSection> build_static_mesh_sections(
     };
 
     StaticMeshLodBuilder lod_builder;
-    std::vector<StagedStaticMeshSection> sections;
+    swr::vector<StagedStaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
@@ -212,7 +213,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     }
 
     return StagedStaticMeshAsset{
-      .name = static_mesh_path.filename().string(),
+      .name = swr::string_from(static_mesh_path.filename().string()),
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,
         sample_half_extent),
@@ -364,15 +365,16 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
           {
               add_startup_notice(
                 scene,
-                std::string{"sample static mesh was not found or had no renderable data: "}
-                  + sample_mesh_path.generic_string());
+                std::format(
+                  "sample static mesh was not found or had no renderable data: {}",
+                  sample_mesh_path.generic_string()));
           }
           context.update("Startup data prepared.", 1.f);
       },
     };
 }
 
-std::vector<TaskSpec> create_startup_tasks(StagedStartupScene& scene)
+swr::vector<TaskSpec> create_startup_tasks(StagedStartupScene& scene)
 {
     return {
       make_gear_task(scene),

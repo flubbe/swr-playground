@@ -30,6 +30,7 @@
 
 #include "assets/static_mesh_importer.h"
 #include "assets/texture.h"
+#include "containers/format.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
@@ -59,12 +60,12 @@ namespace
 
 struct DisplayProgress
 {
-    std::string status_text;
+    swr::string status_text;
     float progress{0.f};
 };
 
 [[nodiscard]]
-std::string task_display_text(const TaskSnapshot& task)
+swr::string task_display_text(const TaskSnapshot& task)
 {
     if(!task.status_text.empty())
     {
@@ -97,7 +98,7 @@ std::string task_display_text(const TaskSnapshot& task)
 
 [[nodiscard]]
 DisplayProgress summarize_task_display(
-  const std::vector<TaskSnapshot>& tasks,
+  const swr::vector<TaskSnapshot>& tasks,
   float progress,
   std::string_view default_status)
 {
@@ -144,10 +145,12 @@ DisplayProgress summarize_task_display(
 
     if(running_count > 1)
     {
+        swr::string status_text = swr::format(
+          "Waiting for {} running tasks...",
+          running_count);
+
         return DisplayProgress{
-          .status_text = std::format(
-            "Waiting for {} running tasks...",
-            running_count),
+          .status_text = std::move(status_text),
           .progress = progress,
         };
     }
@@ -169,7 +172,7 @@ DisplayProgress summarize_task_display(
     }
 
     return DisplayProgress{
-      .status_text = std::string{default_status},
+      .status_text = swr::string{default_status},
       .progress = progress,
     };
 }
@@ -429,7 +432,7 @@ void imgui_draw_viewport_panel(
             const char* phase = renderer.is_benchmark_sorted_phase()
                                   ? "With Sorting"
                                   : "Without Sorting";
-            const std::string status = std::format(
+            const swr::string status = swr::format(
               "Benchmark running: {} {}/{}",
               phase,
               iteration + 1,
@@ -456,7 +459,7 @@ void imgui_draw_viewport_panel(
             const ViewportDisplaySettings display_settings =
               viewport.get_display_settings();
             const ViewportCameraType camera_type = viewport.get_camera_type(scene);
-            std::string camera_name{to_string(viewport.get_editor_camera_view())};
+            swr::string camera_name{to_string(viewport.get_editor_camera_view())};
             if(display_settings.debug_spotlight_depth)
             {
                 camera_name = "Spotlight Depth";
@@ -466,10 +469,12 @@ void imgui_draw_viewport_panel(
                 camera_name = viewport.get_camera(scene).get_name();
             }
 
-            const std::string label_left = "[";
-            const std::string label_name = camera_name;
-            const std::string label_right = "]";
-            const std::string label = label_left + label_name + label_right;
+            const swr::string label_left = "[";
+            const swr::string label_name = camera_name;
+            const swr::string label_right = "]";
+            const swr::string label = swr::format(
+              "[{}]",
+              label_name);
             const ImVec2 text_pos = ImVec2{
               viewport_min.x + 8.0f,
               viewport_min.y + 6.0f};
@@ -536,7 +541,8 @@ void imgui_draw_viewport_panel(
                 }
 
                 ImGui::Separator();
-                const std::vector<Camera*> scene_cameras = scene.get_cameras();
+                static swr::vector<Camera*> scene_cameras;
+                scene.get_cameras(scene_cameras);
 
                 if(ImGui::BeginMenu("Scene Cameras"))
                 {
@@ -640,7 +646,7 @@ void expand_mesh_handle_bounds(
 
 MeshBounds calculate_mesh_section_bounds(
   const RenderDevice& device,
-  const std::vector<MeshSection>& sections)
+  const swr::vector<MeshSection>& sections)
 {
     MeshBounds bounds;
     for(const MeshSection& section: sections)
@@ -712,7 +718,7 @@ void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
   ShaderCache& shader_cache,
-  const std::vector<StagedGearInstance>& gears)
+  const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
     {
@@ -748,12 +754,12 @@ swr::program_base* get_floor_shader_program(
     }
 }
 
-std::vector<StaticMeshLod> create_static_mesh_resources(
+swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   MaterialHandle material,
   const StagedStaticMeshAsset& staged_asset)
 {
-    std::vector<StaticMeshLod> result_lods;
+    swr::vector<StaticMeshLod> result_lods;
     if(staged_asset.sections.empty())
     {
         return result_lods;
@@ -838,14 +844,14 @@ void try_add_textured_floor(
         const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
 
         auto* floor = scene.add_object<StaticMesh>(
-          std::vector<MeshSection>{
+          swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
               .material_handle = material_handle,
               .color = {1.f, 1.f, 1.f, 1.f},
             }},
           bounds);
-        floor->set_name(std::string{floor_object_name});
+        floor->set_name(floor_object_name);
         floor->casts_shadows = false;
         floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
         floor->capture_snapshot();
@@ -873,7 +879,7 @@ void try_add_textured_floor(
 StaticMesh* create_static_mesh_instance(
   Scene& scene,
   const StagedStaticMeshAsset& resources,
-  std::vector<StaticMeshLod> lods,
+  swr::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
     StaticMesh* mesh = scene.add_object<StaticMesh>(
@@ -950,12 +956,12 @@ void finalize_startup_scene(
 }
 
 TaskSpec make_wait_task(
-  std::string name,
+  swr::string name,
   int iterations,
   std::chrono::milliseconds per_iteration,
   float weight)
 {
-    const std::string task_name = name;
+    const auto task_name = name;
 
     return TaskSpec{
       .name = task_name,
@@ -1052,7 +1058,6 @@ void rebuild_gear_mesh_if_needed(
 void configure_default_directional_lights(Scene& scene)
 {
     auto* key_light = scene.add_object<DirectionalLight>();
-    key_light->enabled = false;
     key_light->set_name("Key Light");
     key_light->behavior = DirectionalLightBehavior::Rotating;
     key_light->brightness = 0.55f;
@@ -1065,7 +1070,7 @@ void configure_default_directional_lights(Scene& scene)
     auto* fill_light = scene.add_object<DirectionalLight>();
     fill_light->set_name("Fill Light");
     fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.75f;
+    fill_light->brightness = 0.6f;
     fill_light->set_transform(
       ml::matrices::rotation_y(ml::to_radians(35.f))
       * ml::matrices::rotation_x(ml::to_radians(-55.f)));
@@ -1078,8 +1083,8 @@ void configure_default_spot_lights(Scene& scene)
     auto* spotlight = scene.add_object<SpotLight>();
     spotlight->set_name("Spot Light");
     spotlight->casts_shadows = true;
-    spotlight->color = {0.42f, 0.62f, 1.f, 1.f};
-    spotlight->brightness = 7.f;
+    spotlight->color = {1.f, 1.f, 1.f, 1.f};
+    spotlight->brightness = 2.4f;
     spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
     spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
     spotlight->range = 45.f;
@@ -1100,8 +1105,8 @@ void configure_default_spot_lights(Scene& scene)
 }
 
 DisplayProgress aggregate_startup_progress(
-  const std::vector<TaskHandle>& handles,
-  const std::vector<float>& weights)
+  const swr::vector<TaskHandle>& handles,
+  const swr::vector<float>& weights)
 {
     if(handles.empty() || handles.size() != weights.size())
     {
@@ -1113,7 +1118,7 @@ DisplayProgress aggregate_startup_progress(
 
     float total_weight = 0.f;
     float completed_weight = 0.f;
-    std::vector<TaskSnapshot> task_snapshots;
+    swr::vector<TaskSnapshot> task_snapshots;
 
     for(std::size_t i = 0; i < handles.size(); ++i)
     {
@@ -1189,7 +1194,7 @@ bool Application::is_window_shown() const
     return (SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN) == 0;
 }
 
-std::string Application::get_startup_status() const
+swr::string Application::get_startup_status() const
 {
     return aggregate_startup_progress(
              startup_task_handles,
@@ -1255,6 +1260,9 @@ bool Application::pump_messages()
 
 void Application::prepare_frame()
 {
+    memory::frame_bump()->reset();
+    memory::frame_arena()->reset();
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -1281,12 +1289,16 @@ void Application::render_frame()
       scene,
       renderer,
       frame_index,
-      pixel_density,
-      ImGui::GetIO());
+      pixel_density);
+    imgui::draw_profiler_panel(renderer);
+    imgui::draw_memory_profiler_panel();
 
     if(imgui::check_and_clear_sorting_benchmark_request())
     {
-        renderer.start_sorting_benchmark(scene, viewport);
+        renderer.start_sorting_benchmark(
+          scene,
+          viewport,
+          benchmark_iterations);
     }
 
     imgui::draw_scene_inspector_panel(ui_state, scene);
@@ -1311,7 +1323,7 @@ void Application::on_startup_complete(const StagedStartupScene& staged_scene)
 {
     const logging::Logger startup_logger{"Startup"};
 
-    for(const std::string& notice: staged_scene.notices)
+    for(const auto& notice: staged_scene.notices)
     {
         startup_logger.warningf("{}", notice);
     }
@@ -1674,7 +1686,7 @@ void Application::start_debug_test_tasks()
     runtime_test_task_error.reset();
     runtime_test_modal_open = true;
 
-    std::vector<TaskSpec> tasks;
+    swr::vector<TaskSpec> tasks;
     tasks.reserve(3);
 
     tasks.push_back(make_wait_task(
@@ -1793,10 +1805,11 @@ void Application::draw_runtime_test_modal()
 
         for(const TaskSnapshot& task: snapshot.tasks)
         {
-            const std::string detail_text = task_display_text(task);
-            const std::string label = task.name.empty()
-                                        ? detail_text
-                                        : std::format("{}: {}", task.name, detail_text);
+            const auto detail_text = task_display_text(task);
+            swr::string label = task.name.empty()
+                                  ? detail_text
+                                  : swr::format("{}: {}", task.name, detail_text);
+
             ImGui::BulletText(
               "%s (%.0f%%)",
               label.c_str(),

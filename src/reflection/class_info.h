@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 
+#include "containers/string.h"
 #include "property.h"
 
 namespace reflect
@@ -34,13 +35,13 @@ struct ClassInfo
     using SuperResolverFn = const ClassInfo* (*)();
 
     /** Module name of the class. */
-    std::string module_name;
+    swr::string module_name;
 
     /** The class name. */
-    std::string name;
+    swr::string name;
 
     /** Qualified name as `module_name.name`. */
-    std::string qualified_name;
+    swr::string qualified_name;
 
     /** Byte size of the class. */
     std::size_t size{0};

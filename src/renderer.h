@@ -13,7 +13,6 @@
 #include <array>
 #include <cstddef>
 #include <optional>
-#include <vector>
 
 #include "ml/all.h"
 #include "render_types.h"
@@ -82,9 +81,9 @@ struct SortingBenchmarkState
 struct ComparativeBenchmarkState
 {
     bool active{false};
-    std::vector<SortMode> modes{};
+    swr::vector<SortMode> modes{};
     std::size_t current_mode_index{0};
-    std::vector<SortingBenchmarkResults> results{};
+    swr::vector<SortingBenchmarkResults> results{};
     SortMode saved_sort_mode{SortMode::FullSort};
     std::size_t iterations_per_mode{0};
 };
@@ -92,14 +91,14 @@ struct ComparativeBenchmarkState
 /** Shadow map PCF filtering mode. */
 enum class ShadowPcfMode : int
 {
-    Off = 0,               /** No PCF filtering. */
-    LegacyNearest3x3 = 1,  /** Legacy 3x3 PCF with nearest-neighbor depth compares. */
-    LegacyBilinear = 2,    /** Legacy single bilinear depth compare. */
-    ModernNearest3x3 = 3,  /** Shadow-sampler 3x3 PCF with nearest compare filtering. */
-    ModernBilinear3x3 = 4, /** Shadow-sampler 3x3 PCF with bilinear compare filtering. */
-    Stochastic4Tap = 5,    /** Four jittered shadow-sampler taps for cheaper soft shadows. */
-    Stochastic5Tap = 6,    /** Four jittered taps plus a center tap for slightly higher quality. */
-    Stochastic4TapStable = 7, /** Four jittered taps with shadow-texel-stable rotation. */
+    Off = 0,                      /** No PCF filtering. */
+    LegacyNearest3x3 = 1,         /** Legacy 3x3 PCF with nearest-neighbor depth compares. */
+    LegacyBilinear = 2,           /** Legacy single bilinear depth compare. */
+    ModernNearest3x3 = 3,         /** Shadow-sampler 3x3 PCF with nearest compare filtering. */
+    ModernBilinear3x3 = 4,        /** Shadow-sampler 3x3 PCF with bilinear compare filtering. */
+    Stochastic4Tap = 5,           /** Four jittered shadow-sampler taps for cheaper soft shadows. */
+    Stochastic5Tap = 6,           /** Four jittered taps plus a center tap for slightly higher quality. */
+    Stochastic4TapStable = 7,     /** Four jittered taps with shadow-texel-stable rotation. */
     Stochastic4TapInterleaved = 8 /** Four jittered taps with an interleaved rotation pattern. */
 };
 
@@ -118,6 +117,8 @@ class Renderer final
     std::size_t depth_bin_count{8};
     ComparativeBenchmarkState comparative_state{};
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
+
+    MaterialHandle shadow_material{0};
 
     /*
      * Viewport overlays.
@@ -145,7 +146,7 @@ class Renderer final
       const Camera& camera,
       const ViewportDisplaySettings& display_settings);
 
-    bool render_spotlight_depth_debug();
+    void render_spotlight_depth_debug();
 
     void render_grid(
       const Camera& camera);
@@ -245,7 +246,7 @@ public:
     void start_sorting_benchmark(
       Scene& scene,
       Viewport& viewport,
-      std::size_t iterations = 100);
+      std::size_t iterations);
 
     void update_sorting_benchmark(
       Scene& scene,
@@ -255,7 +256,7 @@ public:
     void start_comparative_benchmark(
       Scene& scene,
       Viewport& viewport,
-      std::size_t iterations = 100);
+      std::size_t iterations);
 
     [[nodiscard]]
     bool is_comparative_benchmark_in_progress() const noexcept
@@ -264,7 +265,7 @@ public:
     }
 
     [[nodiscard]]
-    const std::vector<SortingBenchmarkResults>& get_comparative_results() const noexcept
+    const swr::vector<SortingBenchmarkResults>& get_comparative_results() const noexcept
     {
         return comparative_state.results;
     }

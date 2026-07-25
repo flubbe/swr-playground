@@ -82,7 +82,7 @@ public:
 
 class Application
 {
-    std::string title;
+    swr::string title;
     logging::BufferedLogDevice& log_device;
 
     std::unique_ptr<SplashScreen> splash_screen;
@@ -125,16 +125,19 @@ class Application
     float viewport_mouse_restore_y{0.f};
     bool prev_space_pressed{false};
 
+    // FIXME should likely be redesigned and moved somewhere else.
+    std::size_t benchmark_iterations{100};
+
     // Startup task state (parallel submissions aggregated by the main thread).
     std::shared_ptr<StagedStartupScene> startup_scene;
-    std::vector<task_system::TaskHandle> startup_task_handles;
-    std::vector<std::future<void>> startup_task_futures;
-    std::vector<float> startup_task_weights;
+    swr::vector<task_system::TaskHandle> startup_task_handles;
+    swr::vector<std::future<void>> startup_task_futures;
+    swr::vector<float> startup_task_weights;
 
     // Runtime loader test task state (Debug -> Test tasks).
     task_system::TaskHandle runtime_test_task_handle;
     std::future<void> runtime_test_task_future;
-    std::optional<std::string> runtime_test_task_error;
+    std::optional<swr::string> runtime_test_task_error;
     bool runtime_test_modal_open{false};
 
     // Frame state for rendering
@@ -142,7 +145,7 @@ class Application
     imgui::State ui_state;
 
     // Startup error tracking
-    std::optional<std::string> startup_error;
+    std::optional<swr::string> startup_error;
 
     // Temporary running flag for viewport rendering (can be set to false by viewport panel on error)
     mutable bool viewport_panel_running{true};
@@ -166,7 +169,7 @@ private:
     bool is_window_shown() const;
 
     /** Return the startup status text. */
-    std::string get_startup_status() const;
+    swr::string get_startup_status() const;
 
     /**
      * Pumps SDL messages and updates input state.
@@ -263,5 +266,13 @@ public:
     FloorShaderType get_floor_shader() const noexcept
     {
         return active_floor_shader;
+    }
+
+    // FIXME Likely not the correct place, but convenient for experimenting.
+    std::size_t set_benchmark_iterations(
+      std::size_t iterations)
+    {
+        benchmark_iterations = std::max(1uz, iterations);
+        return benchmark_iterations;
     }
 };

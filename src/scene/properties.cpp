@@ -15,15 +15,71 @@
 namespace reflect
 {
 
+#if SWR_CUSTOM_STRING_TYPE
+
+SwrStringProperty::SwrStringProperty(
+  std::string_view name,
+  std::string_view label,
+  Type* value,
+  std::size_t offset,
+  PropertyFlags flags,
+  std::size_t max_length,
+  std::shared_ptr<const PropertyConstraint> constraint)
+: Property{
+    name,
+    label,
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags,
+    std::move(constraint)}
+, value{value}
+, max_length{max_length}
+{
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"SwrStringProperty requires non-null value pointer"};
+    }
+}
+
+const SwrStringProperty::Type& SwrStringProperty::get_value() const noexcept
+{
+    return *value;
+}
+
+bool SwrStringProperty::set_value(std::string_view in_value)
+{
+    if(is_read_only())
+    {
+        return false;
+    }
+
+    const std::size_t count = std::min(in_value.size(), max_length);
+    value->assign(in_value.data(), count);
+    return true;
+}
+
+std::size_t SwrStringProperty::get_max_length() const noexcept
+{
+    return max_length;
+}
+
+const void* SwrStringProperty::get_type_tag() const noexcept
+{
+    return detail::type_tag<SwrStringProperty>();
+}
+
+#endif /* SWR_CUSTOM_STRING_TYPE */
+
 Vec4Property::Vec4Property(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),
@@ -58,14 +114,14 @@ const void* Vec4Property::get_type_tag() const noexcept
 }
 
 Mat4Property::Mat4Property(
-  std::string name,
-  std::string label,
+  std::string_view name,
+  std::string_view label,
   Type* value,
   std::size_t offset,
   PropertyFlags flags)
 : Property{
-    std::move(name),
-    std::move(label),
+    name,
+    label,
     sizeof(Type),
     offset,
     alignof(Type),

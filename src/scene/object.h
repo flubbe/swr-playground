@@ -12,12 +12,12 @@
 
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <utility>
 
 #include "ml/all.h"
 
+#include "containers/string.h"
 #include "reflection/class_registry.h"
 #include "reflection/property.h"
 
@@ -86,7 +86,7 @@ public:
     ObjectId object_id{0};
 
     /** object name. */
-    std::string name;
+    swr::string name;
 
     /** object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
@@ -157,13 +157,14 @@ public:
      *
      * @param object_id The new object id.
      */
-    void set_object_id(ObjectId object_id) noexcept
+    void set_object_id(
+      ObjectId object_id) noexcept
     {
         this->object_id = object_id;
     }
 
     /** Get the object's name. */
-    const std::string& get_name() const noexcept
+    const swr::string& get_name() const noexcept
     {
         return name;
     }
@@ -173,9 +174,10 @@ public:
      *
      * @param object_name The new object name.
      */
-    void set_name(std::string object_name)
+    void set_name(
+      std::string_view object_name)
     {
-        name = std::move(object_name);
+        name = object_name;
     }
 
     /** Release all data. */
@@ -195,7 +197,8 @@ public:
     }
 
     /** Set the transformation matrix. */
-    void set_transform(ml::mat4x4 m)
+    void set_transform(
+      ml::mat4x4 m)
     {
         transform = m;
     }
@@ -207,7 +210,8 @@ public:
     }
 
     /** Set whether this object should be rendered when supported by the renderer. */
-    void set_visible(bool in_visible) noexcept
+    void set_visible(
+      bool in_visible) noexcept
     {
         visible = in_visible;
     }
@@ -220,7 +224,8 @@ public:
     }
 
     /** Set the object's world position while preserving the rest of the transform. */
-    void set_position(const ml::vec3& position)
+    void set_position(
+      const ml::vec3& position)
     {
         transform.rows[0].w = position.x;
         transform.rows[1].w = position.y;
@@ -249,7 +254,8 @@ public:
      * @param property_name Name of the property.
      * @returns `true` if the property has a snapshot.
      */
-    bool has_property_snapshot(std::string_view property_name) const;
+    bool has_property_snapshot(
+      std::string_view property_name) const;
 
     /**
      * Reset one reflected property to its captured baseline value.
@@ -257,7 +263,8 @@ public:
      * @param property_name Name of the property.
      * @returns `true` if the property was reset to a snapshot.
      */
-    bool reset_property_to_snapshot(std::string_view property_name);
+    bool reset_property_to_snapshot(
+      std::string_view property_name);
 
     /**
      * Reset all properties to their snapshot.

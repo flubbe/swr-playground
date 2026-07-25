@@ -16,7 +16,9 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
+
+#include "containers/string.h"
+#include "containers/vector.h"
 
 namespace task_system
 {
@@ -36,10 +38,10 @@ enum class TaskState
 struct TaskSnapshot
 {
     /** Optional task name associated with the snapshot. */
-    std::string name;
+    swr::string name;
 
     /** Human-readable status string. */
-    std::string status_text;
+    swr::string status_text;
 
     /** Normalized progress in the range `[0, 1]`. */
     float progress{0.f};
@@ -55,7 +57,7 @@ struct TaskGroupSnapshot
     float progress{0.f};
 
     /** Current per-task snapshots for the submission. */
-    std::vector<TaskSnapshot> tasks;
+    swr::vector<TaskSnapshot> tasks;
 };
 
 /** Shared state instance used across task execution, handle, and scheduler. */
@@ -68,7 +70,7 @@ struct TaskSharedState
     TaskGroupSnapshot snapshot;
 
     /** Per-task weights used to compute aggregate submission progress. */
-    std::vector<float> task_weights;
+    swr::vector<float> task_weights;
 
     /** Sum of normalized task weights. */
     float total_weight{0.f};
@@ -113,7 +115,7 @@ void set_task_state(
   TaskSharedState& state,
   std::size_t task_index,
   TaskState task_state,
-  std::optional<std::string> status_text = std::nullopt,
+  std::optional<swr::string> status_text = std::nullopt,
   std::optional<float> progress = std::nullopt);
 
 /**

@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <utility>
-#include <vector>
 
+#include "containers/vector.h"
 #include "mesh_simplifier.h"
 
 struct StaticMeshLodMesh
@@ -14,8 +14,8 @@ struct StaticMeshLodMesh
 
 struct StaticMeshLodBuildResult
 {
-    std::vector<StaticMeshLodMesh> lod_meshes;
-    std::vector<MeshSimplifyStats> simplify_stats;
+    swr::vector<StaticMeshLodMesh> lod_meshes;
+    swr::vector<MeshSimplifyStats> simplify_stats;
 };
 
 struct StaticMeshLodBuildEntry
@@ -39,7 +39,7 @@ struct StaticMeshLodBuildSettings
      *
      * Usually ordered from highest detail to lowest detail.
      */
-    std::vector<StaticMeshLodBuildEntry> lods{
+    swr::vector<StaticMeshLodBuildEntry> lods{
       {
         .triangle_fraction = 1.f,
         .min_screen_height = 0.50f,

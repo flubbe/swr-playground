@@ -396,12 +396,12 @@ MeshSimplifier::EdgeQueue MeshSimplifier::build_edge_queue()
     return queue;
 }
 
-std::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
+swr::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
   std::uint32_t a,
   std::uint32_t b)
 {
-    std::vector<std::size_t> affected;
-    std::vector<bool> seen(triangles.size(), false);
+    swr::vector<std::size_t> affected;
+    swr::vector<bool> seen(triangles.size(), false);
 
     const auto append = [&](std::uint32_t vertex)
     {
@@ -442,9 +442,9 @@ bool MeshSimplifier::collapse_preserves_triangle(
   std::uint32_t removed,
   std::uint32_t kept,
   const ml::vec3& collapse_position,
-  const std::unordered_set<std::uint64_t>& existing,
-  const std::unordered_set<std::uint64_t>& affected_keys,
-  std::unordered_set<std::uint64_t>& proposed)
+  const swr::unordered_set<std::uint64_t>& existing,
+  const swr::unordered_set<std::uint64_t>& affected_keys,
+  swr::unordered_set<std::uint64_t>& proposed)
 {
     const auto collapsed = collapsed_roots(roots, removed, kept);
 
@@ -501,10 +501,10 @@ bool MeshSimplifier::can_collapse(
   std::uint32_t kept,
   std::uint32_t removed,
   const ml::vec3& collapse_position,
-  const std::vector<std::size_t>& affected)
+  const swr::vector<std::size_t>& affected)
 {
-    std::unordered_set<std::uint64_t> affected_keys;
-    std::unordered_set<std::uint64_t> proposed;
+    swr::unordered_set<std::uint64_t> affected_keys;
+    swr::unordered_set<std::uint64_t> proposed;
     affected_keys.reserve(affected.size());
 
     for(const std::size_t triangle_index: affected)

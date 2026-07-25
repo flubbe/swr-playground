@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "containers/string.h"
 #include "except.h"
 #include "traits.h"
 
@@ -207,10 +208,10 @@ public:
 class Property
 {
     /** Property name. */
-    std::string name;
+    swr::string name;
 
     /** Display name. */
-    std::string label;
+    swr::string label;
 
     /** Byte size of the reflected value type. */
     std::size_t size{0};
@@ -233,18 +234,22 @@ public:
      *
      * @param name Internal property name.
      * @param label Display name / label (e.g. for UI/editor).
+     * @param size Property size.
+     * @param offset Property offset.
+     * @param alignment Property alignment.
      * @param flags Static property flags.
+     * @param constraint Property constraint.
      */
     Property(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       std::size_t size,
       std::size_t offset,
       std::size_t alignment,
       PropertyFlags flags = PropertyFlags::None,
       std::shared_ptr<const PropertyConstraint> constraint = nullptr)
-    : name{std::move(name)}
-    , label{std::move(label)}
+    : name{name.data(), name.size()}
+    , label{label.data(), label.size()}
     , size{size}
     , offset{offset}
     , alignment{alignment}
@@ -257,13 +262,13 @@ public:
     virtual ~Property() = default;
 
     /** Property name. */
-    const std::string& get_name() const noexcept
+    const swr::string& get_name() const noexcept
     {
         return name;
     }
 
     /** Property label / display name. */
-    const std::string& get_label() const noexcept
+    const swr::string& get_label() const noexcept
     {
         return label;
     }
@@ -431,10 +436,18 @@ public:
 /** Base class for property descriptors. */
 struct DescriptorBase
 {
-    /** Property name. */
+    /**
+     * Property name.
+     *
+     * @note Type is `std::string`, since its lifetime is longer than the memory manager's.
+     */
     std::string name;
 
-    /** Display name. */
+    /**
+     * Display name.
+     *
+     * @note Type is `std::string`, since its lifetime is longer than the memory manager's.
+     */
     std::string label;
 
     /** Property flags. */
@@ -456,13 +469,13 @@ struct DescriptorBase
      * @param default_value Optional default value for the property.
      */
     DescriptorBase(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       const PropertyFlags flags,
       std::shared_ptr<const PropertyConstraint> constraint = nullptr,
       std::shared_ptr<const PropertyDefault> default_value = nullptr)
-    : name{std::move(name)}
-    , label{std::move(label)}
+    : name{name.data(), name.size()}
+    , label{label.data(), label.size()}
     , flags{flags}
     , constraint{std::move(constraint)}
     , default_value{std::move(default_value)}
@@ -532,16 +545,16 @@ struct PropertyDescriptor : DescriptorBase
      * @param default_value Optional default value metadata.
      */
     PropertyDescriptor(
-      std::string name,
-      std::string label,
+      std::string_view name,
+      std::string_view label,
       const PropertyFlags flags,
       ConstructFn construct,
       std::unique_ptr<PropertyDescriptor> next,
       std::shared_ptr<const PropertyConstraint> constraint = nullptr,
       std::shared_ptr<const PropertyDefault> default_value = nullptr)
     : DescriptorBase{
-        std::move(name),
-        std::move(label),
+        name,
+        label,
         flags,
         std::move(constraint),
         std::move(default_value)}

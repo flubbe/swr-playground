@@ -16,6 +16,7 @@
 #include <string_view>
 
 #include "scene/scene.h"
+#include "memory/manager.h"
 #include "application.h"
 #include "logging.h"
 #include "main_loop.h"
@@ -77,8 +78,15 @@ std::filesystem::path resolve_log_path(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    const auto log_shutdown = gsl::finally([]() -> void
-                                           { logging::shutdown(); });
+    memory::initialize();
+    const auto memory_shutdown =
+      gsl::finally([]() -> void
+                   { memory::shutdown(); });
+    // TODO It would be nice to (automatically) log memory statistics, but logging is shut down earlier.
+
+    const auto log_shutdown =
+      gsl::finally([]() -> void
+                   { logging::shutdown(); });
 
     logging::FileLogDevice log_device{
       resolve_log_path(argc, argv),
@@ -87,12 +95,17 @@ int main(int argc, char* argv[])
       }};
     logging::initialize(&log_device);
 
+#ifndef DEBUG
     try
     {
+#endif
         if(!platform_init(argc, argv))
         {
             return EXIT_FAILURE;
         }
+
+        const auto shutdown = gsl::finally([]() -> void
+                                           { platform_shutdown(); });
 
         // This seems to be the earliest point where we can easily display
         // the splash screen. It needs logging to be set up in case of errors,
@@ -103,9 +116,6 @@ int main(int argc, char* argv[])
 
         reflect::ReflectionSystem::allow_auto_registration(false);
         reflect::ReflectionSystem::process_pending_registrations();
-
-        const auto shutdown = gsl::finally([]() -> void
-                                           { platform_shutdown(); });
 
         RenderDevice render_device{
           initial_framebuffer_width,
@@ -133,10 +143,12 @@ int main(int argc, char* argv[])
 
         splash_screen.reset();
         main_loop.run();
+
+#ifndef DEBUG
     }
     catch(const std::exception& e)
     {
-        logging::errorf("Error: {}", e.what());
+        logging::errorf("{}", e.what());
         return EXIT_FAILURE;
     }
     catch(...)
@@ -144,6 +156,7 @@ int main(int argc, char* argv[])
         logging::errorf("Terminating after uncaught exception.");
         return EXIT_FAILURE;
     }
+#endif
 
     return 0;
 }

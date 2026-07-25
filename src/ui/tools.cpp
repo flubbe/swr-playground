@@ -14,6 +14,7 @@
 
 #include <imgui.h>
 
+#include "containers/format.h"
 #include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
@@ -35,8 +36,7 @@ void draw_tools_panel(
   Scene& scene,
   Renderer& renderer,
   int frame_index,
-  float pixel_density,
-  const ImGuiIO& io)
+  float pixel_density)
 {
     ImGui::Begin("Tools");
 
@@ -125,13 +125,15 @@ void draw_tools_panel(
           "Stationary",
         };
 
-        auto directional_lights = scene.get_directional_lights();
+        static swr::vector<DirectionalLight*> directional_lights;
+        scene.get_directional_lights(directional_lights);
+
         for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
         {
             DirectionalLight& light = *directional_lights[light_index];
             int light_mode_index = static_cast<int>(light.behavior);
 
-            const std::string label = std::format(
+            const swr::string label = swr::format(
               "Directional Light {}",
               light_index + 1);
             if(ImGui::Combo(
@@ -216,39 +218,7 @@ void draw_tools_panel(
     {
         const RendererStats& stats = renderer.get_stats();
 
-        if(ImGui::BeginTable(
-             "FrameStats",
-             2,
-             ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
-        {
-            ImGui::TableSetupColumn("Metric");
-            ImGui::TableSetupColumn("Value");
-            ImGui::TableHeadersRow();
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("FPS");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.1f", io.Framerate);
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("Frame");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.3f ms", 1000.0f / std::max(io.Framerate, 0.001f));
-
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("Render");
-            ImGui::TableNextColumn();
-            ImGui::Text("%.3f ms", 1000.f * renderer.get_render_time());
-
-            ImGui::EndTable();
-        }
-
-        ImGui::Spacing();
         ImGui::TextUnformatted("Meshes");
-
         if(ImGui::BeginTable(
              "MeshStats",
              2,
@@ -342,8 +312,7 @@ void draw_tools_panel(
         else
         {
             ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
-            if(sorting_benchmark_iterations < 1)
-                sorting_benchmark_iterations = 1;
+            sorting_benchmark_iterations = app.set_benchmark_iterations(sorting_benchmark_iterations);
 
             if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
             {
@@ -353,7 +322,9 @@ void draw_tools_panel(
             ImGui::SameLine();
             ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
             if(sorting_depth_bin_count < 1)
+            {
                 sorting_depth_bin_count = 1;
+            }
             if(static_cast<std::size_t>(sorting_depth_bin_count) != renderer.get_depth_bin_count())
             {
                 renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
@@ -362,9 +333,14 @@ void draw_tools_panel(
             ImGui::SameLine();
             if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
             {
-                renderer.start_comparative_benchmark(scene, viewport, static_cast<std::size_t>(sorting_benchmark_iterations));
+                // FIXME Benchmark should not be controlled by the renderer.
+                renderer.start_comparative_benchmark(
+                  scene,
+                  viewport,
+                  static_cast<std::size_t>(sorting_benchmark_iterations));
             }
 
+            // FIXME Benchmark should not be controlled by the renderer.
             const SortingBenchmarkResults& results = renderer.get_benchmark_results();
             if(results.iterations > 0)
             {

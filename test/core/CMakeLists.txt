@@ -1,4 +1,5 @@
 add_executable(core_tests
+    test_allocators.cpp
     test_logging.cpp
     test_mesh.cpp
     test_task_system.cpp
@@ -6,6 +7,10 @@ add_executable(core_tests
     test_viewport.cpp
     test_camera_reflection.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/arena.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
+    ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh.cpp
     ${PROJECT_SOURCE_DIR}/src/mesh_simplifier.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp

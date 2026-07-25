@@ -10,8 +10,7 @@
 
 #pragma once
 
-#include <vector>
-
+#include "containers/vector.h"
 #include "tasks/task_system.h"
 #include "staged_data.h"
 
@@ -24,7 +23,7 @@ namespace startup_tasks
  * @param scene Storage for the created/loaded data during startup.
  */
 [[nodiscard]]
-std::vector<task_system::TaskSpec> create_startup_tasks(
+swr::vector<task_system::TaskSpec> create_startup_tasks(
   StagedStartupScene& scene);
 
 } /* namespace startup_tasks */
