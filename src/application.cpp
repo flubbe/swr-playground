@@ -1261,6 +1261,7 @@ bool Application::pump_messages()
 void Application::prepare_frame()
 {
     memory::frame_bump()->reset();
+    memory::frame_arena()->reset();
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();

@@ -43,9 +43,16 @@ void draw_memory_profiler_panel()
 
     const memory::MemoryStats memory_stats = memory::stats();
     const memory::BumpAllocatorStats bump_stats = memory::frame_bump()->get_stats();
+    const memory::ArenaAllocatorStats arena_stats = memory::frame_arena()->get_stats();
 
-    const float live_mb = to_megabytes(memory_stats.bytes_live);
-    const float peak_mb = to_megabytes(memory_stats.bytes_peak);
+    const float live_mb =
+      to_megabytes(memory_stats.bytes_live)
+      + to_megabytes(bump_stats.used_before_reset)
+      + to_megabytes(arena_stats.used_before_reset);
+    const float peak_mb =
+      to_megabytes(memory_stats.bytes_peak)
+      + to_megabytes(bump_stats.used_peak)
+      + to_megabytes(arena_stats.used_peak);
     const std::size_t allocate_delta =
       memory_stats.allocate_calls >= previous_allocate_calls
         ? memory_stats.allocate_calls - previous_allocate_calls
@@ -60,15 +67,12 @@ void draw_memory_profiler_panel()
 
     ImGui::Begin("Memory");
 
+    ImGui::SeparatorText("Statistics");
     if(ImGui::BeginTable(
          "MemoryProfilerStats",
          2,
          ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
     {
-        ImGui::TableSetupColumn("Metric");
-        ImGui::TableSetupColumn("Value");
-        ImGui::TableHeadersRow();
-
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("Live memory");
@@ -114,33 +118,43 @@ void draw_memory_profiler_panel()
         ImGui::TableNextColumn();
         ImGui::Text("%zu", allocate_delta);
 
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Frame Bump");
+    if(ImGui::BeginTable(
+         "MemoryProfilerBumpStats",
+         2,
+         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+    {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump size");
+        ImGui::TextUnformatted("Used");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.used_before_reset);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump free");
+        ImGui::TextUnformatted("Free");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.free_before_reset);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump peak");
+        ImGui::TextUnformatted("Peak");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.used_peak);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump allocs");
+        ImGui::TextUnformatted("Allocs");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.allocations);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Bump deallocs/frame");
+        ImGui::TextUnformatted("Deallocs");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", bump_stats.deallocations);
 
@@ -148,6 +162,47 @@ void draw_memory_profiler_panel()
     }
 
     ImGui::Spacing();
+    ImGui::SeparatorText("Frame Arena");
+    if(ImGui::BeginTable(
+         "MemoryProfilerArenaStats",
+         2,
+         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Used");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", arena_stats.used_before_reset);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Free");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", arena_stats.free_before_reset);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Peak");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", arena_stats.used_peak);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Allocs");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", arena_stats.allocations);
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Pages");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", arena_stats.pages);
+
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Graphs");
 
     const float memory_graph_max =
       std::max(peak_mb * 1.1f, 0.1f);

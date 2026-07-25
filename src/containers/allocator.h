@@ -72,7 +72,7 @@ struct StdAllocator
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
             return static_cast<T*>(
-              memory::frame_bump()->allocate(
+              memory::frame_arena()->allocate(
                 n * sizeof(T),
                 alignof(T)));
         }
@@ -100,7 +100,7 @@ struct StdAllocator
         }
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
-            memory::frame_bump()->deallocate(
+            memory::frame_arena()->deallocate(
               p,
               n * sizeof(T),
               alignof(T));

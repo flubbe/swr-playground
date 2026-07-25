@@ -51,6 +51,7 @@ class ArenaAllocator final
 
     Allocator* allocator{nullptr};
 
+    std::size_t default_page_size{64 * 1024};
     ArenaPage* head{nullptr};
 
     std::size_t total_size{0};
@@ -69,7 +70,8 @@ class ArenaAllocator final
         const std::size_t padding = data_alignment - 1;
 
         std::size_t page_size =
-          header + padding + size;
+          std::max(default_page_size,
+                   header + padding + size);
 
         void* memory = allocator->allocate(
           page_size,
@@ -102,8 +104,10 @@ class ArenaAllocator final
 
 public:
     ArenaAllocator(
-      Allocator* allocator)
+      Allocator* allocator,
+      std::size_t default_page_size = 64 * 1024)
     : allocator{allocator}
+    , default_page_size{default_page_size}
     {
         if(allocator == nullptr)
         {
@@ -143,7 +147,6 @@ public:
         total_size = 0;
         allocations = 0;
         deallocations = 0;
-        pages = 0;
     }
 
     std::size_t size() const noexcept

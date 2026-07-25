@@ -16,6 +16,7 @@
 #include <mutex>
 
 #include "memory/allocator.h"
+#include "memory/allocators/arena.h"
 #include "memory/allocators/bump.h"
 #include "memory/allocators/malloc.h"
 
@@ -100,6 +101,7 @@ class MemoryManager final
     MallocAllocator system_malloc_allocator;
     Allocator* global_allocator;
     BumpAllocator frame_bump_allocator;
+    ArenaAllocator frame_arena_allocator;
     TrackingAllocator tracking_allocator;
     bool initialized{false};
     mutable std::mutex mutex;
@@ -125,6 +127,9 @@ public:
 
     [[nodiscard]]
     BumpAllocator* frame_bump();
+
+    [[nodiscard]]
+    ArenaAllocator* frame_arena();
 
     [[nodiscard]]
     MemoryStats stats() const;
@@ -153,6 +158,10 @@ Allocator* heap();
 /** Get the frame bump allocator. */
 [[nodiscard]]
 BumpAllocator* frame_bump();
+
+/** Get the frame arena allocator. */
+[[nodiscard]]
+ArenaAllocator* frame_arena();
 
 /** Get tracked memory statistics. */
 [[nodiscard]]

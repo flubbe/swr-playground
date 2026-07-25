@@ -249,7 +249,7 @@ TEST(ArenaAllocatorTests, AllocateOneByteReset)
 TEST(ArenaAllocatorTests, AllocateTwoPages)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{&upstream, 1};
 
     void* p1 = allocator.allocate(1, alignof(std::max_align_t));
     ASSERT_NE(p1, nullptr);
@@ -273,7 +273,7 @@ TEST(ArenaAllocatorTests, AllocateTwoPages)
 TEST(ArenaAllocatorTests, ReusePages)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{&upstream, 1};
 
     // allocate two pages
     void* p1 = allocator.allocate(1, alignof(std::max_align_t));

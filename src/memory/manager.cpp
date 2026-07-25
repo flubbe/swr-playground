@@ -184,6 +184,7 @@ MemoryManager::MemoryManager(
 : system_malloc_allocator{}
 , global_allocator{&system_malloc_allocator}
 , frame_bump_allocator{bump_size, global_allocator}
+, frame_arena_allocator{global_allocator}
 , tracking_allocator{global_allocator}
 {
     ::memory::global_allocator.store(
@@ -239,6 +240,11 @@ BumpAllocator* MemoryManager::frame_bump()
     return &frame_bump_allocator;
 }
 
+ArenaAllocator* MemoryManager::frame_arena()
+{
+    return &frame_arena_allocator;
+}
+
 MemoryStats MemoryManager::stats() const
 {
     return tracking_allocator.stats();
@@ -276,6 +282,11 @@ Allocator* heap()
 BumpAllocator* frame_bump()
 {
     return MemoryManager::instance().frame_bump();
+}
+
+ArenaAllocator* frame_arena()
+{
+    return MemoryManager::instance().frame_arena();
 }
 
 MemoryStats stats()
