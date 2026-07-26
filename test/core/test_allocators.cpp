@@ -36,9 +36,8 @@ TEST(MallocAllocatorTests, Alignment)
 {
     memory::MallocAllocator allocator;
 
-    constexpr std::size_t alignments[] =
-      {
-        1, 2, 4, 8, 16, 32, 64, 128};
+    constexpr std::size_t alignments[] = {
+      1, 2, 4, 8, 16, 32, 64, 128};
 
     for(auto alignment: alignments)
     {
@@ -66,10 +65,14 @@ TEST(MallocAllocatorTests, ReadWrite)
     ASSERT_NE(p, nullptr);
 
     for(std::size_t i = 0; i < bytes; ++i)
+    {
         p[i] = static_cast<std::uint8_t>(i);
+    }
 
     for(std::size_t i = 0; i < bytes; ++i)
+    {
         EXPECT_EQ(p[i], static_cast<std::uint8_t>(i));
+    }
 
     allocator.deallocate(
       p,
@@ -199,6 +202,28 @@ TEST(BumpAllocatorTests, DeallocateNull)
         1));
 }
 
+TEST(BumpAllocatorTests, Alignment)
+{
+    memory::MallocAllocator upstream;
+    memory::BumpAllocator allocator{256, &upstream};
+
+    constexpr std::size_t alignments[] = {
+      1, 2, 4, 8, 16, 32, 64, 128};
+
+    for(auto alignment: alignments)
+    {
+        void* p = allocator.allocate(1, alignment);
+
+        ASSERT_NE(p, nullptr);
+
+        EXPECT_EQ(
+          reinterpret_cast<std::uintptr_t>(p) % alignment,
+          0u);
+
+        allocator.deallocate(p, 1, alignment);
+    }
+}
+
 TEST(ArenaAllocatorTests, Name)
 {
     memory::MallocAllocator upstream;
@@ -307,4 +332,26 @@ TEST(ArenaAllocatorTests, ReusePages)
     EXPECT_EQ(stats.allocations, 2);
     EXPECT_EQ(stats.deallocations, 2);
     EXPECT_EQ(stats.pages, 2);
+}
+
+TEST(ArenaAllocatorTests, Alignment)
+{
+    memory::MallocAllocator upstream;
+    auto allocator = memory::ArenaAllocator{&upstream, 64};
+
+    constexpr std::size_t alignments[] = {
+      1, 2, 4, 8, 16, 32, 64, 128};
+
+    for(auto alignment: alignments)
+    {
+        void* p = allocator.allocate(1, alignment);
+
+        ASSERT_NE(p, nullptr);
+
+        EXPECT_EQ(
+          reinterpret_cast<std::uintptr_t>(p) % alignment,
+          0u);
+
+        allocator.deallocate(p, 1, alignment);
+    }
 }
