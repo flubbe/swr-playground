@@ -197,7 +197,7 @@ void RenderDevice::delete_mesh(MeshHandle handle)
 }
 
 std::uint32_t RenderDevice::create_texture(
-  const assets::ImageRgba8& image)
+  const assets::ImageRGBA8& image)
 {
     if(image.width <= 0
        || image.height <= 0

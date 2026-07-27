@@ -23,7 +23,7 @@ enum class NormalMapConvention
     DirectX,
 };
 
-struct ImageRgba8
+struct ImageRGBA8
 {
     int width{0};
     int height{0};
@@ -31,11 +31,11 @@ struct ImageRgba8
 };
 
 [[nodiscard]]
-ImageRgba8 load_texture_rgba8(
+ImageRGBA8 load_texture_rgba8(
   const std::filesystem::path& path);
 
 [[nodiscard]]
-ImageRgba8 load_normal_map_rgba8(
+ImageRGBA8 load_normal_map_rgba8(
   const std::filesystem::path& path,
   NormalMapConvention convention);
 

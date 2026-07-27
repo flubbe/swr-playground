@@ -22,7 +22,7 @@
 namespace assets
 {
 
-ImageRgba8 load_texture_rgba8(
+ImageRGBA8 load_texture_rgba8(
   const std::filesystem::path& path)
 {
     int width = 0;
@@ -46,7 +46,7 @@ ImageRgba8 load_texture_rgba8(
                : "unknown stb_image error"))};
     }
 
-    ImageRgba8 image{
+    ImageRGBA8 image{
       .width = width,
       .height = height,
       .pixels = std::vector<std::uint8_t>{
@@ -58,11 +58,11 @@ ImageRgba8 load_texture_rgba8(
     return image;
 }
 
-ImageRgba8 load_normal_map_rgba8(
+ImageRGBA8 load_normal_map_rgba8(
   const std::filesystem::path& path,
   NormalMapConvention convention)
 {
-    ImageRgba8 image = load_texture_rgba8(path);
+    ImageRGBA8 image = load_texture_rgba8(path);
     if(convention == NormalMapConvention::DirectX)
     {
         for(std::size_t pixel_index = 0;

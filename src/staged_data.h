@@ -28,8 +28,8 @@
 struct StagedFloorData
 {
     MeshData mesh;
-    assets::ImageRgba8 diffuse_texture;
-    assets::ImageRgba8 normal_texture;
+    assets::ImageRGBA8 diffuse_texture;
+    assets::ImageRGBA8 normal_texture;
 };
 
 struct StagedStaticMeshSectionLod

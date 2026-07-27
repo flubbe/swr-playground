@@ -278,7 +278,7 @@ public:
     void delete_mesh(MeshHandle handle);
 
     std::uint32_t create_texture(
-      const assets::ImageRgba8& image);
+      const assets::ImageRGBA8& image);
 
     void delete_texture(std::uint32_t handle);
 
