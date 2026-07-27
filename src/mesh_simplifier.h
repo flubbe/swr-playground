@@ -29,6 +29,35 @@ struct MeshSimplifyStats
     std::size_t rejected_collapses = 0;
 };
 
+namespace detail
+{
+
+struct MeshSimplifyTriangle
+{
+    std::array<std::uint32_t, 3> indices{};
+};
+
+struct MeshSimplifyEdgeCandidate
+{
+    float cost{0.f};
+    std::uint32_t a{0};
+    std::uint32_t b{0};
+};
+
+struct MeshSimplifyEdgeCandidateCompare
+{
+    bool operator()(
+      const MeshSimplifyEdgeCandidate& lhs,
+      const MeshSimplifyEdgeCandidate& rhs) const;
+};
+
+struct MeshSimplifyQuadric
+{
+    float m[4][4]{};
+};
+
+}    // namespace detail
+
 class MeshSimplifier
 {
     static constexpr float mesh_simplify_area_epsilon = 1e-12f;    // FIXME maybe adjust?

@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Mesh data.
+ * Mesh data and helpers.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -57,70 +57,42 @@ struct MeshBounds
     bool valid{false};
 };
 
+/**
+ * Expand the mesh bounds to include a point.
+ *
+ * @param bounds The bounds to expand.
+ * @param v The point.
+ */
 void expand_bounds(
   MeshBounds& bounds,
-  const ml::vec3& position);
+  const ml::vec3& p);
 
+/**
+ * Expand the mesh bounds to include a point.
+ *
+ * @param bounds The bounds to expand.
+ * @param v The `x, y, z` coordinates of `v` define the point.
+ */
 void expand_bounds(
   MeshBounds& bounds,
   const ml::vec4& vertex);
 
+/**
+ * Expand the mesh bounds to include the `other` bounds.
+ *
+ * @param bounds The bounds to be expanded.
+ * @param other The bounds to include.
+ */
 void expand_bounds(
   MeshBounds& bounds,
   const MeshBounds& other);
 
-namespace detail
-{
-
-struct MeshSimplifyTriangle
-{
-    std::array<std::uint32_t, 3> indices{};
-};
-
-struct MeshSimplifyEdgeCandidate
-{
-    float cost{0.f};
-    std::uint32_t a{0};
-    std::uint32_t b{0};
-};
-
-struct MeshSimplifyEdgeCandidateCompare
-{
-    bool operator()(
-      const MeshSimplifyEdgeCandidate& lhs,
-      const MeshSimplifyEdgeCandidate& rhs) const;
-};
-
-struct MeshSimplifyQuadric
-{
-    float m[4][4]{};
-};
-
-MeshSimplifyQuadric make_mesh_simplify_quadric(
-  const ml::vec4& plane);
-
-void add_mesh_simplify_quadric(
-  MeshSimplifyQuadric& target,
-  const MeshSimplifyQuadric& source);
-
-float evaluate_mesh_simplify_quadric(
-  const MeshSimplifyQuadric& quadric,
-  const ml::vec4& position);
-
-bool solve_mesh_simplify_optimal_position(
-  const MeshSimplifyQuadric& quadric,
-  ml::vec3& output);
-
-std::uint64_t make_mesh_simplify_edge_key(
-  std::uint32_t a,
-  std::uint32_t b);
-
-ml::vec3 mesh_simplify_triangle_normal(
-  const std::array<std::uint32_t, 3>& roots,
-  const swr::vector<ml::vec3>& positions);
-
-}    // namespace detail
-
+/**
+ * Calculate the AABB bounds of a mesh.
+ *
+ * @param mesh The mesh.
+ * @returns Returns the mesh bounds.
+ */
 [[nodiscard]]
 MeshBounds calculate_mesh_bounds(
   const MeshData& mesh);
