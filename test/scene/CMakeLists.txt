@@ -1,9 +1,5 @@
 add_executable(object_tests
     test_object_snapshot.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/arena.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
@@ -15,20 +11,20 @@ target_include_directories(object_tests PRIVATE
     $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
+set_target_properties(object_tests PROPERTIES
+    SWR_USE_CUSTOM_STD_ALLOCATORS OFF
+)
+
 target_link_libraries(object_tests PRIVATE
     swr_playground_options
     GTest::gtest_main
 )
 
-include(GoogleTest)
+
 gtest_discover_tests(object_tests)
 
 add_executable(scene_tests
     test_scene.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/arena.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
-    ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
@@ -44,6 +40,10 @@ add_executable(scene_tests
 target_include_directories(scene_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+set_target_properties(scene_tests PROPERTIES
+    SWR_USE_CUSTOM_STD_ALLOCATORS OFF
 )
 
 target_link_libraries(scene_tests PRIVATE
