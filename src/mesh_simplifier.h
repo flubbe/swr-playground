@@ -48,12 +48,15 @@ struct MeshSimplifyEdgeCandidateCompare
 {
     bool operator()(
       const MeshSimplifyEdgeCandidate& lhs,
-      const MeshSimplifyEdgeCandidate& rhs) const;
+      const MeshSimplifyEdgeCandidate& rhs) const
+    {
+        return lhs.cost > rhs.cost;
+    }
 };
 
 struct MeshSimplifyQuadric
 {
-    float m[4][4]{};
+    ml::mat4x4 m{};
 };
 
 }    // namespace detail
@@ -108,7 +111,8 @@ private:
     void build_triangle_list();
 
     [[nodiscard]]
-    static float calculate_area_epsilon(const MeshData& mesh);
+    static float calculate_area_epsilon(
+      const MeshData& mesh);
 
     [[nodiscard]]
     bool can_simplify() const;
@@ -119,16 +123,6 @@ private:
     [[nodiscard]]
     std::array<std::uint32_t, 3> triangle_roots(
       const detail::MeshSimplifyTriangle& triangle);
-
-    [[nodiscard]]
-    static bool is_valid_triangle(
-      const std::array<std::uint32_t, 3>& roots);
-
-    [[nodiscard]]
-    static std::uint64_t triangle_key(
-      std::uint32_t a,
-      std::uint32_t b,
-      std::uint32_t c);
 
     [[nodiscard]]
     EdgeMap build_edges();
@@ -150,12 +144,6 @@ private:
     swr::vector<std::size_t> collect_affected_triangles(
       std::uint32_t a,
       std::uint32_t b);
-
-    [[nodiscard]]
-    static std::array<std::uint32_t, 3> collapsed_roots(
-      std::array<std::uint32_t, 3> roots,
-      std::uint32_t removed,
-      std::uint32_t kept);
 
     [[nodiscard]]
     bool collapse_preserves_triangle(

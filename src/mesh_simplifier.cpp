@@ -13,127 +13,89 @@
 
 #include "mesh_simplifier.h"
 
-namespace detail
-{
-
-bool MeshSimplifyEdgeCandidateCompare::operator()(
-  const MeshSimplifyEdgeCandidate& lhs,
-  const MeshSimplifyEdgeCandidate& rhs) const
-{
-    return lhs.cost > rhs.cost;
-}
-
-}    // namespace detail
-
 namespace
 {
+
+// TODO move into math library
+ml::mat4x4 outer_product(
+  const ml::vec4& a, const ml::vec4& b)
+{
+    // TODO multiplication should should act from left - add the math library
+    return {
+      b * a.x,
+      b * a.y,
+      b * a.z,
+      b * a.w};
+}
 
 detail::MeshSimplifyQuadric make_mesh_simplify_quadric(
   const ml::vec4& plane)
 {
-    const float a = plane.x;
-    const float b = plane.y;
-    const float c = plane.z;
-    const float d = plane.w;
-
-    detail::MeshSimplifyQuadric quadric;
-    quadric.m[0][0] = a * a;
-    quadric.m[0][1] = a * b;
-    quadric.m[0][2] = a * c;
-    quadric.m[0][3] = a * d;
-
-    quadric.m[1][0] = b * a;
-    quadric.m[1][1] = b * b;
-    quadric.m[1][2] = b * c;
-    quadric.m[1][3] = b * d;
-
-    quadric.m[2][0] = c * a;
-    quadric.m[2][1] = c * b;
-    quadric.m[2][2] = c * c;
-    quadric.m[2][3] = c * d;
-
-    quadric.m[3][0] = d * a;
-    quadric.m[3][1] = d * b;
-    quadric.m[3][2] = d * c;
-    quadric.m[3][3] = d * d;
-
-    return quadric;
+    return {
+      .m = outer_product(plane, plane)};
 }
 
 void add_mesh_simplify_quadric(
   detail::MeshSimplifyQuadric& target,
   const detail::MeshSimplifyQuadric& source)
 {
-    for(int row = 0; row < 4; ++row)
-    {
-        for(int col = 0; col < 4; ++col)
-        {
-            target.m[row][col] += source.m[row][col];
-        }
-    }
+    target.m = target.m + source.m;
 }
 
 float evaluate_mesh_simplify_quadric(
-  const detail::MeshSimplifyQuadric& quadric,
+  const ml::mat4x4& m,
   const ml::vec4& position)
 {
-    const float x = position.x;
-    const float y = position.y;
-    const float z = position.z;
-    const float w = position.w;
-
-    const float x0 = quadric.m[0][0] * x + quadric.m[0][1] * y
-                     + quadric.m[0][2] * z + quadric.m[0][3] * w;
-    const float x1 = quadric.m[1][0] * x + quadric.m[1][1] * y
-                     + quadric.m[1][2] * z + quadric.m[1][3] * w;
-    const float x2 = quadric.m[2][0] * x + quadric.m[2][1] * y
-                     + quadric.m[2][2] * z + quadric.m[2][3] * w;
-    const float x3 = quadric.m[3][0] * x + quadric.m[3][1] * y
-                     + quadric.m[3][2] * z + quadric.m[3][3] * w;
-
-    return x * x0 + y * x1 + z * x2 + w * x3;
+    return ml::dot(
+      position, m * position);
 }
 
-bool solve_mesh_simplify_optimal_position(
-  const detail::MeshSimplifyQuadric& quadric,
-  ml::vec3& output)
+// TODO Add mat3x3 support to math library.
+
+/**
+ * Solves the linear system
+ * ```
+ *     A x = -b
+ * ```
+ * where `A` is the upper-left `3×3` block of `m` and `b` is formed from the
+ * first three elements of the fourth row.
+ *
+ * @param m Matrix defining the linear system.
+ * @param result The result.
+ * @returns Returns `false` if the system is near-degenerate, and `true` if solvable.
+ */
+bool solve_linear_system(
+  const ml::mat4x4& m,
+  ml::vec3& result)
 {
-    const float a00 = quadric.m[0][0];
-    const float a01 = quadric.m[0][1];
-    const float a02 = quadric.m[0][2];
-    const float a10 = quadric.m[1][0];
-    const float a11 = quadric.m[1][1];
-    const float a12 = quadric.m[1][2];
-    const float a20 = quadric.m[2][0];
-    const float a21 = quadric.m[2][1];
-    const float a22 = quadric.m[2][2];
+    auto a0 = m.rows[0].xyz();
+    auto a1 = m.rows[1].xyz();
+    auto a2 = m.rows[2].xyz();
+    auto b = m.rows[3].xyz();
 
-    const float b0 = quadric.m[0][3];
-    const float b1 = quadric.m[1][3];
-    const float b2 = quadric.m[2][3];
+    const float det = a0.x * (a1.y * a2.z - a1.z * a2.y)
+                      - a0.y * (a1.x * a2.z - a1.z * a2.x)
+                      + a0.z * (a1.x * a2.y - a1.y * a2.x);
 
-    const float det = a00 * (a11 * a22 - a12 * a21)
-                      - a01 * (a10 * a22 - a12 * a20)
-                      + a02 * (a10 * a21 - a11 * a20);
-
-    if(std::abs(det) < 1e-12f)
+    if(std::abs(det) < 1e-12f)    // FIXME magic number
     {
         return false;
     }
 
     const float inv_det = 1.0f / det;
-    output.x = inv_det
-               * ((a11 * a22 - a12 * a21) * -b0
-                  - (a01 * a22 - a02 * a21) * -b1
-                  + (a01 * a12 - a02 * a11) * -b2);
-    output.y = inv_det
-               * (-(a10 * a22 - a12 * a20) * -b0
-                  + (a00 * a22 - a02 * a20) * -b1
-                  - (a00 * a12 - a02 * a10) * -b2);
-    output.z = inv_det
-               * ((a10 * a21 - a11 * a20) * -b0
-                  - (a00 * a21 - a01 * a20) * -b1
-                  + (a00 * a11 - a01 * a10) * -b2);
+    result.x = inv_det
+               * ((a1.y * a2.z - a1.z * a2.y) * -b.x
+                  - (a0.y * a2.z - a0.z * a2.y) * -b.y
+                  + (a0.y * a1.z - a0.z * a1.y) * -b.z);
+    result.y = inv_det
+               * (-(a1.x * a2.z - a1.z * a2.x) * -b.x
+                  + (a0.x * a2.z - a0.z * a2.x) * -b.y
+                  - (a0.x * a1.z - a0.z * a1.x) * -b.z);
+    result.z = inv_det
+               * ((a1.x * a2.y - a1.y * a2.x) * -b.x
+                  - (a0.x * a2.y - a0.y * a2.x) * -b.y
+                  + (a0.x * a1.y - a0.y * a1.x) * -b.z);
+
     return true;
 }
 
@@ -157,6 +119,67 @@ ml::vec3 mesh_simplify_triangle_normal(
     const ml::vec3 e0 = positions[roots[1]] - positions[roots[0]];
     const ml::vec3 e1 = positions[roots[2]] - positions[roots[0]];
     return e0.cross_product(e1);
+}
+
+/** Check if all triangle indices are different. */
+[[nodiscard]]
+bool is_valid_triangle(
+  const std::array<std::uint32_t, 3>& indices)
+{
+    return indices[0] != indices[1]
+           && indices[0] != indices[2]
+           && indices[1] != indices[2];
+}
+
+/**
+ * Calculate a canonical triangle key by bit-packing the indices.
+ *
+ * @param a A triangle vertex index.
+ * @param b A triangle vertex index.
+ * @param c A triangle vertex index.
+ * @returns Returns a canonical triangle key.
+ */
+[[nodiscard]]
+std::uint64_t triangle_key(
+  std::uint32_t a,
+  std::uint32_t b,
+  std::uint32_t c)
+{
+    if(a > b)
+    {
+        std::swap(a, b);
+    }
+
+    if(b > c)
+    {
+        std::swap(b, c);
+    }
+
+    if(a > b)
+    {
+        std::swap(a, b);
+    }
+
+    return (static_cast<std::uint64_t>(a) << 42)
+           | (static_cast<std::uint64_t>(b) << 21)
+           | static_cast<std::uint64_t>(c);
+}
+
+[[nodiscard]]
+std::array<std::uint32_t, 3> collapsed_roots(
+  std::array<std::uint32_t, 3> roots,
+  std::uint32_t removed,
+  std::uint32_t kept)
+{
+    for(auto& root: roots)
+    {
+        if(root == removed)
+        {
+            root = kept;
+        }
+    }
+
+    return roots;
 }
 
 }    // namespace
@@ -308,31 +331,6 @@ std::array<std::uint32_t, 3> MeshSimplifier::triangle_roots(
       root_of(triangle.indices[1]),
       root_of(triangle.indices[2]),
     };
-}
-
-bool MeshSimplifier::is_valid_triangle(
-  const std::array<std::uint32_t, 3>& roots)
-{
-    return roots[0] != roots[1]
-           && roots[0] != roots[2]
-           && roots[1] != roots[2];
-}
-
-std::uint64_t MeshSimplifier::triangle_key(
-  std::uint32_t a,
-  std::uint32_t b,
-  std::uint32_t c)
-{
-    if(a > b)
-        std::swap(a, b);
-    if(b > c)
-        std::swap(b, c);
-    if(a > b)
-        std::swap(a, b);
-
-    return (static_cast<std::uint64_t>(a) << 42)
-           | (static_cast<std::uint64_t>(b) << 21)
-           | static_cast<std::uint64_t>(c);
 }
 
 MeshSimplifier::EdgeMap MeshSimplifier::build_edges()
@@ -489,16 +487,16 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
     const ml::vec3 midpoint = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
     ml::vec3 optimal = midpoint;
 
-    const bool solved = solve_mesh_simplify_optimal_position(q, optimal);
+    const bool solved = solve_linear_system(q.m, optimal);
 
     const float midpoint_cost = evaluate_mesh_simplify_quadric(
-      q,
+      q.m,
       {midpoint.x, midpoint.y, midpoint.z, 1.f});
 
     const float optimal_cost =
       solved
         ? evaluate_mesh_simplify_quadric(
-            q,
+            q.m,
             {optimal.x, optimal.y, optimal.z, 1.f})
         : midpoint_cost;
 
@@ -563,22 +561,6 @@ swr::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
     append(b);
 
     return affected;
-}
-
-std::array<std::uint32_t, 3> MeshSimplifier::collapsed_roots(
-  std::array<std::uint32_t, 3> roots,
-  std::uint32_t removed,
-  std::uint32_t kept)
-{
-    for(auto& root: roots)
-    {
-        if(root == removed)
-        {
-            root = kept;
-        }
-    }
-
-    return roots;
 }
 
 bool MeshSimplifier::collapse_preserves_triangle(
@@ -722,8 +704,32 @@ void MeshSimplifier::simplify_until_target()
             continue;
         }
 
-        const ml::vec3 collapse_position =
-          (vertex_positions[a] + vertex_positions[b]) * 0.5f;
+        const auto quadric = vertex_quadrics[a].m + vertex_quadrics[b].m;
+
+        ml::vec3 collapse_position;
+        if(!solve_linear_system(quadric, collapse_position))
+        {
+            const ml::vec3 pa = vertex_positions[a];
+            const ml::vec3 pb = vertex_positions[b];
+            const ml::vec3 pm = (pa + pb) * 0.5f;
+
+            const float ea = evaluate_mesh_simplify_quadric(quadric, {pa, 1.0f});
+            const float eb = evaluate_mesh_simplify_quadric(quadric, {pb, 1.0f});
+            const float em = evaluate_mesh_simplify_quadric(quadric, {pm, 1.0f});
+
+            if(ea <= eb && ea <= em)
+            {
+                collapse_position = pa;
+            }
+            else if(eb <= em)
+            {
+                collapse_position = pb;
+            }
+            else
+            {
+                collapse_position = pm;
+            }
+        }
 
         const auto affected = collect_affected_triangles(a, b);
 
@@ -735,6 +741,7 @@ void MeshSimplifier::simplify_until_target()
 
         vertex_parents[b] = a;
         vertex_positions[a] = collapse_position;
+        vertex_quadrics[a].m = vertex_quadrics[a].m + vertex_quadrics[b].m;
         boundary_vertices[a] =
           boundary_vertices[a] || boundary_vertices[b];
 
