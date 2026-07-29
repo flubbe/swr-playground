@@ -3,6 +3,9 @@
  *
  * Mesh simplifier implementation.
  *
+ * Based on: M. Garland, P. S. Heckbert, "Surface Simplification Using Quadric Error Metrics" (1997),
+ *           https://www.cs.cmu.edu/~garland/Papers/quadrics.pdf
+ *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
@@ -16,90 +19,62 @@
 namespace
 {
 
-// TODO move into math library
-ml::mat4x4 outer_product(
-  const ml::vec4& a, const ml::vec4& b)
-{
-    // TODO multiplication should should act from left - add the math library
-    return {
-      b * a.x,
-      b * a.y,
-      b * a.z,
-      b * a.w};
-}
-
 detail::MeshSimplifyQuadric make_mesh_simplify_quadric(
-  const ml::vec4& plane)
+  const ml::plane& plane)
 {
     return {
-      .m = outer_product(plane, plane)};
+      .m = ml::outer_product(plane, plane)};
 }
 
 void add_mesh_simplify_quadric(
   detail::MeshSimplifyQuadric& target,
   const detail::MeshSimplifyQuadric& source)
 {
-    target.m = target.m + source.m;
+    target.m += source.m;
 }
-
-float evaluate_mesh_simplify_quadric(
-  const ml::mat4x4& m,
-  const ml::vec4& position)
-{
-    return ml::dot(
-      position, m * position);
-}
-
-// TODO Add mat3x3 support to math library.
 
 /**
- * Solves the linear system
+ * Solves for the optimal vertex position that minimizes quadric error:
  * ```
  *     A x = -b
  * ```
- * where `A` is the upper-left `3×3` block of `m` and `b` is formed from the
- * first three elements of the fourth row.
+ * where `A` is the upper-left 3×3 block of `q.m` and `b` is formed from the
+ * first three elements of the fourth row of `q`.
  *
- * @param m Matrix defining the linear system.
- * @param result The result.
- * @returns Returns `false` if the system is near-degenerate, and `true` if solvable.
+ * @param q Quadric.
+ * @param result The computed optimal position vector.
+ * @param epsilon Singularity threshold passed to matrix inversion.
+ * @returns `true` if solvable, `false` if the system is near-singular/degenerate.
  */
-bool solve_linear_system(
-  const ml::mat4x4& m,
-  ml::vec3& result)
+[[nodiscard]]
+bool solve_quadric_optimal_vertex(
+  const detail::MeshSimplifyQuadric& q,
+  ml::vec3& result,
+  float epsilon = ml::epsilon)
 {
-    auto a0 = m.rows[0].xyz();
-    auto a1 = m.rows[1].xyz();
-    auto a2 = m.rows[2].xyz();
-    auto b = m.rows[3].xyz();
+    ml::mat3x3 A{
+      q.m.rows[0].xyz(),
+      q.m.rows[1].xyz(),
+      q.m.rows[2].xyz()};
 
-    const float det = a0.x * (a1.y * a2.z - a1.z * a2.y)
-                      - a0.y * (a1.x * a2.z - a1.z * a2.x)
-                      + a0.z * (a1.x * a2.y - a1.y * a2.x);
-
-    if(std::abs(det) < 1e-12f)    // FIXME magic number
+    if(!A.invert(epsilon))
     {
         return false;
     }
 
-    const float inv_det = 1.0f / det;
-    result.x = inv_det
-               * ((a1.y * a2.z - a1.z * a2.y) * -b.x
-                  - (a0.y * a2.z - a0.z * a2.y) * -b.y
-                  + (a0.y * a1.z - a0.z * a1.y) * -b.z);
-    result.y = inv_det
-               * (-(a1.x * a2.z - a1.z * a2.x) * -b.x
-                  + (a0.x * a2.z - a0.z * a2.x) * -b.y
-                  - (a0.x * a1.z - a0.z * a1.x) * -b.z);
-    result.z = inv_det
-               * ((a1.x * a2.y - a1.y * a2.x) * -b.x
-                  - (a0.x * a2.y - a0.y * a2.x) * -b.y
-                  + (a0.x * a1.y - a0.y * a1.x) * -b.z);
-
+    result = -A * q.m.rows[3].xyz();
     return true;
 }
 
-std::uint64_t make_mesh_simplify_edge_key(
+/**
+ * Calculate a canonical edge key by bit-packing the indices.
+ *
+ * @param a An edge vertex index.
+ * @param b An edge vertex index.
+ * @returns Returns a canonical triangle key.
+ */
+[[nodiscard]]
+std::uint64_t edge_key(
   std::uint32_t a,
   std::uint32_t b)
 {
@@ -112,12 +87,20 @@ std::uint64_t make_mesh_simplify_edge_key(
            | static_cast<std::uint64_t>(b);
 }
 
-ml::vec3 mesh_simplify_triangle_normal(
-  const std::array<std::uint32_t, 3>& roots,
+/**
+ * Calculate the normal of a triangle.
+ *
+ * @param indices The triange's vertex indices as entries into `positions`.
+ * @param positions Buffer holding all mesh vertex positions.
+ * @returns Returns the triangle normal.
+ */
+[[nodiscard]]
+ml::vec3 calculate_triangle_normal(
+  const std::array<std::uint32_t, 3>& indices,
   const swr::vector<ml::vec3>& positions)
 {
-    const ml::vec3 e0 = positions[roots[1]] - positions[roots[0]];
-    const ml::vec3 e1 = positions[roots[2]] - positions[roots[0]];
+    const ml::vec3 e0 = positions[indices[1]] - positions[indices[0]];
+    const ml::vec3 e1 = positions[indices[2]] - positions[indices[0]];
     return e0.cross_product(e1);
 }
 
@@ -274,9 +257,7 @@ void MeshSimplifier::build_triangle_list()
         if(i0 >= vertex_count
            || i1 >= vertex_count
            || i2 >= vertex_count
-           || i0 == i1
-           || i0 == i2
-           || i1 == i2)
+           || !is_valid_triangle({i0, i1, i2}))
         {
             continue;
         }
@@ -345,8 +326,8 @@ MeshSimplifier::EdgeMap MeshSimplifier::build_edges()
             std::swap(a, b);
         }
 
-        edges[make_mesh_simplify_edge_key(a, b)]
-          .push_back(triangle_index);
+        edges[edge_key(a, b)]
+          .emplace_back(triangle_index);
     };
 
     for(std::size_t triangle_index = 0;
@@ -459,7 +440,7 @@ void MeshSimplifier::rebuild_quadrics()
             continue;
         }
 
-        const ml::vec3 normal = mesh_simplify_triangle_normal(roots, vertex_positions);
+        const ml::vec3 normal = calculate_triangle_normal(roots, vertex_positions);
 
         if(normal.length_squared() <= area_epsilon)
         {
@@ -487,17 +468,13 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
     const ml::vec3 midpoint = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
     ml::vec3 optimal = midpoint;
 
-    const bool solved = solve_linear_system(q.m, optimal);
+    const bool solved = solve_quadric_optimal_vertex(q, optimal);
 
-    const float midpoint_cost = evaluate_mesh_simplify_quadric(
-      q.m,
-      {midpoint.x, midpoint.y, midpoint.z, 1.f});
+    const float midpoint_cost = q.evaluate({midpoint.x, midpoint.y, midpoint.z, 1.f});
 
     const float optimal_cost =
       solved
-        ? evaluate_mesh_simplify_quadric(
-            q.m,
-            {optimal.x, optimal.y, optimal.z, 1.f})
+        ? q.evaluate({optimal.x, optimal.y, optimal.z, 1.f})
         : midpoint_cost;
 
     return {
@@ -584,7 +561,7 @@ bool MeshSimplifier::collapse_preserves_triangle(
         return root == kept ? collapse_position : vertex_positions[root];
     };
 
-    const ml::vec3 old_normal = mesh_simplify_triangle_normal(roots, vertex_positions);
+    const ml::vec3 old_normal = calculate_triangle_normal(roots, vertex_positions);
 
     if(old_normal.length_squared() <= area_epsilon)
     {
@@ -704,18 +681,19 @@ void MeshSimplifier::simplify_until_target()
             continue;
         }
 
-        const auto quadric = vertex_quadrics[a].m + vertex_quadrics[b].m;
+        const auto quadric = detail::MeshSimplifyQuadric{
+          .m = vertex_quadrics[a].m + vertex_quadrics[b].m};
 
         ml::vec3 collapse_position;
-        if(!solve_linear_system(quadric, collapse_position))
+        if(!solve_quadric_optimal_vertex(quadric, collapse_position))
         {
             const ml::vec3 pa = vertex_positions[a];
             const ml::vec3 pb = vertex_positions[b];
             const ml::vec3 pm = (pa + pb) * 0.5f;
 
-            const float ea = evaluate_mesh_simplify_quadric(quadric, {pa, 1.0f});
-            const float eb = evaluate_mesh_simplify_quadric(quadric, {pb, 1.0f});
-            const float em = evaluate_mesh_simplify_quadric(quadric, {pm, 1.0f});
+            const float ea = quadric.evaluate({pa, 1.0f});
+            const float eb = quadric.evaluate({pb, 1.0f});
+            const float em = quadric.evaluate({pm, 1.0f});
 
             if(ea <= eb && ea <= em)
             {
@@ -808,7 +786,7 @@ MeshData MeshSimplifier::build_output_mesh()
             continue;
         }
 
-        const ml::vec3 face_normal = mesh_simplify_triangle_normal(roots, vertex_positions);
+        const ml::vec3 face_normal = calculate_triangle_normal(roots, vertex_positions);
 
         if(face_normal.length_squared() <= area_epsilon)
         {

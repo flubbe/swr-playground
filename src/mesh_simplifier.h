@@ -1,3 +1,16 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * Mesh simplifier.
+ *
+ * Based on: M. Garland, P. S. Heckbert, "Surface Simplification Using Quadric Error Metrics" (1997),
+ *           https://www.cs.cmu.edu/~garland/Papers/quadrics.pdf
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
 #pragma once
 
 #include <array>
@@ -57,6 +70,13 @@ struct MeshSimplifyEdgeCandidateCompare
 struct MeshSimplifyQuadric
 {
     ml::mat4x4 m{};
+
+    float evaluate(
+      const ml::vec4& position) const
+    {
+        return ml::dot(
+          position, m * position);
+    }
 };
 
 }    // namespace detail
