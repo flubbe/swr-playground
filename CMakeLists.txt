@@ -228,7 +228,7 @@ else()
 endif()
 
 target_compile_definitions(swr_playground_options INTERFACE
-    SWR_USE_CUSTOM_STD_ALLOCATORS=$<IF:$<BOOL:$<TARGET_PROPERTY:SWR_USE_CUSTOM_STD_ALLOCATORS>>,TRUE,FALSE>
+    SWR_USE_CUSTOM_STD_ALLOCATORS=$<BOOL:${SWR_USE_CUSTOM_STD_ALLOCATORS}>
     SWR_OVERRIDE_GLOBAL_NEW=$<BOOL:${SWR_OVERRIDE_GLOBAL_NEW}>
 )
 
@@ -295,12 +295,6 @@ target_link_libraries(swr_playground PRIVATE
     assimp::assimp
     stb
 )
-
-if(MSVC)
-    target_compile_options(swr_playground PRIVATE /W4)
-else()
-    target_compile_options(swr_playground PRIVATE -Wall -Wextra)
-endif()
 
 # Enable this project's tests (and CTest) after dependency setup.
 set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING})
