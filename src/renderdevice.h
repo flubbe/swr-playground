@@ -23,7 +23,7 @@
 #include "assets/texture.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 #include "render_types.h"
 #include "shader_constants.h"
 

@@ -12,7 +12,7 @@
 #include <cmath>
 #include <utility>
 
-#include "mesh.h"
+#include "meshes/mesh.h"
 
 void expand_bounds(
   MeshBounds& bounds,

@@ -14,7 +14,7 @@
 #include <cstddef>
 
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 #include "render_types.h"
 #include "object.h"
 

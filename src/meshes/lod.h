@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "containers/vector.h"
-#include "mesh_simplifier.h"
+#include "meshes/simplifier.h"
 
 struct StaticMeshLodMesh
 {

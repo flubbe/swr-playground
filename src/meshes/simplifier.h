@@ -22,7 +22,7 @@
 #include "containers/unordered_map.h"
 #include "containers/unordered_set.h"
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 
 struct MeshSimplifySettings
 {

@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include "mesh.h"
-#include "mesh_simplifier.h"
+#include "meshes/mesh.h"
+#include "meshes/simplifier.h"
 
 TEST(MeshTests, MeshSimplifierCollapsesClosedMeshEdges)
 {

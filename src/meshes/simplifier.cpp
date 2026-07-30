@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <utility>
 
-#include "mesh_simplifier.h"
+#include "meshes/simplifier.h"
 
 namespace
 {
@@ -67,14 +67,14 @@ bool solve_quadric_optimal_vertex(
 }
 
 /**
- * Calculate a canonical edge key by bit-packing the indices.
+ * Create a canonical edge key by bit-packing the indices.
  *
  * @param a An edge vertex index.
  * @param b An edge vertex index.
  * @returns Returns a canonical triangle key.
  */
 [[nodiscard]]
-std::uint64_t edge_key(
+std::uint64_t pack_edge_key(
   std::uint32_t a,
   std::uint32_t b)
 {
@@ -85,6 +85,21 @@ std::uint64_t edge_key(
 
     return (static_cast<std::uint64_t>(a) << 32u)
            | static_cast<std::uint64_t>(b);
+}
+
+/**
+ * Unpack an edge key and return the edge indices.
+ *
+ * @param edge_key The edge key.
+ * @returns Returns a pair `(a, b)` of indices.
+ */
+[[nodiscard]]
+std::pair<std::uint32_t, std::uint32_t> unpack_edge_key(
+  std::uint64_t edge_key)
+{
+    return {
+      static_cast<std::uint32_t>(edge_key >> 32u),
+      static_cast<std::uint32_t>(edge_key & 0xffffffffu)};
 }
 
 /**
@@ -234,8 +249,8 @@ void MeshSimplifier::reset(
 
     simplify_stats.input_triangles = triangles.size();
     simplify_stats.target_triangles =
-      std::max<std::size_t>(
-        1,
+      std::max(
+        1uz,
         static_cast<std::size_t>(
           static_cast<float>(triangles.size())
           * simplify_settings.target_triangle_fraction));
@@ -318,18 +333,6 @@ MeshSimplifier::EdgeMap MeshSimplifier::build_edges()
 {
     EdgeMap edges;
 
-    const auto add_edge =
-      [&](std::uint32_t a, std::uint32_t b, std::size_t triangle_index)
-    {
-        if(a > b)
-        {
-            std::swap(a, b);
-        }
-
-        edges[edge_key(a, b)]
-          .emplace_back(triangle_index);
-    };
-
     for(std::size_t triangle_index = 0;
         triangle_index < triangles.size();
         ++triangle_index)
@@ -345,9 +348,12 @@ MeshSimplifier::EdgeMap MeshSimplifier::build_edges()
             continue;
         }
 
-        add_edge(roots[0], roots[1], triangle_index);
-        add_edge(roots[1], roots[2], triangle_index);
-        add_edge(roots[2], roots[0], triangle_index);
+        edges[pack_edge_key(roots[0], roots[1])]
+          .emplace_back(triangle_index);
+        edges[pack_edge_key(roots[1], roots[2])]
+          .emplace_back(triangle_index);
+        edges[pack_edge_key(roots[2], roots[0])]
+          .emplace_back(triangle_index);
     }
 
     return edges;
@@ -400,11 +406,7 @@ std::size_t MeshSimplifier::rebuild_adjacency()
     {
         if(faces.size() != 2)
         {
-            const std::uint32_t a =
-              static_cast<std::uint32_t>(edge_key >> 32u);
-            const std::uint32_t b =
-              static_cast<std::uint32_t>(edge_key & 0xffffffffu);
-
+            const auto [a, b] = unpack_edge_key(edge_key);
             boundary_vertices[a] = true;
             boundary_vertices[b] = true;
         }
@@ -497,11 +499,7 @@ MeshSimplifier::EdgeQueue MeshSimplifier::build_edge_queue()
             continue;
         }
 
-        const std::uint32_t a =
-          static_cast<std::uint32_t>(edge_key >> 32u);
-        const std::uint32_t b =
-          static_cast<std::uint32_t>(edge_key & 0xffffffffu);
-
+        const auto [a, b] = unpack_edge_key(edge_key);
         if(simplify_settings.preserve_boundaries
            && (boundary_vertices[a] || boundary_vertices[b]))
         {

@@ -11,8 +11,8 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/allocators/malloc.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
-    ${PROJECT_SOURCE_DIR}/src/mesh.cpp
-    ${PROJECT_SOURCE_DIR}/src/mesh_simplifier.cpp
+    ${PROJECT_SOURCE_DIR}/src/meshes/mesh.cpp
+    ${PROJECT_SOURCE_DIR}/src/meshes/simplifier.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp

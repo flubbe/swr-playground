@@ -17,7 +17,7 @@
 
 #include "containers/string.h"
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 
 struct ImportedMesh
 {

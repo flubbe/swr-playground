@@ -14,12 +14,13 @@
 #include <optional>
 #include <string>
 
+#include "assets/texture.h"
 #include "containers/string.h"
 #include "containers/vector.h"
-#include "assets/texture.h"
-#include "mesh.h"
-#include "ml/all.h"
+#include "meshes/mesh.h"
 #include "scene/gear.h"
+
+#include "ml/all.h"
 
 /*
  * Generic staged data.

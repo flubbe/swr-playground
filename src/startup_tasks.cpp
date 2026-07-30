@@ -15,8 +15,8 @@
 
 #include "assets/static_mesh_importer.h"
 #include "containers/string.h"
+#include "meshes/lod.h"
 #include "logging.h"
-#include "mesh_lod.h"
 #include "startup_tasks.h"
 
 namespace
