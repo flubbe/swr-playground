@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 
 # Use Boost package config mode; FindBoost is removed in newer CMake versions.
 if(POLICY CMP0167)
@@ -23,7 +23,17 @@ set(BUILD_TESTING OFF)
 set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
 
 find_package(OpenGL REQUIRED)
+
 find_package(Boost CONFIG REQUIRED)
+if(TARGET Boost::headers)
+    set(BOOST_HEADERS_TARGET Boost::headers)
+elseif(TARGET Boost::boost)
+    set(BOOST_HEADERS_TARGET Boost::boost)
+else()
+    message(FATAL_ERROR "Boost target is not available.")
+endif()
+
+set_target_properties(${BOOST_HEADERS_TARGET} PROPERTIES SYSTEM TRUE)
 
 #
 # Guidelines Support Library
@@ -32,6 +42,7 @@ FetchContent_Declare(
     gsl
     GIT_REPOSITORY https://github.com/microsoft/GSL.git
     GIT_TAG v4.2.1
+    SYSTEM
 )
 
 FetchContent_MakeAvailable(gsl)
@@ -46,6 +57,7 @@ if(NOT TARGET SDL3::SDL3)
         SDL3_src
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
         GIT_TAG release-3.4.4
+        SYSTEM
     )
     FetchContent_MakeAvailable(SDL3_src)
 endif()
@@ -64,12 +76,49 @@ if(NOT TARGET SDL3_ttf::SDL3_ttf)
         SDL3_ttf_src
         GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
         GIT_TAG release-3.2.2
+        SYSTEM
     )
     FetchContent_MakeAvailable(SDL3_ttf_src)
 endif()
 
 if(NOT TARGET SDL3_ttf::SDL3_ttf)
     message(FATAL_ERROR "SDL3_ttf::SDL3_ttf target is not available.")
+endif()
+
+#
+# SDL3_image
+#
+find_package(SDL3_image QUIET CONFIG)
+if(NOT TARGET SDL3_image::SDL3_image)
+    message(STATUS "SDL3_image not found on system; fetching SDL3_image.")
+    FetchContent_Declare(
+        SDL3_image_src
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
+        GIT_TAG release-3.4.4
+        SYSTEM
+    )
+    FetchContent_MakeAvailable(SDL3_image_src)
+
+    get_target_property(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image ALIASED_TARGET)
+    if(NOT SDL3_IMAGE_REAL_TARGET)
+        set(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image)
+    endif()
+
+    if(TARGET ${SDL3_IMAGE_REAL_TARGET} AND CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+        target_compile_options(${SDL3_IMAGE_REAL_TARGET} PRIVATE -Wno-deprecated-declarations)
+    endif()
+endif()
+
+if(TARGET SDL3_image::SDL3_image)
+    get_target_property(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image ALIASED_TARGET)
+
+    if(SDL3_IMAGE_REAL_TARGET)
+        set_target_properties(${SDL3_IMAGE_REAL_TARGET} PROPERTIES SYSTEM TRUE)
+    else()
+        set_target_properties(SDL3_image::SDL3_image PROPERTIES SYSTEM TRUE)
+    endif()
+else()
+    message(FATAL_ERROR "SDL3_image::SDL3_image target is not available.")
 endif()
 
 #
@@ -86,6 +135,7 @@ FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
     GIT_TAG feature/update-ml
+    SYSTEM
 )
 set(FETCHCONTENT_UPDATES_DISCONNECTED_SWR_SRC OFF)
 FetchContent_MakeAvailable(swr_src)
@@ -97,6 +147,7 @@ FetchContent_Declare(
     imgui_src
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG docking
+    SYSTEM
 )
 FetchContent_MakeAvailable(imgui_src)
 
@@ -123,24 +174,6 @@ target_link_libraries(imgui PUBLIC
 )
 
 #
-# SDL3_image
-#
-find_package(SDL3_image QUIET CONFIG)
-if(NOT TARGET SDL3_image::SDL3_image)
-    message(STATUS "SDL3_image not found on system; fetching SDL3_image.")
-    FetchContent_Declare(
-        SDL3_image_src
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
-        GIT_TAG release-3.4.4
-    )
-    FetchContent_MakeAvailable(SDL3_image_src)
-endif()
-
-if(NOT TARGET SDL3_image::SDL3_image)
-    message(FATAL_ERROR "SDL3_image::SDL3_image target is not available.")
-endif()
-
-#
 # stb
 #
 FetchContent_Declare(
@@ -148,6 +181,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/nothings/stb.git
     GIT_TAG 28d546d
     SOURCE_SUBDIR __unused__
+    SYSTEM
 )
 
 FetchContent_MakeAvailable(stb_src)
@@ -179,6 +213,7 @@ if(NOT TARGET assimp::assimp)
         assimp_src
         GIT_REPOSITORY https://github.com/assimp/assimp.git
         GIT_TAG v6.0.5
+        SYSTEM
     )
 
     FetchContent_MakeAvailable(assimp_src)
@@ -195,6 +230,7 @@ FetchContent_Declare(
     concurrency_utils_src
     GIT_REPOSITORY https://github.com/flubbe/concurrency_utils.git
     GIT_TAG main
+    SYSTEM
 )
 FetchContent_MakeAvailable(concurrency_utils_src)
 
@@ -203,17 +239,13 @@ FetchContent_MakeAvailable(concurrency_utils_src)
 #
 add_library(swr_playground_options INTERFACE)
 
-target_compile_features(swr_playground_options INTERFACE cxx_std_23)
+target_compile_features(swr_playground_options
+    INTERFACE
+    cxx_std_23)
 
-if(TARGET Boost::headers)
-    target_link_libraries(swr_playground_options INTERFACE Boost::headers)
-elseif(TARGET Boost::boost)
-    target_link_libraries(swr_playground_options INTERFACE Boost::boost)
-else()
-    target_include_directories(swr_playground_options SYSTEM INTERFACE
-        ${Boost_INCLUDE_DIRS}
-    )
-endif()
+target_link_libraries(swr_playground_options
+    INTERFACE
+    ${BOOST_HEADERS_TARGET})
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
     target_compile_options(swr_playground_options INTERFACE
@@ -309,8 +341,18 @@ if(BUILD_TESTING)
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.17.0
+        SYSTEM
     )
     FetchContent_MakeAvailable(googletest)
+
+    if(TARGET GTest::gtest_main)
+        get_target_property(GTEST_REAL_TARGET GTest::gtest_main ALIASED_TARGET)
+        if(GTEST_REAL_TARGET)
+            set_target_properties(${GTEST_REAL_TARGET} PROPERTIES SYSTEM TRUE)
+        else()
+            set_target_properties(GTest::gtest_main PROPERTIES SYSTEM TRUE)
+        endif()
+    endif()
 
     add_subdirectory(test)
 endif()

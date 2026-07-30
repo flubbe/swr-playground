@@ -29,14 +29,19 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/viewport.cpp
 )
 
+if(MSVC)
+    target_compile_options(core_tests PRIVATE /W4)
+else()
+    target_compile_options(core_tests PRIVATE -Wall -Wextra)
+endif()
+
 target_include_directories(core_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${concurrency_utils_src_SOURCE_DIR}/include
-    $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 target_link_libraries(core_tests PRIVATE
-    swr_playground_options
+    ml
     GTest::gtest_main
 )
 
