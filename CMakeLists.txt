@@ -235,6 +235,17 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(concurrency_utils_src)
 
 #
+# Compiler specific warnings.
+#
+add_library(swr_playground_warnings INTERFACE)
+
+if(MSVC)
+    target_compile_options(swr_playground_warnings INTERFACE /W4)
+else()
+    target_compile_options(swr_playground_warnings INTERFACE -Wall -Wextra)
+endif()
+
+#
 # Playground options.
 #
 add_library(swr_playground_options INTERFACE)
@@ -246,18 +257,6 @@ target_compile_features(swr_playground_options
 target_link_libraries(swr_playground_options
     INTERFACE
     ${BOOST_HEADERS_TARGET})
-
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
-    target_compile_options(swr_playground_options INTERFACE
-        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-msse4.1>
-    )
-endif()
-
-if(MSVC)
-    target_compile_options(swr_playground_options INTERFACE /W4)
-else()
-    target_compile_options(swr_playground_options INTERFACE -Wall -Wextra)
-endif()
 
 target_compile_definitions(swr_playground_options INTERFACE
     SWR_USE_CUSTOM_STD_ALLOCATORS=$<BOOL:${SWR_USE_CUSTOM_STD_ALLOCATORS}>
@@ -317,6 +316,7 @@ target_include_directories(swr_playground PRIVATE
 
 target_link_libraries(swr_playground PRIVATE
     swr_playground_options
+    swr_playground_warnings
     swrast
     imgui
     Microsoft.GSL::GSL
