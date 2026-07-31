@@ -228,6 +228,34 @@ public:
         }
     }
 
+    /** Returns a filtered, downcasted view over objects derived from `T`. */
+    template<typename T>
+        requires std::derived_from<T, Object>
+    auto objects_of()
+    {
+        return objects
+               | std::views::transform([](auto& ptr)
+                                       { return reflect::try_cast<T>(ptr.get()); })
+               | std::views::filter([](T* ptr)
+                                    { return ptr != nullptr; })
+               | std::views::transform([](T* ptr) -> T&
+                                       { return *ptr; });
+    }
+
+    /** Const overload returning a view of `const T&`. */
+    template<typename T>
+        requires std::derived_from<T, Object>
+    auto objects_of() const
+    {
+        return objects
+               | std::views::transform([](const auto& ptr)
+                                       { return reflect::try_cast<T>(ptr.get()); })
+               | std::views::filter([](const T* ptr)
+                                    { return ptr != nullptr; })
+               | std::views::transform([](const T* ptr) -> const T&
+                                       { return *ptr; });
+    }
+
     template<typename T, typename... Args>
         requires(
           std::is_base_of_v<Object, T>)

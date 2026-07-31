@@ -65,26 +65,26 @@ public:
     {
         // TODO The offsets should go into the light properties.
 
-        std::size_t light_index = 0;    // TODO Should be part of the iteration interface (if needed at all)
         scene.for_each_object<DirectionalLight>(
-          [&light_index, &scene](DirectionalLight& light) -> void
+          [&scene](DirectionalLight& light, std::size_t light_index) -> void
           {
-            if(light.behavior == DirectionalLightBehavior::Stationary)
-            {
-                light.set_transform(make_stationary_orientation());
-                light.set_position({-10.f, 12.f, -6.f});
-                return;
-            }
+              if(light.behavior == DirectionalLightBehavior::Stationary)
+              {
+                  light.set_transform(make_stationary_orientation());
+                  light.set_position({-10.f, 12.f, -6.f});
+                  return;
+              }
 
-            const float phase_offset =
-              (light_index == 0)
-                ? 0.f
-                : std::numbers::pi_v<float>;
-            const float angle = scene.get_time() * orbit_speed + phase_offset;
-            light.set_transform(make_orbit_orientation(angle, orbit_pitch_radians));
-            light.set_position({(orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
-                                orbit_height + static_cast<float>(light_index) * 2.f,
-                                (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)}); });
+              const float phase_offset =
+                (light_index == 0)
+                  ? 0.f
+                  : std::numbers::pi_v<float>;
+              const float angle = scene.get_time() * orbit_speed + phase_offset;
+              light.set_transform(make_orbit_orientation(angle, orbit_pitch_radians));
+              light.set_position({(orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
+                                  orbit_height + static_cast<float>(light_index) * 2.f,
+                                  (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
+          });
 
         scene.for_each_object<SpotLight>(
           [&scene](SpotLight& light) -> void

@@ -53,7 +53,7 @@ TEST(SceneTests, TypedFindObjectFiltersByRequestedType)
     EXPECT_EQ(scene.find_camera(mesh->get_object_id()), nullptr);
 }
 
-TEST(SceneTests, GetCamerasReturnsOnlyCameraObjects)
+TEST(SceneTests, ObjectOfFiltersCameras)
 {
     ensure_scene_reflection_ready();
 
@@ -65,15 +65,26 @@ TEST(SceneTests, GetCamerasReturnsOnlyCameraObjects)
     ASSERT_NE(second_camera, nullptr);
 
     swr::vector<Camera*> cameras;
-    scene.for_each_object<Camera>(
-      [&cameras](Camera& camera)
-      {
-          cameras.emplace_back(&camera);
-      });
+    for(auto& camera: scene.objects_of<Camera>())
+    {
+        static_assert(std::is_same_v<decltype(camera), Camera&>);
+        cameras.emplace_back(&camera);
+    }
 
     ASSERT_EQ(cameras.size(), 2U);
     EXPECT_EQ(cameras[0], first_camera);
     EXPECT_EQ(cameras[1], second_camera);
+
+    swr::vector<const Camera*> const_cameras;
+    for(auto& camera: std::as_const(scene).objects_of<Camera>())
+    {
+        static_assert(std::is_same_v<decltype(camera), const Camera&>);
+        const_cameras.emplace_back(&camera);
+    }
+
+    ASSERT_EQ(const_cameras.size(), 2U);
+    EXPECT_EQ(const_cameras[0], first_camera);
+    EXPECT_EQ(const_cameras[1], second_camera);
 }
 
 TEST(SceneTests, ClearRemovesObjectIndexAndSpinAnimations)
