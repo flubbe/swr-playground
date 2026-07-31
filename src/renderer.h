@@ -102,6 +102,33 @@ enum class ShadowPcfMode : int
     Stochastic4TapInterleaved = 8 /** Four jittered taps with an interleaved rotation pattern. */
 };
 
+/*
+ * Render queues.
+ */
+
+struct DrawSubmission
+{
+    float sort_depth{0.f};
+    MeshHandle mesh_handle{};
+    MaterialHandle material_handle{};
+    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
+    ml::mat4x4 view_from_mesh;
+    ShadowMapBinding shadow_map;
+};
+
+struct ShadowCasterSubmission
+{
+    MeshHandle mesh_handle{};
+    ml::mat4x4 light_view_from_mesh;
+};
+
+struct ShadowCamera
+{
+    ml::mat4x4 proj{ml::mat4x4::identity()};
+    ml::mat4x4 view{ml::mat4x4::identity()};
+    const class SpotLight* light{nullptr};
+};
+
 class Renderer final
 {
     static constexpr int shadow_map_resolution = 1024;
@@ -119,6 +146,49 @@ class Renderer final
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
     MaterialHandle shadow_material{0};
+
+    /*
+     * Render queues.
+     */
+
+    swr::vector<DrawSubmission> render_queue;
+    swr::vector<ShadowCasterSubmission> shadow_queue;
+
+    void begin_scene_pass(
+      const Scene& scene,
+      const Camera& camera,
+      const ViewportDisplaySettings& display_settings);
+    void end_scene_pass();
+
+    void build_render_queue(
+      const Scene& scene,
+      const ViewportDisplaySettings& display_settings);
+    void sort_render_queue(
+      const ViewportDisplaySettings& display_settings);
+    void execute_render_queue();
+
+    bool begin_shadow_pass();
+    void end_shadow_pass();
+
+    void build_shadow_queue(
+      const Scene& scene);
+    void execute_shadow_queue();
+
+    /*
+     * Per-pass state/scratch.
+     */
+
+    ml::mat4x4 view;
+    ml::mat4x4 projection;
+
+    std::optional<ShadowCamera> shadow_camera;
+    bool shadow_linear_filter;
+
+    std::chrono::time_point<std::chrono::steady_clock> render_start_time{};
+
+    void begin_render(
+      const Scene& scene);
+    void end_render();
 
     /*
      * Viewport overlays.

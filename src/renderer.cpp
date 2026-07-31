@@ -207,29 +207,6 @@ float estimate_sort_depth(
     return -view_center.z;
 }
 
-struct DrawSubmission
-{
-    float sort_depth{0.f};
-    MeshHandle mesh_handle{};
-    MaterialHandle material_handle{};
-    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
-    ml::mat4x4 view_from_mesh;
-    ShadowMapBinding shadow_map;
-};
-
-struct ShadowCasterSubmission
-{
-    MeshHandle mesh_handle{};
-    ml::mat4x4 light_view_from_mesh;
-};
-
-struct ShadowCamera
-{
-    ml::mat4x4 proj{ml::mat4x4::identity()};
-    ml::mat4x4 view{ml::mat4x4::identity()};
-    const SpotLight* light{nullptr};
-};
-
 void record_selected_lod(
   RendererStats& stats,
   std::size_t lod_index)
@@ -397,6 +374,280 @@ void bin_submissions_by_depth(
 }
 
 }    // namespace
+
+void Renderer::build_render_queue(
+  const Scene& scene,
+  const ViewportDisplaySettings& display_settings)
+{
+    scene.for_each_object<StaticMesh>(
+      [this,
+       &display_settings](
+        const StaticMesh& static_mesh)
+      {
+          if(!static_mesh.is_visible())
+          {
+              return;
+          }
+
+          ++render_stats.static_meshes;
+
+          if(!static_mesh.has_mesh_sections())
+          {
+              return;
+          }
+
+          const auto obj_view = view * static_mesh.get_transform();
+          const auto obj_clip = projection * obj_view;
+          const ml::mat4x4 shadow_clip_from_mesh =
+            shadow_camera.has_value()
+              ? make_shadow_bias_matrix()
+                  * shadow_camera->proj
+                  * shadow_camera->view
+                  * static_mesh.get_transform()
+              : ml::mat4x4::identity();
+          const float obj_sort_depth =
+            estimate_sort_depth(static_mesh.get_bounds(), obj_view);
+
+          const MeshBounds& mesh_bounds = static_mesh.get_bounds();
+          if(display_settings.cull_frustum
+             && mesh_bounds.valid
+             && !bounds_intersect_frustum(mesh_bounds, obj_clip))
+          {
+              const std::size_t base_lod_index = static_mesh.select_lod(1.f);
+              const auto& culled_lod = static_mesh.get_lod(base_lod_index);
+              render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
+              for(const auto& section: culled_lod.mesh_sections)
+              {
+                  render_stats.triangles_frustum_culled +=
+                    device.get_mesh_triangle_count(section.mesh_handle);
+              }
+              return;
+          }
+
+          const float screen_height_fraction =
+            estimate_screen_height_fraction(mesh_bounds, obj_clip);
+          const std::size_t lod_index =
+            display_settings.dynamic_lod
+              ? static_mesh.select_lod(screen_height_fraction)
+              : static_mesh.select_lod(1.f);
+          record_selected_lod(render_stats, lod_index);
+
+          const auto& lod = static_mesh.get_lod(lod_index);
+          for(const auto& section: lod.mesh_sections)
+          {
+              const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
+              if(display_settings.cull_frustum
+                 && bounds != nullptr
+                 && !bounds_intersect_frustum(*bounds, obj_clip))
+              {
+                  ++render_stats.mesh_sections_culled;
+                  render_stats.triangles_frustum_culled +=
+                    device.get_mesh_triangle_count(section.mesh_handle);
+                  continue;
+              }
+
+              render_queue.push_back({
+                .sort_depth = obj_sort_depth,
+                .mesh_handle = section.mesh_handle,
+                .material_handle = section.material_handle,
+                .color = section.color,
+                .view_from_mesh = obj_view,
+                .shadow_map = {
+                  .enabled =
+                    shadow_camera.has_value()
+                    && static_mesh.receives_shadows
+                    && static_cast<bool>(shadow_map),
+                  .handle = shadow_map,
+                  .clip_from_mesh = shadow_clip_from_mesh,
+                  .depth_bias = 0.0008f,
+                  .linear_filter = shadow_linear_filter,
+                },
+              });
+              ++render_stats.mesh_sections_drawn;
+              render_stats.triangles_submitted +=
+                device.get_mesh_triangle_count(section.mesh_handle);
+          }
+      });
+}
+
+void Renderer::sort_render_queue(
+  const ViewportDisplaySettings& display_settings)
+{
+    if(display_settings.sort_meshes
+       && !render_queue.empty())
+    {
+        if(sort_mode == SortMode::FullSort)
+        {
+            std::stable_sort(
+              render_queue.begin(),
+              render_queue.end(),
+              [](const DrawSubmission& lhs, const DrawSubmission& rhs)
+              {
+                  return lhs.sort_depth < rhs.sort_depth;
+              });
+        }
+        else if(sort_mode == SortMode::BinSort)
+        {
+            // Find depth range for binning
+            float min_depth = render_queue[0].sort_depth;
+            float max_depth = render_queue[0].sort_depth;
+            for(const auto& submission: render_queue)
+            {
+                min_depth = std::min(min_depth, submission.sort_depth);
+                max_depth = std::max(max_depth, submission.sort_depth);
+            }
+
+            bin_submissions_by_depth(render_queue, min_depth, max_depth, depth_bin_count);
+        }
+    }
+}
+
+void Renderer::execute_render_queue()
+{
+    for(const DrawSubmission& submission: render_queue)
+    {
+        device.bind_shadow_map(submission.shadow_map);
+        device.bind_material(submission.material_handle);
+        device.bind_camera_uniforms({
+          .proj = projection,
+          .view = submission.view_from_mesh,
+        });
+        device.bind_material_uniforms({
+          .base_color = submission.color,
+        });
+        device.bind_shadow_uniforms({
+          .enabled = submission.shadow_map.enabled,
+          .clip_from_mesh = submission.shadow_map.clip_from_mesh,
+          .params = {
+            submission.shadow_map.depth_bias,
+            static_cast<float>(shadow_pcf_mode),
+            0.f,
+            0.f,
+          },
+        });
+        device.draw_mesh(submission.mesh_handle);
+    }
+}
+
+void Renderer::begin_scene_pass(
+  const Scene& scene,
+  const Camera& camera,
+  const ViewportDisplaySettings& display_settings)
+{
+    /*
+     * Clear queues.
+     */
+    render_queue.clear();
+
+    /*
+     * Collect scene pass state.
+     */
+    view = camera.get_transform();
+    projection = camera.get_projection_matrix();
+
+    shadow_linear_filter =
+      shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4Tap
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic5Tap
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapStable
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapInterleaved;
+
+    /*
+     * Set up rasterizer.
+     */
+    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
+                                  .cull_face = display_settings.cull_face});
+    device.bind_lighting_uniforms(
+      collect_light_uniforms(scene, view));
+}
+
+void Renderer::end_scene_pass()
+{
+    device.clear_shadow_map();
+}
+
+bool Renderer::begin_shadow_pass()
+{
+    shadow_queue.clear();
+
+    if(!shadow_camera.has_value())
+    {
+        return false;
+    }
+
+    ensure_shadow_map_resources();
+
+    device.begin_shadow_map_pass(shadow_map);
+
+    device.bind_material(shadow_material);
+    device.bind_lighting_uniforms({});
+    device.bind_material_uniforms({});
+    device.bind_shadow_uniforms({});
+
+    return true;
+}
+
+void Renderer::end_shadow_pass()
+{
+    device.end_shadow_map_pass();
+}
+
+void Renderer::build_shadow_queue(
+  const Scene& scene)
+{
+    scene.for_each_object<StaticMesh>(
+      [this](const StaticMesh& static_mesh)
+      {
+          if(!static_mesh.is_visible()
+             || !static_mesh.casts_shadows
+             || !static_mesh.has_mesh_sections())
+          {
+              return;
+          }
+
+          const auto& lod = static_mesh.get_lod(0);
+          for(const auto& section: lod.mesh_sections)
+          {
+              shadow_queue.push_back({
+                .mesh_handle = section.mesh_handle,
+                .light_view_from_mesh =
+                  shadow_camera->view * static_mesh.get_transform(),
+              });
+          }
+      });
+}
+
+void Renderer::execute_shadow_queue()
+{
+    for(const ShadowCasterSubmission& submission: shadow_queue)
+    {
+        device.bind_camera_uniforms({
+          .proj = shadow_camera->proj,
+          .view = submission.light_view_from_mesh,
+        });
+        device.draw_mesh(submission.mesh_handle);
+    }
+}
+
+void Renderer::begin_render(
+  const Scene& scene)
+{
+    render_stats = {};
+    render_start_time = std::chrono::steady_clock::now();
+
+    shadow_camera = collect_shadow_camera(scene);
+
+    device.begin_frame();
+}
+
+void Renderer::end_render()
+{
+    device.end_frame();
+
+    render_time = std::chrono::duration<float>(
+                    std::chrono::steady_clock::now() - render_start_time)
+                    .count();
+}
 
 void Renderer::create_grid_mesh()
 {
@@ -583,55 +834,17 @@ void Renderer::release_shadow_map_resources()
     }
 }
 
-void Renderer::render_shadow_map(const Scene& scene)
+void Renderer::render_shadow_map(
+  const Scene& scene)
 {
-    const auto shadow_camera = collect_shadow_camera(scene);
-    if(!shadow_camera.has_value())
+    if(!begin_shadow_pass())
     {
         return;
     }
 
-    ensure_shadow_map_resources();
-
-    static swr::vector<ShadowCasterSubmission> submissions;
-    submissions.clear();
-
-    scene.for_each_object<StaticMesh>(
-      [&shadow_camera](const StaticMesh& static_mesh)
-      {
-          if(!static_mesh.is_visible()
-             || !static_mesh.casts_shadows
-             || !static_mesh.has_mesh_sections())
-          {
-              return;
-          }
-
-          const auto& lod = static_mesh.get_lod(static_mesh.select_lod(1.f));
-          for(const auto& section: lod.mesh_sections)
-          {
-              submissions.push_back({
-                .mesh_handle = section.mesh_handle,
-                .light_view_from_mesh =
-                  shadow_camera->view * static_mesh.get_transform(),
-              });
-          }
-      });
-
-    device.begin_shadow_map_pass(shadow_map);
-    device.bind_material(shadow_material);
-    device.bind_lighting_uniforms({});
-    device.bind_material_uniforms({});
-    device.bind_shadow_uniforms({});
-    for(const ShadowCasterSubmission& submission: submissions)
-    {
-        device.bind_camera_uniforms({
-          .proj = shadow_camera->proj,
-          .view = submission.light_view_from_mesh,
-        });
-        device.draw_mesh(submission.mesh_handle);
-    }
-
-    device.end_shadow_map_pass();
+    build_shadow_queue(scene);
+    execute_shadow_queue();
+    end_shadow_pass();
 }
 
 void Renderer::render_scene(
@@ -639,165 +852,16 @@ void Renderer::render_scene(
   const Camera& camera,
   const ViewportDisplaySettings& display_settings)
 {
-    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
-                                  .cull_face = display_settings.cull_face});
-
-    auto view = camera.get_transform();
-    auto projection = camera.get_projection_matrix();
-    const LightingUniforms lighting_uniforms = collect_light_uniforms(scene, view);
-    const auto shadow_camera = collect_shadow_camera(scene);
-
-    static swr::vector<DrawSubmission> submissions;
-    submissions.clear();
-
-    scene.for_each_object<StaticMesh>(
-      [this, &display_settings, &projection, &view, &shadow_camera](
-        const StaticMesh& static_mesh)
-      {
-          if(!static_mesh.is_visible())
-          {
-              return;
-          }
-
-          ++render_stats.static_meshes;
-
-          if(!static_mesh.has_mesh_sections())
-          {
-              return;
-          }
-
-          const auto obj_view = view * static_mesh.get_transform();
-          const auto obj_clip = projection * obj_view;
-          const ml::mat4x4 shadow_clip_from_mesh =
-            shadow_camera.has_value()
-              ? make_shadow_bias_matrix()
-                  * shadow_camera->proj
-                  * shadow_camera->view
-                  * static_mesh.get_transform()
-              : ml::mat4x4::identity();
-          const float obj_sort_depth =
-            estimate_sort_depth(static_mesh.get_bounds(), obj_view);
-
-          const MeshBounds& mesh_bounds = static_mesh.get_bounds();
-          if(display_settings.cull_frustum
-             && mesh_bounds.valid
-             && !bounds_intersect_frustum(mesh_bounds, obj_clip))
-          {
-              const std::size_t base_lod_index = static_mesh.select_lod(1.f);
-              const auto& culled_lod = static_mesh.get_lod(base_lod_index);
-              render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
-              for(const auto& section: culled_lod.mesh_sections)
-              {
-                  render_stats.triangles_frustum_culled +=
-                    device.get_mesh_triangle_count(section.mesh_handle);
-              }
-              return;
-          }
-
-          const float screen_height_fraction =
-            estimate_screen_height_fraction(mesh_bounds, obj_clip);
-          const std::size_t lod_index =
-            display_settings.dynamic_lod
-              ? static_mesh.select_lod(screen_height_fraction)
-              : static_mesh.select_lod(1.f);
-          record_selected_lod(render_stats, lod_index);
-
-          const auto& lod = static_mesh.get_lod(lod_index);
-          for(const auto& section: lod.mesh_sections)
-          {
-              const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
-              if(display_settings.cull_frustum
-                 && bounds != nullptr
-                 && !bounds_intersect_frustum(*bounds, obj_clip))
-              {
-                  ++render_stats.mesh_sections_culled;
-                  render_stats.triangles_frustum_culled +=
-                    device.get_mesh_triangle_count(section.mesh_handle);
-                  continue;
-              }
-
-              submissions.push_back({
-                .sort_depth = obj_sort_depth,
-                .mesh_handle = section.mesh_handle,
-                .material_handle = section.material_handle,
-                .color = section.color,
-                .view_from_mesh = obj_view,
-                .shadow_map = {
-                  .enabled =
-                    shadow_camera.has_value()
-                    && static_mesh.receives_shadows
-                    && static_cast<bool>(shadow_map),
-                  .handle = shadow_map,
-                  .clip_from_mesh = shadow_clip_from_mesh,
-                  .depth_bias = 0.0008f,
-                  .linear_filter =
-                    shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4Tap
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic5Tap
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapStable
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapInterleaved,
-                },
-              });
-              ++render_stats.mesh_sections_drawn;
-              render_stats.triangles_submitted +=
-                device.get_mesh_triangle_count(section.mesh_handle);
-          }
-      });
-
-    if(display_settings.sort_meshes)
-    {
-        if(sort_mode == SortMode::FullSort)
-        {
-            std::stable_sort(
-              submissions.begin(),
-              submissions.end(),
-              [](const DrawSubmission& lhs, const DrawSubmission& rhs)
-              {
-                  return lhs.sort_depth < rhs.sort_depth;
-              });
-        }
-        else if(sort_mode == SortMode::BinSort && !submissions.empty())
-        {
-            // Find depth range for binning
-            float min_depth = submissions[0].sort_depth;
-            float max_depth = submissions[0].sort_depth;
-            for(const auto& submission: submissions)
-            {
-                min_depth = std::min(min_depth, submission.sort_depth);
-                max_depth = std::max(max_depth, submission.sort_depth);
-            }
-
-            bin_submissions_by_depth(submissions, min_depth, max_depth, depth_bin_count);
-        }
-    }
-
-    device.bind_lighting_uniforms(lighting_uniforms);
-
-    for(const DrawSubmission& submission: submissions)
-    {
-        device.bind_shadow_map(submission.shadow_map);
-        device.bind_material(submission.material_handle);
-        device.bind_camera_uniforms({
-          .proj = projection,
-          .view = submission.view_from_mesh,
-        });
-        device.bind_material_uniforms({
-          .base_color = submission.color,
-        });
-        device.bind_shadow_uniforms({
-          .enabled = submission.shadow_map.enabled,
-          .clip_from_mesh = submission.shadow_map.clip_from_mesh,
-          .params = {
-            submission.shadow_map.depth_bias,
-            static_cast<float>(shadow_pcf_mode),
-            0.f,
-            0.f,
-          },
-        });
-        device.draw_mesh(submission.mesh_handle);
-    }
-
-    device.clear_shadow_map();
+    begin_scene_pass(
+      scene,
+      camera,
+      display_settings);
+    build_render_queue(
+      scene,
+      display_settings);
+    sort_render_queue(display_settings);
+    execute_render_queue();
+    end_scene_pass();
 }
 
 void Renderer::render_grid(
@@ -866,28 +930,21 @@ void Renderer::render(
   const Scene& scene,
   const Viewport& viewport)
 {
-    auto render_start_time = std::chrono::steady_clock::now();
-    render_stats = {};
-
     const auto& display_settings = viewport.get_display_settings();
     const auto& overlay_settings = viewport.get_overlay_settings();
 
-    device.begin_frame();
-
     const Camera& camera = viewport.get_camera(scene);
+
+    begin_render(scene);
 
     /*
      * scene rendering.
      */
 
-    const bool has_shadow_camera = collect_shadow_camera(scene).has_value();
-    if(has_shadow_camera)
-    {
-        render_shadow_map(scene);
-    }
+    render_shadow_map(scene);
 
     if(display_settings.debug_spotlight_depth
-       && has_shadow_camera)
+       && shadow_camera.has_value())
     {
         render_spotlight_depth_debug();
     }
@@ -910,11 +967,7 @@ void Renderer::render(
           camera);
     }
 
-    device.end_frame();
-
-    render_time = std::chrono::duration<float>(
-                    std::chrono::steady_clock::now() - render_start_time)
-                    .count();
+    end_render();
 }
 
 void Renderer::start_sorting_benchmark(
