@@ -64,8 +64,12 @@ TEST(SceneTests, GetCamerasReturnsOnlyCameraObjects)
     ASSERT_NE(first_camera, nullptr);
     ASSERT_NE(second_camera, nullptr);
 
-    static swr::vector<Camera*> cameras;
-    scene.get_cameras(cameras);
+    swr::vector<Camera*> cameras;
+    scene.for_each_object<Camera>(
+      [&cameras](Camera& camera)
+      {
+          cameras.emplace_back(&camera);
+      });
 
     ASSERT_EQ(cameras.size(), 2U);
     EXPECT_EQ(cameras[0], first_camera);

@@ -541,32 +541,31 @@ void imgui_draw_viewport_panel(
                 }
 
                 ImGui::Separator();
-                static swr::vector<Camera*> scene_cameras;
-                scene.get_cameras(scene_cameras);
-
                 if(ImGui::BeginMenu("Scene Cameras"))
                 {
                     bool has_any_scene_camera = false;
-                    for(const Camera* camera: scene_cameras)
-                    {
-                        if(camera == nullptr)
-                        {
-                            continue;
-                        }
-                        has_any_scene_camera = true;
-                        if(ImGui::MenuItem(
-                             camera->get_name().c_str(),
-                             nullptr,
-                             !showing_spotlight_depth
-                               && viewport.is_scene_camera_active(
-                                 scene,
-                                 camera->get_object_id())))
-                        {
-                            display_settings.debug_spotlight_depth = false;
-                            update_display_settings = true;
-                            viewport.use_scene_camera(camera->get_object_id());
-                        }
-                    }
+                    scene.for_each_object<Camera>(
+                      [&viewport,
+                       &scene,
+                       &display_settings,
+                       &update_display_settings,
+                       &has_any_scene_camera,
+                       &showing_spotlight_depth](const Camera& camera)
+                      {
+                          has_any_scene_camera = true;
+                          if(ImGui::MenuItem(
+                               camera.get_name().c_str(),
+                               nullptr,
+                               !showing_spotlight_depth
+                                 && viewport.is_scene_camera_active(
+                                   scene,
+                                   camera.get_object_id())))
+                          {
+                              display_settings.debug_spotlight_depth = false;
+                              update_display_settings = true;
+                              viewport.use_scene_camera(camera.get_object_id());
+                          }
+                      });
 
                     if(!has_any_scene_camera)
                     {

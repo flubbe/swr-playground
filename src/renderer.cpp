@@ -226,63 +226,50 @@ LightingUniforms collect_light_uniforms(
 {
     LightingUniforms uniforms{};
 
-    static swr::vector<const DirectionalLight*> directional_lights;
-    scene.get_directional_lights(directional_lights);
-
     std::size_t active_light_index = 0;
-    for(const DirectionalLight* light: directional_lights)
-    {
-        if(light == nullptr
-           || !light->enabled
-           || active_light_index >= uniforms.directional_light_dirs.size())
-        {
-            continue;
-        }
+    scene.for_each_object<DirectionalLight>(
+      [&active_light_index, &uniforms, &camera_view](const DirectionalLight& light)
+      {
+          if(!light.enabled
+             || active_light_index >= uniforms.directional_light_dirs.size())
+          {
+              return;
+          }
 
-        const ml::vec3 world_dir =
-          light->get_world_direction_to_light();
-        uniforms.directional_light_dirs[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_dir, 0.f)).xyz().normalized(),
-            light->brightness);
-        ++active_light_index;
-    }
+          uniforms.directional_light_dirs[active_light_index] =
+            {(camera_view * ml::vec4{light.get_world_direction_to_light(), 0.f}).xyz().normalized(),
+             light.brightness};
 
+          ++active_light_index;
+      });
     uniforms.directional_light_count = static_cast<int>(active_light_index);
 
-    static swr::vector<const SpotLight*> spot_lights;
-    scene.get_spot_lights(spot_lights);
-
     active_light_index = 0;
-    for(const SpotLight* light: spot_lights)
-    {
-        if(light == nullptr
-           || !light->enabled
-           || active_light_index >= uniforms.spot_light_positions.size())
-        {
-            continue;
-        }
+    scene.for_each_object<SpotLight>(
+      [&active_light_index, &uniforms, &camera_view](const SpotLight& light)
+      {
+          if(!light.enabled
+             || active_light_index >= uniforms.spot_light_positions.size())
+          {
+              return;
+          }
 
-        const ml::vec3 world_position = light->get_position();
-        const ml::vec3 world_direction = light->get_world_spot_direction();
-        uniforms.spot_light_positions[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_position, 1.f)).xyz(),
-            light->get_range());
-        uniforms.spot_light_directions[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_direction, 0.f)).xyz().normalized(),
-            light->brightness);
-        uniforms.spot_light_params[active_light_index] =
-          ml::vec4(
-            static_cast<float>(std::cos(light->get_inner_cone_angle_radians())),
-            static_cast<float>(std::cos(light->get_outer_cone_angle_radians())),
-            0.f,
-            0.f);
-        uniforms.spot_light_colors[active_light_index] =
-          light->get_color();
-        ++active_light_index;
-    }
+          uniforms.spot_light_positions[active_light_index] =
+            {(camera_view * ml::vec4{light.get_position(), 1.f}).xyz(),
+             light.get_range()};
+          uniforms.spot_light_directions[active_light_index] =
+            {(camera_view * ml::vec4{light.get_world_spot_direction(), 0.f}).xyz().normalized(),
+             light.brightness};
+          uniforms.spot_light_params[active_light_index] =
+            {std::cos(light.get_inner_cone_angle_radians()),
+             std::cos(light.get_outer_cone_angle_radians()),
+             0.f,
+             0.f};
+          uniforms.spot_light_colors[active_light_index] =
+            light.get_color();
+
+          ++active_light_index;
+      });
 
     uniforms.spot_light_count = static_cast<int>(active_light_index);
     return uniforms;
@@ -291,49 +278,49 @@ LightingUniforms collect_light_uniforms(
 std::optional<ShadowCamera> collect_shadow_camera(
   const Scene& scene)
 {
-    static swr::vector<const SpotLight*> spot_lights;
-    scene.get_spot_lights(spot_lights);
+    std::optional<ShadowCamera> shadow_camera{std::nullopt};
 
-    for(const SpotLight* light: spot_lights)
-    {
-        if(light == nullptr
-           || !light->enabled
-           || !light->casts_shadows)
-        {
-            continue;
-        }
+    scene.for_each_object<SpotLight>(
+      [&shadow_camera](const SpotLight& light) -> bool
+      {
+          if(!light.enabled
+             || !light.casts_shadows)
+          {
+              return true;    // continue iteration.
+          }
 
-        const float outer_angle = light->get_outer_cone_angle_radians();
-        const float range = light->get_range();
-        if(range <= 0.1f)
-        {
-            continue;
-        }
+          const float outer_angle = light.get_outer_cone_angle_radians();
+          const float range = light.get_range();
+          if(range <= 0.1f)
+          {
+              return true;    // continue iteration.
+          }
 
-        constexpr float near_plane = 0.5f;
-        const ml::vec3 position = light->get_position();
-        const ml::vec3 direction = light->get_world_spot_direction();
+          constexpr float near_plane = 0.5f;
+          const ml::vec3 position = light.get_position();
+          const ml::vec3 direction = light.get_world_spot_direction();
 
-        // Expand shadow frustum FOV beyond the spotlight cone to avoid clipping
-        // casters near the projection boundary in shadow-map UV space.
-        const float shadow_fov =
-          std::min(outer_angle * 4.f, ml::to_radians(170.f));
+          // Expand shadow frustum FOV beyond the spotlight cone to avoid clipping
+          // casters near the projection boundary in shadow-map UV space.
+          const float shadow_fov =
+            std::min(outer_angle * 4.f, ml::to_radians(170.f));
 
-        return ShadowCamera{
-          .proj = ml::matrices::perspective_projection(
-            1.f,
-            shadow_fov,
-            near_plane,
-            range),
-          .view = make_camera_view_matrix(
-            position,
-            position + direction,
-            {0.f, 1.f, 0.f}),
-          .light = light,
-        };
-    }
+          shadow_camera = std::make_optional(
+            ShadowCamera{.proj = ml::matrices::perspective_projection(
+                           1.f,
+                           shadow_fov,
+                           near_plane,
+                           range),
+                         .view = make_camera_view_matrix(
+                           position,
+                           position + direction,
+                           {0.f, 1.f, 0.f}),
+                         .light = &light});
 
-    return std::nullopt;
+          return false;    // stop iteration.
+      });
+
+    return shadow_camera;
 }
 
 void bin_submissions_by_depth(

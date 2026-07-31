@@ -125,26 +125,23 @@ void draw_tools_panel(
           "Stationary",
         };
 
-        static swr::vector<DirectionalLight*> directional_lights;
-        scene.get_directional_lights(directional_lights);
+        scene.for_each_object<DirectionalLight>(
+          [&light_mode_names](DirectionalLight& light, std::size_t light_index)
+          {
+              int light_mode_index = static_cast<int>(light.behavior);
 
-        for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
-        {
-            DirectionalLight& light = *directional_lights[light_index];
-            int light_mode_index = static_cast<int>(light.behavior);
-
-            const swr::string label = swr::format(
-              "Directional Light {}",
-              light_index + 1);
-            if(ImGui::Combo(
-                 label.c_str(),
-                 &light_mode_index,
-                 light_mode_names,
-                 IM_ARRAYSIZE(light_mode_names)))
-            {
-                light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
-            }
-        }
+              const swr::string label = swr::format(
+                "Directional Light {}",
+                light_index + 1);
+              if(ImGui::Combo(
+                   label.c_str(),
+                   &light_mode_index,
+                   light_mode_names,
+                   IM_ARRAYSIZE(light_mode_names)))
+              {
+                  light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
+              }
+          });
 
         if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))
         {
