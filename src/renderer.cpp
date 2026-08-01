@@ -48,14 +48,6 @@ std::array<ml::vec4, 8> make_bounds_corners(
     }};
 }
 
-ml::mat4x4 make_camera_view_matrix(
-  const ml::vec3& eye,
-  const ml::vec3& target,
-  const ml::vec3& up)
-{
-    return ml::matrices::look_at(eye, target, up);
-}
-
 ml::mat4x4 make_shadow_bias_matrix()
 {
     return {
@@ -307,7 +299,7 @@ std::optional<ShadowCamera> collect_shadow_camera(
               shadow_fov,
               near_plane,
               range),
-            .view = make_camera_view_matrix(
+            .view = ml::matrices::look_at(
               position,
               position + direction,
               {0.f, 1.f, 0.f}),
@@ -315,43 +307,6 @@ std::optional<ShadowCamera> collect_shadow_camera(
     }
 
     return std::nullopt;
-}
-
-void bin_submissions_by_depth(
-  swr::vector<DrawSubmission>& submissions,
-  float near_depth,
-  float far_depth,
-  std::size_t bin_count)
-{
-    if(bin_count == 0)
-        bin_count = 1;
-
-    const float bin_size = (far_depth - near_depth) / static_cast<float>(bin_count);
-
-    swr::vector<swr::vector<DrawSubmission>> bins;
-    bins.resize(bin_count);
-
-    // Distribute submissions into bins
-    for(const auto& submission: submissions)
-    {
-        int bin_index = 0;
-        if(bin_size > 0.f)
-        {
-            bin_index = static_cast<int>((submission.sort_depth - near_depth) / bin_size);
-        }
-        bin_index = std::min(std::max(bin_index, 0), static_cast<int>(bin_count) - 1);
-        bins[bin_index].push_back(submission);
-    }
-
-    // Reconstruct submissions from bins (front to back)
-    submissions.clear();
-    for(const auto& bin: bins)
-    {
-        for(const auto& submission: bin)
-        {
-            submissions.push_back(submission);
-        }
-    }
 }
 
 }    // namespace
@@ -451,32 +406,10 @@ void Renderer::build_render_queue(
 void Renderer::sort_render_queue(
   const ViewportDisplaySettings& display_settings)
 {
-    if(display_settings.sort_meshes
-       && !render_queue.empty())
+    if(display_settings.sort_meshes)
     {
-        if(sort_mode == SortMode::FullSort)
-        {
-            std::stable_sort(
-              render_queue.begin(),
-              render_queue.end(),
-              [](const DrawSubmission& lhs, const DrawSubmission& rhs)
-              {
-                  return lhs.sort_depth < rhs.sort_depth;
-              });
-        }
-        else if(sort_mode == SortMode::BinSort)
-        {
-            // Find depth range for binning
-            float min_depth = render_queue[0].sort_depth;
-            float max_depth = render_queue[0].sort_depth;
-            for(const auto& submission: render_queue)
-            {
-                min_depth = std::min(min_depth, submission.sort_depth);
-                max_depth = std::max(max_depth, submission.sort_depth);
-            }
-
-            bin_submissions_by_depth(render_queue, min_depth, max_depth, depth_bin_count);
-        }
+        render_queue_sorter->sort(
+          render_queue);
     }
 }
 
@@ -980,12 +913,12 @@ void Renderer::start_comparative_benchmark(
     comparative_state.modes = {SortMode::FullSort, SortMode::BinSort};
     comparative_state.results.assign(comparative_state.modes.size(), {});
     comparative_state.current_mode_index = 0;
-    comparative_state.saved_sort_mode = sort_mode;
+    comparative_state.saved_sort_mode = get_sort_mode();
     comparative_state.iterations_per_mode = iterations;
     comparative_state.active = true;
 
     // start first mode
-    sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+    set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
     start_sorting_benchmark(scene, viewport, iterations);
 }
 
@@ -1033,13 +966,13 @@ void Renderer::update_sorting_benchmark(
             comparative_state.current_mode_index += 1;
             if(comparative_state.current_mode_index < comparative_state.modes.size())
             {
-                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
                 start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
                 return;
             }
             // finished comparative run
             comparative_state.active = false;
-            sort_mode = comparative_state.saved_sort_mode;
+            set_sort_mode(comparative_state.saved_sort_mode);
         }
 
         return;
@@ -1051,7 +984,7 @@ void Renderer::update_sorting_benchmark(
 
     Camera& benchmark_camera = viewport.get_camera(scene);
     benchmark_camera.set_transform(
-      make_camera_view_matrix(camera_position, target, up));
+      ml::matrices::look_at(camera_position, target, up));
     benchmark_camera.update_projection_matrix(viewport.get_aspect_ratio());
 
     const auto saved_render_stats = render_stats;
@@ -1110,13 +1043,13 @@ void Renderer::update_sorting_benchmark(
             comparative_state.current_mode_index += 1;
             if(comparative_state.current_mode_index < comparative_state.modes.size())
             {
-                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
                 start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
             }
             else
             {
                 comparative_state.active = false;
-                sort_mode = comparative_state.saved_sort_mode;
+                set_sort_mode(comparative_state.saved_sort_mode);
             }
         }
     }

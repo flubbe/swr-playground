@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <utility>
 
 #include "ml/all.h"
 #include "render_types.h"
@@ -129,6 +130,210 @@ struct ShadowCamera
     const class SpotLight* light{nullptr};
 };
 
+/** Render queue sorting. */
+struct RenderQueueSorter
+{
+    /** Virtual destructor. */
+    virtual ~RenderQueueSorter() = default;
+
+    /**
+     * Sort the render queue.
+     *
+     * @param render_queue The render queue to sort.
+     */
+    virtual void sort(
+      swr::vector<DrawSubmission>& render_queue) = 0;
+
+    /** Get the sort mode. */
+    [[nodiscard]]
+    virtual SortMode get_sort_mode() const noexcept = 0;
+
+    /** Get the name of the sorter. Forwards to the `RenderQueueSortFactory::get_name(...)`. */
+    [[nodiscard]]
+    virtual const char* get_name() const;
+};
+
+/** Standard dynamic `std::stable_sort` (O(N log N)). */
+struct FullRenderQueueSorter final
+: public RenderQueueSorter
+{
+    constexpr static SortMode mode = SortMode::FullSort;
+    constexpr static const char* name = "Full Sort (O(N log N))";
+
+    void sort(swr::vector<DrawSubmission>& render_queue) override
+    {
+        if(render_queue.empty())
+        {
+            return;
+        }
+
+        std::stable_sort(
+          render_queue.begin(),
+          render_queue.end(),
+          [](const DrawSubmission& lhs, const DrawSubmission& rhs)
+          {
+              return lhs.sort_depth < rhs.sort_depth;
+          });
+    }
+
+    [[nodiscard]]
+    SortMode get_sort_mode() const noexcept override
+    {
+        return mode;
+    }
+};
+
+/** Coarse Depth Binning Sorter (O(N)). Retains allocation buffers across frames. */
+class BinRenderQueueSorter final
+: public RenderQueueSorter
+{
+    std::size_t bin_count{8};
+
+    // Pre-allocated reusable scratch buffers to eliminate per-frame dynamic allocations
+    swr::vector<swr::vector<DrawSubmission>> scratch_bins;
+
+public:
+    constexpr static SortMode mode = SortMode::BinSort;
+    constexpr static const char* name = "Bin Sort (O(N))";
+
+    explicit BinRenderQueueSorter(
+      std::size_t num_bins = 8)
+    : bin_count{std::max(num_bins, 1uz)}
+    {
+        scratch_bins.resize(bin_count);
+    }
+
+    void set_bin_count(
+      std::size_t count)
+    {
+        bin_count = std::max(count, 1uz);
+        scratch_bins.resize(bin_count);
+    }
+
+    [[nodiscard]]
+    std::size_t get_bin_count() const noexcept
+    {
+        return bin_count;
+    }
+
+    void sort(
+      swr::vector<DrawSubmission>& render_queue) override
+    {
+        if(render_queue.empty())
+        {
+            return;
+        }
+
+        // Find depth bounds
+        float min_depth = std::numeric_limits<float>::max();
+        float max_depth = std::numeric_limits<float>::lowest();
+
+        for(const auto& submission: render_queue)
+        {
+            min_depth = std::min(min_depth, submission.sort_depth);
+            max_depth = std::max(max_depth, submission.sort_depth);
+        }
+
+        const float depth_range = max_depth - min_depth;
+        const float bin_scale = (depth_range > 0.f)
+                                  ? (static_cast<float>(bin_count) / depth_range)
+                                  : 0.f;
+
+        // Clear existing scratch bins without deallocating their memory capacity
+        for(auto& bin: scratch_bins)
+        {
+            bin.clear();
+        }
+
+        // Distribute submissions into bins
+        for(const auto& submission: render_queue)
+        {
+            int bin_index = static_cast<int>((submission.sort_depth - min_depth) * bin_scale);
+            bin_index = std::clamp(bin_index, 0, static_cast<int>(bin_count) - 1);
+            scratch_bins[bin_index].push_back(submission);
+        }
+
+        // Reconstruct submissions back into the main queue
+        render_queue.clear();
+        for(const auto& bin: scratch_bins)
+        {
+            for(const auto& submission: bin)
+            {
+                render_queue.push_back(submission);
+            }
+        }
+    }
+
+    [[nodiscard]]
+    SortMode get_sort_mode() const noexcept override
+    {
+        return mode;
+    }
+};
+
+/**
+ * Factory for the render queue sorting algorithms.
+ *
+ * @note This only exists to provide a single source of truth associating
+ *     algorithms, UI, enums and names.
+ */
+struct RenderQueueSortFactory
+{
+    /** Array of supported sort modes. */
+    static constexpr std::array<SortMode, 2> supported_modes = {
+      FullRenderQueueSorter::mode,
+      BinRenderQueueSorter::mode};
+
+    /**
+     * Create a render queue sorter.
+     *
+     * @param mode The sorter to create.
+     * @returns Returns the new sorter.
+     */
+    [[nodiscard]]
+    static std::unique_ptr<RenderQueueSorter> create(
+      SortMode mode)
+    {
+        switch(mode)
+        {
+        case FullRenderQueueSorter::mode:
+            return std::make_unique<FullRenderQueueSorter>();
+
+        case BinRenderQueueSorter::mode:
+            return std::make_unique<BinRenderQueueSorter>();
+        }
+
+        std::unreachable();
+    }
+
+    /**
+     * Get the name of a sort mode.
+     *
+     * @param mode The sort mode.
+     * @returns Returns the name of a sort mode.
+     */
+    [[nodiscard]]
+    static constexpr const char* get_name(
+      SortMode mode) noexcept
+    {
+        switch(mode)
+        {
+        case FullRenderQueueSorter::mode:
+            return FullRenderQueueSorter::name;
+        case BinRenderQueueSorter::mode:
+            return BinRenderQueueSorter::name;
+        }
+
+        std::unreachable();
+    }
+};
+
+inline const char* RenderQueueSorter::get_name() const
+{
+    return RenderQueueSortFactory::get_name(
+      get_sort_mode());
+}
+
 class Renderer final
 {
     static constexpr int shadow_map_resolution = 1024;
@@ -140,8 +345,6 @@ class Renderer final
     RendererStats render_stats;
     SortingBenchmarkResults benchmark_results{};
     SortingBenchmarkState benchmark_state{};
-    SortMode sort_mode{SortMode::FullSort};
-    std::size_t depth_bin_count{8};
     ComparativeBenchmarkState comparative_state{};
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
@@ -153,6 +356,9 @@ class Renderer final
 
     swr::vector<DrawSubmission> render_queue;
     swr::vector<ShadowCasterSubmission> shadow_queue;
+
+    std::unique_ptr<RenderQueueSorter> render_queue_sorter{
+      std::make_unique<FullRenderQueueSorter>()};
 
     void begin_scene_pass(
       const Scene& scene,
@@ -283,23 +489,40 @@ public:
     [[nodiscard]]
     SortMode get_sort_mode() const noexcept
     {
-        return sort_mode;
+        return render_queue_sorter->get_sort_mode();
     }
 
-    void set_sort_mode(SortMode mode) noexcept
+    void set_sort_mode(SortMode mode)
     {
-        sort_mode = mode;
+        if(render_queue_sorter->get_sort_mode() == mode)
+        {
+            return;
+        }
+
+        render_queue_sorter = RenderQueueSortFactory::create(mode);
     }
 
     [[nodiscard]]
     std::size_t get_depth_bin_count() const noexcept
     {
-        return depth_bin_count;
+        if(render_queue_sorter->get_sort_mode() == BinRenderQueueSorter::mode)
+        {
+            return static_cast<BinRenderQueueSorter*>(
+                     render_queue_sorter.get())
+              ->get_bin_count();
+        }
+
+        return 0;
     }
 
     void set_depth_bin_count(std::size_t n) noexcept
     {
-        depth_bin_count = n > 0 ? n : 1;
+        if(render_queue_sorter->get_sort_mode() == BinRenderQueueSorter::mode)
+        {
+            static_cast<BinRenderQueueSorter*>(
+              render_queue_sorter.get())
+              ->set_bin_count(n);
+        }
     }
 
     [[nodiscard]]

@@ -165,18 +165,27 @@ void draw_tools_panel(
 
         if(display_settings.sort_meshes)
         {
-            const char* sort_modes[] = {
-              "Full Sort (O(n log n))",
-              "Bin Sort (O(n))",
-            };
-            int sort_mode = static_cast<int>(renderer.get_sort_mode());
-            if(ImGui::Combo(
-                 "Sort Mode",
-                 &sort_mode,
-                 sort_modes,
-                 IM_ARRAYSIZE(sort_modes)))
+            const SortMode current_mode = renderer.get_sort_mode();
+            const std::string_view current_name = RenderQueueSortFactory::get_name(current_mode);
+
+            if(ImGui::BeginCombo("Sort Mode", current_name.data()))
             {
-                renderer.set_sort_mode(static_cast<SortMode>(sort_mode));
+                for(SortMode mode: RenderQueueSortFactory::supported_modes)
+                {
+                    const bool is_selected = (mode == current_mode);
+                    const char* name = RenderQueueSortFactory::get_name(mode);
+
+                    if(ImGui::Selectable(name, is_selected))
+                    {
+                        renderer.set_sort_mode(mode);
+                    }
+
+                    if(is_selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
             }
         }
 
@@ -311,12 +320,6 @@ void draw_tools_panel(
             ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
             sorting_benchmark_iterations = app.set_benchmark_iterations(sorting_benchmark_iterations);
 
-            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
-            {
-                sorting_benchmark_requested = true;
-            }
-
-            ImGui::SameLine();
             ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
             if(sorting_depth_bin_count < 1)
             {
@@ -327,7 +330,11 @@ void draw_tools_panel(
                 renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
             }
 
-            ImGui::SameLine();
+            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                sorting_benchmark_requested = true;
+            }
+
             if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
             {
                 // FIXME Benchmark should not be controlled by the renderer.
