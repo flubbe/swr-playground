@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string_view>
 
+#include "containers/memory.h"
 #include "scene/scene.h"
 #include "memory/manager.h"
 #include "application.h"
@@ -110,7 +111,7 @@ int main(int argc, char* argv[])
         // This seems to be the earliest point where we can easily display
         // the splash screen. It needs logging to be set up in case of errors,
         // and the platform initialization also sets up TTF support.
-        auto splash_screen = std::make_unique<SplashScreen>(
+        auto splash_screen = swr::make_unique<SplashScreen>(
           640, 480);
         splash_screen->set_status("Loading...");
 

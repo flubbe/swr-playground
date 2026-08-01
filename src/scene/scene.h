@@ -11,12 +11,12 @@
 #pragma once
 
 #include <format>
-#include <memory>
 #include <type_traits>
 #include <utility>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
+#include "containers/memory.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
@@ -30,10 +30,10 @@
 class Scene
 {
     /** scene objects. */
-    swr::vector<std::unique_ptr<Object>> objects;
+    swr::vector<swr::unique_ptr<Object>> objects;
 
     /** scene update systems. */
-    swr::vector<std::unique_ptr<SceneSystem>> systems;
+    swr::vector<swr::unique_ptr<SceneSystem>> systems;
 
     /** automatic name tracking. */
     swr::unordered_map<
@@ -261,7 +261,7 @@ public:
           std::is_base_of_v<Object, T>)
     T* add_object(Args&&... args)
     {
-        auto obj = std::make_unique<T>(std::forward<Args>(args)...);
+        auto obj = swr::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
 
@@ -288,18 +288,18 @@ public:
           std::is_base_of_v<SceneSystem, T>)
     T* add_system(Args&&... args)
     {
-        auto system = std::make_unique<T>(std::forward<Args>(args)...);
+        auto system = swr::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;
     }
 
-    const swr::vector<std::unique_ptr<Object>>& get_objects() const
+    const swr::vector<swr::unique_ptr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    swr::vector<std::unique_ptr<Object>>& get_objects()
+    swr::vector<swr::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

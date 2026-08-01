@@ -169,7 +169,7 @@ TaskCancelledError::TaskCancelledError()
  */
 
 TaskExecutionContext::TaskExecutionContext(
-  std::shared_ptr<TaskSharedState> state,
+  swr::shared_ptr<TaskSharedState> state,
   float progress_base,
   float progress_scale,
   std::optional<std::size_t> aggregate_task_index)
@@ -250,7 +250,7 @@ TaskExecutionContext TaskExecutionContext::subrange(
  */
 
 TaskHandle::TaskHandle(
-  std::shared_ptr<TaskSharedState> state)
+  swr::shared_ptr<TaskSharedState> state)
 : state{std::move(state)}
 {
 }

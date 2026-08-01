@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <array>
 #include <future>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,6 +21,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
 
+#include "containers/memory.h"
 #include "logging.h"
 #include "splash.h"
 #include "tasks/task_system.h"
@@ -85,7 +85,7 @@ class Application
     swr::string title;
     logging::BufferedLogDevice& log_device;
 
-    std::unique_ptr<SplashScreen> splash_screen;
+    swr::unique_ptr<SplashScreen> splash_screen;
 
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
@@ -129,7 +129,7 @@ class Application
     std::size_t benchmark_iterations{100};
 
     // Startup task state (parallel submissions aggregated by the main thread).
-    std::shared_ptr<StagedStartupScene> startup_scene;
+    swr::shared_ptr<StagedStartupScene> startup_scene;
     swr::vector<task_system::TaskHandle> startup_task_handles;
     swr::vector<std::future<void>> startup_task_futures;
     swr::vector<float> startup_task_weights;

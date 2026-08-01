@@ -155,10 +155,10 @@ void register_class(
 void reverse_properties(
   reflect::ClassInfo& cls) noexcept
 {
-    std::unique_ptr<
+    swr::unique_ptr<
       reflect::PropertyDescriptor>
       prev = nullptr;
-    std::unique_ptr<
+    swr::unique_ptr<
       reflect::PropertyDescriptor>
       curr = std::move(cls.first_property);
 

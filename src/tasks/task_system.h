@@ -13,7 +13,6 @@
 #include <cstddef>
 #include <functional>
 #include <future>
-#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -23,6 +22,7 @@
 
 #include <concurrency_utils/thread_pool.h>
 
+#include "containers/memory.h"
 #include "containers/string.h"
 #include "containers/vector.h"
 #include "task_logger.h"
@@ -44,7 +44,7 @@ public:
 class TaskExecutionContext
 {
     /** Shared state (e.g. cancellation and progress updates). */
-    std::shared_ptr<struct TaskSharedState> state;
+    swr::shared_ptr<struct TaskSharedState> state;
 
     /** Base progress offset within the enclosing task range. */
     float progress_base{0.f};
@@ -65,7 +65,7 @@ public:
      * @param aggregate_task_index Optional task slot index updated by this context.
      */
     TaskExecutionContext(
-      std::shared_ptr<TaskSharedState> state,
+      swr::shared_ptr<TaskSharedState> state,
       float progress_base,
       float progress_scale,
       std::optional<std::size_t> aggregate_task_index = std::nullopt);
@@ -139,7 +139,7 @@ void run_task_specs(
 class TaskHandle
 {
     /** Shared state of the associated submitted task group. */
-    std::shared_ptr<TaskSharedState> state;
+    swr::shared_ptr<TaskSharedState> state;
 
 public:
     /** Constructs an empty, invalid task handle. */
@@ -151,7 +151,7 @@ public:
      * @param state Shared task state to reference.
      */
     explicit TaskHandle(
-      std::shared_ptr<TaskSharedState> state);
+      swr::shared_ptr<TaskSharedState> state);
 
     /**
      * Returns true if this handle references a task state.

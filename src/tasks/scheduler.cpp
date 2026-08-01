@@ -68,8 +68,8 @@ void run_scheduled_task_worker(
   TaskSpec task,
   const float progress_base,
   const float progress_span,
-  const std::shared_ptr<TaskSharedState>& task_state,
-  const std::shared_ptr<SchedulerShared>& shared)
+  const swr::shared_ptr<TaskSharedState>& task_state,
+  const swr::shared_ptr<SchedulerShared>& shared)
 {
     TaskExecutionContext task_context{
       task_state,
@@ -190,8 +190,8 @@ void mark_task_completed_and_release_dependents(
 
 void dispatch_ready_tasks(
   concurrency_utils::deferred_thread_pool<>& thread_pool,
-  const std::shared_ptr<TaskSharedState>& state,
-  const std::shared_ptr<SchedulerShared>& scheduler_shared,
+  const swr::shared_ptr<TaskSharedState>& state,
+  const swr::shared_ptr<SchedulerShared>& scheduler_shared,
   const swr::vector<TaskSpec>& tasks,
   const swr::vector<float>& task_progress_base,
   const swr::vector<float>& task_progress_span,
@@ -282,7 +282,7 @@ void dispatch_ready_tasks(
 
 [[nodiscard]]
 SchedulerProgress wait_for_scheduler_progress(
-  const std::shared_ptr<SchedulerShared>& scheduler_shared)
+  const swr::shared_ptr<SchedulerShared>& scheduler_shared)
 {
     SchedulerProgress progress;
     {
@@ -304,7 +304,7 @@ SchedulerProgress wait_for_scheduler_progress(
 }
 
 void wait_for_scheduler_idle_or_throw(
-  const std::shared_ptr<SchedulerShared>& scheduler_shared)
+  const swr::shared_ptr<SchedulerShared>& scheduler_shared)
 {
     std::unique_lock lock{scheduler_shared->mutex};
     scheduler_shared->cv.wait(
@@ -324,8 +324,8 @@ void wait_for_scheduler_idle_or_throw(
 
 void run_task_specs_scheduler(
   concurrency_utils::deferred_thread_pool<>& thread_pool,
-  const std::shared_ptr<TaskSharedState>& state,
-  const std::shared_ptr<std::promise<void>>& promise,
+  const swr::shared_ptr<TaskSharedState>& state,
+  const swr::shared_ptr<std::promise<void>>& promise,
   swr::vector<TaskSpec> tasks,
   TaskSchedulingData scheduling_data)
 {

@@ -14,7 +14,7 @@
 #include <cmath>
 #include <numbers>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 #include "scene/directionallight.h"
 #include "scene/scene.h"

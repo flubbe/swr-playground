@@ -20,7 +20,7 @@
 #include "meshes/mesh.h"
 #include "scene/gear.h"
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 /*
  * Generic staged data.

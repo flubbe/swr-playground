@@ -45,7 +45,7 @@ TEST(ClassInfoTests, FindPropertySearchesCurrentClassBeforeSuper)
 {
     reflect::ClassInfo root{};
     root.qualified_name = "Test.Root";
-    root.first_property = std::make_unique<reflect::PropertyDescriptor>(
+    root.first_property = swr::make_unique<reflect::PropertyDescriptor>(
       "shared_name",
       "Root Label",
       reflect::PropertyFlags::None,
@@ -55,7 +55,7 @@ TEST(ClassInfoTests, FindPropertySearchesCurrentClassBeforeSuper)
     reflect::ClassInfo leaf{};
     leaf.qualified_name = "Test.Leaf";
     leaf.super = &root;
-    leaf.first_property = std::make_unique<reflect::PropertyDescriptor>(
+    leaf.first_property = swr::make_unique<reflect::PropertyDescriptor>(
       "shared_name",
       "Leaf Label",
       reflect::PropertyFlags::ReadOnly,
@@ -71,7 +71,7 @@ TEST(ClassInfoTests, FindPropertyFallsBackToSuperHierarchy)
 {
     reflect::ClassInfo root{};
     root.qualified_name = "Test.Root";
-    root.first_property = std::make_unique<reflect::PropertyDescriptor>(
+    root.first_property = swr::make_unique<reflect::PropertyDescriptor>(
       "root_only",
       "Root Property",
       reflect::PropertyFlags::None,
@@ -116,7 +116,7 @@ TEST(ClassInfoTests, NonConstFindPropertyDoesNotTraverseSuperClasses)
 {
     reflect::ClassInfo root{};
     root.qualified_name = "Test.Root";
-    root.first_property = std::make_unique<reflect::PropertyDescriptor>(
+    root.first_property = swr::make_unique<reflect::PropertyDescriptor>(
       "root_only",
       "Root Property",
       reflect::PropertyFlags::None,

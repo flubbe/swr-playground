@@ -36,7 +36,7 @@ void validate_selected_object(
     const auto& objects = scene.get_objects();
     const bool found = std::ranges::any_of(
       objects,
-      [&](const std::unique_ptr<Object>& object)
+      [&](const swr::unique_ptr<Object>& object)
       {
           return object.get() == ui_state.selected_scene_object;
       });

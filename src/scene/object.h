@@ -11,12 +11,12 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
 #include <string_view>
 #include <utility>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
+#include "containers/memory.h"
 #include "containers/string.h"
 #include "reflection/class_registry.h"
 #include "reflection/property.h"
@@ -96,7 +96,7 @@ public:
 
 protected:
     /** per-instance baseline snapshot object. */
-    std::unique_ptr<Object> snapshot;
+    swr::unique_ptr<Object> snapshot;
 
 protected:
     explicit Object(

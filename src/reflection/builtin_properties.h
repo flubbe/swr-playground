@@ -53,7 +53,7 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -107,7 +107,7 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       float speed = 1.0f,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -166,7 +166,7 @@ public:
       PropertyFlags flags = PropertyFlags::None,
       float speed = 0.01f,
       const char* format = "%.3f",
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -215,7 +215,7 @@ public:
       Type* value,
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -263,7 +263,7 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       std::size_t max_length = 256,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -285,15 +285,15 @@ public:
 template<>
 struct PropertyFactory<int>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       int& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>& constraint)
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
     {
-        return std::make_unique<IntProperty>(
+        return swr::make_unique<IntProperty>(
           name,
           label,
           &value,
@@ -307,15 +307,15 @@ struct PropertyFactory<int>
 template<>
 struct PropertyFactory<unsigned int>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       unsigned int& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>& constraint)
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
     {
-        return std::make_unique<UIntProperty>(
+        return swr::make_unique<UIntProperty>(
           name,
           label,
           &value,
@@ -329,15 +329,15 @@ struct PropertyFactory<unsigned int>
 template<>
 struct PropertyFactory<float>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       float& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>& constraint)
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
     {
-        return std::make_unique<FloatProperty>(
+        return swr::make_unique<FloatProperty>(
           name,
           label,
           &value,
@@ -352,15 +352,15 @@ struct PropertyFactory<float>
 template<>
 struct PropertyFactory<bool>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       bool& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>& constraint)
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
     {
-        return std::make_unique<BoolProperty>(
+        return swr::make_unique<BoolProperty>(
           name,
           label,
           &value,
@@ -373,15 +373,15 @@ struct PropertyFactory<bool>
 template<>
 struct PropertyFactory<std::string>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       std::string& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>& constraint)
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
     {
-        return std::make_unique<StringProperty>(
+        return swr::make_unique<StringProperty>(
           name,
           label,
           &value,

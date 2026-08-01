@@ -13,9 +13,10 @@
 #include <array>
 #include <cstddef>
 #include <optional>
-#include <utility>
 
-#include "ml/all.h"
+#include <ml/all.h>
+
+#include "containers/memory.h"
 #include "render_types.h"
 #include "shader_cache.h"
 
@@ -291,16 +292,16 @@ struct RenderQueueSortFactory
      * @returns Returns the new sorter.
      */
     [[nodiscard]]
-    static std::unique_ptr<RenderQueueSorter> create(
+    static swr::unique_ptr<RenderQueueSorter> create(
       SortMode mode)
     {
         switch(mode)
         {
         case FullRenderQueueSorter::mode:
-            return std::make_unique<FullRenderQueueSorter>();
+            return swr::make_unique<FullRenderQueueSorter>();
 
         case BinRenderQueueSorter::mode:
-            return std::make_unique<BinRenderQueueSorter>();
+            return swr::make_unique<BinRenderQueueSorter>();
         }
 
         std::unreachable();
@@ -357,8 +358,8 @@ class Renderer final
     swr::vector<DrawSubmission> render_queue;
     swr::vector<ShadowCasterSubmission> shadow_queue;
 
-    std::unique_ptr<RenderQueueSorter> render_queue_sorter{
-      std::make_unique<FullRenderQueueSorter>()};
+    swr::unique_ptr<RenderQueueSorter> render_queue_sorter{
+      swr::make_unique<FullRenderQueueSorter>()};
 
     void begin_scene_pass(
       const Scene& scene,

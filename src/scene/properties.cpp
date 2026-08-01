@@ -24,7 +24,7 @@ SwrStringProperty::SwrStringProperty(
   std::size_t offset,
   PropertyFlags flags,
   std::size_t max_length,
-  std::shared_ptr<const PropertyConstraint> constraint)
+  swr::shared_ptr<const PropertyConstraint> constraint)
 : Property{
     name,
     label,

@@ -2,10 +2,10 @@
 #include <string>
 #include <functional>
 #include <cstdint>
-#include <memory>
 
 #include <gtest/gtest.h>
 
+#include "containers/memory.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/class_registry.h"
 #include "reflection/except.h"
@@ -807,7 +807,7 @@ TEST(ReflectionSystemTests, ConstructsPropertyFromDescriptor)
     ASSERT_NE(descriptor, nullptr);
     ASSERT_NE(descriptor->construct, nullptr);
 
-    std::unique_ptr<reflect::Property> property = descriptor->construct(
+    swr::unique_ptr<reflect::Property> property = descriptor->construct(
       &child,
       descriptor->name,
       descriptor->label,
