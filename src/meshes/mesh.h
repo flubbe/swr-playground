@@ -17,6 +17,8 @@
 #include <ml/all.h>
 
 #include "containers/vector.h"
+#include "serialization/containers.h"
+#include "serialization/math.h"
 
 /** Primitive type for a mesh. */
 enum class PrimitiveType
@@ -24,6 +26,28 @@ enum class PrimitiveType
     Triangles, /** List of triangles. */
     Lines      /** List of lines. */
 };
+
+/**
+ * Serialize a primitive type.
+ *
+ * @param ar The archive to use.
+ * @param primitive_type The primitive type.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  PrimitiveType& primitive_type)
+{
+    auto value = std::to_underlying(primitive_type);
+    ar & value;
+
+    if(ar.is_reading())
+    {
+        primitive_type = static_cast<PrimitiveType>(value);
+    }
+
+    return ar;
+}
 
 /** Raw (CPU-side) mesh data. */
 struct MeshData
@@ -43,6 +67,25 @@ struct MeshData
     /** Texture coordinates packed into xy. */
     std::vector<ml::vec4> texcoords;
 };
+
+/**
+ * Serialize a mesh.
+ *
+ * @param ar The archive to use.
+ * @param mesh The mesh data.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  MeshData& mesh)
+{
+    ar & mesh.primitive_type;
+    ar & mesh.indices;
+    ar & mesh.normals;
+    ar & mesh.texcoords;
+
+    return ar;
+}
 
 /** Axis-aligned mesh bounds in local mesh space. */
 struct MeshBounds

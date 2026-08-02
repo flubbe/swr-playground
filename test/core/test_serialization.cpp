@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "serialization/archive.h"
+#include "serialization/containers.h"
 #include "serialization/file.h"
 #include "serialization/memory.h"
 
