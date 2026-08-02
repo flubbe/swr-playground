@@ -1884,11 +1884,11 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         // skip gears for now.
         if(mesh.is_a<Gear>())
         {
-            return;
+            continue;
         }
         if(mesh.get_name() == floor_object_name)
         {
-            return;
+            continue;
         }
 
         for(auto& lod: mesh.get_lods())
