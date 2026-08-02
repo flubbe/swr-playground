@@ -2,6 +2,7 @@ add_executable(core_tests
     test_allocators.cpp
     test_logging.cpp
     test_mesh.cpp
+    test_serialization.cpp
     test_task_system.cpp
     test_utils.cpp
     test_viewport.cpp
@@ -13,10 +14,6 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/memory/manager.cpp
     ${PROJECT_SOURCE_DIR}/src/meshes/mesh.cpp
     ${PROJECT_SOURCE_DIR}/src/meshes/simplifier.cpp
-    ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
-    ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
-    ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
-    ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
@@ -26,6 +23,11 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/scene/directionallight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/file.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
     ${PROJECT_SOURCE_DIR}/src/viewport.cpp
 )
 

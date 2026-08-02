@@ -278,6 +278,7 @@ add_executable(swr_playground
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/serialization/file.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/memory/allocators/arena.cpp
