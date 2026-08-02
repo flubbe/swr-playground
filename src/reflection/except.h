@@ -18,10 +18,10 @@ namespace reflect
 {
 
 /** Thrown when an object does not satisfy an `is_a` type check. */
-class instance_error : public std::runtime_error
+class InstanceError : public std::runtime_error
 {
 public:
-    explicit instance_error(
+    explicit InstanceError(
       std::string_view message)
     : std::runtime_error{
         std::format(

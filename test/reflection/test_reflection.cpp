@@ -1082,7 +1082,7 @@ TEST(ReflectionSystemTests, DescriptorConstructNullThrows)
         descriptor->label,
         descriptor->flags,
         descriptor->constraint),
-      reflect::instance_error);
+      reflect::InstanceError);
 }
 
 TEST(ReflectionSystemTests, DescriptorConstructWrongTypeThrows)
@@ -1105,7 +1105,7 @@ TEST(ReflectionSystemTests, DescriptorConstructWrongTypeThrows)
         descriptor->label,
         descriptor->flags,
         descriptor->constraint),
-      reflect::instance_error);
+      reflect::InstanceError);
 }
 
 TEST(ReflectionSystemTests, DescriptorAndPropertyCarryConstraint)

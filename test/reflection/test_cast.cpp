@@ -119,7 +119,7 @@ TEST(CastTests, CastThrowsInstanceErrorOnMismatch)
       {
           [[maybe_unused]] auto& ref = reflect::cast<CastTestChild>(root_ref);
       },
-      reflect::instance_error);
+      reflect::InstanceError);
 }
 
 TEST(CastTests, CastSupportsConstReferences)

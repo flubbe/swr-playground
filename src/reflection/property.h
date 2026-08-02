@@ -665,8 +665,8 @@ swr::unique_ptr<Property> construct_member(
  * @param constraint Constraint for the property values.
  * @returns A unique pointer to the constructed property.
  *
- * @throws `instance_error` If `obj` is `nullptr`.
- * @throws `instance_error` If `obj` does not point to a compatible owner type.
+ * @throws `InstanceError` If `obj` is `nullptr`.
+ * @throws `InstanceError` If `obj` does not point to a compatible owner type.
  */
 template<auto MemberPtr>
 swr::unique_ptr<Property> construct_member_erased(
@@ -678,7 +678,7 @@ swr::unique_ptr<Property> construct_member_erased(
 {
     if(obj == nullptr)
     {
-        throw instance_error{"null object instance for property construction"};
+        throw InstanceError{"null object instance for property construction"};
     }
 
     using OwnerType = MemberClassType<MemberPtr>;
@@ -693,7 +693,7 @@ swr::unique_ptr<Property> construct_member_erased(
         RootType* root_obj = static_cast<RootType*>(obj);
         if(!root_obj->is_a(OwnerType::static_class()))
         {
-            throw instance_error{"object instance type mismatch for property construction"};
+            throw InstanceError{"object instance type mismatch for property construction"};
         }
 
         // Cast through RootType so inheritance pointer adjustment is applied correctly.
