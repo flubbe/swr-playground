@@ -17,8 +17,10 @@
 
 #include "containers/format.h"
 #include "reflection/builtin_properties.h"
+#include "renderdevice.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 #include "ui/imgui.h"
 
 namespace
@@ -403,6 +405,66 @@ private:
     }
 };
 
+void draw_static_mesh_sections(
+  const StaticMesh& mesh,
+  RenderDevice& render_device)
+{
+    if(!mesh.has_mesh_sections())
+    {
+        return;
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Mesh sections");
+
+    const ImGuiTableFlags table_flags =
+      ImGuiTableFlags_BordersInnerV
+      | ImGuiTableFlags_BordersOuter
+      | ImGuiTableFlags_RowBg
+      | ImGuiTableFlags_SizingFixedFit;
+
+    if(ImGui::BeginTable("MeshSections", 4, table_flags))
+    {
+        ImGui::TableSetupColumn("LOD", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+        ImGui::TableSetupColumn("Section", ImGuiTableColumnFlags_WidthFixed, 56.0f);
+        ImGui::TableSetupColumn("Material", ImGuiTableColumnFlags_WidthFixed, 72.0f);
+        ImGui::TableSetupColumn("Shader", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+
+        for(std::size_t lod_index = 0; lod_index < mesh.get_lod_count(); ++lod_index)
+        {
+            const auto& lod = mesh.get_lod(lod_index);
+            for(std::size_t section_index = 0; section_index < lod.mesh_sections.size(); ++section_index)
+            {
+                const auto& section = lod.mesh_sections[section_index];
+                ImGui::TableNextRow();
+
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", lod_index);
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%zu", section_index);
+
+                ImGui::TableSetColumnIndex(2);
+                ImGui::Text("%u", section.material_handle.value);
+
+                ImGui::TableSetColumnIndex(3);
+                const Material* material = render_device.get_material(section.material_handle);
+                if(material != nullptr)
+                {
+                    ImGui::Text("%u", material->shader_handle);
+                }
+                else
+                {
+                    ImGui::TextDisabled("n/a");
+                }
+            }
+        }
+
+        ImGui::EndTable();
+    }
+}
+
 }    // namespace
 
 namespace imgui
@@ -410,7 +472,8 @@ namespace imgui
 
 void draw_scene_inspector_panel(
   State& ui_state,
-  Scene& scene)
+  Scene& scene,
+  RenderDevice& render_device)
 {
     ImGui::Begin("Scene Inspector");
     validate_selected_object(ui_state, scene);
@@ -514,6 +577,11 @@ void draw_scene_inspector_panel(
                     }
 
                     ImGui::EndTable();
+                }
+
+                if(auto* mesh = reflect::try_cast<StaticMesh>(object.get()))
+                {
+                    draw_static_mesh_sections(*mesh, render_device);
                 }
             }
 

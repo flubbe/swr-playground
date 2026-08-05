@@ -8,12 +8,12 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <gsl/gsl>
-
 #include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <string_view>
+
+#include <gsl/gsl>
 
 #include "containers/memory.h"
 #include "scene/scene.h"

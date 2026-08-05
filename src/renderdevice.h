@@ -256,6 +256,17 @@ public:
         return data;
     }
 
+    // FIXME this accessor should not exist?
+    const Material* get_material(MaterialHandle handle) const
+    {
+        auto it = materials.find(handle);
+        if(it == materials.cend())
+        {
+            return nullptr;
+        }
+        return &it->second;
+    }
+
     /*
      * resource management.
      */

@@ -1295,7 +1295,7 @@ void Application::render_frame()
           benchmark_iterations);
     }
 
-    imgui::draw_scene_inspector_panel(ui_state, scene);
+    imgui::draw_scene_inspector_panel(ui_state, scene, render_device);
     imgui::draw_class_inspector_panel(ui_state);
 
     draw_runtime_test_modal();
@@ -1895,8 +1895,6 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                render_device.delete_material(section.material_handle);
-
                 swr::program_base* new_shader = nullptr;
                 switch(type)
                 {
@@ -1939,17 +1937,13 @@ void Application::set_floor_shader(FloorShaderType type)
     {
         if(mesh.get_name() != floor_object_name)
         {
-            return;
+            continue;
         }
 
         for(auto& lod: mesh.get_lods())
         {
             for(auto& section: lod.mesh_sections)
             {
-                render_device.delete_material(
-                  section.material_handle,
-                  false);
-
                 section.material_handle =
                   render_device.create_material(
                     *new_shader,
