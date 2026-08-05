@@ -16,13 +16,13 @@
 #include <gsl/gsl>
 
 #include "containers/memory.h"
+#include "renderer/renderdevice.h"
+#include "renderer/renderer.h"
 #include "scene/scene.h"
 #include "memory/manager.h"
 #include "application.h"
 #include "logging.h"
 #include "main_loop.h"
-#include "renderdevice.h"
-#include "renderer.h"
 #include "platform.h"
 #include "viewport.h"
 

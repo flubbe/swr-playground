@@ -15,7 +15,7 @@
 
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "render_types.h"
+#include "renderer/render_types.h"
 #include "object.h"
 
 /** One renderable level of detail for a static mesh. */

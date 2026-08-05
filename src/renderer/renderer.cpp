@@ -17,10 +17,15 @@
 #include <utility>
 #include <vector>
 
+#include "assets/shaders/color_only.h"
+#include "assets/shaders/lit_smooth.h"
+#include "assets/shaders/shadow_depth.h"
+#include "assets/shaders/shadow_map_debug.h"
+#include "assets/shaders/textured_floor.h"
+#include "assets/shaders/textured_shiny_floor.h"
 #include "containers/vector.h"
 #include "renderdevice.h"
 #include "renderer.h"
-#include "shader.h"
 #include "scene/directionallight.h"
 #include "scene/spotlight.h"
 #include "scene/scene.h"

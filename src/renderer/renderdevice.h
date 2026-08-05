@@ -73,7 +73,7 @@ struct LightingUniforms
     int directional_light_count{0};
 
     /** Directional lights in camera/view space: xyz = direction, w = brightness. */
-    std::array<ml::vec4, shader::max_lights> directional_light_dirs{};
+    std::array<ml::vec4, shader::max_directional_lights> directional_light_dirs{};
 
     /** Number of active spot lights. */
     int spot_light_count{0};

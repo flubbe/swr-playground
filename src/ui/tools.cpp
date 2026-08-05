@@ -17,8 +17,8 @@
 #include "containers/format.h"
 #include "scene/directionallight.h"
 #include "scene/scene.h"
-#include "renderdevice.h"
-#include "renderer.h"
+#include "renderer/renderdevice.h"
+#include "renderer/renderer.h"
 #include "viewport.h"
 #include "application.h"
 

@@ -288,6 +288,8 @@ add_executable(swr_playground
     src/memory/new.cpp
     src/meshes/mesh.cpp
     src/meshes/simplifier.cpp
+    src/renderer/renderdevice.cpp
+    src/renderer/renderer.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
@@ -300,8 +302,6 @@ add_executable(swr_playground
     src/main.cpp
     src/main_loop.cpp
     src/platform.cpp
-    src/renderdevice.cpp
-    src/renderer.cpp
     src/startup_tasks.cpp
     src/tasks/dag.cpp
     src/tasks/scheduler.cpp

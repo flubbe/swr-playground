@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * class inspector panel.
+ * Class inspector panel.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -17,7 +17,7 @@
 
 #include "containers/format.h"
 #include "reflection/builtin_properties.h"
-#include "renderdevice.h"
+#include "renderer/renderdevice.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
