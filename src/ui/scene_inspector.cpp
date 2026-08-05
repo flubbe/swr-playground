@@ -324,10 +324,13 @@ private:
         if(ImGui::BeginPopup("Mat4Editor"))
         {
             static ml::mat4x4 edit_value = ml::mat4x4::identity();
+
             if(ImGui::IsWindowAppearing())
             {
                 edit_value = property.get_value();
             }
+
+            bool changed = false;
 
             for(int row = 0; row < 4; ++row)
             {
@@ -336,38 +339,29 @@ private:
                   edit_value.rows[row].y,
                   edit_value.rows[row].z,
                   edit_value.rows[row].w};
+
                 ImGui::PushID(row);
                 ImGui::PushItemWidth(260.0f);
-                const bool row_changed = ImGui::DragFloat4(
-                  "##row",
-                  row_values,
-                  0.01f,
-                  0.0f,
-                  0.0f,
-                  "%.3f");
-                ImGui::PopItemWidth();
-                ImGui::PopID();
-                if(row_changed)
+
+                if(ImGui::DragFloat4("##row", row_values, 0.01f, 0.0f, 0.0f, "%.3f"))
                 {
                     edit_value.rows[row].x = row_values[0];
                     edit_value.rows[row].y = row_values[1];
                     edit_value.rows[row].z = row_values[2];
                     edit_value.rows[row].w = row_values[3];
+                    changed = true;
                 }
+
+                ImGui::PopItemWidth();
+                ImGui::PopID();
             }
 
-            if(ImGui::Button("Apply"))
+            if(changed)
             {
                 if(property.set_value(edit_value))
                 {
                     object.on_properties_changed();
                 }
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if(ImGui::Button("Cancel"))
-            {
-                ImGui::CloseCurrentPopup();
             }
 
             ImGui::EndPopup();
