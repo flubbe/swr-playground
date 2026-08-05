@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <array>
+
 #include "serialization/archive.h"
 
 namespace serial
@@ -36,6 +38,30 @@ inline Archive& operator&(
     {
         ar& s[i];
     }
+    return ar;
+}
+
+/**
+ * Serialize an `std::array`.
+ *
+ * @tparam T Element type.
+ * @tparam N The array length.
+ * @param ar The archive to use.
+ * @param v The array to be serialized.
+ * @returns The input archive.
+ */
+template<
+  typename T,
+  std::size_t N>
+Archive& operator&(
+  Archive& ar,
+  std::array<T, N>& v)
+{
+    for(std::size_t i = 0; i < N; ++i)
+    {
+        ar& v[i];
+    }
+
     return ar;
 }
 

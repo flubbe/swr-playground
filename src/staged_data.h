@@ -40,11 +40,44 @@ struct StagedStaticMeshSectionLod
     MeshBounds bounds;
 };
 
+/**
+ * Serialize a static mesh section level of detail.
+ *
+ * @param ar The archive to use.
+ * @param section The mesh section lod.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshSectionLod& section)
+{
+    ar & section.mesh;
+    ar & section.min_screen_height;
+    ar & section.bounds;
+    return ar;
+}
+
 struct StagedStaticMeshSection
 {
     ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.f};
     swr::vector<StagedStaticMeshSectionLod> lods;
 };
+
+/**
+ * Serialize a static mesh section.
+ *
+ * @param ar The archive to use.
+ * @param section The mesh section.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshSection& section)
+{
+    ar & section.diffuse_color;
+    ar & section.lods;
+    return ar;
+}
 
 struct StagedStaticMeshAsset
 {
@@ -52,6 +85,23 @@ struct StagedStaticMeshAsset
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
 };
+
+/**
+ * Serialize a staged mesh asset.
+ *
+ * @param ar The archive to use.
+ * @param mesh The mesh asset.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshAsset& mesh)
+{
+    ar & mesh.name;
+    ar & mesh.fit_transform;
+    ar & mesh.sections;
+    return ar;
+}
 
 /*
  * Concrete staged scene data (targeted to the current startup scene setup).

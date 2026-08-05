@@ -1,5 +1,6 @@
 add_executable(core_tests
     test_allocators.cpp
+    test_hash.cpp
     test_logging.cpp
     test_mesh.cpp
     test_serialization.cpp
@@ -40,6 +41,7 @@ target_link_libraries(core_tests PRIVATE
     swr_playground_warnings
     ml
     GTest::gtest_main
+    xxhash
 )
 
 gtest_discover_tests(core_tests)

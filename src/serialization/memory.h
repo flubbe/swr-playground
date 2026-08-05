@@ -16,7 +16,8 @@ namespace serial
 {
 
 /** Archive for in-memory writes. */
-class MemoryWriteArchive : public Archive
+class MemoryWriteArchive
+: public Archive
 {
 protected:
     /** The archive buffer. */
@@ -80,7 +81,8 @@ public:
 };
 
 /** Archive for in-memory reads. */
-class MemoryReadArchive : public Archive
+class MemoryReadArchive
+: public Archive
 {
 protected:
     /** The archive's buffer reference. */

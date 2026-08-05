@@ -21,7 +21,8 @@ namespace serial
 {
 
 /** Base class for file readers and writers. */
-class FileArchive : public Archive
+class FileArchive
+: public Archive
 {
 protected:
     /** The file path. */
@@ -56,7 +57,8 @@ public:
 };
 
 /** A file writer. */
-class FileWriteArchive : public FileArchive
+class FileWriteArchive
+: public FileArchive
 {
 protected:
     void serialize_bytes(std::span<std::byte> bytes) override
@@ -114,12 +116,21 @@ public:
 };
 
 /** A file reader. */
-class FileReadArchive : public FileArchive
+class FileReadArchive
+: public FileArchive
 {
 protected:
     void serialize_bytes(std::span<std::byte> bytes) override
     {
         file.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
+        if(static_cast<std::size_t>(file.gcount()) != bytes.size())
+        {
+            throw SerializationError{
+              std::format(
+                "Unable to read {} bytes from file '{}'.",
+                bytes.size(),
+                path.string())};
+        }
     }
 
 public:

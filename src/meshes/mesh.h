@@ -81,6 +81,7 @@ inline serial::Archive& operator&(
 {
     ar & mesh.primitive_type;
     ar & mesh.indices;
+    ar & mesh.vertices;
     ar & mesh.normals;
     ar & mesh.texcoords;
 
@@ -99,6 +100,23 @@ struct MeshBounds
     /** Whether the bounds contain at least one point. */
     bool valid{false};
 };
+
+/**
+ * Serialize mesh bounds.
+ *
+ * @param ar The archive to use.
+ * @param bounds The mesh bounds.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  MeshBounds& bounds)
+{
+    ar & bounds.min
+      & bounds.max
+      & bounds.valid;
+    return ar;
+}
 
 /**
  * Expand the mesh bounds to include a point.

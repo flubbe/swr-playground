@@ -5,7 +5,7 @@ if(POLICY CMP0167)
     cmake_policy(SET CMP0167 NEW)
 endif()
 
-project(swr_playground LANGUAGES CXX)
+project(swr_playground LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -223,6 +223,28 @@ if(NOT TARGET assimp::assimp)
     message(FATAL_ERROR "assimp::assimp target is not available.")
 endif()
 
+include(FetchContent)
+
+FetchContent_Declare(
+    xxhash
+    GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
+    GIT_TAG v0.8.3
+)
+
+FetchContent_GetProperties(xxhash)
+if(NOT xxhash_POPULATED)
+    FetchContent_MakeAvailable(xxhash)
+
+    add_library(xxhash STATIC
+        ${xxhash_SOURCE_DIR}/xxhash.c
+    )
+
+    target_include_directories(xxhash
+        SYSTEM PUBLIC
+        ${xxhash_SOURCE_DIR}
+    )
+endif()
+
 #
 # Concurrency Utils
 #
@@ -327,6 +349,7 @@ target_link_libraries(swr_playground PRIVATE
     SDL3_image::SDL3_image
     assimp::assimp
     stb
+    xxhash
 )
 
 # Enable this project's tests (and CTest) after dependency setup.

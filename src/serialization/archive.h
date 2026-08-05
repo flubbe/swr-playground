@@ -57,7 +57,8 @@ concept serializable_scalar =
   && (std::is_arithmetic_v<T> || std::is_same_v<T, std::byte>);
 
 /** A serialization error. */
-class SerializationError : public std::runtime_error
+class SerializationError
+: public std::runtime_error
 {
     using std::runtime_error::runtime_error;
 };

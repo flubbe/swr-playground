@@ -4,6 +4,7 @@
 /.VSCodeCounter
 
 /build
+/cache
 /logs
 /out
 
