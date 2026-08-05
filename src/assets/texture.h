@@ -12,7 +12,8 @@
 
 #include <filesystem>
 #include <cstdint>
-#include <vector>
+
+#include "containers/vector.h"
 
 namespace assets
 {
@@ -27,7 +28,7 @@ struct ImageRGBA8
 {
     int width{0};
     int height{0};
-    std::vector<std::uint8_t> pixels;
+    swr::vector<std::uint8_t> pixels;
 };
 
 [[nodiscard]]

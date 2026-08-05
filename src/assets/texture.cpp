@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include <gsl/gsl>
+
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #include <stb_image.h>
@@ -46,14 +48,19 @@ ImageRGBA8 load_texture_rgba8(
                : "unknown stb_image error"))};
     }
 
+    const auto free_pixels = gsl::finally(
+      [pixels]() -> void
+      {
+          stbi_image_free(pixels);
+      });
+
     ImageRGBA8 image{
       .width = width,
       .height = height,
-      .pixels = std::vector<std::uint8_t>{
+      .pixels = swr::vector<std::uint8_t>{
         pixels,
         pixels + static_cast<std::size_t>(width * height * 4)},
     };
-    stbi_image_free(pixels);
 
     return image;
 }

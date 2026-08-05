@@ -221,7 +221,7 @@ std::uint32_t RenderDevice::create_texture(
       static_cast<std::size_t>(image.width),
       static_cast<std::size_t>(image.height),
       swr::pixel_format::rgba8888,
-      image.pixels);
+      {image.pixels.begin(), image.pixels.end()});    // FIXME Copies. SetImage should take a span.
     if(swr::GetLastError() != swr::error::none)
     {
         swr::ReleaseTexture(texture_id);
