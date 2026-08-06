@@ -59,6 +59,7 @@ struct MeshSimplifyEdgeCandidate
     float cost{0.f};
     std::uint32_t a{0};
     std::uint32_t b{0};
+    ml::vec3 position{};
 };
 
 struct MeshSimplifyEdgeCandidateCompare
@@ -82,6 +83,22 @@ struct MeshSimplifyQuadric
           position, m * position);
     }
 };
+
+inline MeshSimplifyQuadric operator+(
+  const MeshSimplifyQuadric& p,
+  const MeshSimplifyQuadric& q)
+{
+    return {
+      .m = p.m + q.m};
+}
+
+inline MeshSimplifyQuadric& operator+=(
+  MeshSimplifyQuadric& p,
+  const MeshSimplifyQuadric& q)
+{
+    p = p + q;
+    return p;
+}
 
 }    // namespace detail
 

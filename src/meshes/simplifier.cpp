@@ -12,6 +12,7 @@
  */
 
 #include <algorithm>
+#include <ranges>
 #include <utility>
 
 #include "meshes/simplifier.h"
@@ -30,19 +31,6 @@ detail::MeshSimplifyQuadric make_mesh_simplify_quadric(
 {
     return {
       .m = ml::outer_product(plane, plane)};
-}
-
-/**
- * Adds the matrix of a source quadric into a target quadric.
- *
- * @param target The quadric being accumulated into.
- * @param source The quadric to add.
- */
-void add_mesh_simplify_quadric(
-  detail::MeshSimplifyQuadric& target,
-  const detail::MeshSimplifyQuadric& source)
-{
-    target.m += source.m;
 }
 
 /**
@@ -387,10 +375,7 @@ std::size_t MeshSimplifier::build_adjacency()
         list.clear();
     }
 
-    std::fill(
-      boundary_vertices.begin(),
-      boundary_vertices.end(),
-      false);
+    std::ranges::fill(boundary_vertices, false);
 
     std::size_t active_count = 0;
     active_triangle_keys.clear();
@@ -446,22 +431,20 @@ swr::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
   std::uint32_t b)
 {
     swr::vector<std::size_t> affected;
-    swr::vector<bool> seen(triangles.size(), false);
+    affected.reserve(vertex_triangles[a].size() + vertex_triangles[b].size());
 
-    const auto append = [&](std::uint32_t vertex)
+    for(const std::size_t tri: vertex_triangles[a])
     {
-        for(const std::size_t triangle_index: vertex_triangles[vertex])
-        {
-            if(!seen[triangle_index])
-            {
-                seen[triangle_index] = true;
-                affected.push_back(triangle_index);
-            }
-        }
-    };
+        affected.push_back(tri);
+    }
 
-    append(a);
-    append(b);
+    for(const std::size_t tri: vertex_triangles[b])
+    {
+        if(std::ranges::find(affected, tri) == affected.end())
+        {
+            affected.push_back(tri);
+        }
+    }
 
     return affected;
 }
@@ -494,9 +477,9 @@ void MeshSimplifier::rebuild_quadrics(
 
         const auto q = make_mesh_simplify_quadric({normal, d});
 
-        add_mesh_simplify_quadric(vertex_quadrics[roots[0]], q);
-        add_mesh_simplify_quadric(vertex_quadrics[roots[1]], q);
-        add_mesh_simplify_quadric(vertex_quadrics[roots[2]], q);
+        vertex_quadrics[roots[0]] += q;
+        vertex_quadrics[roots[1]] += q;
+        vertex_quadrics[roots[2]] += q;
     }
 
     // Boundary Constraint Quadrics
@@ -526,11 +509,11 @@ void MeshSimplifier::rebuild_quadrics(
             const float d = -constraint_normal.dot_product(pa);
 
             // Construct constraint plane quadric weighted heavily (Garland & Heckbert suggest ~240x weight)
-            auto boundary_q = make_mesh_simplify_quadric({constraint_normal.x, constraint_normal.y, constraint_normal.z, d});
+            auto boundary_q = make_mesh_simplify_quadric({constraint_normal, d});
             boundary_q.m *= 200.0f;
 
-            add_mesh_simplify_quadric(vertex_quadrics[a], boundary_q);
-            add_mesh_simplify_quadric(vertex_quadrics[b], boundary_q);
+            vertex_quadrics[a] += boundary_q;
+            vertex_quadrics[b] += boundary_q;
         }
     }
 }
@@ -539,8 +522,7 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
   std::uint32_t a,
   std::uint32_t b)
 {
-    detail::MeshSimplifyQuadric q = vertex_quadrics[a];
-    add_mesh_simplify_quadric(q, vertex_quadrics[b]);
+    detail::MeshSimplifyQuadric q = vertex_quadrics[a] + vertex_quadrics[b];
 
     const bool a_is_boundary = boundary_vertices[a];
     const bool b_is_boundary = boundary_vertices[b];
@@ -564,10 +546,10 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
     }
 
     return {
-      .cost = q.evaluate({position.x, position.y, position.z, 1.f}),
+      .cost = q.evaluate({position, 1.f}),
       .a = a,
       .b = b,
-    };
+      .position = position};
 }
 
 MeshSimplifier::EdgeQueue MeshSimplifier::build_edge_queue()
@@ -764,10 +746,11 @@ std::size_t MeshSimplifier::collapse_edge(
         }
 
         const auto roots = triangle_roots(triangles[triangle_index]);
+        active_triangle_keys.erase(triangle_key(roots[0], roots[1], roots[2]));
+
         for(auto v: roots)
         {
-            auto& list = vertex_triangles[v];
-            std::erase(list, triangle_index);
+            std::erase(vertex_triangles[v], triangle_index);
         }
     }
 
@@ -787,6 +770,7 @@ std::size_t MeshSimplifier::collapse_edge(
             continue;
         }
 
+        active_triangle_keys.insert(triangle_key(roots[0], roots[1], roots[2]));
         for(auto v: roots)
         {
             vertex_triangles[v].push_back(triangle_index);
@@ -831,49 +815,7 @@ void MeshSimplifier::simplify_until_target()
             continue;
         }
 
-        const auto quadric = detail::MeshSimplifyQuadric{
-          .m = vertex_quadrics[a].m + vertex_quadrics[b].m};
-
-        ml::vec3 collapse_position;
-        const bool a_is_boundary = boundary_vertices[a];
-        const bool b_is_boundary = boundary_vertices[b];
-
-        if(a_is_boundary && b_is_boundary)
-        {
-            collapse_position = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
-        }
-        else if(a_is_boundary)
-        {
-            collapse_position = vertex_positions[a];
-        }
-        else if(b_is_boundary)
-        {
-            collapse_position = vertex_positions[b];
-        }
-        else if(!solve_quadric_optimal_vertex(quadric, collapse_position))
-        {
-            const ml::vec3 pa = vertex_positions[a];
-            const ml::vec3 pb = vertex_positions[b];
-            const ml::vec3 pm = (pa + pb) * 0.5f;
-
-            const float ea = quadric.evaluate({pa, 1.0f});
-            const float eb = quadric.evaluate({pb, 1.0f});
-            const float em = quadric.evaluate({pm, 1.0f});
-
-            if(ea <= eb && ea <= em)
-            {
-                collapse_position = pa;
-            }
-            else if(eb <= em)
-            {
-                collapse_position = pb;
-            }
-            else
-            {
-                collapse_position = pm;
-            }
-        }
-
+        const ml::vec3 collapse_position = candidate.position;
         const auto affected = collect_affected_triangles(a, b);
 
         if(!can_collapse(a, b, collapse_position, affected))
@@ -919,12 +861,7 @@ MeshData MeshSimplifier::build_output_mesh()
         {
             mapped = static_cast<std::uint32_t>(lod.vertices.size());
 
-            lod.vertices.push_back({
-              vertex_positions[root].x,
-              vertex_positions[root].y,
-              vertex_positions[root].z,
-              1.f,
-            });
+            lod.vertices.push_back({vertex_positions[root], 1.f});
 
             lod_vertex_roots.push_back(root);
             normal_sums.emplace_back();
@@ -978,8 +915,7 @@ MeshData MeshSimplifier::build_output_mesh()
 
             if(n.length_squared() > area_epsilon)
             {
-                const ml::vec3 unit = n.normalized();
-                lod.normals.push_back({unit.x, unit.y, unit.z, 0.f});
+                lod.normals.push_back({n.normalized(), 0.f});
             }
             else
             {
