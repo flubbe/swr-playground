@@ -853,6 +853,14 @@ void MeshSimplifier::simplify_until_target()
             continue;
         }
 
+        // Stale candidate check: If either candidate index is no longer a root,
+        // its cost is outdated. Re-push using its current roots and skip processing.
+        if(a != candidate.a || b != candidate.b)
+        {
+            queue.push(make_edge_candidate(a, b));
+            continue;
+        }
+
         if(simplify_settings.preserve_boundaries
            && (boundary_vertices[a] || boundary_vertices[b]))
         {
