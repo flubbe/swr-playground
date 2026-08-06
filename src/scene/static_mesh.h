@@ -24,6 +24,9 @@ struct StaticMeshLod
     /** Sections to draw when this LOD is selected. */
     swr::vector<MeshSection> mesh_sections;
 
+    /** Triangle count in this level of detail. */
+    std::size_t triangle_count{0};
+
     /** Minimum projected screen-height fraction required to select this LOD. */
     float min_screen_height{0.f};
 
@@ -126,7 +129,9 @@ public:
     }
 
     [[nodiscard]]
-    std::size_t select_lod(float screen_height_fraction) const noexcept;
+    std::size_t select_lod(
+      float projected_pixel_area,
+      float target_pixels_per_triangle) const noexcept;
 };
 
 DECLARE_REFLECTION(Scene, StaticMesh);

@@ -158,6 +158,16 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::DragFloat(
+             "LOD Pixels Per Triangle",
+             &display_settings.target_pixels_per_triangle,
+             1.f,
+             0.5f,
+             16.f))
+        {
+            update_display_settings = true;
+        }
+
         if(ImGui::Checkbox("Sort Meshes", &display_settings.sort_meshes))
         {
             update_display_settings = true;

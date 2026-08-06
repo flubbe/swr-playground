@@ -171,9 +171,9 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
       }};
 
     EXPECT_EQ(mesh.get_lod_count(), 3U);
-    EXPECT_EQ(mesh.select_lod(0.5f), 0U);
-    EXPECT_EQ(mesh.select_lod(0.2f), 1U);
-    EXPECT_EQ(mesh.select_lod(0.05f), 2U);
+    EXPECT_EQ(mesh.select_lod(0.5f, 2.f), 0U);
+    EXPECT_EQ(mesh.select_lod(0.2f, 2.f), 1U);
+    EXPECT_EQ(mesh.select_lod(0.05f, 2.f), 2U);
 }
 
 TEST(SceneTests, StaticMeshStoresCachedBounds)

@@ -150,6 +150,11 @@ private:
     [[nodiscard]]
     std::size_t rebuild_adjacency();
 
+    std::size_t collapse_edge(
+      std::uint32_t a,
+      std::uint32_t b,
+      const ml::vec3& collapse_position);
+
     void rebuild_quadrics();
 
     [[nodiscard]]

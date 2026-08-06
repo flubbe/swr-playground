@@ -420,6 +420,62 @@ std::size_t MeshSimplifier::rebuild_adjacency()
     return active_count;
 }
 
+std::size_t MeshSimplifier::collapse_edge(
+  std::uint32_t a,
+  std::uint32_t b,
+  const ml::vec3& collapse_position)
+{
+    vertex_parents[b] = a;
+    vertex_positions[a] = collapse_position;
+    vertex_quadrics[a].m += vertex_quadrics[b].m;
+    boundary_vertices[a] =
+      boundary_vertices[a] || boundary_vertices[b];
+
+    std::size_t removed_triangles = 0;
+
+    auto affected = collect_affected_triangles(a, b);
+
+    // Remove old adjacency.
+    for(auto triangle_index: affected)
+    {
+        if(!active_triangles[triangle_index])
+        {
+            continue;
+        }
+
+        const auto roots = triangle_roots(triangles[triangle_index]);
+        for(auto v: roots)
+        {
+            auto& list = vertex_triangles[v];
+            std::erase(list, triangle_index);
+        }
+    }
+
+    // Reinsert updated triangles.
+    for(auto triangle_index: affected)
+    {
+        if(!active_triangles[triangle_index])
+        {
+            continue;
+        }
+
+        const auto roots = triangle_roots(triangles[triangle_index]);
+        if(!is_valid_triangle(roots))
+        {
+            active_triangles[triangle_index] = false;
+            ++removed_triangles;
+            continue;
+        }
+
+        for(auto v: roots)
+        {
+            vertex_triangles[v].push_back(triangle_index);
+        }
+    }
+
+    return removed_triangles;
+}
+
 void MeshSimplifier::rebuild_quadrics()
 {
     for(auto& quadric: vertex_quadrics)
@@ -444,10 +500,10 @@ void MeshSimplifier::rebuild_quadrics()
 
         const ml::vec3 normal = calculate_triangle_normal(roots, vertex_positions);
 
-        if(normal.length_squared() <= area_epsilon)
-        {
-            continue;
-        }
+        // if(normal.length_squared() <= area_epsilon)
+        // {
+        //     continue;
+        // }
 
         const ml::vec3 n = normal.normalized();
         const float d = -n.dot_product(vertex_positions[roots[0]]);
@@ -561,10 +617,10 @@ bool MeshSimplifier::collapse_preserves_triangle(
 
     const ml::vec3 old_normal = calculate_triangle_normal(roots, vertex_positions);
 
-    if(old_normal.length_squared() <= area_epsilon)
-    {
-        return false;
-    }
+    // if(old_normal.length_squared() <= area_epsilon)
+    // {
+    //     return false;
+    // }
 
     const ml::vec3 e0 =
       position_of(collapsed[1]) - position_of(collapsed[0]);
@@ -573,10 +629,10 @@ bool MeshSimplifier::collapse_preserves_triangle(
 
     const ml::vec3 new_normal = e0.cross_product(e1);
 
-    if(new_normal.length_squared() <= area_epsilon)
-    {
-        return false;
-    }
+    // if(new_normal.length_squared() <= area_epsilon)
+    // {
+    //     return false;
+    // }
 
     if(old_normal.normalized().dot_product(new_normal.normalized()) <= 0.f)
     {
@@ -657,16 +713,11 @@ void MeshSimplifier::simplify_until_target()
     std::size_t active_triangle_count = rebuild_adjacency();
     auto queue = build_edge_queue();
 
-    std::size_t attempts = 0;
-    const std::size_t max_attempts = triangles.size() * 10;
-
     while(active_triangle_count > simplify_stats.target_triangles
-          && !queue.empty()
-          && attempts < max_attempts)
+          && !queue.empty())
     {
         const auto candidate = queue.top();
         queue.pop();
-        ++attempts;
 
         const std::uint32_t a = root_of(candidate.a);
         const std::uint32_t b = root_of(candidate.b);
@@ -721,7 +772,9 @@ void MeshSimplifier::simplify_until_target()
         boundary_vertices[a] =
           boundary_vertices[a] || boundary_vertices[b];
 
-        active_triangle_count = rebuild_adjacency();
+        active_triangle_count -= collapse_edge(a, b, collapse_position);
+        assert(active_triangle_count < previous_triangle_count);
+
         queue = build_edge_queue();
 
         ++simplify_stats.accepted_collapses;
@@ -786,16 +839,16 @@ MeshData MeshSimplifier::build_output_mesh()
 
         const ml::vec3 face_normal = calculate_triangle_normal(roots, vertex_positions);
 
-        if(face_normal.length_squared() <= area_epsilon)
-        {
-            continue;
-        }
+        // if(face_normal.length_squared() <= area_epsilon)
+        // {
+        //     continue;
+        // }
 
         const std::uint32_t i0 = lod_vertex_for_root(roots[0]);
         const std::uint32_t i1 = lod_vertex_for_root(roots[1]);
         const std::uint32_t i2 = lod_vertex_for_root(roots[2]);
 
-        if(i0 == i1 || i0 == i2 || i1 == i2)
+        if(!is_valid_triangle({i0, i1, i2}))
         {
             continue;
         }

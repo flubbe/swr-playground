@@ -434,7 +434,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
       .weight = 3.f,
       .run = [&scene](TaskExecutionContext& context)
       {
-          const std::filesystem::path sample_mesh_path{"assets/models/bunny.obj"};
+          const std::filesystem::path sample_mesh_path{"assets/models/stanford-bunny.obj"};
 
           context.update(
             std::format(
