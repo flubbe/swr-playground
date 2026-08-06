@@ -36,7 +36,6 @@ struct StagedFloorData
 struct StagedStaticMeshSectionLod
 {
     MeshData mesh;
-    float min_screen_height{0.f};
     MeshBounds bounds;
 };
 
@@ -52,7 +51,6 @@ inline serial::Archive& operator&(
   StagedStaticMeshSectionLod& section)
 {
     ar & section.mesh;
-    ar & section.min_screen_height;
     ar & section.bounds;
     return ar;
 }

@@ -71,7 +71,6 @@ void StaticMesh::set_mesh_sections(
         mesh_lods.push_back(
           StaticMeshLod{
             .mesh_sections = std::move(sections),
-            .min_screen_height = 0.f,
             .bounds = bounds,
           });
     }

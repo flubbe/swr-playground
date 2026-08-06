@@ -476,7 +476,8 @@ std::size_t MeshSimplifier::collapse_edge(
     return removed_triangles;
 }
 
-void MeshSimplifier::rebuild_quadrics()
+void MeshSimplifier::rebuild_quadrics(
+  const EdgeMap& edges)
 {
     for(auto& quadric: vertex_quadrics)
     {
@@ -514,6 +515,41 @@ void MeshSimplifier::rebuild_quadrics()
         add_mesh_simplify_quadric(vertex_quadrics[roots[1]], q);
         add_mesh_simplify_quadric(vertex_quadrics[roots[2]], q);
     }
+
+    // Boundary Constraint Quadrics
+    for(const auto& [edge_key, faces]: edges)
+    {
+        if(faces.size() == 1)    // Boundary edge!
+        {
+            const auto [a, b] = unpack_edge_key(edge_key);
+
+            const ml::vec3 pa = vertex_positions[a];
+            const ml::vec3 pb = vertex_positions[b];
+
+            ml::vec3 edge_dir = pb - pa;
+            const float len_sq = edge_dir.length_squared();
+            if(len_sq <= 1e-12f)
+            {
+                continue;
+            }
+            edge_dir = edge_dir * (1.0f / std::sqrt(len_sq));
+
+            // Face normal of the single triangle on this boundary
+            const auto roots = triangle_roots(triangles[faces[0]]);
+            const ml::vec3 face_normal = calculate_triangle_normal(roots, vertex_positions).normalized();
+
+            // Constraint plane perpendicular to the face AND aligned along the boundary edge
+            const ml::vec3 constraint_normal = edge_dir.cross_product(face_normal).normalized();
+            const float d = -constraint_normal.dot_product(pa);
+
+            // Construct constraint plane quadric weighted heavily (Garland & Heckbert suggest ~240x weight)
+            auto boundary_q = make_mesh_simplify_quadric({constraint_normal.x, constraint_normal.y, constraint_normal.z, d});
+            boundary_q.m *= 200.0f;
+
+            add_mesh_simplify_quadric(vertex_quadrics[a], boundary_q);
+            add_mesh_simplify_quadric(vertex_quadrics[b], boundary_q);
+        }
+    }
 }
 
 detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
@@ -523,20 +559,29 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
     detail::MeshSimplifyQuadric q = vertex_quadrics[a];
     add_mesh_simplify_quadric(q, vertex_quadrics[b]);
 
-    const ml::vec3 midpoint = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
-    ml::vec3 optimal = midpoint;
+    const bool a_is_boundary = boundary_vertices[a];
+    const bool b_is_boundary = boundary_vertices[b];
 
-    const bool solved = solve_quadric_optimal_vertex(q, optimal);
-
-    const float midpoint_cost = q.evaluate({midpoint.x, midpoint.y, midpoint.z, 1.f});
-
-    const float optimal_cost =
-      solved
-        ? q.evaluate({optimal.x, optimal.y, optimal.z, 1.f})
-        : midpoint_cost;
+    ml::vec3 position;
+    if(a_is_boundary && b_is_boundary)
+    {
+        position = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
+    }
+    else if(a_is_boundary)
+    {
+        position = vertex_positions[a];
+    }
+    else if(b_is_boundary)
+    {
+        position = vertex_positions[b];
+    }
+    else if(!solve_quadric_optimal_vertex(q, position))
+    {
+        position = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
+    }
 
     return {
-      .cost = std::min(midpoint_cost, optimal_cost),
+      .cost = q.evaluate({position.x, position.y, position.z, 1.f}),
       .a = a,
       .b = b,
     };
@@ -544,13 +589,15 @@ detail::MeshSimplifyEdgeCandidate MeshSimplifier::make_edge_candidate(
 
 MeshSimplifier::EdgeQueue MeshSimplifier::build_edge_queue()
 {
-    rebuild_quadrics();
+    const auto edges = build_edges();
+    rebuild_quadrics(edges);
 
     EdgeQueue queue;
-
-    for(const auto& [edge_key, faces]: build_edges())
+    for(const auto& [edge_key, faces]: edges)
     {
-        if(faces.size() != 2)
+        if(
+          faces.size() != 1 /* boundary */
+          && faces.size() != 2)
         {
             continue;
         }
@@ -659,6 +706,43 @@ bool MeshSimplifier::can_collapse(
   const ml::vec3& collapse_position,
   const swr::vector<std::size_t>& affected)
 {
+    kept = root_of(kept);
+    removed = root_of(removed);
+
+    // Check for boundary pinching: If both vertices are boundary vertices,
+    // they must only be collapsed if they form an actual boundary edge (1 face).
+    // Collapsing an interior edge (2 faces) connecting two boundary vertices pinches/splits the hole!
+    if(boundary_vertices[kept] && boundary_vertices[removed])
+    {
+        std::size_t shared_face_count = 0;
+        for(const std::size_t triangle_index: affected)
+        {
+            if(!active_triangles[triangle_index])
+            {
+                continue;
+            }
+
+            const auto roots = triangle_roots(triangles[triangle_index]);
+            if(!is_valid_triangle(roots))
+            {
+                continue;
+            }
+
+            const bool has_kept = (roots[0] == kept || roots[1] == kept || roots[2] == kept);
+            const bool has_removed = (roots[0] == removed || roots[1] == removed || roots[2] == removed);
+
+            if(has_kept && has_removed)
+            {
+                ++shared_face_count;
+            }
+        }
+
+        if(shared_face_count > 1)
+        {
+            return false;
+        }
+    }
+
     swr::unordered_set<std::uint64_t> affected_keys;
     swr::unordered_set<std::uint64_t> proposed;
     affected_keys.reserve(affected.size());
@@ -734,7 +818,22 @@ void MeshSimplifier::simplify_until_target()
           .m = vertex_quadrics[a].m + vertex_quadrics[b].m};
 
         ml::vec3 collapse_position;
-        if(!solve_quadric_optimal_vertex(quadric, collapse_position))
+        const bool a_is_boundary = boundary_vertices[a];
+        const bool b_is_boundary = boundary_vertices[b];
+
+        if(a_is_boundary && b_is_boundary)
+        {
+            collapse_position = (vertex_positions[a] + vertex_positions[b]) * 0.5f;
+        }
+        else if(a_is_boundary)
+        {
+            collapse_position = vertex_positions[a];
+        }
+        else if(b_is_boundary)
+        {
+            collapse_position = vertex_positions[b];
+        }
+        else if(!solve_quadric_optimal_vertex(quadric, collapse_position))
         {
             const ml::vec3 pa = vertex_positions[a];
             const ml::vec3 pb = vertex_positions[b];
@@ -772,8 +871,9 @@ void MeshSimplifier::simplify_until_target()
         boundary_vertices[a] =
           boundary_vertices[a] || boundary_vertices[b];
 
-        active_triangle_count -= collapse_edge(a, b, collapse_position);
-        assert(active_triangle_count < previous_triangle_count);
+        const std::size_t removed = collapse_edge(a, b, collapse_position);
+        assert(removed <= active_triangle_count);
+        active_triangle_count -= removed;
 
         queue = build_edge_queue();
 

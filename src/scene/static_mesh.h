@@ -27,9 +27,6 @@ struct StaticMeshLod
     /** Triangle count in this level of detail. */
     std::size_t triangle_count{0};
 
-    /** Minimum projected screen-height fraction required to select this LOD. */
-    float min_screen_height{0.f};
-
     /** Combined local-space bounds for all sections in this LOD. */
     MeshBounds bounds;
 };

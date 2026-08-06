@@ -163,7 +163,7 @@ void draw_tools_panel(
              &display_settings.target_pixels_per_triangle,
              1.f,
              0.5f,
-             16.f))
+             256.f))
         {
             update_display_settings = true;
         }

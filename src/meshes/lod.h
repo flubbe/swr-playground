@@ -9,7 +9,6 @@
 struct StaticMeshLodMesh
 {
     MeshData mesh;
-    float min_screen_height = 0.f;
 };
 
 struct StaticMeshLodBuildResult
@@ -22,14 +21,6 @@ struct StaticMeshLodBuildEntry
 {
     /** Fraction of source triangles to keep. */
     float triangle_fraction{1.f};
-
-    /**
-     * Minimum projected screen-height fraction required
-     * before this LOD becomes active.
-     *
-     * Larger values = higher detail.
-     */
-    float min_screen_height{0.f};
 };
 
 struct StaticMeshLodBuildSettings
@@ -42,15 +33,18 @@ struct StaticMeshLodBuildSettings
     swr::vector<StaticMeshLodBuildEntry> lods{
       {
         .triangle_fraction = 1.f,
-        .min_screen_height = 0.50f,
       },
       {
         .triangle_fraction = 0.5f,
-        .min_screen_height = 0.18f,
       },
       {
         .triangle_fraction = 0.25f,
-        .min_screen_height = 0.0f,
+      },
+      {
+        .triangle_fraction = 0.125f,
+      },
+      {
+        .triangle_fraction = 0.0625f,
       },
     };
 
@@ -134,10 +128,7 @@ public:
                 stats = simplifier.stats();
             }
 
-            result.lod_meshes.push_back({
-              .mesh = std::move(lod_mesh),
-              .min_screen_height = entry.min_screen_height,
-            });
+            result.lod_meshes.push_back({.mesh = std::move(lod_mesh)});
 
             result.simplify_stats.push_back(stats);
         }

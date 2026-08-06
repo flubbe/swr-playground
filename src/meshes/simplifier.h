@@ -27,7 +27,7 @@
 struct MeshSimplifySettings
 {
     float target_triangle_fraction = 0.5f;
-    bool preserve_boundaries = false;
+    bool preserve_boundaries = true;
     bool recompute_normals = true;
 };
 
@@ -155,7 +155,8 @@ private:
       std::uint32_t b,
       const ml::vec3& collapse_position);
 
-    void rebuild_quadrics();
+    void rebuild_quadrics(
+      const EdgeMap& edges);
 
     [[nodiscard]]
     detail::MeshSimplifyEdgeCandidate make_edge_candidate(

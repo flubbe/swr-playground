@@ -768,8 +768,6 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 
     for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
-        result_lods[i].min_screen_height =
-          staged_asset.sections.front().lods[i].min_screen_height;
         result_lods[i].triangle_count =
           staged_asset.sections.front().lods[i].mesh.indices.size() / 3;
     }

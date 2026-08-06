@@ -177,7 +177,6 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
             section.lods.push_back(
               StagedStaticMeshSectionLod{
                 .mesh = lod_mesh.mesh,
-                .min_screen_height = lod_mesh.min_screen_height,
                 .bounds = calculate_mesh_bounds(lod_mesh.mesh),
               });
         }
@@ -434,7 +433,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
       .weight = 3.f,
       .run = [&scene](TaskExecutionContext& context)
       {
-          const std::filesystem::path sample_mesh_path{"assets/models/stanford-bunny.obj"};
+          const std::filesystem::path sample_mesh_path{"assets/models/bunny.obj"};
 
           context.update(
             std::format(
