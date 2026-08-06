@@ -250,7 +250,7 @@ void MeshSimplifier::reset(
     simplify_stats.input_triangles = triangles.size();
     simplify_stats.target_triangles =
       std::max(
-        1uz,
+        settings.min_triangle_count,
         static_cast<std::size_t>(
           static_cast<float>(triangles.size())
           * simplify_settings.target_triangle_fraction));

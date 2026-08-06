@@ -27,6 +27,10 @@
 struct MeshSimplifySettings
 {
     float target_triangle_fraction = 0.5f;
+
+    /** Minimal triangle count. */
+    std::size_t min_triangle_count = 64uz;
+
     bool preserve_boundaries = true;
     bool recompute_normals = true;
 };
