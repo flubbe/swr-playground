@@ -132,7 +132,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
 
-TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
+TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 {
     ensure_scene_reflection_ready();
 
@@ -146,8 +146,9 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
                 .material_handle = {.value = 20},
               },
             },
-          .min_screen_height = 0.4f,
-          .bounds = {}},
+          .triangle_count = 100000,
+          .bounds = {},
+        },
         StaticMeshLod{
           .mesh_sections =
             {
@@ -156,8 +157,9 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
                 .material_handle = {.value = 21},
               },
             },
-          .min_screen_height = 0.15f,
-          .bounds = {}},
+          .triangle_count = 10000,
+          .bounds = {},
+        },
         StaticMeshLod{
           .mesh_sections =
             {
@@ -166,14 +168,26 @@ TEST(SceneTests, StaticMeshSelectsLodFromScreenHeight)
                 .material_handle = {.value = 22},
               },
             },
-          .min_screen_height = 0.f,
-          .bounds = {}},
+          .triangle_count = 1000,
+          .bounds = {},
+        },
       }};
 
     EXPECT_EQ(mesh.get_lod_count(), 3U);
-    EXPECT_EQ(mesh.select_lod(0.5f, 2.f), 0U);
-    EXPECT_EQ(mesh.select_lod(0.2f, 2.f), 1U);
-    EXPECT_EQ(mesh.select_lod(0.05f, 2.f), 2U);
+
+    constexpr float target = 2.0f;
+
+    // 200000 / 100000 = 2 px/triangle
+    EXPECT_EQ(mesh.select_lod(200000.0f, target), 0U);
+
+    // 20000 / 100000 = 0.2  (reject LOD0)
+    // 20000 / 10000  = 2.0  (accept LOD1)
+    EXPECT_EQ(mesh.select_lod(20000.0f, target), 1U);
+
+    // 2000 / 100000 = 0.02  (reject LOD0)
+    // 2000 / 10000  = 0.2   (reject LOD1)
+    // 2000 / 1000   = 2.0   (accept LOD2)
+    EXPECT_EQ(mesh.select_lod(2000.0f, target), 2U);
 }
 
 TEST(SceneTests, StaticMeshStoresCachedBounds)
