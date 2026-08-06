@@ -19,6 +19,12 @@
 namespace
 {
 
+/**
+ * Constructs a quadric error matrix from a given plane equation.
+ *
+ * @param plane The plane to base the quadric on.
+ * @returns A quadric structure representing the squared distance to the plane.
+ */
 detail::MeshSimplifyQuadric make_mesh_simplify_quadric(
   const ml::plane& plane)
 {
@@ -26,6 +32,12 @@ detail::MeshSimplifyQuadric make_mesh_simplify_quadric(
       .m = ml::outer_product(plane, plane)};
 }
 
+/**
+ * Adds the matrix of a source quadric into a target quadric.
+ *
+ * @param target The quadric being accumulated into.
+ * @param source The quadric to add.
+ */
 void add_mesh_simplify_quadric(
   detail::MeshSimplifyQuadric& target,
   const detail::MeshSimplifyQuadric& source)
@@ -163,6 +175,15 @@ std::uint64_t triangle_key(
            | static_cast<std::uint64_t>(c);
 }
 
+/**
+ * Replaces any occurrence of a removed vertex index with the kept
+ * vertex index within a triangle.
+ *
+ * @param roots The original triangle vertex indices.
+ * @param removed The vertex index being collapsed.
+ * @param kept The vertex index that remains.
+ * @returns The updated triangle vertex indices.
+ */
 [[nodiscard]]
 std::array<std::uint32_t, 3> collapsed_roots(
   std::array<std::uint32_t, 3> roots,
@@ -359,7 +380,7 @@ MeshSimplifier::EdgeMap MeshSimplifier::build_edges()
     return edges;
 }
 
-std::size_t MeshSimplifier::rebuild_adjacency()
+std::size_t MeshSimplifier::build_adjacency()
 {
     for(auto& list: vertex_triangles)
     {
@@ -420,60 +441,29 @@ std::size_t MeshSimplifier::rebuild_adjacency()
     return active_count;
 }
 
-std::size_t MeshSimplifier::collapse_edge(
+swr::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
   std::uint32_t a,
-  std::uint32_t b,
-  const ml::vec3& collapse_position)
+  std::uint32_t b)
 {
-    vertex_parents[b] = a;
-    vertex_positions[a] = collapse_position;
-    vertex_quadrics[a].m += vertex_quadrics[b].m;
-    boundary_vertices[a] =
-      boundary_vertices[a] || boundary_vertices[b];
+    swr::vector<std::size_t> affected;
+    swr::vector<bool> seen(triangles.size(), false);
 
-    std::size_t removed_triangles = 0;
-
-    auto affected = collect_affected_triangles(a, b);
-
-    // Remove old adjacency.
-    for(auto triangle_index: affected)
+    const auto append = [&](std::uint32_t vertex)
     {
-        if(!active_triangles[triangle_index])
+        for(const std::size_t triangle_index: vertex_triangles[vertex])
         {
-            continue;
+            if(!seen[triangle_index])
+            {
+                seen[triangle_index] = true;
+                affected.push_back(triangle_index);
+            }
         }
+    };
 
-        const auto roots = triangle_roots(triangles[triangle_index]);
-        for(auto v: roots)
-        {
-            auto& list = vertex_triangles[v];
-            std::erase(list, triangle_index);
-        }
-    }
+    append(a);
+    append(b);
 
-    // Reinsert updated triangles.
-    for(auto triangle_index: affected)
-    {
-        if(!active_triangles[triangle_index])
-        {
-            continue;
-        }
-
-        const auto roots = triangle_roots(triangles[triangle_index]);
-        if(!is_valid_triangle(roots))
-        {
-            active_triangles[triangle_index] = false;
-            ++removed_triangles;
-            continue;
-        }
-
-        for(auto v: roots)
-        {
-            vertex_triangles[v].push_back(triangle_index);
-        }
-    }
-
-    return removed_triangles;
+    return affected;
 }
 
 void MeshSimplifier::rebuild_quadrics(
@@ -499,17 +489,10 @@ void MeshSimplifier::rebuild_quadrics(
             continue;
         }
 
-        const ml::vec3 normal = calculate_triangle_normal(roots, vertex_positions);
+        const ml::vec3 normal = calculate_triangle_normal(roots, vertex_positions).normalized();
+        const float d = -normal.dot_product(vertex_positions[roots[0]]);
 
-        // if(normal.length_squared() <= area_epsilon)
-        // {
-        //     continue;
-        // }
-
-        const ml::vec3 n = normal.normalized();
-        const float d = -n.dot_product(vertex_positions[roots[0]]);
-
-        const auto q = make_mesh_simplify_quadric({n.x, n.y, n.z, d});
+        const auto q = make_mesh_simplify_quadric({normal, d});
 
         add_mesh_simplify_quadric(vertex_quadrics[roots[0]], q);
         add_mesh_simplify_quadric(vertex_quadrics[roots[1]], q);
@@ -519,7 +502,7 @@ void MeshSimplifier::rebuild_quadrics(
     // Boundary Constraint Quadrics
     for(const auto& [edge_key, faces]: edges)
     {
-        if(faces.size() == 1)    // Boundary edge!
+        if(faces.size() == 1)    // Boundary edge
         {
             const auto [a, b] = unpack_edge_key(edge_key);
 
@@ -616,31 +599,6 @@ MeshSimplifier::EdgeQueue MeshSimplifier::build_edge_queue()
     return queue;
 }
 
-swr::vector<std::size_t> MeshSimplifier::collect_affected_triangles(
-  std::uint32_t a,
-  std::uint32_t b)
-{
-    swr::vector<std::size_t> affected;
-    swr::vector<bool> seen(triangles.size(), false);
-
-    const auto append = [&](std::uint32_t vertex)
-    {
-        for(const std::size_t triangle_index: vertex_triangles[vertex])
-        {
-            if(!seen[triangle_index])
-            {
-                seen[triangle_index] = true;
-                affected.push_back(triangle_index);
-            }
-        }
-    };
-
-    append(a);
-    append(b);
-
-    return affected;
-}
-
 bool MeshSimplifier::collapse_preserves_triangle(
   const std::array<std::uint32_t, 3>& roots,
   std::uint32_t removed,
@@ -664,22 +622,12 @@ bool MeshSimplifier::collapse_preserves_triangle(
 
     const ml::vec3 old_normal = calculate_triangle_normal(roots, vertex_positions);
 
-    // if(old_normal.length_squared() <= area_epsilon)
-    // {
-    //     return false;
-    // }
-
     const ml::vec3 e0 =
       position_of(collapsed[1]) - position_of(collapsed[0]);
     const ml::vec3 e1 =
       position_of(collapsed[2]) - position_of(collapsed[0]);
 
     const ml::vec3 new_normal = e0.cross_product(e1);
-
-    // if(new_normal.length_squared() <= area_epsilon)
-    // {
-    //     return false;
-    // }
 
     if(old_normal.normalized().dot_product(new_normal.normalized()) <= 0.f)
     {
@@ -792,14 +740,39 @@ bool MeshSimplifier::can_collapse(
     return true;
 }
 
-void MeshSimplifier::push_vertex_edges_to_queue(
-  std::uint32_t v,
-  EdgeQueue& queue)
+std::size_t MeshSimplifier::collapse_edge(
+  std::uint32_t a,
+  std::uint32_t b,
+  const ml::vec3& collapse_position)
 {
-    v = root_of(v);
-    swr::unordered_set<std::uint32_t> neighbors;
+    vertex_parents[b] = a;
+    vertex_positions[a] = collapse_position;
+    vertex_quadrics[a].m += vertex_quadrics[b].m;
+    boundary_vertices[a] =
+      boundary_vertices[a] || boundary_vertices[b];
 
-    for(const std::size_t triangle_index: vertex_triangles[v])
+    std::size_t removed_triangles = 0;
+
+    auto affected = collect_affected_triangles(a, b);
+
+    // Remove old adjacency.
+    for(auto triangle_index: affected)
+    {
+        if(!active_triangles[triangle_index])
+        {
+            continue;
+        }
+
+        const auto roots = triangle_roots(triangles[triangle_index]);
+        for(auto v: roots)
+        {
+            auto& list = vertex_triangles[v];
+            std::erase(list, triangle_index);
+        }
+    }
+
+    // Reinsert updated triangles.
+    for(auto triangle_index: affected)
     {
         if(!active_triangles[triangle_index])
         {
@@ -809,33 +782,23 @@ void MeshSimplifier::push_vertex_edges_to_queue(
         const auto roots = triangle_roots(triangles[triangle_index]);
         if(!is_valid_triangle(roots))
         {
+            active_triangles[triangle_index] = false;
+            ++removed_triangles;
             continue;
         }
 
-        for(const auto root: roots)
+        for(auto v: roots)
         {
-            if(root != v)
-            {
-                neighbors.insert(root);
-            }
+            vertex_triangles[v].push_back(triangle_index);
         }
     }
 
-    for(const auto neighbor: neighbors)
-    {
-        if(simplify_settings.preserve_boundaries
-           && (boundary_vertices[v] || boundary_vertices[neighbor]))
-        {
-            continue;
-        }
-
-        queue.push(make_edge_candidate(v, neighbor));
-    }
+    return removed_triangles;
 }
 
 void MeshSimplifier::simplify_until_target()
 {
-    std::size_t active_triangle_count = rebuild_adjacency();
+    std::size_t active_triangle_count = build_adjacency();
     auto queue = build_edge_queue();
 
     while(active_triangle_count > simplify_stats.target_triangles
@@ -987,11 +950,6 @@ MeshData MeshSimplifier::build_output_mesh()
 
         const ml::vec3 face_normal = calculate_triangle_normal(roots, vertex_positions);
 
-        // if(face_normal.length_squared() <= area_epsilon)
-        // {
-        //     continue;
-        // }
-
         const std::uint32_t i0 = lod_vertex_for_root(roots[0]);
         const std::uint32_t i1 = lod_vertex_for_root(roots[1]);
         const std::uint32_t i2 = lod_vertex_for_root(roots[2]);
@@ -1037,4 +995,45 @@ MeshData MeshSimplifier::build_output_mesh()
 
     simplify_stats.output_triangles = lod.indices.size() / 3;
     return lod;
+}
+
+void MeshSimplifier::push_vertex_edges_to_queue(
+  std::uint32_t v,
+  EdgeQueue& queue)
+{
+    v = root_of(v);
+    swr::unordered_set<std::uint32_t> neighbors;
+
+    for(const std::size_t triangle_index: vertex_triangles[v])
+    {
+        if(!active_triangles[triangle_index])
+        {
+            continue;
+        }
+
+        const auto roots = triangle_roots(triangles[triangle_index]);
+        if(!is_valid_triangle(roots))
+        {
+            continue;
+        }
+
+        for(const auto root: roots)
+        {
+            if(root != v)
+            {
+                neighbors.insert(root);
+            }
+        }
+    }
+
+    for(const auto neighbor: neighbors)
+    {
+        if(simplify_settings.preserve_boundaries
+           && (boundary_vertices[v] || boundary_vertices[neighbor]))
+        {
+            continue;
+        }
+
+        queue.push(make_edge_candidate(v, neighbor));
+    }
 }
