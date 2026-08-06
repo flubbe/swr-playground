@@ -155,6 +155,10 @@ private:
       std::uint32_t b,
       const ml::vec3& collapse_position);
 
+    void push_vertex_edges_to_queue(
+      std::uint32_t v,
+      EdgeQueue& queue);
+
     void rebuild_quadrics(
       const EdgeMap& edges);
 

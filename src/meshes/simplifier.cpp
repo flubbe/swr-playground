@@ -792,6 +792,47 @@ bool MeshSimplifier::can_collapse(
     return true;
 }
 
+void MeshSimplifier::push_vertex_edges_to_queue(
+  std::uint32_t v,
+  EdgeQueue& queue)
+{
+    v = root_of(v);
+    swr::unordered_set<std::uint32_t> neighbors;
+
+    for(const std::size_t triangle_index: vertex_triangles[v])
+    {
+        if(!active_triangles[triangle_index])
+        {
+            continue;
+        }
+
+        const auto roots = triangle_roots(triangles[triangle_index]);
+        if(!is_valid_triangle(roots))
+        {
+            continue;
+        }
+
+        for(const auto root: roots)
+        {
+            if(root != v)
+            {
+                neighbors.insert(root);
+            }
+        }
+    }
+
+    for(const auto neighbor: neighbors)
+    {
+        if(simplify_settings.preserve_boundaries
+           && (boundary_vertices[v] || boundary_vertices[neighbor]))
+        {
+            continue;
+        }
+
+        queue.push(make_edge_candidate(v, neighbor));
+    }
+}
+
 void MeshSimplifier::simplify_until_target()
 {
     std::size_t active_triangle_count = rebuild_adjacency();
@@ -806,9 +847,14 @@ void MeshSimplifier::simplify_until_target()
         const std::uint32_t a = root_of(candidate.a);
         const std::uint32_t b = root_of(candidate.b);
 
-        if(a == b
-           || (simplify_settings.preserve_boundaries
-               && (boundary_vertices[a] || boundary_vertices[b])))
+        // Stale edge check: degenerate or already merged
+        if(a == b)
+        {
+            continue;
+        }
+
+        if(simplify_settings.preserve_boundaries
+           && (boundary_vertices[a] || boundary_vertices[b]))
         {
             ++simplify_stats.rejected_collapses;
             continue;
@@ -865,17 +911,11 @@ void MeshSimplifier::simplify_until_target()
             continue;
         }
 
-        vertex_parents[b] = a;
-        vertex_positions[a] = collapse_position;
-        vertex_quadrics[a].m = vertex_quadrics[a].m + vertex_quadrics[b].m;
-        boundary_vertices[a] =
-          boundary_vertices[a] || boundary_vertices[b];
+        const std::size_t removed_count = collapse_edge(a, b, collapse_position);
+        active_triangle_count -= removed_count;
 
-        const std::size_t removed = collapse_edge(a, b, collapse_position);
-        assert(removed <= active_triangle_count);
-        active_triangle_count -= removed;
-
-        queue = build_edge_queue();
+        // Push newly affected local edges into the queue rather than rebuilding whole queue
+        push_vertex_edges_to_queue(a, queue);
 
         ++simplify_stats.accepted_collapses;
     }

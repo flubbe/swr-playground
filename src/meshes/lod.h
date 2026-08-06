@@ -25,27 +25,13 @@ struct StaticMeshLodBuildEntry
 
 struct StaticMeshLodBuildSettings
 {
-    /**
-     * LODs to generate.
-     *
-     * Usually ordered from highest detail to lowest detail.
-     */
+    /** LODs to generate. */
     swr::vector<StaticMeshLodBuildEntry> lods{
-      {
-        .triangle_fraction = 1.f,
-      },
-      {
-        .triangle_fraction = 0.5f,
-      },
-      {
-        .triangle_fraction = 0.25f,
-      },
-      {
-        .triangle_fraction = 0.125f,
-      },
-      {
-        .triangle_fraction = 0.0625f,
-      },
+      {.triangle_fraction = 1.0f},      // LOD0: Original (Near camera)
+      {.triangle_fraction = 0.5f},      // LOD1: ~50% reduction
+      {.triangle_fraction = 0.25f},     // LOD2: ~75% reduction
+      {.triangle_fraction = 0.125f},    // LOD3: ~87.5% reduction
+      {.triangle_fraction = 0.03f},     // LOD4: ~97% reduction (Extreme distance silhouette)
     };
 
     /** Prevent collapsing boundary edges. */
