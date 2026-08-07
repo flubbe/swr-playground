@@ -153,47 +153,6 @@ bool bounds_intersect_frustum(
                }));
 }
 
-std::pair<float, float> estimate_screen_dimensions_fraction(
-  const MeshBounds& bounds,
-  const ml::mat4x4& clip_from_mesh)
-{
-    if(!bounds.valid)
-    {
-        return {1.f, 1.f};
-    }
-
-    constexpr float w_epsilon = 0.0001f;
-
-    float min_x = std::numeric_limits<float>::max();
-    float max_x = std::numeric_limits<float>::lowest();
-
-    float min_y = std::numeric_limits<float>::max();
-    float max_y = std::numeric_limits<float>::lowest();
-
-    const auto corners = make_bounds_corners(bounds);
-    for(const auto& corner: corners)
-    {
-        const ml::vec4 clip = clip_from_mesh * corner;
-        if(clip.w <= w_epsilon)
-        {
-            return {1.f, 1.f};
-        }
-
-        const float ndc_x = clip.x / clip.w;
-        const float ndc_y = clip.y / clip.w;
-
-        min_x = std::min(min_x, ndc_x);
-        max_x = std::max(max_x, ndc_x);
-
-        min_y = std::min(min_y, ndc_y);
-        max_y = std::max(max_y, ndc_y);
-    }
-
-    return {
-      std::clamp((max_x - min_x) * 0.5f, 0.f, 1.f),
-      std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f)};
-}
-
 float estimate_sort_depth(
   const MeshBounds& bounds,
   const ml::mat4x4& view_from_mesh)
@@ -345,7 +304,9 @@ void Renderer::build_render_queue(
             continue;
         }
 
-        const auto obj_view = view * static_mesh.get_transform();
+        const auto obj_transform = static_mesh.get_transform();
+
+        const auto obj_view = view * obj_transform;
         const auto obj_clip = projection * obj_view;
         const ml::mat4x4 shadow_clip_from_mesh =
           shadow_camera.has_value()
@@ -372,12 +333,25 @@ void Renderer::build_render_queue(
             continue;
         }
 
-        const auto [screen_width_fraction, screen_height_fraction] =
-          estimate_screen_dimensions_fraction(mesh_bounds, obj_clip);
-        const float screen_width_pixels = screen_width_fraction * device.get_height();
-        const float screen_height_pixels = screen_height_fraction * device.get_height();
+        const ml::vec3 view_center =
+          (obj_view * ml::vec4{mesh_bounds.center, 1.f}).xyz();
+
+        const float distance = -view_center.z;
+        if(distance <= 0.0f)
+        {
+            continue;
+        }
+
+        const float scale =
+          std::max({obj_transform.rows[0].xyz().length(),
+                    obj_transform.rows[1].xyz().length(),
+                    obj_transform.rows[2].xyz().length()});
+        const float world_radius =
+          mesh_bounds.radius * scale;
+        const float projected_radius_pixels =
+          world_radius * projection.rows[1].y * device.get_height() * 0.5f / distance;
         const float projected_pixel_area =
-          screen_width_pixels * screen_height_pixels;
+          std::numbers::pi_v<float> * projected_radius_pixels * projected_radius_pixels;
 
         const std::size_t lod_index =
           display_settings.dynamic_lod

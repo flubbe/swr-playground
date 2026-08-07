@@ -48,15 +48,18 @@ struct GearInit
 };
 
 MeshBounds calculate_imported_mesh_bounds(
-  const ImportedStaticMesh& imported_mesh)
+  ImportedStaticMesh& imported_mesh)
 {
     MeshBounds bounds;
-    for(const auto& mesh: imported_mesh.meshes)
+
+    for(auto& mesh: imported_mesh.meshes)
     {
-        expand_bounds(
-          bounds,
-          calculate_mesh_bounds(mesh.mesh_data));
+        mesh.bounds = calculate_mesh_bounds(mesh.mesh_data);
+        expand_bounds(bounds, mesh.bounds);
     }
+
+    bounds.center = (bounds.min + bounds.max) * 0.5f;
+    bounds.radius = (bounds.center - bounds.max).length();
 
     return bounds;
 }

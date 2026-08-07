@@ -693,6 +693,9 @@ GearParameters create_gear_resources(
       device,
       outer_mesh);
 
+    bounds.center = (bounds.min + bounds.max) * 0.5f;
+    bounds.radius = (bounds.center - bounds.max).length();
+
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
@@ -799,6 +802,13 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
       {
           return lod.mesh_sections.empty();
       });
+
+    for(auto& lod: result_lods)
+    {
+        lod.bounds.center = (lod.bounds.min + lod.bounds.max) * 0.5f;
+        lod.bounds.radius = (lod.bounds.center - lod.bounds.max).length();
+    }
+
     return result_lods;
 }
 

@@ -97,6 +97,12 @@ struct MeshBounds
     /** Maximum corner. */
     ml::vec3 max{};
 
+    /** Bounding sphere center. */
+    ml::vec3 center{};
+
+    /** Bounding sphere radius. */
+    float radius{0.f};
+
     /** Whether the bounds contain at least one point. */
     bool valid{false};
 };
@@ -114,6 +120,8 @@ inline serial::Archive& operator&(
 {
     ar & bounds.min
       & bounds.max
+      & bounds.center
+      & bounds.radius
       & bounds.valid;
     return ar;
 }

@@ -63,5 +63,13 @@ MeshBounds calculate_mesh_bounds(
         expand_bounds(bounds, vertex);
     }
 
+    bounds.center = (bounds.min + bounds.max) * 0.5f;
+    for(const auto& vertex: mesh.vertices)
+    {
+        bounds.radius = std::max(
+          bounds.radius,
+          (vertex.xyz() - bounds.center).length());
+    }
+
     return bounds;
 }
