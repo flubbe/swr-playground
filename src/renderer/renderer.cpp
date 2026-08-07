@@ -153,24 +153,23 @@ bool bounds_intersect_frustum(
                }));
 }
 
+/**
+ * Estimate the depth of a mesh using the mesh bounds' center.
+ *
+ * @param bounds Mesh bounds.
+ * @param transform Mesh transformation matrix.
+ * @returns Returns the estimated depth.
+ */
 float estimate_sort_depth(
   const MeshBounds& bounds,
-  const ml::mat4x4& view_from_mesh)
+  const ml::mat4x4& transform)
 {
-    ml::vec4 local_center{0.f, 0.f, 0.f, 1.f};
-    if(bounds.valid)
-    {
-        local_center = {
-          (bounds.min.x + bounds.max.x) * 0.5f,
-          (bounds.min.y + bounds.max.y) * 0.5f,
-          (bounds.min.z + bounds.max.z) * 0.5f,
-          1.f,
-        };
-    }
+    const ml::vec4 local_center =
+      bounds.valid
+        ? ml::vec4{bounds.center, 1.f}
+        : ml::vec4{0.f, 0.f, 0.f, 1.f};
 
-    // In view space, visible geometry is typically in negative Z.
-    // Sorting by -z yields near-to-far submission.
-    const ml::vec4 view_center = view_from_mesh * local_center;
+    const ml::vec4 view_center = transform * local_center;
     return -view_center.z;
 }
 
@@ -305,36 +304,20 @@ void Renderer::build_render_queue(
         }
 
         const auto obj_transform = static_mesh.get_transform();
+        const auto& obj_bounds = static_mesh.get_bounds();
 
         const auto obj_view = view * obj_transform;
         const auto obj_clip = projection * obj_view;
-        const ml::mat4x4 shadow_clip_from_mesh =
-          shadow_camera.has_value()
-            ? make_shadow_bias_matrix()
-                * shadow_camera->proj
-                * shadow_camera->view
-                * static_mesh.get_transform()
-            : ml::mat4x4::identity();
-        const float obj_sort_depth =
-          estimate_sort_depth(static_mesh.get_bounds(), obj_view);
 
-        const MeshBounds& mesh_bounds = static_mesh.get_bounds();
         if(display_settings.cull_frustum
-           && mesh_bounds.valid
-           && !bounds_intersect_frustum(mesh_bounds, obj_clip))
+           && obj_bounds.valid
+           && !bounds_intersect_frustum(obj_bounds, obj_clip))
         {
-            const auto& culled_lod = static_mesh.get_lod(0);
-            render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
-            for(const auto& section: culled_lod.mesh_sections)
-            {
-                render_stats.triangles_frustum_culled +=
-                  device.get_mesh_triangle_count(section.mesh_handle);
-            }
             continue;
         }
 
         const ml::vec3 view_center =
-          (obj_view * ml::vec4{mesh_bounds.center, 1.f}).xyz();
+          (obj_view * ml::vec4{obj_bounds.center, 1.f}).xyz();
 
         const float distance = -view_center.z;
         if(distance <= 0.0f)
@@ -342,12 +325,25 @@ void Renderer::build_render_queue(
             continue;
         }
 
+        const float obj_sort_depth =
+          estimate_sort_depth(obj_bounds, obj_view);
+
+        ml::mat4x4 shadow_clip_from_mesh = ml::mat4x4::identity();
+        if(shadow_camera)
+        {
+            shadow_clip_from_mesh =
+              make_shadow_bias_matrix()
+              * shadow_camera->proj
+              * shadow_camera->view
+              * obj_transform;
+        }
+
         const float scale =
           std::max({obj_transform.rows[0].xyz().length(),
                     obj_transform.rows[1].xyz().length(),
                     obj_transform.rows[2].xyz().length()});
         const float world_radius =
-          mesh_bounds.radius * scale;
+          obj_bounds.radius * scale;
         const float projected_radius_pixels =
           world_radius * projection.rows[1].y * device.get_height() * 0.5f / distance;
         const float projected_pixel_area =
@@ -365,16 +361,7 @@ void Renderer::build_render_queue(
         const auto& lod = static_mesh.get_lod(lod_index);
         for(const auto& section: lod.mesh_sections)
         {
-            const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
-            if(display_settings.cull_frustum
-               && bounds != nullptr
-               && !bounds_intersect_frustum(*bounds, obj_clip))
-            {
-                ++render_stats.mesh_sections_culled;
-                render_stats.triangles_frustum_culled +=
-                  device.get_mesh_triangle_count(section.mesh_handle);
-                continue;
-            }
+            // TODO We could add bound checks for the mesh sections here.
 
             render_queue.push_back({
               .sort_depth = obj_sort_depth,
@@ -393,6 +380,8 @@ void Renderer::build_render_queue(
                 .linear_filter = shadow_linear_filter,
               },
             });
+
+            // update stats.
             ++render_stats.mesh_sections_drawn;
             render_stats.triangles_submitted +=
               device.get_mesh_triangle_count(section.mesh_handle);

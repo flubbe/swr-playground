@@ -34,7 +34,6 @@ struct RendererStats
     std::size_t mesh_sections_drawn{0};
     std::size_t mesh_sections_culled{0};
     std::size_t triangles_submitted{0};
-    std::size_t triangles_frustum_culled{0};
     std::array<std::size_t, tracked_lod_count> static_mesh_lods_selected{};
     std::size_t static_mesh_lods_selected_overflow{0};
 };
