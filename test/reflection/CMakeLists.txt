@@ -20,5 +20,4 @@ target_link_libraries(reflection_tests PRIVATE
     GTest::gtest_main
 )
 
-include(GoogleTest)
 gtest_discover_tests(reflection_tests)
