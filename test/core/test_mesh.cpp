@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include "mesh.h"
-#include "mesh_simplifier.h"
+#include "meshes/mesh.h"
+#include "meshes/simplifier.h"
 
 TEST(MeshTests, MeshSimplifierCollapsesClosedMeshEdges)
 {
@@ -49,7 +49,7 @@ TEST(MeshTests, MeshSimplifierCollapsesClosedMeshEdges)
     MeshSimplifier simplifier;
     const MeshData lod = simplifier.simplify(
       mesh,
-      MeshSimplifySettings{.target_triangle_fraction = 0.5f});
+      MeshSimplifySettings{.target_triangle_fraction = 0.5f, .min_triangle_count = 1});
     const MeshSimplifyStats& stats = simplifier.stats();
 
     EXPECT_EQ(lod.primitive_type, PrimitiveType::Triangles);

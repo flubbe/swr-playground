@@ -11,8 +11,8 @@
 #pragma once
 
 #include <future>
-#include <memory>
 
+#include "containers/memory.h"
 #include "containers/vector.h"
 #include "dag.h"
 
@@ -33,8 +33,8 @@ namespace task_system
  */
 void run_task_specs_scheduler(
   concurrency_utils::deferred_thread_pool<>& thread_pool,
-  const std::shared_ptr<TaskSharedState>& state,
-  const std::shared_ptr<std::promise<void>>& promise,
+  const swr::shared_ptr<TaskSharedState>& state,
+  const swr::shared_ptr<std::promise<void>>& promise,
   swr::vector<TaskSpec> tasks,
   TaskSchedulingData scheduling_data);
 

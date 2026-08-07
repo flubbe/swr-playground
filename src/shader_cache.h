@@ -3,11 +3,11 @@
 #include <algorithm>
 #include <concepts>
 #include <cstddef>
-#include <memory>
 #include <utility>
 
 #include <swr/shaders.h>
 
+#include "containers/memory.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 
@@ -44,7 +44,7 @@ class ShaderCache
 {
     /** Cached shaders. */
     swr::vector<
-      std::unique_ptr<
+      swr::unique_ptr<
         swr::program_base>>
       shaders;
 
@@ -79,7 +79,7 @@ public:
             return static_cast<T*>(it->second);
         }
 
-        std::unique_ptr<T> new_shader = std::make_unique<T>();
+        swr::unique_ptr<T> new_shader = swr::make_unique<T>();
         T* shader = new_shader.get();
 
         shaders.emplace_back(std::move(new_shader));

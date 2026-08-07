@@ -99,13 +99,13 @@ bool copy_property_by_name(
 
     const auto dst_it = std::ranges::find_if(
       dst_props,
-      [property_name](const std::unique_ptr<reflect::Property>& property)
+      [property_name](const swr::unique_ptr<reflect::Property>& property)
       {
           return property != nullptr && property->get_name() == property_name;
       });
     const auto src_it = std::ranges::find_if(
       src_props,
-      [property_name](const std::unique_ptr<reflect::Property>& property)
+      [property_name](const swr::unique_ptr<reflect::Property>& property)
       {
           return property != nullptr && property->get_name() == property_name;
       });
@@ -167,7 +167,7 @@ void Object::capture_snapshot()
         }
         const auto snap_it = std::ranges::find_if(
           snap_props,
-          [&src_property](const std::unique_ptr<reflect::Property>& property)
+          [&src_property](const swr::unique_ptr<reflect::Property>& property)
           {
               return property != nullptr
                      && property->get_name() == src_property->get_name();
@@ -190,7 +190,7 @@ bool Object::has_property_snapshot(std::string_view property_name) const
     const auto& snap_props = snapshot->get_properties();
     return std::ranges::any_of(
       snap_props,
-      [property_name](const std::unique_ptr<reflect::Property>& property)
+      [property_name](const swr::unique_ptr<reflect::Property>& property)
       {
           return property != nullptr
                  && property->get_name() == property_name;

@@ -257,10 +257,10 @@ FileLogDevice::FileLogDevice(
     file_stream.open(this->output_path, std::ios::out | std::ios::trunc);
     if(!file_stream.is_open())
     {
-        throw std::runtime_error(
+        throw std::runtime_error{
           std::format(
             "Failed to open log file '{}'.",
-            this->output_path.string()));
+            this->output_path.string())};
     }
 
     writer_thread = std::jthread([this]() -> void

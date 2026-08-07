@@ -13,13 +13,13 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <memory>
 #include <ranges>
 #include <stdexcept>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
+#include "containers/memory.h"
 #include "containers/vector.h"
 #include "class_info.h"
 
@@ -386,7 +386,7 @@ protected:
     const ClassInfo* class_info{Base::static_class()};
 
     /** Reflected properties, filled in by `initialize_properties`. */
-    swr::vector<std::unique_ptr<Property>> properties;
+    swr::vector<swr::unique_ptr<Property>> properties;
 
     /** Initialize the property list from the class metadata. */
     void initialize_properties()
@@ -686,7 +686,7 @@ void register_property(
   std::string_view label,
   PropertyFlags flags = PropertyFlags::None)
 {
-    auto descriptor = std::make_unique<
+    auto descriptor = swr::make_unique<
       PropertyDescriptor>(
       name,
       label,
@@ -724,7 +724,7 @@ void register_property(
           "Typed constraints with ValueType must match the reflected member type.");
     }
 
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,
@@ -741,9 +741,9 @@ void register_property(
   std::string_view name,
   std::string_view label,
   PropertyFlags flags,
-  std::shared_ptr<const PropertyConstraint> constraint)
+  swr::shared_ptr<const PropertyConstraint> constraint)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,
@@ -784,7 +784,7 @@ void register_property(
       std::is_same_v<UnwrappedType, DefaultType>,
       "Default value type must match the reflected member type.");
 
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,
@@ -835,7 +835,7 @@ void register_property(
           "Typed constraints with ValueType must match the reflected member type.");
     }
 
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,
@@ -864,10 +864,10 @@ void register_property(
   std::string_view name,
   std::string_view label,
   PropertyFlags flags,
-  std::shared_ptr<const PropertyConstraint> constraint,
-  std::shared_ptr<const PropertyDefault> default_value)
+  swr::shared_ptr<const PropertyConstraint> constraint,
+  swr::shared_ptr<const PropertyDefault> default_value)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,
@@ -895,9 +895,9 @@ void register_property(
   std::string_view name,
   std::string_view label,
   PropertyFlags flags,
-  std::shared_ptr<const PropertyDefault> default_value)
+  swr::shared_ptr<const PropertyDefault> default_value)
 {
-    auto descriptor = std::make_unique<PropertyDescriptor>(
+    auto descriptor = swr::make_unique<PropertyDescriptor>(
       name,
       label,
       flags,

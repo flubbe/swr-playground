@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 
 # Use Boost package config mode; FindBoost is removed in newer CMake versions.
 if(POLICY CMP0167)
     cmake_policy(SET CMP0167 NEW)
 endif()
 
-project(swr_playground LANGUAGES CXX)
+project(swr_playground LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +23,17 @@ set(BUILD_TESTING OFF)
 set(BUILD_TESTING OFF CACHE BOOL "Disable dependency tests" FORCE)
 
 find_package(OpenGL REQUIRED)
+
 find_package(Boost CONFIG REQUIRED)
+if(TARGET Boost::headers)
+    set(BOOST_HEADERS_TARGET Boost::headers)
+elseif(TARGET Boost::boost)
+    set(BOOST_HEADERS_TARGET Boost::boost)
+else()
+    message(FATAL_ERROR "Boost target is not available.")
+endif()
+
+set_target_properties(${BOOST_HEADERS_TARGET} PROPERTIES SYSTEM TRUE)
 
 #
 # Guidelines Support Library
@@ -32,6 +42,7 @@ FetchContent_Declare(
     gsl
     GIT_REPOSITORY https://github.com/microsoft/GSL.git
     GIT_TAG v4.2.1
+    SYSTEM
 )
 
 FetchContent_MakeAvailable(gsl)
@@ -46,6 +57,7 @@ if(NOT TARGET SDL3::SDL3)
         SDL3_src
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
         GIT_TAG release-3.4.4
+        SYSTEM
     )
     FetchContent_MakeAvailable(SDL3_src)
 endif()
@@ -64,12 +76,49 @@ if(NOT TARGET SDL3_ttf::SDL3_ttf)
         SDL3_ttf_src
         GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
         GIT_TAG release-3.2.2
+        SYSTEM
     )
     FetchContent_MakeAvailable(SDL3_ttf_src)
 endif()
 
 if(NOT TARGET SDL3_ttf::SDL3_ttf)
     message(FATAL_ERROR "SDL3_ttf::SDL3_ttf target is not available.")
+endif()
+
+#
+# SDL3_image
+#
+find_package(SDL3_image QUIET CONFIG)
+if(NOT TARGET SDL3_image::SDL3_image)
+    message(STATUS "SDL3_image not found on system; fetching SDL3_image.")
+    FetchContent_Declare(
+        SDL3_image_src
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
+        GIT_TAG release-3.4.4
+        SYSTEM
+    )
+    FetchContent_MakeAvailable(SDL3_image_src)
+
+    get_target_property(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image ALIASED_TARGET)
+    if(NOT SDL3_IMAGE_REAL_TARGET)
+        set(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image)
+    endif()
+
+    if(TARGET ${SDL3_IMAGE_REAL_TARGET} AND CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+        target_compile_options(${SDL3_IMAGE_REAL_TARGET} PRIVATE -Wno-deprecated-declarations)
+    endif()
+endif()
+
+if(TARGET SDL3_image::SDL3_image)
+    get_target_property(SDL3_IMAGE_REAL_TARGET SDL3_image::SDL3_image ALIASED_TARGET)
+
+    if(SDL3_IMAGE_REAL_TARGET)
+        set_target_properties(${SDL3_IMAGE_REAL_TARGET} PROPERTIES SYSTEM TRUE)
+    else()
+        set_target_properties(SDL3_image::SDL3_image PROPERTIES SYSTEM TRUE)
+    endif()
+else()
+    message(FATAL_ERROR "SDL3_image::SDL3_image target is not available.")
 endif()
 
 #
@@ -85,9 +134,10 @@ set(SWR_ENABLE_MULTI_THREADING ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
     swr_src
     GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG 32e3089
+    GIT_TAG main
+    SYSTEM
+    UPDATE_DISCONNECTED FALSE
 )
-set(FETCHCONTENT_UPDATES_DISCONNECTED_SWR_SRC OFF)
 FetchContent_MakeAvailable(swr_src)
 
 #
@@ -97,6 +147,7 @@ FetchContent_Declare(
     imgui_src
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG docking
+    SYSTEM
 )
 FetchContent_MakeAvailable(imgui_src)
 
@@ -123,24 +174,6 @@ target_link_libraries(imgui PUBLIC
 )
 
 #
-# SDL3_image
-#
-find_package(SDL3_image QUIET CONFIG)
-if(NOT TARGET SDL3_image::SDL3_image)
-    message(STATUS "SDL3_image not found on system; fetching SDL3_image.")
-    FetchContent_Declare(
-        SDL3_image_src
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
-        GIT_TAG release-3.4.4
-    )
-    FetchContent_MakeAvailable(SDL3_image_src)
-endif()
-
-if(NOT TARGET SDL3_image::SDL3_image)
-    message(FATAL_ERROR "SDL3_image::SDL3_image target is not available.")
-endif()
-
-#
 # stb
 #
 FetchContent_Declare(
@@ -148,6 +181,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/nothings/stb.git
     GIT_TAG 28d546d
     SOURCE_SUBDIR __unused__
+    SYSTEM
 )
 
 FetchContent_MakeAvailable(stb_src)
@@ -158,7 +192,7 @@ target_include_directories(stb SYSTEM INTERFACE
 )
 
 #
-# Assimp
+# assimp
 #
 find_package(assimp QUIET CONFIG)
 if(NOT TARGET assimp::assimp)
@@ -179,6 +213,7 @@ if(NOT TARGET assimp::assimp)
         assimp_src
         GIT_REPOSITORY https://github.com/assimp/assimp.git
         GIT_TAG v6.0.5
+        SYSTEM
     )
 
     FetchContent_MakeAvailable(assimp_src)
@@ -189,46 +224,65 @@ if(NOT TARGET assimp::assimp)
 endif()
 
 #
+# xxHash
+#
+FetchContent_Declare(
+    xxhash
+    GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
+    GIT_TAG v0.8.3
+)
+
+FetchContent_GetProperties(xxhash)
+if(NOT xxhash_POPULATED)
+    FetchContent_MakeAvailable(xxhash)
+
+    add_library(xxhash STATIC
+        ${xxhash_SOURCE_DIR}/xxhash.c
+    )
+
+    target_include_directories(xxhash
+        SYSTEM PUBLIC
+        ${xxhash_SOURCE_DIR}
+    )
+endif()
+
+#
 # Concurrency Utils
 #
 FetchContent_Declare(
     concurrency_utils_src
     GIT_REPOSITORY https://github.com/flubbe/concurrency_utils.git
     GIT_TAG main
+    SYSTEM
 )
 FetchContent_MakeAvailable(concurrency_utils_src)
+
+#
+# Compiler specific warnings.
+#
+add_library(swr_playground_warnings INTERFACE)
+
+if(MSVC)
+    target_compile_options(swr_playground_warnings INTERFACE /W4)
+else()
+    target_compile_options(swr_playground_warnings INTERFACE -Wall -Wextra)
+endif()
 
 #
 # Playground options.
 #
 add_library(swr_playground_options INTERFACE)
 
-target_compile_features(swr_playground_options INTERFACE cxx_std_23)
+target_compile_features(swr_playground_options
+    INTERFACE
+    cxx_std_23)
 
-if(TARGET Boost::headers)
-    target_link_libraries(swr_playground_options INTERFACE Boost::headers)
-elseif(TARGET Boost::boost)
-    target_link_libraries(swr_playground_options INTERFACE Boost::boost)
-else()
-    target_include_directories(swr_playground_options SYSTEM INTERFACE
-        ${Boost_INCLUDE_DIRS}
-    )
-endif()
-
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
-    target_compile_options(swr_playground_options INTERFACE
-        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-msse4.1>
-    )
-endif()
-
-if(MSVC)
-    target_compile_options(swr_playground_options INTERFACE /W4)
-else()
-    target_compile_options(swr_playground_options INTERFACE -Wall -Wextra)
-endif()
+target_link_libraries(swr_playground_options
+    INTERFACE
+    ${BOOST_HEADERS_TARGET})
 
 target_compile_definitions(swr_playground_options INTERFACE
-    SWR_USE_CUSTOM_STD_ALLOCATORS=$<IF:$<BOOL:$<TARGET_PROPERTY:SWR_USE_CUSTOM_STD_ALLOCATORS>>,TRUE,FALSE>
+    SWR_USE_CUSTOM_STD_ALLOCATORS=$<BOOL:${SWR_USE_CUSTOM_STD_ALLOCATORS}>
     SWR_OVERRIDE_GLOBAL_NEW=$<BOOL:${SWR_OVERRIDE_GLOBAL_NEW}>
 )
 
@@ -247,6 +301,7 @@ add_executable(swr_playground
     src/scene/object.cpp
     src/scene/properties.cpp
     src/scene/scene.cpp
+    src/serialization/file.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/memory/allocators/arena.cpp
@@ -254,6 +309,10 @@ add_executable(swr_playground
     src/memory/allocators/malloc.cpp
     src/memory/manager.cpp
     src/memory/new.cpp
+    src/meshes/mesh.cpp
+    src/meshes/simplifier.cpp
+    src/renderer/renderdevice.cpp
+    src/renderer/renderer.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
@@ -265,11 +324,7 @@ add_executable(swr_playground
     src/logging.cpp
     src/main.cpp
     src/main_loop.cpp
-    src/mesh.cpp
-    src/mesh_simplifier.cpp
     src/platform.cpp
-    src/renderdevice.cpp
-    src/renderer.cpp
     src/startup_tasks.cpp
     src/tasks/dag.cpp
     src/tasks/scheduler.cpp
@@ -285,6 +340,7 @@ target_include_directories(swr_playground PRIVATE
 
 target_link_libraries(swr_playground PRIVATE
     swr_playground_options
+    swr_playground_warnings
     swrast
     imgui
     Microsoft.GSL::GSL
@@ -294,13 +350,8 @@ target_link_libraries(swr_playground PRIVATE
     SDL3_image::SDL3_image
     assimp::assimp
     stb
+    xxhash
 )
-
-if(MSVC)
-    target_compile_options(swr_playground PRIVATE /W4)
-else()
-    target_compile_options(swr_playground PRIVATE -Wall -Wextra)
-endif()
 
 # Enable this project's tests (and CTest) after dependency setup.
 set(BUILD_TESTING ${SWR_PLAYGROUND_BUILD_TESTING})
@@ -315,8 +366,18 @@ if(BUILD_TESTING)
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.17.0
+        SYSTEM
     )
     FetchContent_MakeAvailable(googletest)
+
+    if(TARGET GTest::gtest_main)
+        get_target_property(GTEST_REAL_TARGET GTest::gtest_main ALIASED_TARGET)
+        if(GTEST_REAL_TARGET)
+            set_target_properties(${GTEST_REAL_TARGET} PROPERTIES SYSTEM TRUE)
+        else()
+            set_target_properties(GTest::gtest_main PROPERTIES SYSTEM TRUE)
+        endif()
+    endif()
 
     add_subdirectory(test)
 endif()

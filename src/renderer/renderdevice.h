@@ -23,7 +23,7 @@
 #include "assets/texture.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 #include "render_types.h"
 #include "shader_constants.h"
 
@@ -73,7 +73,7 @@ struct LightingUniforms
     int directional_light_count{0};
 
     /** Directional lights in camera/view space: xyz = direction, w = brightness. */
-    std::array<ml::vec4, shader::max_lights> directional_light_dirs{};
+    std::array<ml::vec4, shader::max_directional_lights> directional_light_dirs{};
 
     /** Number of active spot lights. */
     int spot_light_count{0};
@@ -256,6 +256,17 @@ public:
         return data;
     }
 
+    // FIXME this accessor should not exist?
+    const Material* get_material(MaterialHandle handle) const
+    {
+        auto it = materials.find(handle);
+        if(it == materials.cend())
+        {
+            return nullptr;
+        }
+        return &it->second;
+    }
+
     /*
      * resource management.
      */
@@ -278,7 +289,7 @@ public:
     void delete_mesh(MeshHandle handle);
 
     std::uint32_t create_texture(
-      const assets::ImageRgba8& image);
+      const assets::ImageRGBA8& image);
 
     void delete_texture(std::uint32_t handle);
 

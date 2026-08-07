@@ -71,7 +71,6 @@ void StaticMesh::set_mesh_sections(
         mesh_lods.push_back(
           StaticMeshLod{
             .mesh_sections = std::move(sections),
-            .min_screen_height = 0.f,
             .bounds = bounds,
           });
     }
@@ -107,32 +106,43 @@ void StaticMesh::update_bounds() noexcept
 }
 
 std::size_t StaticMesh::select_lod(
-  float screen_height_fraction) const noexcept
+  float projected_pixel_area,
+  float target_pixels_per_triangle) const noexcept
 {
     if(mesh_lods.empty())
     {
         return 0;
     }
 
-    screen_height_fraction = std::max(0.f, screen_height_fraction);
+    std::size_t fallback = 0;
+    if(target_pixels_per_triangle <= 0)
+    {
+        return fallback;
+    }
 
-    std::size_t selected_lod = 0;
-    bool found_renderable_lod = false;
+    projected_pixel_area = std::max(0.0f, projected_pixel_area);
+
+    bool found_renderable = false;
+
     for(std::size_t lod_index = 0; lod_index < mesh_lods.size(); ++lod_index)
     {
         const StaticMeshLod& lod = mesh_lods[lod_index];
-        if(lod.mesh_sections.empty())
+        if(lod.mesh_sections.empty() || lod.triangle_count == 0)
         {
             continue;
         }
 
-        selected_lod = lod_index;
-        found_renderable_lod = true;
-        if(screen_height_fraction >= lod.min_screen_height)
+        fallback = lod_index;
+        found_renderable = true;
+
+        const float pixels_per_triangle =
+          projected_pixel_area / static_cast<float>(lod.triangle_count);
+
+        if(pixels_per_triangle >= target_pixels_per_triangle)
         {
             return lod_index;
         }
     }
 
-    return found_renderable_lod ? selected_lod : 0;
+    return found_renderable ? fallback : 0;
 }

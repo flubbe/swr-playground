@@ -17,10 +17,15 @@
 #include <utility>
 #include <vector>
 
+#include "assets/shaders/color_only.h"
+#include "assets/shaders/lit_smooth.h"
+#include "assets/shaders/shadow_depth.h"
+#include "assets/shaders/shadow_map_debug.h"
+#include "assets/shaders/textured_floor.h"
+#include "assets/shaders/textured_shiny_floor.h"
 #include "containers/vector.h"
 #include "renderdevice.h"
 #include "renderer.h"
-#include "shader.h"
 #include "scene/directionallight.h"
 #include "scene/spotlight.h"
 #include "scene/scene.h"
@@ -46,14 +51,6 @@ std::array<ml::vec4, 8> make_bounds_corners(
       {min.x, max.y, max.z, 1.f},
       {max.x, max.y, max.z, 1.f},
     }};
-}
-
-ml::mat4x4 make_camera_view_matrix(
-  const ml::vec3& eye,
-  const ml::vec3& target,
-  const ml::vec3& up)
-{
-    return ml::matrices::look_at(eye, target, up);
 }
 
 ml::mat4x4 make_shadow_bias_matrix()
@@ -156,16 +153,20 @@ bool bounds_intersect_frustum(
                }));
 }
 
-float estimate_screen_height_fraction(
+std::pair<float, float> estimate_screen_dimensions_fraction(
   const MeshBounds& bounds,
   const ml::mat4x4& clip_from_mesh)
 {
     if(!bounds.valid)
     {
-        return 1.f;
+        return {1.f, 1.f};
     }
 
     constexpr float w_epsilon = 0.0001f;
+
+    float min_x = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+
     float min_y = std::numeric_limits<float>::max();
     float max_y = std::numeric_limits<float>::lowest();
 
@@ -175,15 +176,22 @@ float estimate_screen_height_fraction(
         const ml::vec4 clip = clip_from_mesh * corner;
         if(clip.w <= w_epsilon)
         {
-            return 1.f;
+            return {1.f, 1.f};
         }
 
+        const float ndc_x = clip.x / clip.w;
         const float ndc_y = clip.y / clip.w;
+
+        min_x = std::min(min_x, ndc_x);
+        max_x = std::max(max_x, ndc_x);
+
         min_y = std::min(min_y, ndc_y);
         max_y = std::max(max_y, ndc_y);
     }
 
-    return std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f);
+    return {
+      std::clamp((max_x - min_x) * 0.5f, 0.f, 1.f),
+      std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f)};
 }
 
 float estimate_sort_depth(
@@ -207,29 +215,6 @@ float estimate_sort_depth(
     return -view_center.z;
 }
 
-struct DrawSubmission
-{
-    float sort_depth{0.f};
-    MeshHandle mesh_handle{};
-    MaterialHandle material_handle{};
-    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
-    ml::mat4x4 view_from_mesh;
-    ShadowMapBinding shadow_map;
-};
-
-struct ShadowCasterSubmission
-{
-    MeshHandle mesh_handle{};
-    ml::mat4x4 light_view_from_mesh;
-};
-
-struct ShadowCamera
-{
-    ml::mat4x4 proj{ml::mat4x4::identity()};
-    ml::mat4x4 view{ml::mat4x4::identity()};
-    const SpotLight* light{nullptr};
-};
-
 void record_selected_lod(
   RendererStats& stats,
   std::size_t lod_index)
@@ -249,61 +234,46 @@ LightingUniforms collect_light_uniforms(
 {
     LightingUniforms uniforms{};
 
-    static swr::vector<const DirectionalLight*> directional_lights;
-    scene.get_directional_lights(directional_lights);
-
     std::size_t active_light_index = 0;
-    for(const DirectionalLight* light: directional_lights)
+    for(auto& light: scene.objects_of<DirectionalLight>())
     {
-        if(light == nullptr
-           || !light->enabled
+        if(!light.enabled
            || active_light_index >= uniforms.directional_light_dirs.size())
         {
             continue;
         }
 
-        const ml::vec3 world_dir =
-          light->get_world_direction_to_light();
         uniforms.directional_light_dirs[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_dir, 0.f)).xyz().normalized(),
-            light->brightness);
+          {(camera_view * ml::vec4{light.get_world_direction_to_light(), 0.f}).xyz().normalized(),
+           light.brightness};
+
         ++active_light_index;
     }
-
     uniforms.directional_light_count = static_cast<int>(active_light_index);
 
-    static swr::vector<const SpotLight*> spot_lights;
-    scene.get_spot_lights(spot_lights);
-
     active_light_index = 0;
-    for(const SpotLight* light: spot_lights)
+    for(auto& light: scene.objects_of<SpotLight>())
     {
-        if(light == nullptr
-           || !light->enabled
+        if(!light.enabled
            || active_light_index >= uniforms.spot_light_positions.size())
         {
             continue;
         }
 
-        const ml::vec3 world_position = light->get_position();
-        const ml::vec3 world_direction = light->get_world_spot_direction();
         uniforms.spot_light_positions[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_position, 1.f)).xyz(),
-            light->get_range());
+          {(camera_view * ml::vec4{light.get_position(), 1.f}).xyz(),
+           light.get_range()};
         uniforms.spot_light_directions[active_light_index] =
-          ml::vec4(
-            (camera_view * ml::vec4(world_direction, 0.f)).xyz().normalized(),
-            light->brightness);
+          {(camera_view * ml::vec4{light.get_world_spot_direction(), 0.f}).xyz().normalized(),
+           light.brightness};
         uniforms.spot_light_params[active_light_index] =
-          ml::vec4(
-            static_cast<float>(std::cos(light->get_inner_cone_angle_radians())),
-            static_cast<float>(std::cos(light->get_outer_cone_angle_radians())),
-            0.f,
-            0.f);
+          {std::cos(light.get_inner_cone_angle_radians()),
+           std::cos(light.get_outer_cone_angle_radians()),
+           0.f,
+           0.f};
         uniforms.spot_light_colors[active_light_index] =
-          light->get_color();
+          light.get_color();
+
         ++active_light_index;
     }
 
@@ -314,89 +284,303 @@ LightingUniforms collect_light_uniforms(
 std::optional<ShadowCamera> collect_shadow_camera(
   const Scene& scene)
 {
-    static swr::vector<const SpotLight*> spot_lights;
-    scene.get_spot_lights(spot_lights);
-
-    for(const SpotLight* light: spot_lights)
+    for(const auto& light: scene.objects_of<SpotLight>())
     {
-        if(light == nullptr
-           || !light->enabled
-           || !light->casts_shadows)
+        if(!light.enabled
+           || !light.casts_shadows)
         {
             continue;
         }
 
-        const float outer_angle = light->get_outer_cone_angle_radians();
-        const float range = light->get_range();
+        const float outer_angle = light.get_outer_cone_angle_radians();
+        const float range = light.get_range();
         if(range <= 0.1f)
         {
             continue;
         }
 
         constexpr float near_plane = 0.5f;
-        const ml::vec3 position = light->get_position();
-        const ml::vec3 direction = light->get_world_spot_direction();
+        const ml::vec3 position = light.get_position();
+        const ml::vec3 direction = light.get_world_spot_direction();
 
         // Expand shadow frustum FOV beyond the spotlight cone to avoid clipping
         // casters near the projection boundary in shadow-map UV space.
         const float shadow_fov =
           std::min(outer_angle * 4.f, ml::to_radians(170.f));
 
-        return ShadowCamera{
-          .proj = ml::matrices::perspective_projection(
-            1.f,
-            shadow_fov,
-            near_plane,
-            range),
-          .view = make_camera_view_matrix(
-            position,
-            position + direction,
-            {0.f, 1.f, 0.f}),
-          .light = light,
-        };
+        return std::make_optional(
+          ShadowCamera{
+            .proj = ml::matrices::perspective_projection(
+              1.f,
+              shadow_fov,
+              near_plane,
+              range),
+            .view = ml::matrices::look_at(
+              position,
+              position + direction,
+              {0.f, 1.f, 0.f}),
+            .light = &light});
     }
 
     return std::nullopt;
 }
 
-void bin_submissions_by_depth(
-  swr::vector<DrawSubmission>& submissions,
-  float near_depth,
-  float far_depth,
-  std::size_t bin_count)
+}    // namespace
+
+void Renderer::build_render_queue(
+  const Scene& scene,
+  const ViewportDisplaySettings& display_settings)
 {
-    if(bin_count == 0)
-        bin_count = 1;
-
-    const float bin_size = (far_depth - near_depth) / static_cast<float>(bin_count);
-
-    swr::vector<swr::vector<DrawSubmission>> bins;
-    bins.resize(bin_count);
-
-    // Distribute submissions into bins
-    for(const auto& submission: submissions)
+    for(const auto& static_mesh: scene.objects_of<StaticMesh>())
     {
-        int bin_index = 0;
-        if(bin_size > 0.f)
+        if(!static_mesh.is_visible())
         {
-            bin_index = static_cast<int>((submission.sort_depth - near_depth) / bin_size);
+            continue;
         }
-        bin_index = std::min(std::max(bin_index, 0), static_cast<int>(bin_count) - 1);
-        bins[bin_index].push_back(submission);
-    }
 
-    // Reconstruct submissions from bins (front to back)
-    submissions.clear();
-    for(const auto& bin: bins)
-    {
-        for(const auto& submission: bin)
+        ++render_stats.static_meshes;
+
+        if(!static_mesh.has_mesh_sections())
         {
-            submissions.push_back(submission);
+            continue;
+        }
+
+        const auto obj_view = view * static_mesh.get_transform();
+        const auto obj_clip = projection * obj_view;
+        const ml::mat4x4 shadow_clip_from_mesh =
+          shadow_camera.has_value()
+            ? make_shadow_bias_matrix()
+                * shadow_camera->proj
+                * shadow_camera->view
+                * static_mesh.get_transform()
+            : ml::mat4x4::identity();
+        const float obj_sort_depth =
+          estimate_sort_depth(static_mesh.get_bounds(), obj_view);
+
+        const MeshBounds& mesh_bounds = static_mesh.get_bounds();
+        if(display_settings.cull_frustum
+           && mesh_bounds.valid
+           && !bounds_intersect_frustum(mesh_bounds, obj_clip))
+        {
+            const auto& culled_lod = static_mesh.get_lod(0);
+            render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
+            for(const auto& section: culled_lod.mesh_sections)
+            {
+                render_stats.triangles_frustum_culled +=
+                  device.get_mesh_triangle_count(section.mesh_handle);
+            }
+            continue;
+        }
+
+        const auto [screen_width_fraction, screen_height_fraction] =
+          estimate_screen_dimensions_fraction(mesh_bounds, obj_clip);
+        const float screen_width_pixels = screen_width_fraction * device.get_height();
+        const float screen_height_pixels = screen_height_fraction * device.get_height();
+        const float projected_pixel_area =
+          screen_width_pixels * screen_height_pixels;
+
+        const std::size_t lod_index =
+          display_settings.dynamic_lod
+            ? static_mesh.select_lod(
+                projected_pixel_area,
+                display_settings.target_pixels_per_triangle)
+            : 0;    // always choose base LOD when dynamic LOD is disabled.
+
+        record_selected_lod(render_stats, lod_index);
+
+        const auto& lod = static_mesh.get_lod(lod_index);
+        for(const auto& section: lod.mesh_sections)
+        {
+            const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
+            if(display_settings.cull_frustum
+               && bounds != nullptr
+               && !bounds_intersect_frustum(*bounds, obj_clip))
+            {
+                ++render_stats.mesh_sections_culled;
+                render_stats.triangles_frustum_culled +=
+                  device.get_mesh_triangle_count(section.mesh_handle);
+                continue;
+            }
+
+            render_queue.push_back({
+              .sort_depth = obj_sort_depth,
+              .mesh_handle = section.mesh_handle,
+              .material_handle = section.material_handle,
+              .color = section.color,
+              .view_from_mesh = obj_view,
+              .shadow_map = {
+                .enabled =
+                  shadow_camera.has_value()
+                  && static_mesh.receives_shadows
+                  && static_cast<bool>(shadow_map),
+                .handle = shadow_map,
+                .clip_from_mesh = shadow_clip_from_mesh,
+                .depth_bias = 0.0008f,
+                .linear_filter = shadow_linear_filter,
+              },
+            });
+            ++render_stats.mesh_sections_drawn;
+            render_stats.triangles_submitted +=
+              device.get_mesh_triangle_count(section.mesh_handle);
         }
     }
 }
 
-}    // namespace
+void Renderer::sort_render_queue(
+  const ViewportDisplaySettings& display_settings)
+{
+    if(display_settings.sort_meshes)
+    {
+        render_queue_sorter->sort(
+          render_queue);
+    }
+}
+
+void Renderer::execute_render_queue()
+{
+    for(const DrawSubmission& submission: render_queue)
+    {
+        device.bind_shadow_map(submission.shadow_map);
+        device.bind_material(submission.material_handle);
+        device.bind_camera_uniforms({
+          .proj = projection,
+          .view = submission.view_from_mesh,
+        });
+        device.bind_material_uniforms({
+          .base_color = submission.color,
+        });
+        device.bind_shadow_uniforms({
+          .enabled = submission.shadow_map.enabled,
+          .clip_from_mesh = submission.shadow_map.clip_from_mesh,
+          .params = {
+            submission.shadow_map.depth_bias,
+            static_cast<float>(shadow_pcf_mode),
+            0.f,
+            0.f,
+          },
+        });
+        device.draw_mesh(submission.mesh_handle);
+    }
+}
+
+void Renderer::begin_scene_pass(
+  const Scene& scene,
+  const Camera& camera,
+  const ViewportDisplaySettings& display_settings)
+{
+    /*
+     * Clear queues.
+     */
+    render_queue.clear();
+
+    /*
+     * Collect scene pass state.
+     */
+    view = camera.get_transform();
+    projection = camera.get_projection_matrix();
+
+    shadow_linear_filter =
+      shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4Tap
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic5Tap
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapStable
+      || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapInterleaved;
+
+    /*
+     * Set up rasterizer.
+     */
+    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
+                                  .cull_face = display_settings.cull_face});
+    device.bind_lighting_uniforms(
+      collect_light_uniforms(scene, view));
+}
+
+void Renderer::end_scene_pass()
+{
+    device.clear_shadow_map();
+}
+
+bool Renderer::begin_shadow_pass()
+{
+    shadow_queue.clear();
+
+    if(!shadow_camera.has_value())
+    {
+        return false;
+    }
+
+    ensure_shadow_map_resources();
+
+    device.begin_shadow_map_pass(shadow_map);
+
+    device.bind_material(shadow_material);
+    device.bind_lighting_uniforms({});
+    device.bind_material_uniforms({});
+    device.bind_shadow_uniforms({});
+
+    return true;
+}
+
+void Renderer::end_shadow_pass()
+{
+    device.end_shadow_map_pass();
+}
+
+void Renderer::build_shadow_queue(
+  const Scene& scene)
+{
+    for(const auto& static_mesh: scene.objects_of<StaticMesh>())
+    {
+        if(!static_mesh.is_visible()
+           || !static_mesh.casts_shadows
+           || !static_mesh.has_mesh_sections())
+        {
+            continue;
+        }
+
+        const auto& lod = static_mesh.get_lod(0);
+        for(const auto& section: lod.mesh_sections)
+        {
+            shadow_queue.push_back({
+              .mesh_handle = section.mesh_handle,
+              .light_view_from_mesh =
+                shadow_camera->view * static_mesh.get_transform(),
+            });
+        }
+    }
+}
+
+void Renderer::execute_shadow_queue()
+{
+    for(const ShadowCasterSubmission& submission: shadow_queue)
+    {
+        device.bind_camera_uniforms({
+          .proj = shadow_camera->proj,
+          .view = submission.light_view_from_mesh,
+        });
+        device.draw_mesh(submission.mesh_handle);
+    }
+}
+
+void Renderer::begin_render(
+  const Scene& scene)
+{
+    render_stats = {};
+    render_start_time = std::chrono::steady_clock::now();
+
+    shadow_camera = collect_shadow_camera(scene);
+
+    device.begin_frame();
+}
+
+void Renderer::end_render()
+{
+    device.end_frame();
+
+    render_time = std::chrono::duration<float>(
+                    std::chrono::steady_clock::now() - render_start_time)
+                    .count();
+}
 
 void Renderer::create_grid_mesh()
 {
@@ -583,55 +767,17 @@ void Renderer::release_shadow_map_resources()
     }
 }
 
-void Renderer::render_shadow_map(const Scene& scene)
+void Renderer::render_shadow_map(
+  const Scene& scene)
 {
-    const auto shadow_camera = collect_shadow_camera(scene);
-    if(!shadow_camera.has_value())
+    if(!begin_shadow_pass())
     {
         return;
     }
 
-    ensure_shadow_map_resources();
-
-    static swr::vector<ShadowCasterSubmission> submissions;
-    submissions.clear();
-
-    scene.for_each_object<StaticMesh>(
-      [&shadow_camera](const StaticMesh& static_mesh)
-      {
-          if(!static_mesh.is_visible()
-             || !static_mesh.casts_shadows
-             || !static_mesh.has_mesh_sections())
-          {
-              return;
-          }
-
-          const auto& lod = static_mesh.get_lod(static_mesh.select_lod(1.f));
-          for(const auto& section: lod.mesh_sections)
-          {
-              submissions.push_back({
-                .mesh_handle = section.mesh_handle,
-                .light_view_from_mesh =
-                  shadow_camera->view * static_mesh.get_transform(),
-              });
-          }
-      });
-
-    device.begin_shadow_map_pass(shadow_map);
-    device.bind_material(shadow_material);
-    device.bind_lighting_uniforms({});
-    device.bind_material_uniforms({});
-    device.bind_shadow_uniforms({});
-    for(const ShadowCasterSubmission& submission: submissions)
-    {
-        device.bind_camera_uniforms({
-          .proj = shadow_camera->proj,
-          .view = submission.light_view_from_mesh,
-        });
-        device.draw_mesh(submission.mesh_handle);
-    }
-
-    device.end_shadow_map_pass();
+    build_shadow_queue(scene);
+    execute_shadow_queue();
+    end_shadow_pass();
 }
 
 void Renderer::render_scene(
@@ -639,165 +785,16 @@ void Renderer::render_scene(
   const Camera& camera,
   const ViewportDisplaySettings& display_settings)
 {
-    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
-                                  .cull_face = display_settings.cull_face});
-
-    auto view = camera.get_transform();
-    auto projection = camera.get_projection_matrix();
-    const LightingUniforms lighting_uniforms = collect_light_uniforms(scene, view);
-    const auto shadow_camera = collect_shadow_camera(scene);
-
-    static swr::vector<DrawSubmission> submissions;
-    submissions.clear();
-
-    scene.for_each_object<StaticMesh>(
-      [this, &display_settings, &projection, &view, &shadow_camera](
-        const StaticMesh& static_mesh)
-      {
-          if(!static_mesh.is_visible())
-          {
-              return;
-          }
-
-          ++render_stats.static_meshes;
-
-          if(!static_mesh.has_mesh_sections())
-          {
-              return;
-          }
-
-          const auto obj_view = view * static_mesh.get_transform();
-          const auto obj_clip = projection * obj_view;
-          const ml::mat4x4 shadow_clip_from_mesh =
-            shadow_camera.has_value()
-              ? make_shadow_bias_matrix()
-                  * shadow_camera->proj
-                  * shadow_camera->view
-                  * static_mesh.get_transform()
-              : ml::mat4x4::identity();
-          const float obj_sort_depth =
-            estimate_sort_depth(static_mesh.get_bounds(), obj_view);
-
-          const MeshBounds& mesh_bounds = static_mesh.get_bounds();
-          if(display_settings.cull_frustum
-             && mesh_bounds.valid
-             && !bounds_intersect_frustum(mesh_bounds, obj_clip))
-          {
-              const std::size_t base_lod_index = static_mesh.select_lod(1.f);
-              const auto& culled_lod = static_mesh.get_lod(base_lod_index);
-              render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
-              for(const auto& section: culled_lod.mesh_sections)
-              {
-                  render_stats.triangles_frustum_culled +=
-                    device.get_mesh_triangle_count(section.mesh_handle);
-              }
-              return;
-          }
-
-          const float screen_height_fraction =
-            estimate_screen_height_fraction(mesh_bounds, obj_clip);
-          const std::size_t lod_index =
-            display_settings.dynamic_lod
-              ? static_mesh.select_lod(screen_height_fraction)
-              : static_mesh.select_lod(1.f);
-          record_selected_lod(render_stats, lod_index);
-
-          const auto& lod = static_mesh.get_lod(lod_index);
-          for(const auto& section: lod.mesh_sections)
-          {
-              const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
-              if(display_settings.cull_frustum
-                 && bounds != nullptr
-                 && !bounds_intersect_frustum(*bounds, obj_clip))
-              {
-                  ++render_stats.mesh_sections_culled;
-                  render_stats.triangles_frustum_culled +=
-                    device.get_mesh_triangle_count(section.mesh_handle);
-                  continue;
-              }
-
-              submissions.push_back({
-                .sort_depth = obj_sort_depth,
-                .mesh_handle = section.mesh_handle,
-                .material_handle = section.material_handle,
-                .color = section.color,
-                .view_from_mesh = obj_view,
-                .shadow_map = {
-                  .enabled =
-                    shadow_camera.has_value()
-                    && static_mesh.receives_shadows
-                    && static_cast<bool>(shadow_map),
-                  .handle = shadow_map,
-                  .clip_from_mesh = shadow_clip_from_mesh,
-                  .depth_bias = 0.0008f,
-                  .linear_filter =
-                    shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4Tap
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic5Tap
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapStable
-                    || shadow_pcf_mode == ShadowPcfMode::Stochastic4TapInterleaved,
-                },
-              });
-              ++render_stats.mesh_sections_drawn;
-              render_stats.triangles_submitted +=
-                device.get_mesh_triangle_count(section.mesh_handle);
-          }
-      });
-
-    if(display_settings.sort_meshes)
-    {
-        if(sort_mode == SortMode::FullSort)
-        {
-            std::stable_sort(
-              submissions.begin(),
-              submissions.end(),
-              [](const DrawSubmission& lhs, const DrawSubmission& rhs)
-              {
-                  return lhs.sort_depth < rhs.sort_depth;
-              });
-        }
-        else if(sort_mode == SortMode::BinSort && !submissions.empty())
-        {
-            // Find depth range for binning
-            float min_depth = submissions[0].sort_depth;
-            float max_depth = submissions[0].sort_depth;
-            for(const auto& submission: submissions)
-            {
-                min_depth = std::min(min_depth, submission.sort_depth);
-                max_depth = std::max(max_depth, submission.sort_depth);
-            }
-
-            bin_submissions_by_depth(submissions, min_depth, max_depth, depth_bin_count);
-        }
-    }
-
-    device.bind_lighting_uniforms(lighting_uniforms);
-
-    for(const DrawSubmission& submission: submissions)
-    {
-        device.bind_shadow_map(submission.shadow_map);
-        device.bind_material(submission.material_handle);
-        device.bind_camera_uniforms({
-          .proj = projection,
-          .view = submission.view_from_mesh,
-        });
-        device.bind_material_uniforms({
-          .base_color = submission.color,
-        });
-        device.bind_shadow_uniforms({
-          .enabled = submission.shadow_map.enabled,
-          .clip_from_mesh = submission.shadow_map.clip_from_mesh,
-          .params = {
-            submission.shadow_map.depth_bias,
-            static_cast<float>(shadow_pcf_mode),
-            0.f,
-            0.f,
-          },
-        });
-        device.draw_mesh(submission.mesh_handle);
-    }
-
-    device.clear_shadow_map();
+    begin_scene_pass(
+      scene,
+      camera,
+      display_settings);
+    build_render_queue(
+      scene,
+      display_settings);
+    sort_render_queue(display_settings);
+    execute_render_queue();
+    end_scene_pass();
 }
 
 void Renderer::render_grid(
@@ -866,28 +863,21 @@ void Renderer::render(
   const Scene& scene,
   const Viewport& viewport)
 {
-    auto render_start_time = std::chrono::steady_clock::now();
-    render_stats = {};
-
     const auto& display_settings = viewport.get_display_settings();
     const auto& overlay_settings = viewport.get_overlay_settings();
 
-    device.begin_frame();
-
     const Camera& camera = viewport.get_camera(scene);
+
+    begin_render(scene);
 
     /*
      * scene rendering.
      */
 
-    const bool has_shadow_camera = collect_shadow_camera(scene).has_value();
-    if(has_shadow_camera)
-    {
-        render_shadow_map(scene);
-    }
+    render_shadow_map(scene);
 
     if(display_settings.debug_spotlight_depth
-       && has_shadow_camera)
+       && shadow_camera.has_value())
     {
         render_spotlight_depth_debug();
     }
@@ -910,11 +900,7 @@ void Renderer::render(
           camera);
     }
 
-    device.end_frame();
-
-    render_time = std::chrono::duration<float>(
-                    std::chrono::steady_clock::now() - render_start_time)
-                    .count();
+    end_render();
 }
 
 void Renderer::start_sorting_benchmark(
@@ -950,12 +936,12 @@ void Renderer::start_comparative_benchmark(
     comparative_state.modes = {SortMode::FullSort, SortMode::BinSort};
     comparative_state.results.assign(comparative_state.modes.size(), {});
     comparative_state.current_mode_index = 0;
-    comparative_state.saved_sort_mode = sort_mode;
+    comparative_state.saved_sort_mode = get_sort_mode();
     comparative_state.iterations_per_mode = iterations;
     comparative_state.active = true;
 
     // start first mode
-    sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+    set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
     start_sorting_benchmark(scene, viewport, iterations);
 }
 
@@ -1003,13 +989,13 @@ void Renderer::update_sorting_benchmark(
             comparative_state.current_mode_index += 1;
             if(comparative_state.current_mode_index < comparative_state.modes.size())
             {
-                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
                 start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
                 return;
             }
             // finished comparative run
             comparative_state.active = false;
-            sort_mode = comparative_state.saved_sort_mode;
+            set_sort_mode(comparative_state.saved_sort_mode);
         }
 
         return;
@@ -1021,7 +1007,7 @@ void Renderer::update_sorting_benchmark(
 
     Camera& benchmark_camera = viewport.get_camera(scene);
     benchmark_camera.set_transform(
-      make_camera_view_matrix(camera_position, target, up));
+      ml::matrices::look_at(camera_position, target, up));
     benchmark_camera.update_projection_matrix(viewport.get_aspect_ratio());
 
     const auto saved_render_stats = render_stats;
@@ -1080,13 +1066,13 @@ void Renderer::update_sorting_benchmark(
             comparative_state.current_mode_index += 1;
             if(comparative_state.current_mode_index < comparative_state.modes.size())
             {
-                sort_mode = comparative_state.modes[comparative_state.current_mode_index];
+                set_sort_mode(comparative_state.modes[comparative_state.current_mode_index]);
                 start_sorting_benchmark(scene, viewport, comparative_state.iterations_per_mode);
             }
             else
             {
                 comparative_state.active = false;
-                sort_mode = comparative_state.saved_sort_mode;
+                set_sort_mode(comparative_state.saved_sort_mode);
             }
         }
     }

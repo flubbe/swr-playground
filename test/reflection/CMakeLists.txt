@@ -16,9 +16,8 @@ target_include_directories(reflection_tests PRIVATE
 )
 
 target_link_libraries(reflection_tests PRIVATE
-    swr_playground_options
+    swr_playground_warnings
     GTest::gtest_main
 )
 
-include(GoogleTest)
 gtest_discover_tests(reflection_tests)

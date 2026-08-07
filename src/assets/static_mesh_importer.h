@@ -13,11 +13,11 @@
 #include <filesystem>
 #include <string>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 #include "containers/string.h"
 #include "containers/vector.h"
-#include "mesh.h"
+#include "meshes/mesh.h"
 
 struct ImportedMesh
 {

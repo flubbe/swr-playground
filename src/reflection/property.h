@@ -13,12 +13,12 @@
 #include <cassert>
 #include <optional>
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
+#include "containers/memory.h"
 #include "containers/string.h"
 #include "except.h"
 #include "traits.h"
@@ -101,7 +101,7 @@ struct TypedDefault : PropertyDefault
  * @returns Shared metadata pointer containing `TypedDefault<T>`.
  */
 template<typename T>
-std::shared_ptr<const PropertyDefault> default_of(T&& value)
+swr::shared_ptr<const PropertyDefault> default_of(T&& value)
 {
     using DefaultType = std::remove_cvref_t<T>;
     return std::make_shared<TypedDefault<DefaultType>>(
@@ -226,7 +226,7 @@ class Property
     PropertyFlags flags{PropertyFlags::None};
 
     /** Optional typed constraint metadata. */
-    std::shared_ptr<const PropertyConstraint> constraint{nullptr};
+    swr::shared_ptr<const PropertyConstraint> constraint{nullptr};
 
 public:
     /**
@@ -247,7 +247,7 @@ public:
       std::size_t offset,
       std::size_t alignment,
       PropertyFlags flags = PropertyFlags::None,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr)
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr)
     : name{name.data(), name.size()}
     , label{label.data(), label.size()}
     , size{size}
@@ -298,7 +298,7 @@ public:
     }
 
     /** Optional typed constraint metadata. */
-    const std::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
+    const swr::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
     {
         return constraint;
     }
@@ -454,10 +454,10 @@ struct DescriptorBase
     PropertyFlags flags;
 
     /** Optional typed constraint metadata. */
-    std::shared_ptr<const PropertyConstraint> constraint;
+    swr::shared_ptr<const PropertyConstraint> constraint;
 
     /** Optional typed default value metadata. */
-    std::shared_ptr<const PropertyDefault> default_value;
+    swr::shared_ptr<const PropertyDefault> default_value;
 
     /**
      * Construct a property descriptor.
@@ -472,8 +472,8 @@ struct DescriptorBase
       std::string_view name,
       std::string_view label,
       const PropertyFlags flags,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr,
-      std::shared_ptr<const PropertyDefault> default_value = nullptr)
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr,
+      swr::shared_ptr<const PropertyDefault> default_value = nullptr)
     : name{name.data(), name.size()}
     , label{label.data(), label.size()}
     , flags{flags}
@@ -489,7 +489,7 @@ struct DescriptorBase
     }
 
     /** Optional typed default value metadata. */
-    const std::shared_ptr<const PropertyDefault>& get_default_value() const noexcept
+    const swr::shared_ptr<const PropertyDefault>& get_default_value() const noexcept
     {
         return default_value;
     }
@@ -520,18 +520,18 @@ struct DescriptorBase
 struct PropertyDescriptor : DescriptorBase
 {
     /** Function pointer type for constructing a property. */
-    using ConstructFn = std::unique_ptr<Property> (*)(
+    using ConstructFn = swr::unique_ptr<Property> (*)(
       void*,
       std::string_view,
       std::string_view,
       PropertyFlags,
-      const std::shared_ptr<const PropertyConstraint>&);
+      const swr::shared_ptr<const PropertyConstraint>&);
 
     /** Function pointer for constructing the property. */
     ConstructFn construct;
 
     /** Pointer to the next property descriptor in the descriptor linked list. */
-    std::unique_ptr<PropertyDescriptor> next;
+    swr::unique_ptr<PropertyDescriptor> next;
 
     /**
      * Construct a property descriptor.
@@ -549,9 +549,9 @@ struct PropertyDescriptor : DescriptorBase
       std::string_view label,
       const PropertyFlags flags,
       ConstructFn construct,
-      std::unique_ptr<PropertyDescriptor> next,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr,
-      std::shared_ptr<const PropertyDefault> default_value = nullptr)
+      swr::unique_ptr<PropertyDescriptor> next,
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr,
+      swr::shared_ptr<const PropertyDefault> default_value = nullptr)
     : DescriptorBase{
         name,
         label,
@@ -568,7 +568,7 @@ struct PropertyDescriptor : DescriptorBase
  * Maps a C++ value type to a concrete `Property` implementation.
  *
  * Specialize this template for each reflected value type and provide:
- * `static std::unique_ptr<Property> construct(std::string_view, std::string_view, T&, std::size_t, PropertyFlags)`.
+ * `static swr::unique_ptr<Property> construct(std::string_view, std::string_view, T&, std::size_t, PropertyFlags)`.
  */
 template<typename T>
 struct PropertyFactory;
@@ -619,12 +619,12 @@ using MemberClassType =
  * @returns A unique pointer to the constructed property.
  */
 template<auto MemberPtr>
-std::unique_ptr<Property> construct_member(
+swr::unique_ptr<Property> construct_member(
   MemberClassType<MemberPtr>& obj,
   std::string_view name,
   std::string_view label,
   PropertyFlags flags,
-  const std::shared_ptr<const PropertyConstraint>& constraint)
+  const swr::shared_ptr<const PropertyConstraint>& constraint)
 {
     using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
     using MemberType = typename MemberPtrTraits::MemberType;
@@ -665,20 +665,20 @@ std::unique_ptr<Property> construct_member(
  * @param constraint Constraint for the property values.
  * @returns A unique pointer to the constructed property.
  *
- * @throws `instance_error` If `obj` is `nullptr`.
- * @throws `instance_error` If `obj` does not point to a compatible owner type.
+ * @throws `InstanceError` If `obj` is `nullptr`.
+ * @throws `InstanceError` If `obj` does not point to a compatible owner type.
  */
 template<auto MemberPtr>
-std::unique_ptr<Property> construct_member_erased(
+swr::unique_ptr<Property> construct_member_erased(
   void* obj,
   std::string_view name,
   std::string_view label,
   PropertyFlags flags,
-  const std::shared_ptr<const PropertyConstraint>& constraint)
+  const swr::shared_ptr<const PropertyConstraint>& constraint)
 {
     if(obj == nullptr)
     {
-        throw instance_error{"null object instance for property construction"};
+        throw InstanceError{"null object instance for property construction"};
     }
 
     using OwnerType = MemberClassType<MemberPtr>;
@@ -693,7 +693,7 @@ std::unique_ptr<Property> construct_member_erased(
         RootType* root_obj = static_cast<RootType*>(obj);
         if(!root_obj->is_a(OwnerType::static_class()))
         {
-            throw instance_error{"object instance type mismatch for property construction"};
+            throw InstanceError{"object instance type mismatch for property construction"};
         }
 
         // Cast through RootType so inheritance pointer adjustment is applied correctly.

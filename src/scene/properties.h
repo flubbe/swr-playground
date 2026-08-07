@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 #include "containers/string.h"
 #include "reflection/property.h"
@@ -52,7 +52,7 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None,
       std::size_t max_length = 256,
-      std::shared_ptr<const PropertyConstraint> constraint = nullptr);
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
     const void* get_type_tag() const noexcept override;
 
@@ -74,15 +74,15 @@ public:
 template<>
 struct PropertyFactory<swr::string>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       SwrStringProperty::Type& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>&)
+      const swr::shared_ptr<const PropertyConstraint>&)
     {
-        return std::make_unique<SwrStringProperty>(
+        return swr::make_unique<SwrStringProperty>(
           swr::string{name},
           swr::string{label},
           &value,
@@ -137,15 +137,15 @@ public:
 template<>
 struct PropertyFactory<ml::vec4>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       Vec4Property::Type& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>&)
+      const swr::shared_ptr<const PropertyConstraint>&)
     {
-        return std::make_unique<Vec4Property>(
+        return swr::make_unique<Vec4Property>(
           name,
           label,
           &value,
@@ -198,15 +198,15 @@ public:
 template<>
 struct PropertyFactory<ml::mat4x4>
 {
-    static std::unique_ptr<Property> construct(
+    static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
       Mat4Property::Type& value,
       std::size_t offset,
       PropertyFlags flags,
-      const std::shared_ptr<const PropertyConstraint>&)
+      const swr::shared_ptr<const PropertyConstraint>&)
     {
-        return std::make_unique<Mat4Property>(
+        return swr::make_unique<Mat4Property>(
           name,
           label,
           &value,

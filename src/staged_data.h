@@ -14,12 +14,13 @@
 #include <optional>
 #include <string>
 
+#include "assets/texture.h"
 #include "containers/string.h"
 #include "containers/vector.h"
-#include "assets/texture.h"
-#include "mesh.h"
-#include "ml/all.h"
+#include "meshes/mesh.h"
 #include "scene/gear.h"
+
+#include <ml/all.h>
 
 /*
  * Generic staged data.
@@ -28,16 +29,31 @@
 struct StagedFloorData
 {
     MeshData mesh;
-    assets::ImageRgba8 diffuse_texture;
-    assets::ImageRgba8 normal_texture;
+    assets::ImageRGBA8 diffuse_texture;
+    assets::ImageRGBA8 normal_texture;
 };
 
 struct StagedStaticMeshSectionLod
 {
     MeshData mesh;
-    float min_screen_height{0.f};
     MeshBounds bounds;
 };
+
+/**
+ * Serialize a static mesh section level of detail.
+ *
+ * @param ar The archive to use.
+ * @param section The mesh section lod.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshSectionLod& section)
+{
+    ar & section.mesh;
+    ar & section.bounds;
+    return ar;
+}
 
 struct StagedStaticMeshSection
 {
@@ -45,12 +61,45 @@ struct StagedStaticMeshSection
     swr::vector<StagedStaticMeshSectionLod> lods;
 };
 
+/**
+ * Serialize a static mesh section.
+ *
+ * @param ar The archive to use.
+ * @param section The mesh section.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshSection& section)
+{
+    ar & section.diffuse_color;
+    ar & section.lods;
+    return ar;
+}
+
 struct StagedStaticMeshAsset
 {
     swr::string name;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
 };
+
+/**
+ * Serialize a staged mesh asset.
+ *
+ * @param ar The archive to use.
+ * @param mesh The mesh asset.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  StagedStaticMeshAsset& mesh)
+{
+    ar & mesh.name;
+    ar & mesh.fit_transform;
+    ar & mesh.sections;
+    return ar;
+}
 
 /*
  * Concrete staged scene data (targeted to the current startup scene setup).

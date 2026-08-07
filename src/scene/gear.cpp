@@ -14,7 +14,6 @@
 
 #include "reflection/builtin_properties.h"
 #include "gear.h"
-#include "renderdevice.h"
 
 /** create the gear geometry. the code here is adapted from glxgears.c. */
 GearGeometry make_gear(

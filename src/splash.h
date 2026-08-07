@@ -123,7 +123,7 @@ class SplashScreen final
           status_height};
 
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 220);
         SDL_RenderFillRect(renderer, &panel);
 
         SDL_RenderTexture(renderer, texture, nullptr, &font_dst);

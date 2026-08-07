@@ -28,19 +28,24 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_opengl3.h>
 
+#include "assets/shaders/color_flat.h"
+#include "assets/shaders/color_smooth.h"
+#include "assets/shaders/lit_smooth.h"
+#include "assets/shaders/phong_smooth.h"
+#include "assets/shaders/textured_floor.h"
+#include "assets/shaders/textured_shiny_floor.h"
 #include "assets/static_mesh_importer.h"
 #include "assets/texture.h"
 #include "containers/format.h"
+#include "meshes/lod.h"
+#include "renderer/renderdevice.h"
+#include "renderer/renderer.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "ui/imgui.h"
 #include "application.h"
 #include "logging.h"
-#include "mesh_lod.h"
-#include "renderdevice.h"
-#include "renderer.h"
-#include "shader.h"
 #include "shader_cache.h"
 #include "startup_tasks.h"
 #include "staged_data.h"
@@ -541,30 +546,24 @@ void imgui_draw_viewport_panel(
                 }
 
                 ImGui::Separator();
-                static swr::vector<Camera*> scene_cameras;
-                scene.get_cameras(scene_cameras);
-
                 if(ImGui::BeginMenu("Scene Cameras"))
                 {
                     bool has_any_scene_camera = false;
-                    for(const Camera* camera: scene_cameras)
+
+                    for(const auto& camera: scene.objects_of<Camera>())
                     {
-                        if(camera == nullptr)
-                        {
-                            continue;
-                        }
                         has_any_scene_camera = true;
                         if(ImGui::MenuItem(
-                             camera->get_name().c_str(),
+                             camera.get_name().c_str(),
                              nullptr,
                              !showing_spotlight_depth
                                && viewport.is_scene_camera_active(
                                  scene,
-                                 camera->get_object_id())))
+                                 camera.get_object_id())))
                         {
                             display_settings.debug_spotlight_depth = false;
                             update_display_settings = true;
-                            viewport.use_scene_camera(camera->get_object_id());
+                            viewport.use_scene_camera(camera.get_object_id());
                         }
                     }
 
@@ -769,8 +768,8 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 
     for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
-        result_lods[i].min_screen_height =
-          staged_asset.sections.front().lods[i].min_screen_height;
+        result_lods[i].triangle_count =
+          staged_asset.sections.front().lods[i].mesh.indices.size() / 3;
     }
 
     for(const StagedStaticMeshSection& section: staged_asset.sections)
@@ -1301,7 +1300,7 @@ void Application::render_frame()
           benchmark_iterations);
     }
 
-    imgui::draw_scene_inspector_panel(ui_state, scene);
+    imgui::draw_scene_inspector_panel(ui_state, scene, render_device);
     imgui::draw_class_inspector_panel(ui_state);
 
     draw_runtime_test_modal();
@@ -1885,48 +1884,45 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
     active_static_mesh_shader = type;
     ShaderCache& shader_cache = renderer.get_shader_cache();
 
-    scene.for_each_object<StaticMesh>(
-      [&](StaticMesh& mesh)
-      {
-          // skip gears for now.
-          if(mesh.is_a<Gear>())
-          {
-              return;
-          }
-          if(mesh.get_name() == floor_object_name)
-          {
-              return;
-          }
+    for(auto& mesh: scene.objects_of<StaticMesh>())
+    {
+        // skip gears for now.
+        if(mesh.is_a<Gear>())
+        {
+            continue;
+        }
+        if(mesh.get_name() == floor_object_name)
+        {
+            continue;
+        }
 
-          for(auto& lod: mesh.get_lods())
-          {
-              for(auto& section: lod.mesh_sections)
-              {
-                  render_device.delete_material(section.material_handle);
+        for(auto& lod: mesh.get_lods())
+        {
+            for(auto& section: lod.mesh_sections)
+            {
+                swr::program_base* new_shader = nullptr;
+                switch(type)
+                {
+                case StaticMeshShaderType::ColorFlat:
+                    new_shader = shader_cache.get_or_create<shader::ColorFlat>();
+                    break;
+                case StaticMeshShaderType::ColorSmooth:
+                    new_shader = shader_cache.get_or_create<shader::ColorSmooth>();
+                    break;
+                case StaticMeshShaderType::PhongSmooth:
+                    new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
+                    break;
+                case StaticMeshShaderType::LitSmooth:
+                    new_shader = shader_cache.get_or_create<shader::LitSmooth>();
+                    break;
+                default:
+                    throw std::runtime_error{"Unknown shader type for static meshes."};
+                }
 
-                  swr::program_base* new_shader = nullptr;
-                  switch(type)
-                  {
-                  case StaticMeshShaderType::ColorFlat:
-                      new_shader = shader_cache.get_or_create<shader::ColorFlat>();
-                      break;
-                  case StaticMeshShaderType::ColorSmooth:
-                      new_shader = shader_cache.get_or_create<shader::ColorSmooth>();
-                      break;
-                  case StaticMeshShaderType::PhongSmooth:
-                      new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
-                      break;
-                  case StaticMeshShaderType::LitSmooth:
-                      new_shader = shader_cache.get_or_create<shader::LitSmooth>();
-                      break;
-                  default:
-                      throw std::runtime_error{"Unknown shader type for static meshes."};
-                  }
-
-                  section.material_handle = render_device.create_material(*new_shader);
-              }
-          }
-      });
+                section.material_handle = render_device.create_material(*new_shader);
+            }
+        }
+    }
 }
 
 void Application::set_floor_shader(FloorShaderType type)
@@ -1942,27 +1938,22 @@ void Application::set_floor_shader(FloorShaderType type)
       type,
       shader_cache);
 
-    scene.for_each_object<StaticMesh>(
-      [&](StaticMesh& mesh)
-      {
-          if(mesh.get_name() != floor_object_name)
-          {
-              return;
-          }
+    for(auto& mesh: scene.objects_of<StaticMesh>())
+    {
+        if(mesh.get_name() != floor_object_name)
+        {
+            continue;
+        }
 
-          for(auto& lod: mesh.get_lods())
-          {
-              for(auto& section: lod.mesh_sections)
-              {
-                  render_device.delete_material(
-                    section.material_handle,
-                    false);
-
-                  section.material_handle =
-                    render_device.create_material(
-                      *new_shader,
-                      floor_texture_handles);
-              }
-          }
-      });
+        for(auto& lod: mesh.get_lods())
+        {
+            for(auto& section: lod.mesh_sections)
+            {
+                section.material_handle =
+                  render_device.create_material(
+                    *new_shader,
+                    floor_texture_handles);
+            }
+        }
+    }
 }

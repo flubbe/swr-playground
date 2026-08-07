@@ -11,12 +11,12 @@
 #pragma once
 
 #include <format>
-#include <memory>
 #include <type_traits>
 #include <utility>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
+#include "containers/memory.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
@@ -30,10 +30,10 @@
 class Scene
 {
     /** scene objects. */
-    swr::vector<std::unique_ptr<Object>> objects;
+    swr::vector<swr::unique_ptr<Object>> objects;
 
     /** scene update systems. */
-    swr::vector<std::unique_ptr<SceneSystem>> systems;
+    swr::vector<swr::unique_ptr<SceneSystem>> systems;
 
     /** automatic name tracking. */
     swr::unordered_map<
@@ -94,16 +94,14 @@ public:
     const Object* find_object(ObjectId id) const;
 
     template<typename T>
-        requires(
-          std::is_base_of_v<Object, T>)
+        requires std::derived_from<T, Object>
     T* find_object(ObjectId id)
     {
         return reflect::try_cast<T>(find_object(id));
     }
 
     template<typename T>
-        requires(
-          std::is_base_of_v<Object, T>)
+        requires std::derived_from<T, Object>
     const T* find_object(ObjectId id) const
     {
         return reflect::try_cast<T>(find_object(id));
@@ -111,39 +109,151 @@ public:
 
     Camera* find_camera(ObjectId id);
     const Camera* find_camera(ObjectId id) const;
-    void get_cameras(swr::vector<Camera*>& cameras);
-    void get_cameras(swr::vector<const Camera*>& cameras) const;
-    void get_directional_lights(swr::vector<DirectionalLight*>& lights);
-    void get_directional_lights(swr::vector<const DirectionalLight*>& lights) const;
-    void get_spot_lights(swr::vector<SpotLight*>& spot_lights);
-    void get_spot_lights(swr::vector<const SpotLight*>& spot_lights) const;
 
+    /**
+     * Iterates over all stored objects matching or derived from type `T`.
+     * Calls the provided callback for each matching object downcasted to `T`.
+     *
+     * @tparam T Object type to filter by (must derive from `Object`).
+     * @param fn Callback function with one of the following signatures:
+     *           - `void(T&)` or `void(T&, std::size_t index)`
+     *           - `bool(T&)` or `bool(T&, std::size_t index)`
+     *
+     * @note If the callback returns a type convertible to `bool`, returning `false`
+     *       will terminate iteration early. Returning `void` iterates all objects.
+     */
     template<typename T, typename Fn>
-        requires(
-          std::is_base_of_v<Object, T>)
+        requires std::derived_from<T, Object>
     void for_each_object(Fn&& fn)
     {
+        constexpr bool takes_index = std::is_invocable_v<Fn&, T&, std::size_t>;
+
+        std::size_t index = 0;
         for(auto& object: objects)
         {
             if(auto* typed = reflect::try_cast<T>(object.get()))
             {
-                fn(*typed);
+                if constexpr(takes_index)
+                {
+                    using Ret = std::invoke_result_t<Fn&, T&, std::size_t>;
+
+                    if constexpr(std::is_same_v<Ret, void>)
+                    {
+                        std::forward<Fn>(fn)(*typed, index++);
+                    }
+                    else
+                    {
+                        if(!std::forward<Fn>(fn)(*typed, index++))
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    using Ret = std::invoke_result_t<Fn&, T&>;
+
+                    if constexpr(std::is_same_v<Ret, void>)
+                    {
+                        std::forward<Fn>(fn)(*typed);
+                    }
+                    else
+                    {
+                        if(!std::forward<Fn>(fn)(*typed))
+                        {
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
 
+    /**
+     * Iterates over all stored objects matching or derived from type `T`.
+     * Calls the provided callback for each matching object downcasted to `T`.
+     *
+     * @tparam T Object type to filter by (must derive from `Object`).
+     * @param fn Callback function with one of the following signatures:
+     *           - `void(const T&)` or `void(const T&, std::size_t index)`
+     *           - `bool(const T&)` or `bool(const T&, std::size_t index)`
+     *
+     * @note If the callback returns a type convertible to `bool`, returning `false`
+     *       will terminate iteration early. Returning `void` iterates all objects.
+     */
     template<typename T, typename Fn>
-        requires(
-          std::is_base_of_v<Object, T>)
+        requires std::derived_from<T, Object>
     void for_each_object(Fn&& fn) const
     {
+        constexpr bool takes_index = std::is_invocable_v<Fn&, const T&, std::size_t>;
+
+        std::size_t index = 0;
         for(const auto& object: objects)
         {
-            if(const auto* typed = reflect::try_cast<T>(object.get()))
+            if(const auto* typed = reflect::try_cast<const T>(object.get()))
             {
-                fn(*typed);
+                if constexpr(takes_index)
+                {
+                    using Ret = std::invoke_result_t<Fn&, const T&, std::size_t>;
+
+                    if constexpr(std::is_same_v<Ret, void>)
+                    {
+                        std::forward<Fn>(fn)(*typed, index++);
+                    }
+                    else
+                    {
+                        if(!std::forward<Fn>(fn)(*typed, index++))
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    using Ret = std::invoke_result_t<Fn&, const T&>;
+
+                    if constexpr(std::is_same_v<Ret, void>)
+                    {
+                        std::forward<Fn>(fn)(*typed);
+                    }
+                    else
+                    {
+                        if(!std::forward<Fn>(fn)(*typed))
+                        {
+                            break;
+                        }
+                    }
+                }
             }
         }
+    }
+
+    /** Returns a filtered, downcasted view over objects derived from `T`. */
+    template<typename T>
+        requires std::derived_from<T, Object>
+    auto objects_of()
+    {
+        return objects
+               | std::views::transform([](auto& ptr)
+                                       { return reflect::try_cast<T>(ptr.get()); })
+               | std::views::filter([](T* ptr)
+                                    { return ptr != nullptr; })
+               | std::views::transform([](T* ptr) -> T&
+                                       { return *ptr; });
+    }
+
+    /** Const overload returning a view of `const T&`. */
+    template<typename T>
+        requires std::derived_from<T, Object>
+    auto objects_of() const
+    {
+        return objects
+               | std::views::transform([](const auto& ptr)
+                                       { return reflect::try_cast<T>(ptr.get()); })
+               | std::views::filter([](const T* ptr)
+                                    { return ptr != nullptr; })
+               | std::views::transform([](const T* ptr) -> const T&
+                                       { return *ptr; });
     }
 
     template<typename T, typename... Args>
@@ -151,7 +261,7 @@ public:
           std::is_base_of_v<Object, T>)
     T* add_object(Args&&... args)
     {
-        auto obj = std::make_unique<T>(std::forward<Args>(args)...);
+        auto obj = swr::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
 
@@ -178,18 +288,18 @@ public:
           std::is_base_of_v<SceneSystem, T>)
     T* add_system(Args&&... args)
     {
-        auto system = std::make_unique<T>(std::forward<Args>(args)...);
+        auto system = swr::make_unique<T>(std::forward<Args>(args)...);
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;
     }
 
-    const swr::vector<std::unique_ptr<Object>>& get_objects() const
+    const swr::vector<swr::unique_ptr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    swr::vector<std::unique_ptr<Object>>& get_objects()
+    swr::vector<swr::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

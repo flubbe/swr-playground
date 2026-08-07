@@ -8,15 +8,15 @@ add_executable(object_tests
 
 target_include_directories(object_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
-    $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-set_target_properties(object_tests PROPERTIES
-    SWR_USE_CUSTOM_STD_ALLOCATORS OFF
+target_compile_definitions(object_tests PRIVATE
+    SWR_USE_CUSTOM_STD_ALLOCATORS=0
 )
 
 target_link_libraries(object_tests PRIVATE
-    swr_playground_options
+    swr_playground_warnings
+    ml
     GTest::gtest_main
 )
 
@@ -39,21 +39,16 @@ add_executable(scene_tests
 
 target_include_directories(scene_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
-    $<TARGET_PROPERTY:swrast,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-set_target_properties(scene_tests PROPERTIES
-    SWR_USE_CUSTOM_STD_ALLOCATORS OFF
+target_compile_definitions(scene_tests PRIVATE
+    SWR_USE_CUSTOM_STD_ALLOCATORS=0
 )
 
 target_link_libraries(scene_tests PRIVATE
+    swr_playground_warnings
+    ml
     GTest::gtest_main
 )
-
-if(MSVC)
-    target_compile_options(scene_tests PRIVATE /W4)
-else()
-    target_compile_options(scene_tests PRIVATE -Wall -Wextra)
-endif()
 
 gtest_discover_tests(scene_tests)

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 #include "scene/camera.h"
 #include "scene/object.h"
@@ -24,6 +24,9 @@ struct ViewportDisplaySettings
 
     /** Whether to select static mesh LODs from projected screen size. */
     bool dynamic_lod{true};
+
+    /** LOD pixels per triangle target. */
+    float target_pixels_per_triangle{2.f};
 
     /** Whether to sort mesh submissions from front to back. */
     bool sort_meshes{true};

@@ -10,7 +10,8 @@
 
 #pragma once
 
-#include "ml/all.h"
+#include <ml/all.h>
+
 #include "object.h"
 
 class Light

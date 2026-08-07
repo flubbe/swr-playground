@@ -10,13 +10,16 @@
 
 #include <algorithm>
 #include <array>
+#include <format>
 #include <limits>
 #include <mutex>
 
 #include "assets/static_mesh_importer.h"
 #include "containers/string.h"
+#include "meshes/lod.h"
+#include "serialization/file.h"
+#include "serialization/hash.h"
 #include "logging.h"
-#include "mesh_lod.h"
 #include "startup_tasks.h"
 
 namespace
@@ -174,7 +177,6 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
             section.lods.push_back(
               StagedStaticMeshSectionLod{
                 .mesh = lod_mesh.mesh,
-                .min_screen_height = lod_mesh.min_screen_height,
                 .bounds = calculate_mesh_bounds(lod_mesh.mesh),
               });
         }
@@ -185,6 +187,57 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
     return sections;
 }
 
+std::uint64_t compute_mesh_cache_key(
+  const std::filesystem::path& static_mesh_path)
+{
+    if(!std::filesystem::exists(static_mesh_path))
+    {
+        throw std::runtime_error{
+          std::format(
+            "Cannot compute hash for non-existing mesh '{}'.",
+            static_mesh_path.string())};
+    }
+
+    serial::HashArchive hash_ar;
+    serial::FileReadArchive file_ar{
+      static_mesh_path};
+
+    const std::size_t file_size = file_ar.size();
+
+    constexpr std::size_t buffer_size = 64 * 1024;
+    std::array<std::byte, buffer_size> buffer;
+
+    while(file_ar.tell() < file_size)
+    {
+        const std::size_t remaining = file_size - file_ar.tell();
+        const std::size_t read_size = std::min(buffer_size, remaining);
+        std::span<std::byte> bytes{buffer.data(), read_size};
+
+        file_ar.serialize(bytes);
+        hash_ar.serialize(bytes);
+    }
+
+    return hash_ar.digest();
+}
+
+std::optional<StagedStaticMeshAsset> try_load_cached_mesh(
+  const std::filesystem::path& path)
+{
+    StagedStaticMeshAsset mesh;
+
+    try
+    {
+        serial::FileReadArchive ar{path};
+        ar & mesh;
+    }
+    catch(...)
+    {
+        return std::nullopt;
+    }
+
+    return mesh;
+}
+
 std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
   const std::filesystem::path& static_mesh_path)
 {
@@ -192,6 +245,28 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     {
         return std::nullopt;
     }
+
+    const std::uint64_t cache_key = compute_mesh_cache_key(static_mesh_path);
+    auto cache_path =
+      std::filesystem::path{"cache"} / "meshes" / std::format("{:016x}.lodmesh", cache_key);
+
+    if(std::filesystem::exists(cache_path))
+    {
+        if(auto cached = try_load_cached_mesh(cache_path))
+        {
+            logging::logf(
+              "Using cache entry for '{}' (hash: {:016x}).",
+              static_mesh_path.string(),
+              cache_key);
+
+            return cached;
+        }
+    }
+
+    logging::logf(
+      "No cache entry found for '{}' (hash: {:016x}).",
+      static_mesh_path.string(),
+      cache_key);
 
     constexpr float sample_half_extent = 2.f;
 
@@ -212,13 +287,21 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
         return std::nullopt;
     }
 
-    return StagedStaticMeshAsset{
+    auto mesh_asset = StagedStaticMeshAsset{
       .name = swr::string_from(static_mesh_path.filename().string()),
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,
         sample_half_extent),
       .sections = std::move(sections),
     };
+
+    // Write the processed asset.
+    std::filesystem::create_directories(cache_path.parent_path());
+
+    serial::FileWriteArchive ar{cache_path};
+    ar & mesh_asset;
+
+    return mesh_asset;
 }
 
 }    // namespace

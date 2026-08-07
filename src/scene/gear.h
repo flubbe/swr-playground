@@ -10,7 +10,6 @@
 
 #pragma once
 
-#include "shader.h"
 #include "static_mesh.h"
 
 struct GearGeometry

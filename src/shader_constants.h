@@ -20,12 +20,12 @@ constexpr std::size_t camera_view_uniform_index = 1;
 constexpr std::size_t directional_light_count_uniform_index = 2;
 constexpr std::size_t directional_light_uniform_base_index = 3;
 
-constexpr std::size_t max_lights = 2;
+constexpr std::size_t max_directional_lights = 2;
 constexpr std::size_t max_spot_lights = 1;
 constexpr std::size_t spot_light_uniform_stride = 4;
 
 constexpr std::size_t spot_light_count_uniform_index =
-  directional_light_uniform_base_index + max_lights;
+  directional_light_uniform_base_index + max_directional_lights;
 constexpr std::size_t spot_light_uniform_base_index =
   spot_light_count_uniform_index + 1;
 constexpr std::size_t material_color_uniform_index =

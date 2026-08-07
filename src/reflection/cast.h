@@ -61,7 +61,7 @@ auto* try_cast(
  * @tparam RootType The reflected root hierarchy type (constness is preserved).
  * @param instance Reference to the root subobject.
  * @returns Reference to `TargetType` (const-qualified when `instance` is const).
- * @throws instance_error If runtime type check fails.
+ * @throws `InstanceError` If runtime type check fails.
  */
 template<typename TargetType, typename RootType>
     requires std::is_base_of_v<
@@ -82,7 +82,7 @@ auto& cast(
     auto* casted = try_cast<TargetType>(std::addressof(instance));
     if(casted == nullptr)
     {
-        throw instance_error{"object instance type mismatch for cast"};
+        throw InstanceError{"object instance type mismatch for cast"};
     }
     return static_cast<ResultType&>(*casted);
 }

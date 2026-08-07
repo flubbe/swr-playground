@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * class inspector panel.
+ * Class inspector panel.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -17,8 +17,10 @@
 
 #include "containers/format.h"
 #include "reflection/builtin_properties.h"
+#include "renderer/renderdevice.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
+#include "scene/static_mesh.h"
 #include "ui/imgui.h"
 
 namespace
@@ -36,7 +38,7 @@ void validate_selected_object(
     const auto& objects = scene.get_objects();
     const bool found = std::ranges::any_of(
       objects,
-      [&](const std::unique_ptr<Object>& object)
+      [&](const swr::unique_ptr<Object>& object)
       {
           return object.get() == ui_state.selected_scene_object;
       });
@@ -322,10 +324,13 @@ private:
         if(ImGui::BeginPopup("Mat4Editor"))
         {
             static ml::mat4x4 edit_value = ml::mat4x4::identity();
+
             if(ImGui::IsWindowAppearing())
             {
                 edit_value = property.get_value();
             }
+
+            bool changed = false;
 
             for(int row = 0; row < 4; ++row)
             {
@@ -334,38 +339,29 @@ private:
                   edit_value.rows[row].y,
                   edit_value.rows[row].z,
                   edit_value.rows[row].w};
+
                 ImGui::PushID(row);
                 ImGui::PushItemWidth(260.0f);
-                const bool row_changed = ImGui::DragFloat4(
-                  "##row",
-                  row_values,
-                  0.01f,
-                  0.0f,
-                  0.0f,
-                  "%.3f");
-                ImGui::PopItemWidth();
-                ImGui::PopID();
-                if(row_changed)
+
+                if(ImGui::DragFloat4("##row", row_values, 0.01f, 0.0f, 0.0f, "%.3f"))
                 {
                     edit_value.rows[row].x = row_values[0];
                     edit_value.rows[row].y = row_values[1];
                     edit_value.rows[row].z = row_values[2];
                     edit_value.rows[row].w = row_values[3];
+                    changed = true;
                 }
+
+                ImGui::PopItemWidth();
+                ImGui::PopID();
             }
 
-            if(ImGui::Button("Apply"))
+            if(changed)
             {
                 if(property.set_value(edit_value))
                 {
                     object.on_properties_changed();
                 }
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if(ImGui::Button("Cancel"))
-            {
-                ImGui::CloseCurrentPopup();
             }
 
             ImGui::EndPopup();
@@ -403,6 +399,66 @@ private:
     }
 };
 
+void draw_static_mesh_sections(
+  const StaticMesh& mesh,
+  RenderDevice& render_device)
+{
+    if(!mesh.has_mesh_sections())
+    {
+        return;
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Mesh sections");
+
+    const ImGuiTableFlags table_flags =
+      ImGuiTableFlags_BordersInnerV
+      | ImGuiTableFlags_BordersOuter
+      | ImGuiTableFlags_RowBg
+      | ImGuiTableFlags_SizingFixedFit;
+
+    if(ImGui::BeginTable("MeshSections", 4, table_flags))
+    {
+        ImGui::TableSetupColumn("LOD", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+        ImGui::TableSetupColumn("Section", ImGuiTableColumnFlags_WidthFixed, 56.0f);
+        ImGui::TableSetupColumn("Material", ImGuiTableColumnFlags_WidthFixed, 72.0f);
+        ImGui::TableSetupColumn("Shader", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+
+        for(std::size_t lod_index = 0; lod_index < mesh.get_lod_count(); ++lod_index)
+        {
+            const auto& lod = mesh.get_lod(lod_index);
+            for(std::size_t section_index = 0; section_index < lod.mesh_sections.size(); ++section_index)
+            {
+                const auto& section = lod.mesh_sections[section_index];
+                ImGui::TableNextRow();
+
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%zu", lod_index);
+
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%zu", section_index);
+
+                ImGui::TableSetColumnIndex(2);
+                ImGui::Text("%u", section.material_handle.value);
+
+                ImGui::TableSetColumnIndex(3);
+                const Material* material = render_device.get_material(section.material_handle);
+                if(material != nullptr)
+                {
+                    ImGui::Text("%u", material->shader_handle);
+                }
+                else
+                {
+                    ImGui::TextDisabled("n/a");
+                }
+            }
+        }
+
+        ImGui::EndTable();
+    }
+}
+
 }    // namespace
 
 namespace imgui
@@ -410,7 +466,8 @@ namespace imgui
 
 void draw_scene_inspector_panel(
   State& ui_state,
-  Scene& scene)
+  Scene& scene,
+  RenderDevice& render_device)
 {
     ImGui::Begin("Scene Inspector");
     validate_selected_object(ui_state, scene);
@@ -514,6 +571,11 @@ void draw_scene_inspector_panel(
                     }
 
                     ImGui::EndTable();
+                }
+
+                if(auto* mesh = reflect::try_cast<StaticMesh>(object.get()))
+                {
+                    draw_static_mesh_sections(*mesh, render_device);
                 }
             }
 

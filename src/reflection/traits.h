@@ -10,9 +10,9 @@
 
 #pragma once
 
-#include <memory>
 #include <string_view>
 
+#include "containers/memory.h"
 #include "flags.h"
 
 namespace reflect
@@ -42,8 +42,8 @@ struct ReflectionTraits
     using RootType = Root;
     using ClassInfoType = Info;
 
-    using FactoryFn = std::unique_ptr<Root> (*)();
-    using ConstructFn = std::unique_ptr<Property> (*)(
+    using FactoryFn = swr::unique_ptr<Root> (*)();
+    using ConstructFn = swr::unique_ptr<Property> (*)(
       Root&,
       std::string_view,
       std::string_view,

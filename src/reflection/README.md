@@ -48,7 +48,7 @@ Each `Property` stores:
 
 - internal name and display label
 - flags
-- optional typed constraint metadata (`std::shared_ptr<const PropertyConstraint>`)
+- optional typed constraint metadata (`swr::shared_ptr<const PropertyConstraint>`)
 - memory layout metadata for the reflected value:
   - `size`
   - `offset` (from owning object base)
@@ -58,8 +58,8 @@ Each `PropertyDescriptor` stores:
 
 - internal name and display label
 - flags
-- optional typed constraint metadata (`std::shared_ptr<const PropertyConstraint>`)
-- optional typed default metadata (`std::shared_ptr<const PropertyDefault>`)
+- optional typed constraint metadata (`swr::shared_ptr<const PropertyConstraint>`)
+- optional typed default metadata (`swr::shared_ptr<const PropertyDefault>`)
 
 Built-in property classes compute static `size`/`alignment` from their `Type` alias and receive `offset` from descriptor construction.
 
@@ -83,7 +83,7 @@ For built-in numeric properties (`int`, `unsigned int`, `float`), range constrai
 - `TypedDefault<T>` stores a typed default value.
 - `DescriptorBase::try_get_default<T>()` provides exact-type retrieval at runtime.
 - `register_property` validates typed defaults at compile time (default type must match the reflected member type).
-- `default_of(value)` builds shared default metadata (`std::shared_ptr<const PropertyDefault>`).
+- `default_of(value)` builds shared default metadata (`swr::shared_ptr<const PropertyDefault>`).
 
 ## Minimal Usage
 

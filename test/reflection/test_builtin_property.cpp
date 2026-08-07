@@ -1,9 +1,9 @@
 #include <stdexcept>
 #include <cstdint>
-#include <memory>
 
 #include <gtest/gtest.h>
 
+#include "containers/memory.h"
 #include "reflection/builtin_properties.h"
 
 namespace
@@ -154,7 +154,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
     LayoutProbe probe{};
     const auto base = reinterpret_cast<std::uintptr_t>(&probe);
 
-    std::unique_ptr<reflect::Property> int_property =
+    swr::unique_ptr<reflect::Property> int_property =
       reflect::PropertyFactory<int>::construct(
         "i",
         "I",
@@ -162,7 +162,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.i) - base),
         reflect::PropertyFlags::None,
         {});
-    std::unique_ptr<reflect::Property> uint_property =
+    swr::unique_ptr<reflect::Property> uint_property =
       reflect::PropertyFactory<unsigned int>::construct(
         "u",
         "U",
@@ -170,7 +170,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.u) - base),
         reflect::PropertyFlags::None,
         {});
-    std::unique_ptr<reflect::Property> float_property =
+    swr::unique_ptr<reflect::Property> float_property =
       reflect::PropertyFactory<float>::construct(
         "f",
         "F",
@@ -178,7 +178,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.f) - base),
         reflect::PropertyFlags::None,
         {});
-    std::unique_ptr<reflect::Property> bool_property =
+    swr::unique_ptr<reflect::Property> bool_property =
       reflect::PropertyFactory<bool>::construct(
         "b",
         "B",
@@ -186,7 +186,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.b) - base),
         reflect::PropertyFlags::None,
         {});
-    std::unique_ptr<reflect::Property> string_property =
+    swr::unique_ptr<reflect::Property> string_property =
       reflect::PropertyFactory<std::string>::construct(
         "s",
         "S",

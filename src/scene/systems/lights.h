@@ -14,14 +14,15 @@
 #include <cmath>
 #include <numbers>
 
-#include "ml/all.h"
+#include <ml/all.h>
 
 #include "scene/directionallight.h"
 #include "scene/scene.h"
 #include "scene/spotlight.h"
 #include "system.h"
 
-class LightSystem final : public SceneSystem
+class LightSystem final
+: public SceneSystem
 {
     constexpr static float orbit_radius = 10.f;
     constexpr static float orbit_height = 8.f;
@@ -62,52 +63,40 @@ public:
       Scene& scene,
       [[maybe_unused]] float delta_time) override
     {
-        // TODO needs object iterator.
+        // TODO The offsets should go into the light properties.
 
-        static swr::vector<DirectionalLight*> directional_lights;
-        directional_lights.clear();
-        scene.get_directional_lights(directional_lights);
+        scene.for_each_object<DirectionalLight>(
+          [&scene](DirectionalLight& light, std::size_t light_index) -> void
+          {
+              if(light.behavior == DirectionalLightBehavior::Stationary)
+              {
+                  light.set_transform(make_stationary_orientation());
+                  light.set_position({-10.f, 12.f, -6.f});
+                  return;
+              }
 
-        for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
-        {
-            DirectionalLight& light = *directional_lights[light_index];
-            if(light.behavior == DirectionalLightBehavior::Stationary)
-            {
-                light.set_transform(make_stationary_orientation());
-                light.set_position({-10.f, 12.f, -6.f});
-                continue;
-            }
+              const float phase_offset =
+                (light_index == 0)
+                  ? 0.f
+                  : std::numbers::pi_v<float>;
+              const float angle = scene.get_time() * orbit_speed + phase_offset;
+              light.set_transform(make_orbit_orientation(angle, orbit_pitch_radians));
+              light.set_position({(orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
+                                  orbit_height + static_cast<float>(light_index) * 2.f,
+                                  (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
+          });
 
-            const float phase_offset =
-              (light_index == 0)
-                ? 0.f
-                : std::numbers::pi_v<float>;
-            const float angle = scene.get_time() * orbit_speed + phase_offset;
-            light.set_transform(make_orbit_orientation(angle, orbit_pitch_radians));
-            light.set_position({(orbit_radius + static_cast<float>(light_index) * 2.f) * std::cos(angle),
-                                orbit_height + static_cast<float>(light_index) * 2.f,
-                                (orbit_radius + static_cast<float>(light_index) * 2.f) * std::sin(angle)});
-        }
-
-        static swr::vector<SpotLight*> spot_lights;
-        spot_lights.clear();
-        scene.get_spot_lights(spot_lights);
-
-        for(std::size_t light_index = 0; light_index < spot_lights.size(); ++light_index)
-        {
-            SpotLight& light = *spot_lights[light_index];
-            const float phase_offset =
-              static_cast<float>(light_index)
-              * (2.f * std::numbers::pi_v<float>
-                 / std::max<std::size_t>(spot_lights.size(), 1));
-            const float angle =
-              scene.get_time() * spot_orbit_speed + phase_offset;
-            const ml::vec3 position = {
-              spot_orbit_radius * std::cos(angle),
-              spot_orbit_height,
-              spot_orbit_radius * std::sin(angle)};
-            light.set_transform(make_spot_orbit_orientation(position));
-            light.set_position(position);
-        }
+        scene.for_each_object<SpotLight>(
+          [&scene](SpotLight& light) -> void
+          {
+              const float angle =
+                scene.get_time() * spot_orbit_speed;
+              const ml::vec3 position = {
+                spot_orbit_radius * std::cos(angle),
+                spot_orbit_height,
+                spot_orbit_radius * std::sin(angle)};
+              light.set_transform(make_spot_orbit_orientation(position));
+              light.set_position(position);
+          });
     }
 };

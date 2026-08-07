@@ -65,7 +65,7 @@ struct ClassInfo
     PropertyRegisterFn register_properties{nullptr};
 
     /** Linked list of registered properties for this class. */
-    std::unique_ptr<PropertyDescriptor> first_property;
+    swr::unique_ptr<PropertyDescriptor> first_property;
 
     /** Get this class' direct super class. Returns `nullptr` if there is none. */
     const ClassInfo* get_super() const

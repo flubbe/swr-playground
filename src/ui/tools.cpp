@@ -17,8 +17,8 @@
 #include "containers/format.h"
 #include "scene/directionallight.h"
 #include "scene/scene.h"
-#include "renderdevice.h"
-#include "renderer.h"
+#include "renderer/renderdevice.h"
+#include "renderer/renderer.h"
 #include "viewport.h"
 #include "application.h"
 
@@ -125,26 +125,23 @@ void draw_tools_panel(
           "Stationary",
         };
 
-        static swr::vector<DirectionalLight*> directional_lights;
-        scene.get_directional_lights(directional_lights);
+        scene.for_each_object<DirectionalLight>(
+          [&light_mode_names](DirectionalLight& light, std::size_t light_index)
+          {
+              int light_mode_index = static_cast<int>(light.behavior);
 
-        for(std::size_t light_index = 0; light_index < directional_lights.size(); ++light_index)
-        {
-            DirectionalLight& light = *directional_lights[light_index];
-            int light_mode_index = static_cast<int>(light.behavior);
-
-            const swr::string label = swr::format(
-              "Directional Light {}",
-              light_index + 1);
-            if(ImGui::Combo(
-                 label.c_str(),
-                 &light_mode_index,
-                 light_mode_names,
-                 IM_ARRAYSIZE(light_mode_names)))
-            {
-                light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
-            }
-        }
+              const swr::string label = swr::format(
+                "Directional Light {}",
+                light_index + 1);
+              if(ImGui::Combo(
+                   label.c_str(),
+                   &light_mode_index,
+                   light_mode_names,
+                   IM_ARRAYSIZE(light_mode_names)))
+              {
+                  light.behavior = static_cast<DirectionalLightBehavior>(light_mode_index);
+              }
+          });
 
         if(ImGui::Checkbox("Face Culling", &display_settings.cull_face))
         {
@@ -161,6 +158,16 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::DragFloat(
+             "LOD Pixels Per Triangle",
+             &display_settings.target_pixels_per_triangle,
+             1.f,
+             0.5f,
+             256.f))
+        {
+            update_display_settings = true;
+        }
+
         if(ImGui::Checkbox("Sort Meshes", &display_settings.sort_meshes))
         {
             update_display_settings = true;
@@ -168,18 +175,27 @@ void draw_tools_panel(
 
         if(display_settings.sort_meshes)
         {
-            const char* sort_modes[] = {
-              "Full Sort (O(n log n))",
-              "Bin Sort (O(n))",
-            };
-            int sort_mode = static_cast<int>(renderer.get_sort_mode());
-            if(ImGui::Combo(
-                 "Sort Mode",
-                 &sort_mode,
-                 sort_modes,
-                 IM_ARRAYSIZE(sort_modes)))
+            const SortMode current_mode = renderer.get_sort_mode();
+            const std::string_view current_name = RenderQueueSortFactory::get_name(current_mode);
+
+            if(ImGui::BeginCombo("Sort Mode", current_name.data()))
             {
-                renderer.set_sort_mode(static_cast<SortMode>(sort_mode));
+                for(SortMode mode: RenderQueueSortFactory::supported_modes)
+                {
+                    const bool is_selected = (mode == current_mode);
+                    const char* name = RenderQueueSortFactory::get_name(mode);
+
+                    if(ImGui::Selectable(name, is_selected))
+                    {
+                        renderer.set_sort_mode(mode);
+                    }
+
+                    if(is_selected)
+                    {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
             }
         }
 
@@ -314,12 +330,6 @@ void draw_tools_panel(
             ImGui::InputInt("Iterations", &sorting_benchmark_iterations);
             sorting_benchmark_iterations = app.set_benchmark_iterations(sorting_benchmark_iterations);
 
-            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
-            {
-                sorting_benchmark_requested = true;
-            }
-
-            ImGui::SameLine();
             ImGui::InputInt("Depth Bins", &sorting_depth_bin_count, 1, 4);
             if(sorting_depth_bin_count < 1)
             {
@@ -330,7 +340,11 @@ void draw_tools_panel(
                 renderer.set_depth_bin_count(static_cast<std::size_t>(sorting_depth_bin_count));
             }
 
-            ImGui::SameLine();
+            if(ImGui::Button("Run Benchmark", ImVec2{-1.f, 0.f}))
+            {
+                sorting_benchmark_requested = true;
+            }
+
             if(ImGui::Button("Run Comparative Benchmark", ImVec2{-1.f, 0.f}))
             {
                 // FIXME Benchmark should not be controlled by the renderer.
