@@ -19,6 +19,7 @@
 #include "meshes/lod.h"
 #include "serialization/file.h"
 #include "serialization/hash.h"
+#include "colors.h"
 #include "logging.h"
 #include "startup_tasks.h"
 
@@ -276,6 +277,12 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     ImportedStaticMesh imported_mesh = import_static_mesh(static_mesh_path);
     const MeshBounds mesh_bounds =
       calculate_imported_mesh_bounds(imported_mesh);
+
+    // TODO Fix color space. This works for some models.
+    for(auto& mesh: imported_mesh.meshes)
+    {
+        mesh.diffuse_color = colors::linear_to_srgb(mesh.diffuse_color);
+    }
 
     auto sections = build_static_mesh_sections(std::move(imported_mesh));
     std::erase_if(
