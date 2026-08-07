@@ -35,6 +35,8 @@ add_executable(scene_tests
     ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/static_mesh.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/json_property_writer.cpp
+    ${PROJECT_SOURCE_DIR}/src/logging.cpp
 )
 
 target_include_directories(scene_tests PRIVATE
@@ -47,8 +49,9 @@ target_compile_definitions(scene_tests PRIVATE
 
 target_link_libraries(scene_tests PRIVATE
     swr_playground_warnings
-    ml
     GTest::gtest_main
+    ml
+    simdjson
 )
 
 gtest_discover_tests(scene_tests)

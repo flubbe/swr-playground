@@ -6,6 +6,7 @@ This module provides runtime class metadata and property reflection for object h
 
 - `class_info.h`: `ClassInfo` metadata (name, module, size, inheritance, factory/destroy hooks, property descriptors).
 - `class_registry.h/.cpp`: global registry, static registration queue, lookup/unregister APIs, root-scoped type separation.
+- `construct.h`: Instance construction.
 - `property.h`: `Property` base type, descriptor model, typed access helpers, member-binding construction.
 - `builtin_properties.h/.cpp`: built-in property implementations (`int`, `unsigned int`, `float`, `bool`, `std::string`).
 - `flags.h`: `PropertyFlags` bit flags (for example read-only).
@@ -108,8 +109,13 @@ int main()
     reflect::ReflectionSystem::allow_auto_registration(false);
     reflect::ReflectionSystem::process_pending_registrations();
 
+    // Construct instance from class
     const reflect::ClassInfo* cls =
       reflect::ReflectionSystem::find_class<Object>("Core.Object");
+    Object* object_from_class = reflect::construct<Object>(cls);
+
+    // Construct instance from name
+    Object* object_from_name = reflect::construct<Object>("Core.Object");
 }
 ```
 

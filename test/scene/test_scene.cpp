@@ -4,6 +4,10 @@
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 
+#include "../utils.h"
+
+namespace fs = std::filesystem;
+
 namespace
 {
 
@@ -253,4 +257,92 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
       });
 
     EXPECT_EQ(const_visit_count, 1);
+}
+
+TEST(SceneTests, EmptySaveLoad)
+{
+    ensure_scene_reflection_ready();
+
+    {
+        Scene scene;
+        swr::string json;
+        EXPECT_NO_THROW(json = scene.save(
+                          0,      // indentation size (ignored)
+                          true    // compacted
+                          ));
+        EXPECT_EQ(json,
+                  "{\"time\":0,\"paused\":false,\"objects\":[]}");
+    }
+
+    {
+        Scene scene;
+        EXPECT_NO_THROW(scene.load("{}"));
+
+        std::size_t object_count{0};
+        scene.for_each_object<Object>(
+          [&]([[maybe_unused]] const Object& obj)
+          {
+              ++object_count;
+          });
+
+        EXPECT_EQ(object_count, 0);
+    }
+}
+
+TEST(SceneTests, SaveLoad)
+{
+    ensure_scene_reflection_ready();
+
+    const std::string_view expected =
+      "{"
+      "\"time\":0,"
+      "\"paused\":false,"
+      "\"objects\":["
+      "{"
+      "\"class\":\"Scene.StaticMesh\","
+      "\"object_id\":1,"
+      "\"name\":\"StaticMesh_1\","
+      "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
+      "\"visible\":true,"
+      "\"casts_shadows\":true,"
+      "\"receives_shadows\":false"
+      "}"
+      "]}";
+
+    {
+        Scene scene;
+        auto* mesh = scene.add_object<StaticMesh>();
+        ASSERT_NE(mesh, nullptr);
+
+        mesh->casts_shadows = true;
+        mesh->receives_shadows = false;
+
+        swr::string json;
+        EXPECT_NO_THROW(json = scene.save(
+                          0,      // indentation size (ignored)
+                          true    // compacted
+                          ));
+        EXPECT_EQ(json, expected);
+    }
+
+    {
+        Scene scene;
+        EXPECT_NO_THROW(scene.load(expected));
+
+        std::size_t object_count{0};
+        scene.for_each_object<Object>(
+          [&]([[maybe_unused]] const Object& obj)
+          {
+              ++object_count;
+          });
+        EXPECT_EQ(object_count, 1);
+
+        std::size_t mesh_count{0};
+        scene.for_each_object<StaticMesh>(
+          [&]([[maybe_unused]] const StaticMesh& mesh)
+          {
+              ++mesh_count;
+          });
+        EXPECT_EQ(mesh_count, 1);
+    }
 }

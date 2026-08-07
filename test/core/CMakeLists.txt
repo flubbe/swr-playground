@@ -25,6 +25,7 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
     ${PROJECT_SOURCE_DIR}/src/serialization/file.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/json_property_writer.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
@@ -39,8 +40,9 @@ target_include_directories(core_tests PRIVATE
 
 target_link_libraries(core_tests PRIVATE
     swr_playground_warnings
-    ml
     GTest::gtest_main
+    ml
+    simdjson
     xxhash
 )
 

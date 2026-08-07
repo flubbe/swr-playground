@@ -5,29 +5,16 @@
 #include "serialization/archive.h"
 #include "serialization/containers.h"
 #include "serialization/file.h"
+#include "serialization/json_writer.h"
 #include "serialization/memory.h"
+
+#include "../utils.h"
 
 // NOTE There a lot of random/magic numbers in the tests.
 // NOLINTBEGIN(readability-magic-numbers)
 
 namespace
 {
-
-struct FileCleanup
-{
-    explicit FileCleanup(std::filesystem::path p)
-    : path(std::move(p))
-    {
-    }
-
-    ~FileCleanup()
-    {
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-    }
-
-    std::filesystem::path path;
-};
 
 template<std::integral T>
 std::array<std::uint8_t, sizeof(T)> to_little_endian(T value)
@@ -906,6 +893,140 @@ TEST(SerializationTests, ConstantSerializer)
     read_ar & actual;
 
     EXPECT_EQ(actual, expected);
+}
+
+TEST(JsonWriterTests, Empty)
+{
+    serial::JsonWriter writer;
+    EXPECT_EQ(writer.get(), "");
+}
+
+TEST(JsonWriterTests, RootLevelNumber)
+{
+    serial::JsonWriter writer;
+    writer.write_val(42);
+    EXPECT_EQ(writer.get(), "42");
+}
+
+TEST(JsonWriterTests, RootLevelFloat)
+{
+    serial::JsonWriter writer;
+    writer.write_val(3.14159);
+    EXPECT_EQ(writer.get(), "3.14159");
+}
+
+TEST(JsonWriterTests, RootLevelString)
+{
+    serial::JsonWriter writer;
+    writer.write_val("Hello World");
+    EXPECT_EQ(writer.get(), "\"Hello World\"");
+}
+
+TEST(JsonWriterTests, RootLevelBooleanAndNull)
+{
+    {
+        serial::JsonWriter writer;
+        writer.write_val(true);
+        EXPECT_EQ(writer.get(), "true");
+    }
+    {
+        serial::JsonWriter writer;
+        writer.write_null();
+        EXPECT_EQ(writer.get(), "null");
+    }
+}
+
+TEST(JsonWriterTests, EmptyObject)
+{
+    serial::JsonWriter writer;
+    writer.begin_object();
+    writer.end_object();
+    EXPECT_EQ(writer.get(), "{}");
+}
+
+TEST(JsonWriterTests, EmptyArray)
+{
+    serial::JsonWriter writer;
+    writer.begin_array();
+    writer.end_array();
+    EXPECT_EQ(writer.get(), "[]");
+}
+
+TEST(JsonWriterTests, CompactedObject)
+{
+    serial::JsonWriter writer(4, true);
+    writer.begin_object();
+    writer.write_key_value("name", "a");
+    writer.write_key_value("id", 101);
+    writer.write_key_value("active", true);
+    writer.end_object();
+
+    EXPECT_EQ(writer.get(), R"({"name":"a","id":101,"active":true})");
+}
+
+TEST(JsonWriterTests, FormattedObject)
+{
+    serial::JsonWriter writer(2, false);
+    writer.begin_object();
+    writer.write_key_value("width", 1920);
+    writer.write_key_value("height", 1080);
+    writer.end_object();
+
+    std::string expected =
+      "{\n"
+      "  \"width\": 1920,\n"
+      "  \"height\": 1080\n"
+      "}";
+
+    EXPECT_EQ(writer.get(), expected);
+}
+
+TEST(JsonWriterTests, FormattedArray)
+{
+    serial::JsonWriter writer(2, false);
+    writer.begin_array();
+    writer.write_val(10);
+    writer.write_val(20);
+    writer.write_val(30);
+    writer.end_array();
+
+    std::string expected =
+      "[\n"
+      "  10,\n"
+      "  20,\n"
+      "  30\n"
+      "]";
+
+    EXPECT_EQ(writer.get(), expected);
+}
+
+TEST(JsonWriterTests, NestedObjectAndArray)
+{
+    serial::JsonWriter writer(2, true);
+
+    writer.begin_object();
+    writer.write_key("user");
+    writer.begin_object();
+    writer.write_key_value("name", "Renderer");
+    writer.end_object();
+
+    writer.write_key("matrix");
+    writer.begin_array();
+    writer.write_val(1.0);
+    writer.write_val(0.0);
+    writer.write_val(0.0);
+    writer.write_val(1.0);
+    writer.end_array();
+    writer.end_object();
+
+    EXPECT_EQ(writer.get(), R"({"user":{"name":"Renderer"},"matrix":[1,0,0,1]})");
+}
+
+TEST(JsonWriterTests, StringEscaping)
+{
+    serial::JsonWriter writer;
+    writer.write_val("Line 1\nLine 2\t\"Quotes\" & \\Backslash\\");
+    EXPECT_EQ(writer.get(), R"("Line 1\nLine 2\t\"Quotes\" & \\Backslash\\")");
 }
 
 // NOLINTEND(readability-magic-numbers)

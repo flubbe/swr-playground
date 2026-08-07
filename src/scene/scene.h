@@ -294,6 +294,35 @@ public:
         return ptr;
     }
 
+    /*
+     * Import and export.
+     */
+
+    /**
+     * Save the scene to JSON.
+     *
+     * @param indentation_size Indentation size. Defaults to 4.
+     * @param use_compacted_format Whether to use a compacted format: no indentation, no newlines.
+     *     Defaults to `false`.
+     * @returns Returns the JSON description of the scene.
+     * @throws `std::runtime_error` if saving fails.
+     */
+    swr::string save(
+      std::size_t indentation_size = 4,
+      bool use_compacted_format = false) const;
+
+    /**
+     * Load the scene from JSON.
+     *
+     * @param text The JSON text.
+     * @throws `std::runtime_error` if loading fails.
+     */
+    void load(const std::string_view& text);
+
+    /*
+     * Accessors.
+     */
+
     const swr::vector<swr::unique_ptr<Object>>& get_objects() const
     {
         return objects;
