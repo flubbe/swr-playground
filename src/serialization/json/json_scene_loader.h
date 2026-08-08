@@ -13,6 +13,7 @@
 namespace serial::json
 {
 
+/** Load a scene from a JSON description. */
 struct JsonSceneLoader final
 : public SceneLoader
 {
