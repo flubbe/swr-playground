@@ -14,6 +14,7 @@
 #include <version>
 
 #include "containers/string.h"
+#include "containers/vector.h"
 
 namespace swr
 {
@@ -62,7 +63,7 @@ namespace std
 template<
   typename T,
   typename CharT>
-struct formatter<std::vector<T>, CharT>
+struct formatter<swr::vector<T>, CharT>
 : formatter<std::string_view, CharT>
 {
     template<typename FormatContext>
