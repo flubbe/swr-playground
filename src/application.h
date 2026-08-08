@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdint>
 #include <array>
+#include <filesystem>
 #include <future>
 #include <optional>
 #include <string>
@@ -230,16 +231,6 @@ private:
     void draw_runtime_test_modal();
 
 public:
-    void tick(float delta_time);
-
-    /** Start async runtime test tasks from Debug menu. */
-    void start_debug_test_tasks();
-
-    /** Return whether runtime test tasks are currently running. */
-    [[nodiscard]]
-    bool is_debug_test_tasks_running() const noexcept;
-
-public:
     Application(
       std::string_view title,
       logging::BufferedLogDevice& log_device,
@@ -250,6 +241,27 @@ public:
       std::size_t thread_pool_workers);
 
     ~Application();
+
+    void tick(float delta_time);
+
+    /** Start async runtime test tasks from Debug menu. */
+    void start_debug_test_tasks();
+
+    /** Return whether runtime test tasks are currently running. */
+    [[nodiscard]]
+    bool is_debug_test_tasks_running() const noexcept;
+
+    /**
+     * Save the scene as JSON.
+     *
+     * @param path Output path.
+     * @returns Returns `true` on success and `false` on failure.
+     */
+    bool save_scene(const std::filesystem::path& path);
+
+    /*
+     * Accessors.
+     */
 
     // FIXME Likely not the correct place, but convenient for experimenting.
     void set_static_mesh_shader(StaticMeshShaderType type);

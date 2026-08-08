@@ -306,10 +306,21 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     };
 
     // Write the processed asset.
-    std::filesystem::create_directories(cache_path.parent_path());
+    std::error_code ec;
+    std::filesystem::create_directories(cache_path.parent_path(), ec);
 
-    serial::FileWriteArchive ar{cache_path};
-    ar & mesh_asset;
+    if(ec)
+    {
+        logging::errorf(
+          "Cannot write cached asset. Failed to create directory structure '{}': {}",
+          cache_path.parent_path().string(),
+          ec.message());
+    }
+    else
+    {
+        serial::FileWriteArchive ar{cache_path};
+        ar & mesh_asset;
+    }
 
     return mesh_asset;
 }

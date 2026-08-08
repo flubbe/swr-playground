@@ -329,6 +329,10 @@ void draw_main_dockspace(Application& app)
     {
         if(ImGui::BeginMenu("File"))
         {
+            if(ImGui::MenuItem("Save Scene", nullptr, false, true))
+            {
+                app.save_scene("scene.json");
+            }
             if(ImGui::MenuItem("Quit", nullptr, false, true))
             {
                 SDL_Event quit_event{};

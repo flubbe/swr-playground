@@ -1958,3 +1958,31 @@ void Application::set_floor_shader(FloorShaderType type)
         }
     }
 }
+
+bool Application::save_scene(
+  const std::filesystem::path& path)
+{
+    auto abs_path = std::filesystem::absolute(path);
+
+    std::error_code ec;
+    std::filesystem::create_directories(abs_path.parent_path(), ec);
+
+    if(ec)
+    {
+        logging::errorf(
+          "Failed to create directory structure '{}': {}",
+          abs_path.parent_path().string(),
+          ec.message());
+
+        return false;
+    }
+
+    std::ofstream file{path, std::ios::binary};
+    file << scene.save();
+
+    logging::logf(
+      "Scene saved to '{}'.",
+      abs_path.string());
+
+    return true;
+}
