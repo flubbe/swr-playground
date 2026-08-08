@@ -63,7 +63,6 @@ MeshBounds calculate_imported_mesh_bounds(
 
     for(auto& mesh: imported_mesh.meshes)
     {
-        mesh.bounds = calculate_mesh_bounds(mesh.mesh_data);
         expand_bounds(bounds, mesh.bounds);
     }
 

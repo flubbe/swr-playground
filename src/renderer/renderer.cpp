@@ -27,6 +27,7 @@
 #include "assets/shaders/shadow_map_debug.h"
 #include "assets/shaders/textured_floor.h"
 #include "assets/shaders/textured_shiny_floor.h"
+#include "containers/format.h"
 #include "containers/vector.h"
 #include "renderdevice.h"
 #include "renderer.h"
