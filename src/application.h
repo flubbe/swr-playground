@@ -252,6 +252,14 @@ public:
     bool is_debug_test_tasks_running() const noexcept;
 
     /**
+     * Load a scene from JSON.
+     *
+     * @param path The scene path.
+     * @returns Returns `true` on success and `false` on failure.
+     */
+    bool load_scene(const std::filesystem::path& path);
+
+    /**
      * Save the scene as JSON.
      *
      * @param path Output path.

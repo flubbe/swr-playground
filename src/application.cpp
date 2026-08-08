@@ -1959,6 +1959,50 @@ void Application::set_floor_shader(FloorShaderType type)
     }
 }
 
+bool Application::load_scene(
+  const std::filesystem::path& path)
+{
+    auto abs_path = std::filesystem::absolute(path);
+    logging::logf(
+      "Loading scene from '{}'...",
+      abs_path.string());
+
+    std::ifstream file{path, std::ios::binary};
+    if(!file.is_open())
+    {
+        logging::errorf(
+          "Failed to open file: {}",
+          path.string());
+        return false;
+    }
+
+    const auto file_size = std::filesystem::file_size(path);
+    std::string contents(file_size, '\0');
+
+    if(!file.read(contents.data(), file_size))
+    {
+        logging::errorf(
+          "Failed to read file: {}",
+          path.string());
+        return false;
+    }
+
+    try
+    {
+        scene.load(contents);
+    }
+    catch(const std::runtime_error& e)
+    {
+        logging::errorf(
+          "Failed to load scene from '{}': {}",
+          path.string(),
+          e.what());
+        return false;
+    }
+
+    return true;
+}
+
 bool Application::save_scene(
   const std::filesystem::path& path)
 {
