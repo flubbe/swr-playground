@@ -62,13 +62,14 @@ namespace std
 {
 template<
   typename T,
+  typename Allocator,
   typename CharT>
-struct formatter<swr::vector<T>, CharT>
+struct formatter<std::vector<T, Allocator>, CharT>
 : formatter<std::string_view, CharT>
 {
     template<typename FormatContext>
     auto format(
-      const vector<T>& vec,
+      const std::vector<T, Allocator>& vec,
       FormatContext& ctx) const
     {
         swr::string result = "[";
