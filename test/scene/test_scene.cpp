@@ -310,6 +310,7 @@ TEST(SceneTests, SaveLoad)
       "\"name\":\"StaticMesh_1\","
       "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
       "\"visible\":true,"
+      "\"path\":\"\","
       "\"casts_shadows\":true,"
       "\"receives_shadows\":false"
       "}"
