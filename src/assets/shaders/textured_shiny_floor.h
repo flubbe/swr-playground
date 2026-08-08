@@ -54,6 +54,8 @@ class TexturedShinyFloor final
     static constexpr float shininess = 24.f;
 
 public:
+    static constexpr std::string_view name = "TexturedShinyFloor";
+
     TexturedShinyFloor() = default;
 
     swr::program_metadata get_metadata() const override

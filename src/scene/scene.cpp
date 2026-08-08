@@ -23,6 +23,15 @@
 
 namespace
 {
+
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Startup"};
+    return logger;
+}
+
 class DeserializerVisitor : public reflect::PropertyVisitor
 {
     Object& object;
@@ -49,7 +58,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize int64 '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -63,7 +72,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize uint64 '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -77,7 +86,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize float '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -91,7 +100,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize bool '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -105,7 +114,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize string '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -120,7 +129,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize string '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -138,7 +147,7 @@ public:
                 {
                     if(row_idx >= 4)
                     {
-                        logging::warningf(
+                        get_logger().warningf(
                           "Too many rows when deserializing mat4x4 '{}.{}' from JSON",
                           object.get_name(), p->get_name());
 
@@ -160,7 +169,7 @@ public:
                                 }
                                 else
                                 {
-                                    logging::warningf(
+                                    get_logger().warningf(
                                       "Too many columns when deserializing mat4x4 '{}.{}' from JSON",
                                       object.get_name(), p->get_name());
 
@@ -172,7 +181,7 @@ public:
 
                         if(col_idx != 4)
                         {
-                            logging::warningf(
+                            get_logger().warningf(
                               "Too few columns when deserializing mat4x4 '{}.{}' from JSON",
                               object.get_name(), p->get_name());
                         }
@@ -182,7 +191,7 @@ public:
 
                 if(row_idx != 4)
                 {
-                    logging::warningf(
+                    get_logger().warningf(
                       "Too few rows when deserializing mat4x4 '{}.{}' from JSON",
                       object.get_name(), p->get_name());
                 }
@@ -191,7 +200,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize mat4 '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -224,7 +233,7 @@ public:
             }
             else
             {
-                logging::warningf(
+                get_logger().warningf(
                   "Unable to deserialize vec4 '{}.{}' from JSON",
                   object.get_name(), p->get_name());
             }
@@ -431,7 +440,7 @@ void Scene::load(
                     simdjson::ondemand::value val;
                     if(auto err = field.value().get(val); err)
                     {
-                        logging::warningf(
+                        get_logger().warningf(
                           "Failed to read JSON value for key '{}': {}",
                           key,
                           simdjson::error_message(err));
@@ -486,7 +495,7 @@ void Scene::load(
                     }
                     else
                     {
-                        logging::warningf(
+                        get_logger().warningf(
                           "Unknown field '{}' found for class '{}'",
                           entry.key, new_object->get_class()->qualified_name);
                     }
@@ -498,7 +507,7 @@ void Scene::load(
         }
         else
         {
-            logging::warningf(
+            get_logger().warningf(
               "Unknown key '{}' found in scene",
               key);
         }

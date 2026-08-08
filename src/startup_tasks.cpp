@@ -26,6 +26,14 @@
 namespace
 {
 
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Startup"};
+    return logger;
+}
+
 void add_startup_notice(
   StagedStartupScene& scene,
   std::string_view notice)
@@ -258,7 +266,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     {
         if(auto cached = try_load_cached_mesh(cache_path))
         {
-            logging::logf(
+            get_logger().logf(
               "Using cache entry for '{}' (hash: {:016x}).",
               static_mesh_path.string(),
               cache_key);
@@ -267,7 +275,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
         }
     }
 
-    logging::logf(
+    get_logger().logf(
       "No cache entry found for '{}' (hash: {:016x}).",
       static_mesh_path.string(),
       cache_key);
@@ -312,7 +320,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
 
     if(ec)
     {
-        logging::errorf(
+        get_logger().errorf(
           "Cannot write cached asset. Failed to create directory structure '{}': {}",
           cache_path.parent_path().string(),
           ec.message());
@@ -335,14 +343,6 @@ using task_system::TaskCancelledError;
 using task_system::TaskExecutionContext;
 using task_system::TaskSpec;
 
-[[nodiscard]]
-const logging::Logger& get_startup_logger()
-{
-    // Create on first use so it binds after logging initialization.
-    static const logging::Logger startup_logger{"Startup"};
-    return startup_logger;
-}
-
 // Create a task that generates procedural gears
 [[nodiscard]]
 TaskSpec make_gear_task(StagedStartupScene& scene)
@@ -353,7 +353,7 @@ TaskSpec make_gear_task(StagedStartupScene& scene)
       .run = [&scene](TaskExecutionContext& context)
       {
           context.update("Generating procedural scene data...", 0.f);
-          get_startup_logger().logf("generating procedural scene data");
+          get_logger().logf("generating procedural scene data");
 
           const std::array<GearInit, 3> gears = {{
             {
@@ -433,7 +433,7 @@ TaskSpec make_floor_task(StagedStartupScene& scene)
       .run = [&scene](TaskExecutionContext& context)
       {
           context.update("Loading floor textures...", 0.f);
-          get_startup_logger().logf("loading floor textures");
+          get_logger().logf("loading floor textures");
           scene.floor = try_prepare_floor_data();
           if(!scene.floor.has_value())
           {
@@ -462,7 +462,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
               "Importing {}...",
               sample_mesh_path.string()),
             0.f);
-          get_startup_logger().logf(
+          get_logger().logf(
             "importing sample mesh '{}'",
             sample_mesh_path.generic_string());
           scene.sample_mesh = try_prepare_sample_mesh(sample_mesh_path);

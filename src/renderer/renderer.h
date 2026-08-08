@@ -351,6 +351,12 @@ class Renderer final
     MaterialHandle shadow_material{0};
 
     /*
+     * Initialization.
+     */
+
+    void build_shader_cache();
+
+    /*
      * Render queues.
      */
 
@@ -432,6 +438,8 @@ public:
       RenderDevice& device)
     : device{device}
     {
+        build_shader_cache();
+
         create_grid_mesh();
         create_spotlight_depth_debug_mesh();
     }

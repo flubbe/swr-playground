@@ -56,6 +56,8 @@ class LitSmooth final
       (shininess + 8.f) / (8.f * std::numbers::pi_v<float>);
 
 public:
+    static constexpr std::string_view name = "LitSmooth";
+
     LitSmooth() = default;
 
     swr::program_metadata get_metadata() const override

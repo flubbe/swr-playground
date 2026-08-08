@@ -50,6 +50,8 @@ class PhongSmooth final
     static constexpr float shininess = 64.f;
 
 public:
+    static constexpr std::string_view name = "PhongSmooth";
+
     PhongSmooth() = default;
 
     swr::program_metadata get_metadata() const override

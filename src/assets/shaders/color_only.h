@@ -36,6 +36,8 @@ namespace shader
 struct ColorOnly final
 : public swr::program<ColorOnly>
 {
+    static constexpr std::string_view name = "ColorOnly";
+
     ColorOnly() = default;
 
     swr::program_metadata get_metadata() const override

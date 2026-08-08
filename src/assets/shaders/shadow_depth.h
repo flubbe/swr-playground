@@ -38,6 +38,8 @@ class ShadowDepth final
 : public swr::program<ShadowDepth>
 {
 public:
+    static constexpr std::string_view name = "ShadowDepth";
+
     ShadowDepth() = default;
 
     swr::program_metadata get_metadata() const override

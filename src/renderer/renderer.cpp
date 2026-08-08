@@ -14,11 +14,15 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <utility>
 #include <vector>
 
 #include "assets/shaders/color_only.h"
+#include "assets/shaders/color_flat.h"
+#include "assets/shaders/color_smooth.h"
 #include "assets/shaders/lit_smooth.h"
+#include "assets/shaders/phong_smooth.h"
 #include "assets/shaders/shadow_depth.h"
 #include "assets/shaders/shadow_map_debug.h"
 #include "assets/shaders/textured_floor.h"
@@ -30,10 +34,19 @@
 #include "scene/spotlight.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
+#include "logging.h"
 #include "viewport.h"
 
 namespace
 {
+
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Renderer"};
+    return logger;
+}
 
 std::array<ml::vec4, 8> make_bounds_corners(
   const MeshBounds& bounds)
@@ -284,6 +297,21 @@ std::optional<ShadowCamera> collect_shadow_camera(
 }
 
 }    // namespace
+
+void Renderer::build_shader_cache()
+{
+    // register all shaders.
+    shader_cache.register_shader<shader::ColorFlat>();
+    shader_cache.register_shader<shader::ColorSmooth>();
+    shader_cache.register_shader<shader::LitSmooth>();
+    shader_cache.register_shader<shader::PhongSmooth>();
+    shader_cache.register_shader<shader::TexturedFloor>();
+    shader_cache.register_shader<shader::TexturedShinyFloor>();
+
+    auto shader_names = shader_cache.get_names();
+    std::ranges::sort(shader_names);
+    get_logger().logf("Registered shaders: {}", shader_names);
+}
 
 void Renderer::build_render_queue(
   const Scene& scene,

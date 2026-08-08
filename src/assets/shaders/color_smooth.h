@@ -38,10 +38,11 @@ namespace shader
  *   location `spot_light_uniform_base_index..`: spot light tuples: position/range, direction/brightness, params(inner/outer cone) [vec4]
  *   location `material_color_uniform_index`: material color [vec4]
  */
-class ColorSmooth final
+struct ColorSmooth final
 : public swr::program<ColorSmooth>
 {
-public:
+    static constexpr std::string_view name = "ColorSmooth";
+
     ColorSmooth() = default;
 
     swr::program_metadata get_metadata() const override
