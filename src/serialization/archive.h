@@ -11,7 +11,6 @@
 #pragma once
 
 #include <bit>
-#include <stdexcept>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -21,7 +20,8 @@
 #include "containers/memory.h"
 #include "containers/string.h"
 #include "containers/vector.h"
-#include "utils.h"
+#include "../utils.h"
+#include "except.h"
 
 namespace serial
 {
@@ -55,13 +55,6 @@ concept serializable_scalar =
   std::is_same_v<T, std::remove_cv_t<T>>
   && std::is_same_v<T, std::remove_reference_t<T>>
   && (std::is_arithmetic_v<T> || std::is_same_v<T, std::byte>);
-
-/** A serialization error. */
-class SerializationError
-: public std::runtime_error
-{
-    using std::runtime_error::runtime_error;
-};
 
 /** An abstract archive for byte-order independent serialization. */
 class Archive

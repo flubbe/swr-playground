@@ -10,8 +10,8 @@
  */
 
 #include "reflection/builtin_properties.h"
-
 #include "scene/properties.h"
+#include "serialization/except.h"
 #include "json_property_writer.h"
 
 namespace serial::json
@@ -85,7 +85,10 @@ void JsonPropertyWriter::visit(
     }
     else
     {
-        // TODO Error, throw?
+        throw SerializationError{
+          std::format(
+            "Unable to serialize property '{}' of unsupported type to JSON.",
+            property.get_name())};
     }
 }
 

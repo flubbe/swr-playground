@@ -15,12 +15,19 @@
 namespace serial::json
 {
 
+/** Write properties to JSON. */
 class JsonPropertyWriter final
 : public reflect::PropertyVisitor
 {
+    /** JSON writer. */
     JsonWriter& writer;
 
 public:
+    /**
+     * Constructor.
+     *
+     * @param writer The JSON writer to use.
+     */
     explicit JsonPropertyWriter(
       JsonWriter& writer);
 

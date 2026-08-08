@@ -1385,7 +1385,7 @@ TEST(ReflectionSystemTests, ConstructAndInit)
     std::size_t destructor_calls{0};
 
     {
-        // Construct instance from class with arguments.
+        // Construct instance from class with arguments
         reflect::unique_ptr<TestChild> obj =
           reflect::construct_and_init<TestRoot, TestChild>(&destructor_calls);
         ASSERT_NE(obj, nullptr);
