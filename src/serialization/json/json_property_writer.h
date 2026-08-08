@@ -1,4 +1,3 @@
-
 /**
  * Software Rasterizer Playground.
  *
