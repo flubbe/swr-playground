@@ -70,7 +70,7 @@ struct formatter<std::vector<T>, CharT>
       const vector<T>& vec,
       FormatContext& ctx) const
     {
-        string result = "[";
+        swr::string result = "[";
         for(size_t i = 0; i < vec.size(); ++i)
         {
             if(i > 0)
