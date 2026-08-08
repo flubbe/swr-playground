@@ -14,7 +14,7 @@
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
 #include "scene/properties.h"
-#include "serialization/json_property_writer.h"
+#include "serialization/json/json_property_writer.h"
 #include "systems/animation.h"
 #include "systems/lights.h"
 #include "systems/object_tick.h"
@@ -326,7 +326,7 @@ swr::string Scene::save(
   std::size_t indentation_size,
   bool use_compacted_format) const
 {
-    serial::JsonWriter writer{
+    serial::json::JsonWriter writer{
       indentation_size,
       use_compacted_format};
 
@@ -347,7 +347,7 @@ swr::string Scene::save(
           obj->get_class()->qualified_name);
 
         auto& properties = obj->get_properties();
-        serial::JsonPropertyWriter property_writer{writer};
+        serial::json::JsonPropertyWriter property_writer{writer};
 
         for(std::size_t i = 0; i < properties.size(); ++i)
         {
@@ -493,7 +493,7 @@ void Scene::load(
                 }
 
                 // Add constructed object to the scene
-                objects.emplace_back(new_object);
+                objects.emplace_back(std::move(new_object));
             }
         }
         else

@@ -78,7 +78,7 @@ public:
 
     Gear() = default;
 
-    explicit Gear(const GearParameters& params);
+    void init(const GearParameters& params);
 
     void clamp_runtime_parameters() noexcept;
 

@@ -20,6 +20,7 @@
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
+#include "reflection/construct.h"
 #include "systems/system.h"
 #include "animation.h"
 #include "camera.h"
@@ -30,7 +31,7 @@
 class Scene
 {
     /** scene objects. */
-    swr::vector<swr::unique_ptr<Object>> objects;
+    swr::vector<reflect::ReflectedUniquePtr<Object>> objects;
 
     /** scene update systems. */
     swr::vector<swr::unique_ptr<SceneSystem>> systems;
@@ -78,6 +79,11 @@ public:
     float get_time() const
     {
         return time;
+    }
+
+    void set_time(float new_time)
+    {
+        time = new_time;
     }
 
     void clear();
@@ -261,7 +267,15 @@ public:
           std::is_base_of_v<Object, T>)
     T* add_object(Args&&... args)
     {
-        auto obj = swr::make_unique<T>(std::forward<Args>(args)...);
+        return add_object<T>(
+          reflect::construct<Object, T>(std::forward<Args>(args)...));
+    }
+
+    template<typename T>
+        requires(
+          std::is_base_of_v<Object, T>)
+    T* add_object(reflect::ReflectedUniquePtr<T> obj)
+    {
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
 
@@ -323,12 +337,12 @@ public:
      * Accessors.
      */
 
-    const swr::vector<swr::unique_ptr<Object>>& get_objects() const
+    const swr::vector<reflect::ReflectedUniquePtr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    swr::vector<swr::unique_ptr<Object>>& get_objects()
+    swr::vector<reflect::ReflectedUniquePtr<Object>>& get_objects()
     {
         return objects;
     }

@@ -10,14 +10,15 @@
  */
 
 #include "reflection/builtin_properties.h"
+
 #include "scene/properties.h"
 #include "json_property_writer.h"
 
-namespace serial
+namespace serial::json
 {
 
 JsonPropertyWriter::JsonPropertyWriter(
-  serial::JsonWriter& writer)
+  JsonWriter& writer)
 : writer{writer}
 {
 }
@@ -88,4 +89,4 @@ void JsonPropertyWriter::visit(
     }
 }
 
-}    // namespace serial
+}    // namespace serial::json

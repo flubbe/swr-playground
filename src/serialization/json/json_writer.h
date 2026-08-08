@@ -19,7 +19,7 @@
 
 #include "containers/string.h"
 
-namespace serial
+namespace serial::json
 {
 
 /** A JSON writer. */
@@ -316,4 +316,4 @@ public:
     }
 };
 
-}    // namespace serial
+}    // namespace serial::json

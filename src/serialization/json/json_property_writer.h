@@ -10,21 +10,21 @@
  */
 
 #include "reflection/property.h"
-#include "serialization/json_writer.h"
+#include "serialization/json/json_writer.h"
 
-namespace serial
+namespace serial::json
 {
 
 class JsonPropertyWriter final
 : public reflect::PropertyVisitor
 {
-    serial::JsonWriter& writer;
+    JsonWriter& writer;
 
 public:
     explicit JsonPropertyWriter(
-      serial::JsonWriter& writer);
+      JsonWriter& writer);
 
     void visit(reflect::Property& property) override;
 };
 
-}    // namespace serial
+}    // namespace serial::json

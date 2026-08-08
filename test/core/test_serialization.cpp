@@ -5,7 +5,7 @@
 #include "serialization/archive.h"
 #include "serialization/containers.h"
 #include "serialization/file.h"
-#include "serialization/json_writer.h"
+#include "serialization/json/json_writer.h"
 #include "serialization/memory.h"
 
 #include "../utils.h"
@@ -897,27 +897,27 @@ TEST(SerializationTests, ConstantSerializer)
 
 TEST(JsonWriterTests, Empty)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     EXPECT_EQ(writer.get(), "");
 }
 
 TEST(JsonWriterTests, RootLevelNumber)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.write_val(42);
     EXPECT_EQ(writer.get(), "42");
 }
 
 TEST(JsonWriterTests, RootLevelFloat)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.write_val(3.14159);
     EXPECT_EQ(writer.get(), "3.14159");
 }
 
 TEST(JsonWriterTests, RootLevelString)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.write_val("Hello World");
     EXPECT_EQ(writer.get(), "\"Hello World\"");
 }
@@ -925,12 +925,12 @@ TEST(JsonWriterTests, RootLevelString)
 TEST(JsonWriterTests, RootLevelBooleanAndNull)
 {
     {
-        serial::JsonWriter writer;
+        serial::json::JsonWriter writer;
         writer.write_val(true);
         EXPECT_EQ(writer.get(), "true");
     }
     {
-        serial::JsonWriter writer;
+        serial::json::JsonWriter writer;
         writer.write_null();
         EXPECT_EQ(writer.get(), "null");
     }
@@ -938,7 +938,7 @@ TEST(JsonWriterTests, RootLevelBooleanAndNull)
 
 TEST(JsonWriterTests, EmptyObject)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.begin_object();
     writer.end_object();
     EXPECT_EQ(writer.get(), "{}");
@@ -946,7 +946,7 @@ TEST(JsonWriterTests, EmptyObject)
 
 TEST(JsonWriterTests, EmptyArray)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.begin_array();
     writer.end_array();
     EXPECT_EQ(writer.get(), "[]");
@@ -954,7 +954,7 @@ TEST(JsonWriterTests, EmptyArray)
 
 TEST(JsonWriterTests, CompactedObject)
 {
-    serial::JsonWriter writer(4, true);
+    serial::json::JsonWriter writer(4, true);
     writer.begin_object();
     writer.write_key_value("name", "a");
     writer.write_key_value("id", 101);
@@ -966,7 +966,7 @@ TEST(JsonWriterTests, CompactedObject)
 
 TEST(JsonWriterTests, FormattedObject)
 {
-    serial::JsonWriter writer(2, false);
+    serial::json::JsonWriter writer(2, false);
     writer.begin_object();
     writer.write_key_value("width", 1920);
     writer.write_key_value("height", 1080);
@@ -983,7 +983,7 @@ TEST(JsonWriterTests, FormattedObject)
 
 TEST(JsonWriterTests, FormattedArray)
 {
-    serial::JsonWriter writer(2, false);
+    serial::json::JsonWriter writer(2, false);
     writer.begin_array();
     writer.write_val(10);
     writer.write_val(20);
@@ -1002,7 +1002,7 @@ TEST(JsonWriterTests, FormattedArray)
 
 TEST(JsonWriterTests, NestedObjectAndArray)
 {
-    serial::JsonWriter writer(2, true);
+    serial::json::JsonWriter writer(2, true);
 
     writer.begin_object();
     writer.write_key("user");
@@ -1024,7 +1024,7 @@ TEST(JsonWriterTests, NestedObjectAndArray)
 
 TEST(JsonWriterTests, StringEscaping)
 {
-    serial::JsonWriter writer;
+    serial::json::JsonWriter writer;
     writer.write_val("Line 1\nLine 2\t\"Quotes\" & \\Backslash\\");
     EXPECT_EQ(writer.get(), R"("Line 1\nLine 2\t\"Quotes\" & \\Backslash\\")");
 }

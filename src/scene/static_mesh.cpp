@@ -32,13 +32,13 @@ void StaticMesh::register_properties(
       "Receives Shadows");
 }
 
-StaticMesh::StaticMesh(
+void StaticMesh::init(
   swr::vector<MeshSection> sections)
 {
     set_mesh_sections(std::move(sections));
 }
 
-StaticMesh::StaticMesh(
+void StaticMesh::init(
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
@@ -47,7 +47,7 @@ StaticMesh::StaticMesh(
       bounds);
 }
 
-StaticMesh::StaticMesh(
+void StaticMesh::init(
   swr::vector<StaticMeshLod> lods)
 {
     set_lods(std::move(lods));

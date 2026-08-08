@@ -314,7 +314,8 @@ add_executable(swr_playground
     src/scene/properties.cpp
     src/scene/scene.cpp
     src/serialization/file.cpp
-    src/serialization/json_property_writer.cpp
+    src/serialization/json/json_property_writer.cpp
+    src/serialization/json/json_scene_loader.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/memory/allocators/arena.cpp

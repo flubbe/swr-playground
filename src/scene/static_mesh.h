@@ -50,13 +50,11 @@ public:
 
     StaticMesh() = default;
 
-    explicit StaticMesh(swr::vector<MeshSection> sections);
-
-    StaticMesh(
+    void init(swr::vector<MeshSection> sections);
+    void init(
       swr::vector<MeshSection> sections,
       MeshBounds bounds);
-
-    explicit StaticMesh(swr::vector<StaticMeshLod> lods);
+    void init(swr::vector<StaticMeshLod> lods);
 
     void set_mesh_sections(swr::vector<MeshSection> sections);
 

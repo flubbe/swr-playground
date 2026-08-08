@@ -140,7 +140,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 {
     ensure_scene_reflection_ready();
 
-    StaticMesh mesh{
+    StaticMesh mesh;
+    mesh.init(
       swr::vector{
         StaticMeshLod{
           .mesh_sections =
@@ -175,7 +176,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
           .triangle_count = 1000,
           .bounds = {},
         },
-      }};
+      });
 
     EXPECT_EQ(mesh.get_lod_count(), 3U);
 
@@ -204,14 +205,15 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
       .valid = true,
     };
 
-    StaticMesh mesh{
+    StaticMesh mesh;
+    mesh.init(
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 10},
           .material_handle = {.value = 20},
         },
       },
-      bounds};
+      bounds);
 
     EXPECT_TRUE(mesh.get_bounds().valid);
     EXPECT_EQ(mesh.get_bounds().min.x, -1.f);
