@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "reflection/builtin_properties.h"
+#include "scene/properties.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -22,6 +23,10 @@ DEFINE_REFLECTION(StaticMesh);
 void StaticMesh::register_properties(
   reflect::ClassInfo& class_info)
 {
+    reflect::register_property<&StaticMesh::path>(
+      class_info,
+      "path",
+      "Mesh Path");
     reflect::register_property<&StaticMesh::casts_shadows>(
       class_info,
       "casts_shadows",
@@ -33,23 +38,29 @@ void StaticMesh::register_properties(
 }
 
 void StaticMesh::init(
+  std::string_view path,
   swr::vector<MeshSection> sections)
 {
+    this->path = path;
     set_mesh_sections(std::move(sections));
 }
 
 void StaticMesh::init(
+  std::string_view path,
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
+    this->path = path;
     set_mesh_sections(
       std::move(sections),
       bounds);
 }
 
 void StaticMesh::init(
+  std::string_view path,
   swr::vector<StaticMeshLod> lods)
 {
+    this->path = path;
     set_lods(std::move(lods));
 }
 

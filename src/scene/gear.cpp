@@ -321,6 +321,7 @@ void Gear::init(
   const GearParameters& params)
 {
     Reflected<Gear, StaticMesh>::init(
+      "",
       swr::vector{
         MeshSection{
           .mesh_handle = params.inner.mesh_handle,

@@ -298,6 +298,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     }
 
     auto mesh_asset = StagedStaticMeshAsset{
+      .path = swr::string_from(static_mesh_path.string()),
       .name = swr::string_from(static_mesh_path.filename().string()),
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,

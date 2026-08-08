@@ -844,6 +844,7 @@ void try_add_textured_floor(
         const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
 
         auto* floor = scene.add_object<StaticMesh>(
+          "",
           swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
@@ -877,12 +878,14 @@ void try_add_textured_floor(
 }
 
 StaticMesh* create_static_mesh_instance(
+  std::string_view path,
   Scene& scene,
   const StagedStaticMeshAsset& resources,
   swr::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
     StaticMesh* mesh = scene.add_object<StaticMesh>(
+      path,
       std::move(lods));
     mesh->set_name(resources.name);
     mesh->set_transform(transform * resources.fit_transform);
@@ -939,6 +942,7 @@ void finalize_startup_scene(
         if(!lods.empty())
         {
             StaticMesh* sample_mesh = create_static_mesh_instance(
+              staged_scene.sample_mesh.value().path,
               scene,
               *staged_scene.sample_mesh,
               std::move(lods),

@@ -34,6 +34,7 @@ struct StaticMeshLod
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
+    swr::string path;
     swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
 
@@ -50,11 +51,16 @@ public:
 
     StaticMesh() = default;
 
-    void init(swr::vector<MeshSection> sections);
     void init(
+      std::string_view path,
+      swr::vector<MeshSection> sections);
+    void init(
+      std::string_view path,
       swr::vector<MeshSection> sections,
       MeshBounds bounds);
-    void init(swr::vector<StaticMeshLod> lods);
+    void init(
+      std::string_view path,
+      swr::vector<StaticMeshLod> lods);
 
     void set_mesh_sections(swr::vector<MeshSection> sections);
 

@@ -79,6 +79,7 @@ inline serial::Archive& operator&(
 
 struct StagedStaticMeshAsset
 {
+    swr::string path;
     swr::string name;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
@@ -95,6 +96,7 @@ inline serial::Archive& operator&(
   serial::Archive& ar,
   StagedStaticMeshAsset& mesh)
 {
+    ar & mesh.path;
     ar & mesh.name;
     ar & mesh.fit_transform;
     ar & mesh.sections;

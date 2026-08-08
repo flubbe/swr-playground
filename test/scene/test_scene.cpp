@@ -123,6 +123,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
 
     Scene scene;
     StaticMesh* mesh = scene.add_object<StaticMesh>(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 12},
@@ -142,6 +143,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 
     StaticMesh mesh;
     mesh.init(
+      "<mesh>",
       swr::vector{
         StaticMeshLod{
           .mesh_sections =
@@ -207,6 +209,7 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
 
     StaticMesh mesh;
     mesh.init(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 10},
@@ -231,6 +234,7 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     Scene scene;
     [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
     StaticMesh* mesh = scene.add_object<StaticMesh>(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 56},
