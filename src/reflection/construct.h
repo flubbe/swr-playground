@@ -119,7 +119,7 @@ ReflectedUniquePtr<Root> construct(
 }
 
 /**
- * Construct an instance
+ * Construct and initialize an instance.
  *
  * @tparam Root Root type for the class hierarchy.
  * @tparam Class Class to construct.
@@ -138,7 +138,7 @@ template<
       || requires(Class* c, Args&&... args) {
              c->init(std::forward<Args>(args)...);
          })
-ReflectedUniquePtr<Class> construct(Args&&... args)
+ReflectedUniquePtr<Class> construct_and_init(Args&&... args)
 {
     ReflectedUniquePtr<Root> obj = construct<Root>(Class::static_class());
     auto* ptr = static_cast<Class*>(obj.get());

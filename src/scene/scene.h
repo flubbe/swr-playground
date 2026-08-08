@@ -268,7 +268,8 @@ public:
     T* add_object(Args&&... args)
     {
         return add_object<T>(
-          reflect::construct<Object, T>(std::forward<Args>(args)...));
+          reflect::construct_and_init<Object, T>(
+            std::forward<Args>(args)...));
     }
 
     template<typename T>
