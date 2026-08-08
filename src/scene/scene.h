@@ -31,7 +31,7 @@
 class Scene
 {
     /** scene objects. */
-    swr::vector<reflect::ReflectedUniquePtr<Object>> objects;
+    swr::vector<reflect::unique_ptr<Object>> objects;
 
     /** scene update systems. */
     swr::vector<swr::unique_ptr<SceneSystem>> systems;
@@ -275,7 +275,7 @@ public:
     template<typename T>
         requires(
           std::is_base_of_v<Object, T>)
-    T* add_object(reflect::ReflectedUniquePtr<T> obj)
+    T* add_object(reflect::unique_ptr<T> obj)
     {
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
@@ -338,12 +338,12 @@ public:
      * Accessors.
      */
 
-    const swr::vector<reflect::ReflectedUniquePtr<Object>>& get_objects() const
+    const swr::vector<reflect::unique_ptr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    swr::vector<reflect::ReflectedUniquePtr<Object>>& get_objects()
+    swr::vector<reflect::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

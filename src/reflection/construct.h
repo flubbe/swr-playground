@@ -20,8 +20,10 @@
 namespace reflect
 {
 
+/** Call the class' destroy function (`delete`). */
 struct ReflectedDeleter
 {
+    /** Class info. */
     const ClassInfo* cls{nullptr};
 
     void operator()(void* ptr) const noexcept
@@ -34,9 +36,10 @@ struct ReflectedDeleter
     }
 };
 
-template<typename Root>
-using ReflectedUniquePtr = std::unique_ptr<
-  Root,
+/** Unique pointer with custom deleter. */
+template<typename T>
+using unique_ptr = std::unique_ptr<
+  T,
   ReflectedDeleter>;
 
 /**
@@ -51,7 +54,7 @@ using ReflectedUniquePtr = std::unique_ptr<
  * @throws Throws a `InstanceError` if the constructed object is not a `Root`.
  */
 template<typename Root>
-ReflectedUniquePtr<Root> construct(
+unique_ptr<Root> construct(
   const ClassInfo* cls)
 {
     if(cls == nullptr
@@ -83,7 +86,7 @@ ReflectedUniquePtr<Root> construct(
         throw InstanceError{"Constructed instance metadata does not match ClassInfo."};
     }
 
-    return ReflectedUniquePtr<Root>{
+    return unique_ptr<Root>{
       root_instance,
       ReflectedDeleter{cls}};
 }
@@ -100,7 +103,7 @@ ReflectedUniquePtr<Root> construct(
  * @throws Throws a `InstanceError` if the constructed object is not a `Root`.
  */
 template<typename Root>
-ReflectedUniquePtr<Root> construct(
+unique_ptr<Root> construct(
   std::string_view qualified_name)
 {
     const ClassInfo* cls = ReflectionSystem::find_class(
@@ -138,9 +141,9 @@ template<
       || requires(Class* c, Args&&... args) {
              c->init(std::forward<Args>(args)...);
          })
-ReflectedUniquePtr<Class> construct_and_init(Args&&... args)
+unique_ptr<Class> construct_and_init(Args&&... args)
 {
-    ReflectedUniquePtr<Root> obj = construct<Root>(Class::static_class());
+    unique_ptr<Root> obj = construct<Root>(Class::static_class());
     auto* ptr = static_cast<Class*>(obj.get());
 
     if constexpr(requires { ptr->init(std::forward<Args>(args)...); })
@@ -151,7 +154,7 @@ ReflectedUniquePtr<Class> construct_and_init(Args&&... args)
     auto deleter = obj.get_deleter();
     obj.release();
 
-    return ReflectedUniquePtr<Class>{ptr, deleter};
+    return unique_ptr<Class>{ptr, deleter};
 }
 
 }    // namespace reflect

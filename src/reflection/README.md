@@ -98,6 +98,12 @@ public:
     {
         reflect::register_property<&Object::id>(ci, "id", "Object ID");
     }
+
+    // called when using construct_and_init.
+    void init(int initial_id)
+    {
+        id = initial_id;
+    }
 };
 
 DECLARE_REFLECTION(Core, Object);
@@ -108,6 +114,9 @@ int main()
     // Finalize queued static registrations before class lookup/usage.
     reflect::ReflectionSystem::allow_auto_registration(false);
     reflect::ReflectionSystem::process_pending_registrations();
+
+    // Construct instance
+    Object* object = reflect::construct_and_init<Object, Object>(12);
 
     // Construct instance from class
     const reflect::ClassInfo* cls =
