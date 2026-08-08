@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * dynamic memory management.
+ * Dynamic memory management.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

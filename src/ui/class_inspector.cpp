@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * class inspector panel.
+ * Class inspector panel.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

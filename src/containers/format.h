@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * formatters into `swr::string`.
+ * Formatters into `swr::string`.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
