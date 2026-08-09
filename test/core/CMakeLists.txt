@@ -40,6 +40,10 @@ target_include_directories(core_tests PRIVATE
     ${concurrency_utils_src_SOURCE_DIR}/include
 )
 
+target_compile_definitions(core_tests PRIVATE
+    ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/assets"
+)
+
 target_link_libraries(core_tests PRIVATE
     swr_playground_warnings
     GTest::gtest_main

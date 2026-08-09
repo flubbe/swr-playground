@@ -8,6 +8,12 @@
 
 namespace fs = std::filesystem;
 
+// Asset directory is defined via CMakeTests.txt.
+// We also provide a fallback.
+#ifndef ASSETS_SOURCE_DIR
+#    define ASSETS_SOURCE_DIR "assets"
+#endif
+
 TEST(MaterialTests, Parse)
 {
     const std::string material_json =
@@ -29,7 +35,7 @@ TEST(MaterialTests, Parse)
 
 TEST(MaterialTests, LoadAllMaterialAssets)
 {
-    const fs::path materials_dir = "assets/materials";
+    const fs::path materials_dir = fs::path(ASSETS_SOURCE_DIR) / "materials";
 
     // Ensure the asset directory exists relative to the test runner working directory
     ASSERT_TRUE(fs::exists(materials_dir) && fs::is_directory(materials_dir))
