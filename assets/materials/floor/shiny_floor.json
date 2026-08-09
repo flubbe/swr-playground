@@ -1,0 +1,7 @@
+{
+  "shader": "TexturedShinyFloor",
+  "textures": [
+    "assets/textures/tiles/tiles_0080_color_1k.png",
+    "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"
+  ]
+}

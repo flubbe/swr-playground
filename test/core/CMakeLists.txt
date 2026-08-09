@@ -2,12 +2,14 @@ add_executable(core_tests
     test_allocators.cpp
     test_hash.cpp
     test_logging.cpp
+    test_materials.cpp
     test_mesh.cpp
     test_serialization.cpp
     test_task_system.cpp
     test_utils.cpp
     test_viewport.cpp
     test_camera_reflection.cpp
+    ${PROJECT_SOURCE_DIR}/src/assets/material.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/allocators/arena.cpp
     ${PROJECT_SOURCE_DIR}/src/memory/allocators/bump.cpp
