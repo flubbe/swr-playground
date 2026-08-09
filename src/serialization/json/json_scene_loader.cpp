@@ -407,7 +407,9 @@ void JsonSceneLoader::load(
         }
         else
         {
-            get_logger().warningf("Unknown key '{}' found in scene", key);
+            get_logger().warningf(
+              "Unknown key '{}' found in scene.",
+              key);
         }
     }
 }

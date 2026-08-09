@@ -23,10 +23,11 @@
 #include <SDL3/SDL_opengl.h>
 
 #include "containers/memory.h"
-#include "logging.h"
-#include "splash.h"
+#include "renderer/types.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
+#include "logging.h"
+#include "splash.h"
 
 class RenderDevice;
 class Renderer;
@@ -116,7 +117,7 @@ class Application
      */
     StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::LitSmooth};
     FloorShaderType active_floor_shader{FloorShaderType::TexturedFloor};
-    std::array<std::uint32_t, 2> floor_texture_handles{};
+    std::array<TextureHandle, 2> floor_texture_handles{};
     bool has_floor_textures{false};
 
     ViewportInputState viewport_input{};

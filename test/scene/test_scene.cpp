@@ -127,13 +127,22 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 12},
-          .material_handle = {.value = 34}}});
+          .material_handle = {.value = 34},
+          .triangle_count = 4}},
+      MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
     EXPECT_TRUE(mesh->is_a<StaticMesh>());
-    ASSERT_EQ(mesh->get_mesh_sections().size(), 1U);
-    EXPECT_EQ(mesh->get_mesh_sections()[0].mesh_handle, MeshHandle{.value = 12U});
-    EXPECT_EQ(mesh->get_mesh_sections()[0].material_handle, MaterialHandle{.value = 34U});
+
+    const auto& mesh_lods = mesh->get_lods();
+    ASSERT_EQ(mesh_lods.size(), 1u);
+
+    const auto& mesh_sections = mesh_lods[0].mesh_sections;
+    ASSERT_EQ(mesh_sections.size(), 1u);
+
+    EXPECT_EQ(mesh_sections[0].mesh_handle, MeshHandle{.value = 12U});
+    EXPECT_EQ(mesh_sections[0].material_handle, MaterialHandle{.value = 34U});
+
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
 
@@ -151,7 +160,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
               MeshSection{
                 .mesh_handle = {.value = 10},
                 .material_handle = {.value = 20},
-              },
+                .triangle_count = 4},
             },
           .triangle_count = 100000,
           .bounds = {},
@@ -162,7 +171,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
               MeshSection{
                 .mesh_handle = {.value = 11},
                 .material_handle = {.value = 21},
-              },
+                .triangle_count = 4},
             },
           .triangle_count = 10000,
           .bounds = {},
@@ -173,7 +182,7 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
               MeshSection{
                 .mesh_handle = {.value = 12},
                 .material_handle = {.value = 22},
-              },
+                .triangle_count = 4},
             },
           .triangle_count = 1000,
           .bounds = {},
@@ -214,7 +223,7 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
         MeshSection{
           .mesh_handle = {.value = 10},
           .material_handle = {.value = 20},
-        },
+          .triangle_count = 4},
       },
       bounds);
 
@@ -238,7 +247,9 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 56},
-          .material_handle = {.value = 78}}});
+          .material_handle = {.value = 78},
+          .triangle_count = 4}},
+      MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
     int mutable_visit_count = 0;

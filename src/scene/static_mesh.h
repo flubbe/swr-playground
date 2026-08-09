@@ -15,7 +15,7 @@
 
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "renderer/render_types.h"
+#include "renderer/types.h"
 #include "object.h"
 
 /** One renderable level of detail for a static mesh. */
@@ -53,36 +53,15 @@ public:
 
     void init(
       std::string_view path,
-      swr::vector<MeshSection> sections);
-    void init(
-      std::string_view path,
       swr::vector<MeshSection> sections,
       MeshBounds bounds);
     void init(
       std::string_view path,
       swr::vector<StaticMeshLod> lods);
 
-    void set_mesh_sections(swr::vector<MeshSection> sections);
-
-    void set_mesh_sections(
-      swr::vector<MeshSection> sections,
-      MeshBounds bounds);
-
     void set_lods(swr::vector<StaticMeshLod> lods);
 
     void clear_mesh_sections() noexcept;
-
-    [[nodiscard]]
-    const swr::vector<MeshSection>& get_mesh_sections() const
-    {
-        static const swr::vector<MeshSection> empty;
-        if(mesh_lods.empty())
-        {
-            return empty;
-        }
-
-        return mesh_lods.front().mesh_sections;
-    }
 
     [[nodiscard]]
     const swr::vector<StaticMeshLod>& get_lods() const

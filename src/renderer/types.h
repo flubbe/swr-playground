@@ -27,16 +27,39 @@ struct RenderHandle
         return value != 0;
     }
 
-    auto operator<=>(const RenderHandle&) const = default;
+    auto operator==(const RenderHandle& other) const
+    {
+        return value == other.value;
+    }
+
+    bool operator==(std::uint32_t other) const
+    {
+        return value == other;
+    }
+
+    RenderHandle& operator++()
+    {
+        ++value;
+        return *this;
+    }
+    RenderHandle& operator++(int)
+    {
+        RenderHandle temp = *this;
+        ++value;
+        return temp;
+    }
 };
 
-struct MeshHandleTag;
-struct MaterialHandleTag;
-struct ShadowMapHandleTag;
-
-using MeshHandle = RenderHandle<MeshHandleTag>;
-using MaterialHandle = RenderHandle<MaterialHandleTag>;
-using ShadowMapHandle = RenderHandle<ShadowMapHandleTag>;
+using FrameBufferHandle = RenderHandle<struct FrameBufferHandleTag>;
+using MaterialHandle = RenderHandle<struct MaterialHandleTag>;
+using MeshHandle = RenderHandle<struct MeshHandleTag>;
+using NormalBufferHandle = RenderHandle<struct NormalBufferTag>;
+using ShaderHandle = RenderHandle<struct ShaderHandleTag>;
+using ShadowMapHandle = RenderHandle<struct ShadowMapHandleTag>;
+using TexCoordBufferHandle = RenderHandle<struct TexCoordBufferTag>;
+using TextureHandle = RenderHandle<struct TextureHandleTag>;
+using VertexBufferHandle = RenderHandle<struct VertexBufferTag>;
+using IndexBufferHandle = RenderHandle<struct IndexBufferTag>;
 
 /** Part of a mesh using one material. */
 struct MeshSection
@@ -49,6 +72,13 @@ struct MeshSection
 
     /** Base color used by the lighting shader. */
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
+
+    /*
+     * Metadata.
+     */
+
+    /** Triangle count in this level of detail. */
+    std::size_t triangle_count{0};
 };
 
 /** One shadow map input for a draw call. */

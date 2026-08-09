@@ -446,7 +446,7 @@ void draw_static_mesh_sections(
                 const Material* material = render_device.get_material(section.material_handle);
                 if(material != nullptr)
                 {
-                    ImGui::Text("%u", material->shader_handle);
+                    ImGui::Text("%u", material->shader_handle.value);
                 }
                 else
                 {

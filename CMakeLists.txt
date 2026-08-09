@@ -302,6 +302,7 @@ target_compile_definitions(swr_playground_options INTERFACE
 # Playground executable
 #
 add_executable(swr_playground
+    src/assets/material.cpp
     src/assets/static_mesh_importer.cpp
     src/assets/texture.cpp
     src/reflection/builtin_properties.cpp

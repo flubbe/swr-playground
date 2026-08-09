@@ -972,7 +972,7 @@ TEST(JsonWriterTests, FormattedObject)
     writer.write_key_value("height", 1080);
     writer.end_object();
 
-    std::string expected =
+    const std::string expected =
       "{\n"
       "  \"width\": 1920,\n"
       "  \"height\": 1080\n"
@@ -990,7 +990,7 @@ TEST(JsonWriterTests, FormattedArray)
     writer.write_val(30);
     writer.end_array();
 
-    std::string expected =
+    const std::string expected =
       "[\n"
       "  10,\n"
       "  20,\n"

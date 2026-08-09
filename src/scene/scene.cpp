@@ -383,7 +383,7 @@ void Scene::load(
 {
     clear();
 
-    simdjson::padded_string padded_json(text);
+    simdjson::padded_string padded_json{text};
     simdjson::ondemand::parser json_parser;
 
     simdjson::ondemand::document doc;

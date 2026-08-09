@@ -13,6 +13,8 @@
 #include <span>
 #include <utility>
 
+#include <gsl/gsl>
+
 #include "scene/camera.h"
 #include "scene/scene.h"
 #include "renderdevice.h"
@@ -91,112 +93,124 @@ void RenderDevice::resize(
 }
 
 MeshHandle RenderDevice::create_mesh(
-  MeshData mesh)
+  const MeshData& mesh)
 {
-    const MeshBounds bounds = calculate_mesh_bounds(mesh);
-
     MeshHandle mesh_id{1};
-    while(meshes.contains(mesh_id)
-          || mesh_gpu_data.contains(mesh_id)
-          || mesh_bounds.contains(mesh_id))
+    while(meshes.contains(mesh_id))
     {
-        ++mesh_id.value;
+        ++mesh_id;
     }
 
     MeshGpuData gpu_data{
-      .vertices_handle = swr::CreateAttributeBuffer(mesh.vertices),
-      .normals_handle = swr::CreateAttributeBuffer(mesh.normals),
+      .primitive_type = mesh.primitive_type,
+      .indices = mesh.indices,
+      .vertices_handle = {swr::CreateAttributeBuffer(mesh.vertices)},
+      .normals_handle = {swr::CreateAttributeBuffer(mesh.normals)},
       .texcoords_handle =
         mesh.texcoords.empty()
           ? std::nullopt
           : std::make_optional(
-              swr::CreateAttributeBuffer(mesh.texcoords)),
+              TexCoordBufferHandle{
+                swr::CreateAttributeBuffer(mesh.texcoords)}),
     };
 
-    meshes.emplace(mesh_id, std::move(mesh));
-    mesh_gpu_data.emplace(mesh_id, gpu_data);
-    mesh_bounds.emplace(mesh_id, bounds);
-
+    meshes.emplace(mesh_id, gpu_data);
     return mesh_id;
 }
 
 bool RenderDevice::update_mesh(
   MeshHandle handle,
-  MeshData mesh)
+  const MeshData& mesh)
 {
     auto mesh_it = meshes.find(handle);
-    auto gpu_it = mesh_gpu_data.find(handle);
-    if(mesh_it == meshes.end()
-       || gpu_it == mesh_gpu_data.end())
+    if(mesh_it == meshes.end())
     {
         return false;
     }
 
-    if(gpu_it->second.texcoords_handle.has_value())
+    if(mesh_it->second.texcoords_handle.has_value())
     {
-        swr::DeleteAttributeBuffer(*gpu_it->second.texcoords_handle);
+        swr::DeleteAttributeBuffer(mesh_it->second.texcoords_handle.value().value);
     }
-    swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
-    swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
+    swr::DeleteAttributeBuffer(mesh_it->second.normals_handle.value);
+    swr::DeleteAttributeBuffer(mesh_it->second.vertices_handle.value);
 
-    gpu_it->second.vertices_handle = swr::CreateAttributeBuffer(mesh.vertices);
-    gpu_it->second.normals_handle = swr::CreateAttributeBuffer(mesh.normals);
-    gpu_it->second.texcoords_handle =
+    mesh_it->second.primitive_type = mesh.primitive_type;
+    mesh_it->second.indices = mesh.indices;
+    mesh_it->second.vertices_handle = {swr::CreateAttributeBuffer(mesh.vertices)};
+    mesh_it->second.normals_handle = {swr::CreateAttributeBuffer(mesh.normals)};
+    mesh_it->second.texcoords_handle =
       mesh.texcoords.empty()
         ? std::nullopt
         : std::make_optional(
-            swr::CreateAttributeBuffer(mesh.texcoords));
-    mesh_it->second = std::move(mesh);
-    mesh_bounds[handle] = calculate_mesh_bounds(mesh_it->second);
+            TexCoordBufferHandle{
+              swr::CreateAttributeBuffer(mesh.texcoords)});
 
     return true;
 }
 
-const MeshBounds* RenderDevice::get_mesh_bounds(
-  MeshHandle handle) const
-{
-    auto it = mesh_bounds.find(handle);
-    if(it == mesh_bounds.end())
-    {
-        return nullptr;
-    }
-
-    return &it->second;
-}
-
-std::size_t RenderDevice::get_mesh_triangle_count(
-  MeshHandle handle) const
-{
-    const auto mesh_it = meshes.find(handle);
-    if(mesh_it == meshes.end()
-       || mesh_it->second.primitive_type != PrimitiveType::Triangles)
-    {
-        return 0;
-    }
-
-    return mesh_it->second.indices.size() / 3;
-}
-
 void RenderDevice::delete_mesh(MeshHandle handle)
 {
-    auto gpu_it = mesh_gpu_data.find(handle);
-    if(gpu_it != mesh_gpu_data.end())
+    auto mesh_it = meshes.find(handle);
+    if(mesh_it != meshes.end())
     {
-        if(gpu_it->second.texcoords_handle.has_value())
+        if(mesh_it->second.texcoords_handle.has_value())
         {
-            swr::DeleteAttributeBuffer(*gpu_it->second.texcoords_handle);
+            swr::DeleteAttributeBuffer(mesh_it->second.texcoords_handle.value().value);
         }
-        swr::DeleteAttributeBuffer(gpu_it->second.normals_handle);
-        swr::DeleteAttributeBuffer(gpu_it->second.vertices_handle);
+        swr::DeleteAttributeBuffer(mesh_it->second.normals_handle.value);
+        swr::DeleteAttributeBuffer(mesh_it->second.vertices_handle.value);
 
-        mesh_gpu_data.erase(gpu_it);
+        meshes.erase(mesh_it);
     }
 
     meshes.erase(handle);
-    mesh_bounds.erase(handle);
 }
 
-std::uint32_t RenderDevice::create_texture(
+ShaderHandle RenderDevice::create_shader(
+  const swr::program_base& shader)
+{
+    auto shader_id = swr::RegisterShader(&shader);
+    if(!shader_id)
+    {
+        throw std::runtime_error{
+          "Shader registration failed."};
+    }
+
+    bool success = false;
+    auto rollback = gsl::finally(
+      [&]()
+      {
+          if(!success)
+          {
+              swr::UnregisterShader(shader_id);
+          }
+      });
+
+    auto shader_handle = ShaderHandle{shader_id};
+    auto [it, inserted] = shaders.insert({shader_handle, &shader});
+    if(!inserted)
+    {
+        throw std::runtime_error{
+          "Could not insert shader."};
+    }
+    success = true;
+
+    return shader_handle;
+}
+
+void RenderDevice::delete_shader(
+  ShaderHandle handle)
+{
+    auto it = shaders.find(handle);
+    if(it != shaders.end())
+    {
+        swr::UnregisterShader(handle.value);
+        shaders.erase(it);
+    }
+}
+
+TextureHandle RenderDevice::create_texture(
   const assets::ImageRGBA8& image)
 {
     if(image.width <= 0
@@ -213,6 +227,16 @@ std::uint32_t RenderDevice::create_texture(
         throw std::runtime_error{"Unable to create texture handle"};
     }
 
+    bool success = false;
+    auto rollback = gsl::finally(
+      [&]()
+      {
+          if(!success)
+          {
+              swr::ReleaseTexture(texture_id);
+          }
+      });
+
     swr::ActiveTexture(swr::texture_0);
     swr::BindTexture(swr::texture_target::texture_2d, texture_id);
     swr::SetImage(
@@ -224,7 +248,6 @@ std::uint32_t RenderDevice::create_texture(
       {image.pixels.begin(), image.pixels.end()});    // FIXME Copies. SetImage should take a span.
     if(swr::GetLastError() != swr::error::none)
     {
-        swr::ReleaseTexture(texture_id);
         throw std::runtime_error{"Unable to upload texture image"};
     }
 
@@ -236,14 +259,15 @@ std::uint32_t RenderDevice::create_texture(
     swr::SetTextureMagnificationFilter(swr::texture_filter::linear);
     swr::BindTexture(swr::texture_target::texture_2d, 0);
 
-    return texture_id;
+    success = true;
+    return {texture_id};
 }
 
-void RenderDevice::delete_texture(std::uint32_t handle)
+void RenderDevice::delete_texture(TextureHandle handle)
 {
     if(handle != 0)
     {
-        swr::ReleaseTexture(handle);
+        swr::ReleaseTexture(handle.value);
     }
 }
 
@@ -254,57 +278,73 @@ ShadowMapHandle RenderDevice::create_shadow_map(
     ShadowMapTargetGpuData gpu_data{};
     gpu_data.width = std::max(1, width);
     gpu_data.height = std::max(1, height);
-    gpu_data.texture_handle = swr::CreateTexture();
+    gpu_data.texture_handle = {swr::CreateTexture()};
     if(gpu_data.texture_handle == 0)
     {
         throw std::runtime_error{"Unable to create shadow-map texture handle"};
     }
 
+    bool success = false;
+    auto rollback_texture = gsl::finally(
+      [&]()
+      {
+          if(!success)
+          {
+              swr::ReleaseTexture(gpu_data.texture_handle.value);
+          }
+      });
+
     swr::ActiveTexture(shader::shadow_map_sampler_unit);
     swr::BindTexture(
       swr::texture_target::texture_2d,
-      gpu_data.texture_handle);
+      gpu_data.texture_handle.value);
     swr::SetImage(
-      gpu_data.texture_handle,
+      gpu_data.texture_handle.value,
       0,
       static_cast<std::size_t>(gpu_data.width),
       static_cast<std::size_t>(gpu_data.height),
       swr::pixel_format::depth32f,
       {});
     swr::SetTextureWrapMode(
-      gpu_data.texture_handle,
+      gpu_data.texture_handle.value,
       swr::wrap_mode::clamp_to_edge,
       swr::wrap_mode::clamp_to_edge);
     swr::SetTextureMinificationFilter(swr::texture_filter::nearest);
     swr::SetTextureMagnificationFilter(swr::texture_filter::nearest);
     swr::BindTexture(swr::texture_target::texture_2d, 0);
     swr::SetTextureCompareMode(
-      gpu_data.texture_handle,
+      gpu_data.texture_handle.value,
       swr::texture_compare_mode::ref_to_texture);
     swr::SetTextureCompareFunc(
-      gpu_data.texture_handle,
+      gpu_data.texture_handle.value,
       swr::comparison_func::less_equal);
     if(swr::GetLastError() != swr::error::none)
     {
-        delete_texture(gpu_data.texture_handle);
         throw std::runtime_error{"Unable to allocate shadow-map texture"};
     }
 
-    gpu_data.framebuffer_handle = swr::CreateFramebufferObject();
+    gpu_data.framebuffer_handle = {swr::CreateFramebufferObject()};
     if(gpu_data.framebuffer_handle == 0)
     {
-        delete_texture(gpu_data.texture_handle);
         throw std::runtime_error{"Unable to create shadow-map framebuffer"};
     }
+
+    auto rollback_framebuffer = gsl::finally(
+      [&]()
+      {
+          if(!success)
+          {
+              swr::ReleaseFramebufferObject(gpu_data.framebuffer_handle.value);
+          }
+      });
+
     swr::FramebufferTexture(
-      gpu_data.framebuffer_handle,
+      gpu_data.framebuffer_handle.value,
       swr::framebuffer_attachment::depth_attachment,
-      gpu_data.texture_handle,
+      gpu_data.texture_handle.value,
       0);
     if(swr::GetLastError() != swr::error::none)
     {
-        swr::ReleaseFramebufferObject(gpu_data.framebuffer_handle);
-        delete_texture(gpu_data.texture_handle);
         throw std::runtime_error{"Unable to attach shadow-map depth texture"};
     }
 
@@ -315,6 +355,8 @@ ShadowMapHandle RenderDevice::create_shadow_map(
     }
 
     shadow_map_targets.emplace(handle, gpu_data);
+
+    success = true;
     return handle;
 }
 
@@ -339,7 +381,7 @@ void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
 
     if(it->second.framebuffer_handle != 0)
     {
-        swr::ReleaseFramebufferObject(it->second.framebuffer_handle);
+        swr::ReleaseFramebufferObject(it->second.framebuffer_handle.value);
     }
     if(it->second.texture_handle != 0)
     {
@@ -350,58 +392,25 @@ void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
 }
 
 MaterialHandle RenderDevice::create_material(
-  const swr::program_base& shader)
+  const Material& material)
 {
-    return create_material(
-      shader,
-      std::span<const std::uint32_t>{});
-}
-
-MaterialHandle RenderDevice::create_material(
-  const swr::program_base& shader,
-  std::span<const std::uint32_t> texture_handles)
-{
-    std::uint32_t shader_handle = swr::RegisterShader(&shader);
-    if(shader_handle == 0)
-    {
-        throw std::runtime_error{"Unable to register shader"};
-    }
-
     MaterialHandle material_id{1};
     while(materials.contains(material_id))
     {
         ++material_id.value;
     }
 
-    materials.insert({material_id,
-                      {.shader = &shader,
-                       .shader_handle = shader_handle,
-                       .texture_handles = swr::vector<std::uint32_t>(
-                         texture_handles.begin(),
-                         texture_handles.end())}});
+    materials.insert({material_id, material});
     return material_id;
 }
 
 void RenderDevice::delete_material(
-  MaterialHandle handle,
-  bool delete_textures)
+  MaterialHandle handle)
 {
     auto it = materials.find(handle);
     if(it == materials.end())
     {
         return;
-    }
-
-    swr::UnregisterShader(it->second.shader_handle);
-    if(delete_textures)
-    {
-        for(const std::uint32_t texture_handle: it->second.texture_handles)
-        {
-            if(texture_handle != 0)
-            {
-                delete_texture(texture_handle);
-            }
-        }
     }
 
     materials.erase(it);
@@ -426,7 +435,7 @@ void RenderDevice::bind_material(MaterialHandle handle)
         return;
     }
 
-    swr::BindShader(it->second.shader_handle);
+    swr::BindShader(it->second.shader_handle.value);
 
     const std::size_t texture_count = it->second.texture_handles.size();
     const ShadowMapTargetGpuData* shadow_target =
@@ -447,7 +456,7 @@ void RenderDevice::bind_material(MaterialHandle handle)
         swr::ActiveTexture(static_cast<std::uint32_t>(unit));
         swr::BindTexture(
           swr::texture_target::texture_2d,
-          it->second.texture_handles[unit]);
+          it->second.texture_handles[unit].value);
     }
     for(std::size_t unit = texture_count; unit < current_bound_texture_count; ++unit)
     {
@@ -461,7 +470,7 @@ void RenderDevice::bind_material(MaterialHandle handle)
         swr::ActiveTexture(shader::shadow_map_sampler_unit);
         swr::BindTexture(
           swr::texture_target::texture_2d,
-          shadow_target->texture_handle);
+          shadow_target->texture_handle.value);
         const swr::texture_filter filter =
           current_shadow_map_binding->linear_filter
             ? swr::texture_filter::linear
@@ -579,7 +588,7 @@ void RenderDevice::begin_shadow_map_pass(ShadowMapHandle handle)
     active_shadow_map_pass = handle;
     swr::BindFramebufferObject(
       swr::framebuffer_target::draw,
-      target->framebuffer_handle);
+      target->framebuffer_handle.value);
     swr::SetViewport(0, 0, target->width, target->height);
     swr::SetClearDepth(1.f);
     swr::ClearDepthBuffer();
@@ -610,20 +619,18 @@ void RenderDevice::end_shadow_map_pass()
 void RenderDevice::draw_mesh(MeshHandle handle)
 {
     auto it = meshes.find(handle);
-    auto gpu_it = mesh_gpu_data.find(handle);
-    if(it == meshes.end() || gpu_it == mesh_gpu_data.end())
+    if(it == meshes.end())
     {
         return;
     }
 
     const auto& mesh = it->second;
-    const auto& gpu_data = gpu_it->second;
 
-    swr::EnableAttributeBuffer(gpu_data.vertices_handle, 0);
-    swr::EnableAttributeBuffer(gpu_data.normals_handle, 1);
-    if(gpu_data.texcoords_handle.has_value())
+    swr::EnableAttributeBuffer(mesh.vertices_handle.value, 0);
+    swr::EnableAttributeBuffer(mesh.normals_handle.value, 1);
+    if(mesh.texcoords_handle.has_value())
     {
-        swr::EnableAttributeBuffer(*gpu_data.texcoords_handle, 2);
+        swr::EnableAttributeBuffer(mesh.texcoords_handle.value().value, 2);
     }
 
     const auto mode =
@@ -636,10 +643,10 @@ void RenderDevice::draw_mesh(MeshHandle handle)
       mesh.indices.size(),
       mesh.indices);
 
-    swr::DisableAttributeBuffer(gpu_data.vertices_handle);
-    swr::DisableAttributeBuffer(gpu_data.normals_handle);
-    if(gpu_data.texcoords_handle.has_value())
+    swr::DisableAttributeBuffer(mesh.vertices_handle.value);
+    swr::DisableAttributeBuffer(mesh.normals_handle.value);
+    if(mesh.texcoords_handle.has_value())
     {
-        swr::DisableAttributeBuffer(*gpu_data.texcoords_handle);
+        swr::DisableAttributeBuffer(mesh.texcoords_handle.value().value);
     }
 }

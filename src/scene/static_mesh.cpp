@@ -26,7 +26,8 @@ void StaticMesh::register_properties(
     reflect::register_property<&StaticMesh::path>(
       class_info,
       "path",
-      "Mesh Path");
+      "Asset Path",
+      reflect::PropertyFlags::ReadOnly);
     reflect::register_property<&StaticMesh::casts_shadows>(
       class_info,
       "casts_shadows",
@@ -39,21 +40,14 @@ void StaticMesh::register_properties(
 
 void StaticMesh::init(
   std::string_view path,
-  swr::vector<MeshSection> sections)
-{
-    this->path = path;
-    set_mesh_sections(std::move(sections));
-}
-
-void StaticMesh::init(
-  std::string_view path,
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
     this->path = path;
-    set_mesh_sections(
-      std::move(sections),
-      bounds);
+    set_lods(
+      {StaticMeshLod{
+        .mesh_sections = std::move(sections),
+        .bounds = bounds}});
 }
 
 void StaticMesh::init(
@@ -62,31 +56,6 @@ void StaticMesh::init(
 {
     this->path = path;
     set_lods(std::move(lods));
-}
-
-void StaticMesh::set_mesh_sections(
-  swr::vector<MeshSection> sections)
-{
-    set_mesh_sections(
-      std::move(sections),
-      {});
-}
-
-void StaticMesh::set_mesh_sections(
-  swr::vector<MeshSection> sections,
-  MeshBounds bounds)
-{
-    mesh_lods.clear();
-    if(!sections.empty())
-    {
-        mesh_lods.push_back(
-          StaticMeshLod{
-            .mesh_sections = std::move(sections),
-            .bounds = bounds,
-          });
-    }
-
-    update_bounds();
 }
 
 void StaticMesh::set_lods(

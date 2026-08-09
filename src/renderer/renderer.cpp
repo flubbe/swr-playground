@@ -412,8 +412,7 @@ void Renderer::build_render_queue(
 
             // update stats.
             ++render_stats.mesh_sections_drawn;
-            render_stats.triangles_submitted +=
-              device.get_mesh_triangle_count(section.mesh_handle);
+            render_stats.triangles_submitted += section.triangle_count;
         }
     }
 }
@@ -580,7 +579,10 @@ void Renderer::create_grid_mesh()
 
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
     auto* gray_shader = shader_cache.get_or_create<shader::ColorOnly>();
-    auto gray_material = device.create_material(*gray_shader);
+    auto gray_material = device.create_material(
+      Material{
+        .shader_handle = device.create_shader(*gray_shader),
+        .texture_handles = {}});
 
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
@@ -645,7 +647,7 @@ void Renderer::release_grid_mesh()
     }
     if(overlay_grid.material_handle)
     {
-        device.delete_material(overlay_grid.material_handle, false);
+        device.delete_material(overlay_grid.material_handle);
         overlay_grid.material_handle = {};
     }
 }
@@ -655,7 +657,10 @@ void Renderer::create_spotlight_depth_debug_mesh()
     release_spotlight_depth_debug_mesh();
 
     auto* debug_shadow_shader = shader_cache.get_or_create<shader::ShadowMapDebug>();
-    const auto debug_shadow_material = device.create_material(*debug_shadow_shader);
+    const auto debug_shadow_material = device.create_material(
+      Material{
+        .shader_handle = device.create_shader(*debug_shadow_shader),
+        .texture_handles = {}});
 
     std::vector<ml::vec4> qvb;
     std::vector<ml::vec4> qnb;
@@ -712,7 +717,7 @@ void Renderer::release_spotlight_depth_debug_mesh()
     }
     if(overlay_spotlight_depth.material_handle)
     {
-        device.delete_material(overlay_spotlight_depth.material_handle, false);
+        device.delete_material(overlay_spotlight_depth.material_handle);
         overlay_spotlight_depth.material_handle = {};
     }
 }
@@ -740,7 +745,10 @@ void Renderer::ensure_shadow_map_resources()
     auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
     if(!shadow_material)
     {
-        shadow_material = device.create_material(*shadow_shader);
+        shadow_material = device.create_material(
+          Material{
+            .shader_handle = device.create_shader(*shadow_shader),
+            .texture_handles = {}});
     }
 }
 
@@ -754,7 +762,7 @@ void Renderer::release_shadow_map_resources()
 
     if(shadow_material)
     {
-        device.delete_material(shadow_material, false);
+        device.delete_material(shadow_material);
         shadow_material = {};
     }
 }

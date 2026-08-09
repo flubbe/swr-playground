@@ -631,78 +631,47 @@ void imgui_draw_viewport_panel(
  * Startup scene finalization.
  */
 
-void expand_mesh_handle_bounds(
-  MeshBounds& bounds,
-  const RenderDevice& device,
-  MeshHandle mesh_handle)
-{
-    const MeshBounds* mesh_bounds = device.get_mesh_bounds(mesh_handle);
-    if(mesh_bounds != nullptr)
-    {
-        expand_bounds(bounds, *mesh_bounds);
-    }
-}
-
-MeshBounds calculate_mesh_section_bounds(
-  const RenderDevice& device,
-  const swr::vector<MeshSection>& sections)
-{
-    MeshBounds bounds;
-    for(const MeshSection& section: sections)
-    {
-        expand_mesh_handle_bounds(
-          bounds,
-          device,
-          section.mesh_handle);
-    }
-
-    return bounds;
-}
-
 GearParameters create_gear_resources(
   RenderDevice& device,
   ShaderCache& shader_cache,
   const StagedGearInstance& staged)
 {
     auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
-    auto lit_material = device.create_material(*lit_shader);
+    auto lit_material = device.create_material(
+      {.shader_handle = device.create_shader(*lit_shader),
+       .texture_handles = {}});
 
-    auto inner_mesh = device.create_mesh(
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = staged.geometry.inner_indices,
-        .vertices = staged.geometry.inner_vertices,
-        .normals = staged.geometry.inner_normals,
-        .texcoords = {}});
+    auto inner_mesh_data = MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = staged.geometry.inner_indices,
+      .vertices = staged.geometry.inner_vertices,
+      .normals = staged.geometry.inner_normals,
+      .texcoords = {}};
+    auto inner_mesh = device.create_mesh(inner_mesh_data);
 
-    auto outer_mesh = device.create_mesh(
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = staged.geometry.outer_indices,
-        .vertices = staged.geometry.outer_vertices,
-        .normals = staged.geometry.outer_normals,
-        .texcoords = {}});
+    auto outer_mesh_data = MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = staged.geometry.outer_indices,
+      .vertices = staged.geometry.outer_vertices,
+      .normals = staged.geometry.outer_normals,
+      .texcoords = {}};
+    auto outer_mesh = device.create_mesh(outer_mesh_data);
 
-    MeshBounds bounds;
-    expand_mesh_handle_bounds(
-      bounds,
-      device,
-      inner_mesh);
-    expand_mesh_handle_bounds(
-      bounds,
-      device,
-      outer_mesh);
+    MeshBounds bounds = calculate_mesh_bounds(inner_mesh_data);
+    expand_bounds(bounds, calculate_mesh_bounds(outer_mesh_data));
 
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
         .material_handle = lit_material,
         .color = staged.color,
+        .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
         .material_handle = lit_material,
         .color = staged.color,
+        .triangle_count = outer_mesh_data.indices.size() / 3,
       },
       .bounds = bounds,
       .inner_radius = staged.inner_radius,
@@ -789,6 +758,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
                 .mesh_handle = mesh_handle,
                 .material_handle = material,
                 .color = section.diffuse_color,
+                .triangle_count = staged_lod.mesh.indices.size() / 3,
               });
         }
     }
@@ -809,10 +779,10 @@ void try_add_textured_floor(
   ShaderCache& shader_cache,
   FloorShaderType floor_shader_type,
   const StagedFloorData& floor_data,
-  std::array<std::uint32_t, 2>* out_texture_handles = nullptr)
+  std::array<TextureHandle, 2>* out_texture_handles = nullptr)
 {
-    std::optional<std::uint32_t> diffuse_texture;
-    std::optional<std::uint32_t> normal_texture;
+    std::optional<TextureHandle> diffuse_texture;
+    std::optional<TextureHandle> normal_texture;
     std::optional<MeshHandle> mesh_handle;
 
     try
@@ -829,19 +799,15 @@ void try_add_textured_floor(
 
         mesh_handle = device.create_mesh(
           floor_data.mesh);
-        const std::array<std::uint32_t, 2> textures = {
-          *diffuse_texture,
-          *normal_texture};
         const MaterialHandle material_handle = device.create_material(
-          *shader,
-          textures);
+          {.shader_handle = device.create_shader(*shader),
+           .texture_handles = {*diffuse_texture, *normal_texture}});
         if(out_texture_handles != nullptr)
         {
-            *out_texture_handles = textures;
+            *out_texture_handles = {*diffuse_texture, *normal_texture};
         }
         diffuse_texture.reset();
         normal_texture.reset();
-        const MeshBounds bounds = *device.get_mesh_bounds(*mesh_handle);
 
         auto* floor = scene.add_object<StaticMesh>(
           "",
@@ -850,8 +816,9 @@ void try_add_textured_floor(
               .mesh_handle = *mesh_handle,
               .material_handle = material_handle,
               .color = {1.f, 1.f, 1.f, 1.f},
+              .triangle_count = floor_data.mesh.indices.size() / 3,
             }},
-          bounds);
+          calculate_mesh_bounds(floor_data.mesh));
         floor->set_name(floor_object_name);
         floor->casts_shadows = false;
         floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
@@ -900,7 +867,7 @@ void finalize_startup_scene(
   Renderer& renderer,
   FloorShaderType floor_shader_type,
   bool& has_floor_textures,
-  std::array<std::uint32_t, 2>& floor_texture_handles,
+  std::array<TextureHandle, 2>& floor_texture_handles,
   const StagedStartupScene& staged_scene)
 {
     ShaderCache& shader_cache = renderer.get_shader_cache();
@@ -933,7 +900,9 @@ void finalize_startup_scene(
     if(staged_scene.sample_mesh.has_value())
     {
         auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
-        const MaterialHandle material = render_device.create_material(*shader);
+        const MaterialHandle material = render_device.create_material(
+          {.shader_handle = render_device.create_shader(*shader),
+           .texture_handles = {}});
         auto lods = create_static_mesh_resources(
           render_device,
           material,
@@ -1013,9 +982,14 @@ void rebuild_gear_mesh_if_needed(
       gear_limits::min_teeth,
       gear_limits::max_teeth);
 
-    const auto old_mesh_sections = gear->get_mesh_sections();
-    if(old_mesh_sections.size() != 2)
+    // FIXME The copy is here only to update the triangle count below.
+    auto mesh_lods = gear->get_lods();
+
+    // validate assumptions since we'd like to reuse the mesh handle.
+    if(mesh_lods.size() != 1
+       || mesh_lods[0].mesh_sections.size() != 2)
     {
+        logging::errorf("Cannot rebuild gear mesh: LOD parameters do not match.");
         return;
     }
 
@@ -1026,36 +1000,46 @@ void rebuild_gear_mesh_if_needed(
       teeth,
       gear->get_tooth_depth());
 
-    const MeshHandle old_inner_mesh = old_mesh_sections[0].mesh_handle;
-    const MeshHandle old_outer_mesh = old_mesh_sections[1].mesh_handle;
+    const MeshHandle old_inner_mesh = mesh_lods[0].mesh_sections[0].mesh_handle;
+    const MeshHandle old_outer_mesh = mesh_lods[0].mesh_sections[1].mesh_handle;
 
     const bool inner_updated = device.update_mesh(
       old_inner_mesh,
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = std::move(geom.inner_indices),
-        .vertices = std::move(geom.inner_vertices),
-        .normals = std::move(geom.inner_normals),
+        .indices = geom.inner_indices,
+        .vertices = geom.inner_vertices,
+        .normals = geom.inner_normals,
         .texcoords = {}});
+
+    std::uint32_t inner_triangle_count = geom.inner_indices.size() / 3;
+    if(!inner_updated)
+    {
+        // mesh was not updated.
+        inner_triangle_count = mesh_lods[0].mesh_sections[0].triangle_count;
+    }
+
     const bool outer_updated = device.update_mesh(
       old_outer_mesh,
       MeshData{
         .primitive_type = PrimitiveType::Triangles,
-        .indices = std::move(geom.outer_indices),
-        .vertices = std::move(geom.outer_vertices),
-        .normals = std::move(geom.outer_normals),
+        .indices = geom.outer_indices,
+        .vertices = geom.outer_vertices,
+        .normals = geom.outer_normals,
         .texcoords = {}});
 
-    if(!inner_updated || !outer_updated)
+    std::uint32_t outer_triangle_count = geom.outer_indices.size() / 3;
+    if(!outer_updated)
     {
-        return;
+        // mesh was not updated.
+        outer_triangle_count = mesh_lods[0].mesh_sections[1].triangle_count;
     }
 
-    gear->set_mesh_sections(
-      old_mesh_sections,
-      calculate_mesh_section_bounds(
-        device,
-        old_mesh_sections));
+    // update triangle count.
+    mesh_lods[0].mesh_sections[0].triangle_count = inner_triangle_count;
+    mesh_lods[0].mesh_sections[1].triangle_count = outer_triangle_count;
+    gear->set_lods(mesh_lods);
+
     gear->mark_rebuilt();
 }
 
@@ -1924,7 +1908,9 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
                     throw std::runtime_error{"Unknown shader type for static meshes."};
                 }
 
-                section.material_handle = render_device.create_material(*new_shader);
+                section.material_handle = render_device.create_material(
+                  {.shader_handle = render_device.create_shader(*new_shader),
+                   .texture_handles = {}});
             }
         }
     }
@@ -1956,8 +1942,8 @@ void Application::set_floor_shader(FloorShaderType type)
             {
                 section.material_handle =
                   render_device.create_material(
-                    *new_shader,
-                    floor_texture_handles);
+                    {.shader_handle = render_device.create_shader(*new_shader),
+                     .texture_handles = {floor_texture_handles.begin(), floor_texture_handles.end()}});
             }
         }
     }
