@@ -43,9 +43,6 @@ struct MaterialResources
     /** Material description loaded from disk. */
     assets::MaterialDesc description;
 
-    /** Shader key. */
-    swr::string shader_key;
-
     /** Shader, as loaded/resolved by the `ShaderFactory`. */
     const swr::program_base* shader;
 
@@ -74,7 +71,7 @@ class ResolvableMaterial
     swr::shared_ptr<State> state;
 
 public:
-    ResolvableMaterial() = default;
+    ResolvableMaterial() = delete;
     ResolvableMaterial(const ResolvableMaterial&) = default;
     ResolvableMaterial(ResolvableMaterial&&) = default;
 
@@ -105,11 +102,6 @@ public:
     [[nodiscard]]
     bool is_resolved() const noexcept
     {
-        if(!state)
-        {
-            return false;
-        }
-
         return state->resolved_handle.has_value();
     }
 
@@ -125,23 +117,12 @@ public:
     [[nodiscard]]
     bool valid() const
     {
-        if(!state)
-        {
-            return false;
-        }
-
         return state->resources.future.valid();
     }
 
     /** Blocks until the asynchronous resources have finished loading. */
     void wait()
     {
-        if(!state)
-        {
-            throw std::logic_error{
-              "Cannot wait on an invalid material."};
-        }
-
         state->resources.future.wait();
     }
 
@@ -155,12 +136,6 @@ public:
     std::future_status wait_for(
       std::chrono::duration<Rep, Period> timeout)
     {
-        if(!state)
-        {
-            throw std::logic_error{
-              "Cannot wait on an invalid material."};
-        }
-
         return state->resources.future.wait_for(timeout);
     }
 
@@ -174,12 +149,6 @@ public:
     std::future_status wait_until(
       std::chrono::time_point<Clock, Duration> timeout)
     {
-        if(!state)
-        {
-            throw std::logic_error{
-              "Cannot wait on an invalid material."};
-        }
-
         return state->resources.future.wait_until(timeout);
     }
 };

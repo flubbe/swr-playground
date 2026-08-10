@@ -22,12 +22,6 @@
 
 MaterialHandle ResolvableMaterial::resolve()
 {
-    if(!state)
-    {
-        throw std::logic_error{
-          "Cannot resolve an invalid material."};
-    }
-
     if(state->resolved_handle.has_value())
     {
         return *state->resolved_handle;
@@ -49,7 +43,7 @@ MaterialHandle ResolvableMaterial::resolve()
                     state->resolved_handle.value());
               }
 
-              // TODO shader release is handled by the cache?
+              // TODO Shader release is handled by the cache.
 
               // TODO These should probably be released through
               //      the texture cache once textures are cached.
@@ -61,7 +55,7 @@ MaterialHandle ResolvableMaterial::resolve()
       });
 
     material.shader_handle = state->shader_cache.load(
-      loaded.shader_key,
+      loaded.description.shader,
       loaded.shader);
 
     for(const auto& texture: loaded.textures)
@@ -86,12 +80,12 @@ ResolvableMaterial MaterialManager::load(
         return it->second;
     }
 
-    // the material needs to be loaded. we delegate everything
+    // The material needs to be loaded. We delegate everything
     // to a task.
 
     auto submission = task_system.submit(
-      // FIXME copy JSON?
-      [this, json = swr::string{json}](task_system::TaskExecutionContext& context) mutable -> MaterialResources
+      [this, json = swr::string{json}](
+        task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
           {
@@ -100,18 +94,28 @@ ResolvableMaterial MaterialManager::load(
 
           MaterialResources resources;
 
-          auto desc = assets::load_material(json);
-
           // Load shader. The factory call corresponds to loading the shader data.
-          resources.shader_key = desc.shader;
-          resources.shader = shader_factory.get(desc.shader);
+          // TODO When allowing shader registrations during runtime, the factory call
+          //      has to be made thread safe.
+          resources.description = assets::load_material(json);
+          resources.shader = shader_factory.get(resources.description.shader);
+          if(resources.shader == nullptr)
+          {
+              // TODO Handle failure downstream
+              throw task_system::TaskCancelledError{};
+          }
 
           // Load textures.
           resources.textures.clear();
-          resources.textures.reserve(desc.textures.size());
-          for(const auto& texture: desc.textures)
+          resources.textures.reserve(resources.description.textures.size());
+          for(const auto& texture: resources.description.textures)
           {
-              // TODO should there be a cache here?
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              // TODO Async texture asset cache to deduplicate concurrent loads of the same texture.
               resources.textures.emplace_back(
                 assets::load_texture_rgba8(texture));
           }
@@ -131,6 +135,8 @@ ResolvableMaterial MaterialManager::load(
     return material;
 }
 
+// FIXME This invalidates the material, but already-loaded materials
+//       can still exist. These become invalid.
 bool MaterialManager::delete_material(
   std::string_view key)
 {
