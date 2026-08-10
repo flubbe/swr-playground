@@ -29,6 +29,7 @@
 #include "logging.h"
 #include "splash.h"
 
+class MaterialManager;
 class RenderDevice;
 class Renderer;
 class Scene;
@@ -92,14 +93,14 @@ class Application
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
 
+    task_system::TaskSystem& task_system;
+
     RenderDevice& render_device;
     Renderer& renderer;
+    MaterialManager& material_manager;
 
     Scene& scene;
     Viewport& viewport;
-
-    ApplicationTaskSystemLogger task_system_logger;
-    task_system::TaskSystem task_system;
 
     int window_w{0};
     int window_h{0};
@@ -235,11 +236,12 @@ public:
     Application(
       std::string_view title,
       logging::BufferedLogDevice& log_device,
+      task_system::TaskSystem& task_system,
       RenderDevice& render_device,
       Renderer& renderer,
+      MaterialManager& material_manager,
       Scene& scene,
-      Viewport& viewport,
-      std::size_t thread_pool_workers);
+      Viewport& viewport);
 
     ~Application();
 

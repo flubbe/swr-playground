@@ -8,14 +8,75 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "assets/material.h"
+#include <future>
+#include <optional>
+#include <stdexcept>
+
+#include <gsl/gsl>
+
 #include "materialmanager.h"
 #include "renderdevice.h"
 #include "shader_cache.h"
 #include "shader_factory.h"
 #include "texture_cache.h"
 
-MaterialHandle MaterialManager::load(
+MaterialHandle ResolvableMaterial::resolve()
+{
+    if(!state)
+    {
+        throw std::logic_error{
+          "Cannot resolve an invalid material."};
+    }
+
+    if(state->resolved_handle.has_value())
+    {
+        return *state->resolved_handle;
+    }
+
+    MaterialResources loaded = state->resources.future.get();
+
+    Material material;
+
+    bool success = false;
+    auto rollback = gsl::finally(
+      [&]()
+      {
+          if(!success)
+          {
+              if(state->resolved_handle.has_value())
+              {
+                  state->render_device.delete_material(
+                    state->resolved_handle.value());
+              }
+
+              // TODO shader release is handled by the cache?
+
+              // TODO These should probably be released through
+              //      the texture cache once textures are cached.
+              for(const auto& handle: material.texture_handles)
+              {
+                  state->render_device.delete_texture(handle);
+              }
+          }
+      });
+
+    material.shader_handle = state->shader_cache.load(
+      loaded.shader_key,
+      loaded.shader);
+
+    for(const auto& texture: loaded.textures)
+    {
+        material.texture_handles.push_back(
+          state->render_device.create_texture(texture));
+    }
+
+    state->resolved_handle = state->render_device.create_material(material);
+    success = true;
+
+    return *state->resolved_handle;
+}
+
+ResolvableMaterial MaterialManager::load(
   std::string_view key,
   std::string_view json)
 {
@@ -25,49 +86,49 @@ MaterialHandle MaterialManager::load(
         return it->second;
     }
 
-    auto desc = assets::load_material(json);
+    // the material needs to be loaded. we delegate everything
+    // to a task.
 
-    auto shader = shader_cache.get(desc.shader);
-    if(!shader.has_value())
-    {
-        auto shader_instance = shader_factory.get(desc.shader);
-        if(!shader_instance)
-        {
-            throw std::runtime_error{
-              std::format(
-                "Cannot load material: Unknown shader '{}'.",
-                desc.shader)};
-        }
+    auto submission = task_system.submit(
+      // FIXME copy JSON?
+      [this, json = swr::string{json}](task_system::TaskExecutionContext& context) mutable -> MaterialResources
+      {
+          if(context.is_cancel_requested())
+          {
+              throw task_system::TaskCancelledError{};
+          }
 
-        shader = shader_cache.load(
-          desc.shader,
-          shader_instance);
-    }
+          MaterialResources resources;
 
-    swr::vector<TextureHandle> textures;
-    textures.reserve(desc.textures.size());
-    for(const auto& texture: desc.textures)
-    {
-        // look up by path.
-        std::optional<TextureHandle> handle = texture_cache.get(texture.string());
-        if(!handle.has_value())
-        {
-            auto image_data = assets::load_texture_rgba8(texture);
-            textures.push_back(
-              device.create_texture(image_data));
+          auto desc = assets::load_material(json);
 
-            // TODO handle normal maps (currently they have OpenGL or DirectX convention).
-        }
-    }
+          // Load shader. The factory call corresponds to loading the shader data.
+          resources.shader_key = desc.shader;
+          resources.shader = shader_factory.get(desc.shader);
 
-    auto material_handle = device.create_material(
-      {.shader_handle = shader.value(),
-       .texture_handles = std::move(textures)});
+          // Load textures.
+          resources.textures.clear();
+          resources.textures.reserve(desc.textures.size());
+          for(const auto& texture: desc.textures)
+          {
+              // TODO should there be a cache here?
+              resources.textures.emplace_back(
+                assets::load_texture_rgba8(texture));
+          }
 
-    // cache material.
-    material_map.insert({swr::string{key}, material_handle});
+          return resources;
+      });
 
-    return material_handle;
+    ResolvableMaterial material{
+      device,
+      shader_cache,
+      std::move(submission)};
+
+    material_map.emplace(
+      swr::string{key},
+      material);
+
+    return material;
 }
 
 bool MaterialManager::delete_material(
@@ -76,7 +137,11 @@ bool MaterialManager::delete_material(
     if(auto it = material_map.find(key);
        it != material_map.end())
     {
-        device.delete_material(it->second);
+        if(it->second.is_resolved())
+        {
+            device.delete_material(it->second.resolve());
+        }
+
         material_map.erase(it);
         return true;
     }

@@ -38,6 +38,7 @@
 #include "assets/texture.h"
 #include "containers/format.h"
 #include "meshes/lod.h"
+#include "renderer/materialmanager.h"
 #include "renderer/renderdevice.h"
 #include "renderer/renderer.h"
 #include "scene/gear.h"
@@ -1365,19 +1366,20 @@ void ApplicationTaskSystemLogger::error(std::string_view message) const
 Application::Application(
   std::string_view title,
   logging::BufferedLogDevice& log_device,
+  task_system::TaskSystem& task_system,
   RenderDevice& render_device,
   Renderer& renderer,
+  MaterialManager& material_manager,
   Scene& scene,
-  Viewport& viewport,
-  std::size_t thread_pool_workers)
+  Viewport& viewport)
 : title{title}
 , log_device{log_device}
+, task_system{task_system}
 , render_device{render_device}
 , renderer{renderer}
+, material_manager{material_manager}
 , scene{scene}
 , viewport{viewport}
-, task_system_logger{log_device}
-, task_system{thread_pool_workers, task_system_logger}
 {
     window = SDL_CreateWindow(
       this->title.c_str(),

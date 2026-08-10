@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "tasks/task_system.h"
 #include "renderer/materialmanager.h"
 #include "renderer/renderdevice.h"
 #include "shader_cache.h"
@@ -100,6 +101,8 @@ struct SecondShader final
 
 TEST(MaterialManagerTests, Construction)
 {
+    task_system::TaskSystem task_system{1};
+
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
 
@@ -108,6 +111,7 @@ TEST(MaterialManagerTests, Construction)
 
     ASSERT_NO_THROW(
       MaterialManager manager(
+        task_system,
         device,
         shader_cache,
         shader_factory,
@@ -116,6 +120,8 @@ TEST(MaterialManagerTests, Construction)
 
 TEST(MaterialManagerTests, Load)
 {
+    task_system::TaskSystem task_system{1};
+
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
 
@@ -125,6 +131,7 @@ TEST(MaterialManagerTests, Load)
     shader_factory.register_shader<FirstShader>();
 
     MaterialManager manager{
+      task_system,
       device,
       shader_cache,
       shader_factory,
@@ -134,24 +141,34 @@ TEST(MaterialManagerTests, Load)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::pair<MaterialHandle, swr::string> result;
-    ASSERT_NO_THROW(result = manager.load(json));
-    EXPECT_EQ(result.first.value, 1);                       // material ids start at 1
-    EXPECT_EQ(result.second, "hash://e91290016cb6df0b");    // hash of the JSON
+    std::optional<
+      std::pair<ResolvableMaterial, swr::string>>
+      result;
+    ASSERT_NO_THROW(result.emplace(manager.load(json)));
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
+
+    ASSERT_TRUE(result->first.valid());
+    ASSERT_NO_THROW(result->first.wait());
+    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
 
     const std::string unknown_shader =
       "{\n"
       "    \"shader\": \"Unknown\"\n"
       "}";
-    EXPECT_THROW(
-      manager.load(unknown_shader),
-      std::runtime_error);
+    ASSERT_NO_THROW(result.emplace(manager.load(unknown_shader)));
 
-    EXPECT_NO_THROW(manager.delete_material(result.second));
+    ASSERT_TRUE(result->first.valid());
+    ASSERT_NO_THROW(result->first.wait());
+    ASSERT_THROW(result->first.resolve(), std::runtime_error);
+
+    EXPECT_NO_THROW(manager.delete_material(result->second));
 }
 
 TEST(MaterialManagerTests, LoadWithKey)
 {
+    task_system::TaskSystem task_system{1};
+
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
 
@@ -161,6 +178,7 @@ TEST(MaterialManagerTests, LoadWithKey)
     shader_factory.register_shader<FirstShader>();
 
     MaterialManager manager{
+      task_system,
       device,
       shader_cache,
       shader_factory,
@@ -170,14 +188,20 @@ TEST(MaterialManagerTests, LoadWithKey)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    MaterialHandle handle;
-    ASSERT_NO_THROW(handle = manager.load("FirstShader", json));
-    EXPECT_EQ(handle.value, 1);    // material ids start at 1
+    std::optional<ResolvableMaterial> handle;
+    ASSERT_NO_THROW(handle.emplace(manager.load("FirstShader", json)));
 
-    std::optional<MaterialHandle> result;
+    ASSERT_TRUE(handle->valid());
+    ASSERT_NO_THROW(handle->wait());
+    EXPECT_EQ(handle->resolve(), 1);    // material ids start at 1
+
+    std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result = manager.get("FirstShader"));
+
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result.value().value, 1);    // material ids start at 1
+    ASSERT_FALSE(result->valid());    // because it's already resolved
+    EXPECT_TRUE(result->is_resolved());
+    EXPECT_EQ(result->resolve(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result = manager.get("UnknownShader"));
     ASSERT_FALSE(result.has_value());
@@ -189,6 +213,8 @@ TEST(MaterialManagerTests, LoadWithKey)
 
 TEST(MaterialManagerTests, Deduplicate)
 {
+    task_system::TaskSystem task_system{1};
+
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
 
@@ -199,6 +225,7 @@ TEST(MaterialManagerTests, Deduplicate)
     shader_factory.register_shader<SecondShader>();
 
     MaterialManager manager{
+      task_system,
       device,
       shader_cache,
       shader_factory,
@@ -208,26 +235,41 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::pair<MaterialHandle, swr::string> result;
-    ASSERT_NO_THROW(result = manager.load(json));
-    EXPECT_EQ(result.first.value, 1);                       // material ids start at 1
-    EXPECT_EQ(result.second, "hash://e91290016cb6df0b");    // hash of the JSON
+    std::optional<
+      std::pair<ResolvableMaterial, swr::string>>
+      result;
+    ASSERT_NO_THROW(result.emplace(manager.load(json)));
+    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
 
-    ASSERT_NO_THROW(result = manager.load(json));
-    EXPECT_EQ(result.first.value, 1);
-    EXPECT_EQ(result.second, "hash://e91290016cb6df0b");
+    ASSERT_TRUE(result->first.valid());
+    ASSERT_NO_THROW(result->first.wait());
+    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
+
+    ASSERT_NO_THROW(result.emplace(manager.load(json)));
+    EXPECT_TRUE(result->first.is_resolved());
+    EXPECT_EQ(result->first.resolve(), 1);
+    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");
 
     const std::string json2 =
       "{\n"
       "    \"shader\": \"SecondShader\"\n"
       "}";
-    ASSERT_NO_THROW(result = manager.load(json2));
-    EXPECT_EQ(result.first.value, 2);
-    EXPECT_NE(result.second, "hash://e91290016cb6df0b");
+    ASSERT_NO_THROW(result.emplace(manager.load(json2)));
+
+    ASSERT_TRUE(result->first.valid());
+    ASSERT_NO_THROW(result->first.wait());
+    EXPECT_FALSE(result->first.is_resolved());
+
+    EXPECT_EQ(result->first.resolve(), 2);
+    EXPECT_TRUE(result->first.is_resolved());
+
+    EXPECT_NE(result->second, "hash://e91290016cb6df0b");
 }
 
 TEST(MaterialManagerTests, LoadWithTextures)
 {
+    task_system::TaskSystem task_system{1};
+
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
 
@@ -237,6 +279,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
     shader_factory.register_shader<FirstShader>();
 
     MaterialManager manager{
+      task_system,
       device,
       shader_cache,
       shader_factory,
@@ -252,8 +295,12 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "/textures/tiles/tiles_0080_normal_opengl_1k.png\"\n"
       "    ]\n"
       "}";
-    std::pair<MaterialHandle, swr::string> result;
-    ASSERT_NO_THROW(result = manager.load(json));
-    EXPECT_EQ(result.first.value, 1);
+    std::optional<
+      std::pair<ResolvableMaterial, swr::string>>
+      result;
+    ASSERT_NO_THROW(result.emplace(manager.load(json)));
+    ASSERT_TRUE(result->first.valid());
+    ASSERT_NO_THROW(result->first.wait());
+    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
     // don't validate hash, since it depends on build config.
 }

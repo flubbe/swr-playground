@@ -5,6 +5,10 @@ add_executable(render_tests
     ${PROJECT_SOURCE_DIR}/src/assets/texture.cpp
     ${PROJECT_SOURCE_DIR}/src/renderer/materialmanager.cpp
     ${PROJECT_SOURCE_DIR}/src/renderer/renderdevice.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
+    ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
     ${PROJECT_SOURCE_DIR}/src/shader_cache.cpp
     ${PROJECT_SOURCE_DIR}/src/texture_cache.cpp
