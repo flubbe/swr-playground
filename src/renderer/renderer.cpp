@@ -299,17 +299,17 @@ std::optional<ShadowCamera> collect_shadow_camera(
 
 }    // namespace
 
-void Renderer::build_shader_cache()
+void Renderer::register_shaders()
 {
     // register all shaders.
-    shader_cache.register_shader<shader::ColorFlat>();
-    shader_cache.register_shader<shader::ColorSmooth>();
-    shader_cache.register_shader<shader::LitSmooth>();
-    shader_cache.register_shader<shader::PhongSmooth>();
-    shader_cache.register_shader<shader::TexturedFloor>();
-    shader_cache.register_shader<shader::TexturedShinyFloor>();
+    shader_factory.register_shader<shader::ColorFlat>();
+    shader_factory.register_shader<shader::ColorSmooth>();
+    shader_factory.register_shader<shader::LitSmooth>();
+    shader_factory.register_shader<shader::PhongSmooth>();
+    shader_factory.register_shader<shader::TexturedFloor>();
+    shader_factory.register_shader<shader::TexturedShinyFloor>();
 
-    auto shader_names = shader_cache.get_names();
+    auto shader_names = shader_factory.get_names();
     std::ranges::sort(shader_names);
     get_logger().logf("Registered shaders: {}", shader_names);
 }
@@ -578,7 +578,7 @@ void Renderer::create_grid_mesh()
     release_grid_mesh();
 
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
-    auto* gray_shader = shader_cache.get_or_create<shader::ColorOnly>();
+    auto* gray_shader = shader_factory.get_or_create<shader::ColorOnly>();
     auto gray_material = device.create_material(
       Material{
         .shader_handle = device.create_shader(*gray_shader),
@@ -656,7 +656,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
 {
     release_spotlight_depth_debug_mesh();
 
-    auto* debug_shadow_shader = shader_cache.get_or_create<shader::ShadowMapDebug>();
+    auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
     const auto debug_shadow_material = device.create_material(
       Material{
         .shader_handle = device.create_shader(*debug_shadow_shader),
@@ -742,7 +742,7 @@ void Renderer::ensure_shadow_map_resources()
       shadow_map_resolution,
       shadow_map_resolution);
 
-    auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
+    auto* shadow_shader = shader_factory.get_or_create<shader::ShadowDepth>();
     if(!shadow_material)
     {
         shadow_material = device.create_material(

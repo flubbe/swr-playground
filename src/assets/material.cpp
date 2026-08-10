@@ -27,7 +27,7 @@ namespace assets
 {
 
 MaterialDesc load_material(
-  const swr::string& json)
+  std::string_view json)
 {
     MaterialDesc desc;
 

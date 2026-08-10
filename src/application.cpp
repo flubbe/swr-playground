@@ -46,7 +46,7 @@
 #include "ui/imgui.h"
 #include "application.h"
 #include "logging.h"
-#include "shader_cache.h"
+#include "shader_factory.h"
 #include "startup_tasks.h"
 #include "staged_data.h"
 #include "tasks/task_system.h"
@@ -633,10 +633,10 @@ void imgui_draw_viewport_panel(
 
 GearParameters create_gear_resources(
   RenderDevice& device,
-  ShaderCache& shader_cache,
+  ShaderFactory& shader_factory,
   const StagedGearInstance& staged)
 {
-    auto* lit_shader = shader_cache.get_or_create<shader::LitSmooth>();
+    auto* lit_shader = shader_factory.get_or_create<shader::LitSmooth>();
     auto lit_material = device.create_material(
       {.shader_handle = device.create_shader(*lit_shader),
        .texture_handles = {}});
@@ -685,14 +685,14 @@ GearParameters create_gear_resources(
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
-  ShaderCache& shader_cache,
+  ShaderFactory& shader_factory,
   const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
     {
         auto params = create_gear_resources(
           device,
-          shader_cache,
+          shader_factory,
           staged);
         auto* gear = scene.add_object<Gear>(params);
         gear->casts_shadows = true;
@@ -709,14 +709,14 @@ constexpr std::string_view floor_object_name = "Stone Floor";
 
 swr::program_base* get_floor_shader_program(
   FloorShaderType type,
-  ShaderCache& shader_cache)
+  ShaderFactory& shader_factory)
 {
     switch(type)
     {
     case FloorShaderType::TexturedFloor:
-        return shader_cache.get_or_create<shader::TexturedFloor>();
+        return shader_factory.get_or_create<shader::TexturedFloor>();
     case FloorShaderType::TexturedShinyFloor:
-        return shader_cache.get_or_create<shader::TexturedShinyFloor>();
+        return shader_factory.get_or_create<shader::TexturedShinyFloor>();
     default:
         throw std::runtime_error{"Unknown shader type for the floor."};
     }
@@ -776,7 +776,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
-  ShaderCache& shader_cache,
+  ShaderFactory& shader_factory,
   FloorShaderType floor_shader_type,
   const StagedFloorData& floor_data,
   std::array<TextureHandle, 2>* out_texture_handles = nullptr)
@@ -795,7 +795,7 @@ void try_add_textured_floor(
           floor_data.normal_texture);
         swr::program_base* shader = get_floor_shader_program(
           floor_shader_type,
-          shader_cache);
+          shader_factory);
 
         mesh_handle = device.create_mesh(
           floor_data.mesh);
@@ -870,7 +870,7 @@ void finalize_startup_scene(
   std::array<TextureHandle, 2>& floor_texture_handles,
   const StagedStartupScene& staged_scene)
 {
-    ShaderCache& shader_cache = renderer.get_shader_cache();
+    ShaderFactory& shader_factory = renderer.get_shader_factory();
 
     configure_default_directional_lights(scene);
     configure_default_spot_lights(scene);
@@ -878,7 +878,7 @@ void finalize_startup_scene(
     add_staged_gears(
       scene,
       render_device,
-      shader_cache,
+      shader_factory,
       staged_scene.gears);
 
     has_floor_textures = false;
@@ -888,7 +888,7 @@ void finalize_startup_scene(
         try_add_textured_floor(
           scene,
           render_device,
-          shader_cache,
+          shader_factory,
           floor_shader_type,
           *staged_scene.floor,
           &floor_texture_handles);
@@ -899,7 +899,7 @@ void finalize_startup_scene(
 
     if(staged_scene.sample_mesh.has_value())
     {
-        auto* shader = shader_cache.get_or_create<shader::LitSmooth>();
+        auto* shader = shader_factory.get_or_create<shader::LitSmooth>();
         const MaterialHandle material = render_device.create_material(
           {.shader_handle = render_device.create_shader(*shader),
            .texture_handles = {}});
@@ -1871,7 +1871,7 @@ void Application::tick(float delta_time)
 void Application::set_static_mesh_shader(StaticMeshShaderType type)
 {
     active_static_mesh_shader = type;
-    ShaderCache& shader_cache = renderer.get_shader_cache();
+    ShaderFactory& shader_factory = renderer.get_shader_factory();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
@@ -1893,16 +1893,16 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
                 switch(type)
                 {
                 case StaticMeshShaderType::ColorFlat:
-                    new_shader = shader_cache.get_or_create<shader::ColorFlat>();
+                    new_shader = shader_factory.get_or_create<shader::ColorFlat>();
                     break;
                 case StaticMeshShaderType::ColorSmooth:
-                    new_shader = shader_cache.get_or_create<shader::ColorSmooth>();
+                    new_shader = shader_factory.get_or_create<shader::ColorSmooth>();
                     break;
                 case StaticMeshShaderType::PhongSmooth:
-                    new_shader = shader_cache.get_or_create<shader::PhongSmooth>();
+                    new_shader = shader_factory.get_or_create<shader::PhongSmooth>();
                     break;
                 case StaticMeshShaderType::LitSmooth:
-                    new_shader = shader_cache.get_or_create<shader::LitSmooth>();
+                    new_shader = shader_factory.get_or_create<shader::LitSmooth>();
                     break;
                 default:
                     throw std::runtime_error{"Unknown shader type for static meshes."};
@@ -1924,10 +1924,10 @@ void Application::set_floor_shader(FloorShaderType type)
         return;
     }
 
-    ShaderCache& shader_cache = renderer.get_shader_cache();
+    ShaderFactory& shader_factory = renderer.get_shader_factory();
     swr::program_base* new_shader = get_floor_shader_program(
       type,
-      shader_cache);
+      shader_factory);
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {

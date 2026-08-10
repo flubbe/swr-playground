@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "shader_cache.h"
+#include "shader_factory.h"
 
 namespace
 {
@@ -90,12 +90,12 @@ struct SecondTestShader final
 TEST(ShaderCacheTests, Construction)
 {
     EXPECT_NO_THROW(
-      ShaderCache cache);
+      ShaderFactory cache);
 }
 
 TEST(ShaderCacheTests, Registration)
 {
-    ShaderCache cache;
+    ShaderFactory cache;
 
     EXPECT_TRUE(
       cache.register_shader<TestShader>());
@@ -106,7 +106,7 @@ TEST(ShaderCacheTests, Registration)
 TEST(ShaderCacheTests, Names)
 {
     std::vector<std::string> names;
-    ShaderCache cache;
+    ShaderFactory cache;
 
     EXPECT_TRUE(
       cache.register_shader<TestShader>());
@@ -144,7 +144,7 @@ TEST(ShaderCacheTests, GetInstance)
     static_assert(sizeof(TestShader) != sizeof(SecondTestShader));
 
     std::vector<std::string> names;
-    ShaderCache cache;
+    ShaderFactory cache;
 
     float fragDepth{0.f};
     ml::vec4 fragColor;
@@ -182,7 +182,7 @@ TEST(ShaderCacheTests, GetInstanceByName)
     static_assert(sizeof(TestShader) != sizeof(SecondTestShader));
 
     std::vector<std::string> names;
-    ShaderCache cache;
+    ShaderFactory cache;
 
     float fragDepth{0.f};
     ml::vec4 fragColor;

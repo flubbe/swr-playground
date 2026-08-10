@@ -17,7 +17,7 @@
 #include <ml/all.h>
 
 #include "containers/memory.h"
-#include "shader_cache.h"
+#include "shader_factory.h"
 #include "types.h"
 
 class Scene;
@@ -339,7 +339,7 @@ class Renderer final
     static constexpr int shadow_map_resolution = 1024;
 
     RenderDevice& device;
-    ShaderCache shader_cache;
+    ShaderFactory shader_factory;
 
     float render_time{0.f};
     RendererStats render_stats;
@@ -354,7 +354,7 @@ class Renderer final
      * Initialization.
      */
 
-    void build_shader_cache();
+    void register_shaders();
 
     /*
      * Render queues.
@@ -438,7 +438,7 @@ public:
       RenderDevice& device)
     : device{device}
     {
-        build_shader_cache();
+        register_shaders();
 
         create_grid_mesh();
         create_spotlight_depth_debug_mesh();
@@ -447,9 +447,9 @@ public:
     ~Renderer();
 
     [[nodiscard]]
-    ShaderCache& get_shader_cache()
+    ShaderFactory& get_shader_factory()
     {
-        return shader_cache;
+        return shader_factory;
     }
 
     [[nodiscard]]

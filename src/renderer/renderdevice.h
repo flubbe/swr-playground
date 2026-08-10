@@ -25,6 +25,7 @@
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
+#include "material.h"
 #include "shader_constants.h"
 #include "types.h"
 
@@ -50,16 +51,6 @@ struct MeshGpuData    // TODO rename: renderer::Mesh
 
     /** Handle to the texture coordinate buffer. */
     std::optional<TexCoordBufferHandle> texcoords_handle;
-};
-
-/** A render material. */
-struct Material
-{
-    /** Shader handle. */
-    ShaderHandle shader_handle{0};
-
-    /** Bound 2D textures by texture unit index. */
-    swr::vector<TextureHandle> texture_handles{};
 };
 
 /** Camera-related shader uniforms. */

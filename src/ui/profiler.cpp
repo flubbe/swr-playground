@@ -14,7 +14,6 @@
 #include <numeric>
 
 #include <imgui.h>
-#include <swr/swr.h>
 
 #include "containers/vector.h"
 #include "renderer/renderer.h"

@@ -1,10 +1,14 @@
 add_executable(render_tests
-    test_shader_cache.cpp
+    test_shader_factory.cpp
 )
 
 target_include_directories(render_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${concurrency_utils_src_SOURCE_DIR}/include
+)
+
+target_compile_definitions(render_tests PRIVATE
+    SWR_USE_CUSTOM_STD_ALLOCATORS=0
 )
 
 target_link_libraries(render_tests PRIVATE

@@ -305,8 +305,18 @@ add_executable(swr_playground
     src/assets/material.cpp
     src/assets/static_mesh_importer.cpp
     src/assets/texture.cpp
+    src/memory/allocators/arena.cpp
+    src/memory/allocators/bump.cpp
+    src/memory/allocators/malloc.cpp
+    src/memory/manager.cpp
+    src/memory/new.cpp
+    src/meshes/mesh.cpp
+    src/meshes/simplifier.cpp
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
+    src/renderer/materialmanager.cpp
+    src/renderer/renderdevice.cpp
+    src/renderer/renderer.cpp
     src/scene/camera.cpp
     src/scene/directionallight.cpp
     src/scene/gear.cpp
@@ -319,15 +329,10 @@ add_executable(swr_playground
     src/serialization/json/json_scene_loader.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
-    src/memory/allocators/arena.cpp
-    src/memory/allocators/bump.cpp
-    src/memory/allocators/malloc.cpp
-    src/memory/manager.cpp
-    src/memory/new.cpp
-    src/meshes/mesh.cpp
-    src/meshes/simplifier.cpp
-    src/renderer/renderdevice.cpp
-    src/renderer/renderer.cpp
+    src/tasks/dag.cpp
+    src/tasks/scheduler.cpp
+    src/tasks/state.cpp
+    src/tasks/task_system.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
@@ -340,11 +345,9 @@ add_executable(swr_playground
     src/main.cpp
     src/main_loop.cpp
     src/platform.cpp
+    src/shader_cache.cpp
     src/startup_tasks.cpp
-    src/tasks/dag.cpp
-    src/tasks/scheduler.cpp
-    src/tasks/state.cpp
-    src/tasks/task_system.cpp
+    src/texture_cache.cpp
     src/viewport.cpp
 )
 

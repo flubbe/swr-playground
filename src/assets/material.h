@@ -8,6 +8,8 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#pragma once
+
 #include <filesystem>
 #include <span>
 
@@ -35,6 +37,6 @@ struct MaterialDesc
  */
 [[nodiscard]]
 MaterialDesc load_material(
-  const swr::string& json);
+  std::string_view json);
 
 }    // namespace assets

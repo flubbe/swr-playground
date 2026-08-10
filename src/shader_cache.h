@@ -10,170 +10,138 @@
 
 #pragma once
 
-#include <algorithm>
-#include <concepts>
-#include <cstddef>
-#include <ranges>
-#include <utility>
-
-#include <ml/all.h>
-#include <swr/swr.h>
-#include <swr/shaders.h>
-
-#include "containers/memory.h"
+#include "containers/format.h"
 #include "containers/string.h"
 #include "containers/unordered_map.h"
-#include "containers/vector.h"
+#include "renderer/types.h"
 
-using ShaderCacheKey = void*;
-
-/** Shader concept. */
-template<typename T>
-concept Shader = std::is_base_of_v<swr::program<T>, T>
-                 && requires {
-                        { T::name } -> std::convertible_to<std::string_view>;
-                    };
-
-/**
- * Generate a unique tag per shader.
- *
- * @tparam T Shader class.
+/*
+ * Forward declarations.
  */
-template<Shader T>
-ShaderCacheKey shader_cache_tag() noexcept
-{
-    /*
-     * Uses the same unique-address tagging trick as the reflection system's
-     * `reflect::detail::type_tag<T>()`: each template instantiation owns a
-     * function-local static, and its address becomes the stable runtime tag.
-     */
+class RenderDevice;
 
-    static int tag = 0;
-    return &tag;
-}
-
-/**
- * Shader cache. Manages shader creation.
- *
- * TODO Decide if we need targetted removal/invalidation.
- */
+/** Shader cache. */
 class ShaderCache
 {
+    /** Render device reference. */
+    RenderDevice& device;
+
     /** Cached shaders. */
-    swr::vector<
-      swr::unique_ptr<
-        swr::program_base>>
-      shaders;
-
-    /** Shader keys for fast access. */
-    swr::unordered_map<
-      ShaderCacheKey,
-      swr::program_base*>
-      shaders_by_key;
-
-    /** Shader names. */
     swr::unordered_map<
       swr::string,
-      swr::program_base*>
-      shaders_by_name;
+      ShaderHandle>
+      shader_map;
+
+    /**
+     * Hash a shader.
+     *
+     * @param shader The shader to hash.
+     * @returns Returns a 64-bit hash.
+     */
+    [[nodiscard]]
+    static std::uint64_t compute_hash(
+      const swr::program_base* shader) noexcept
+    {
+        return std::hash<const swr::program_base*>{}(shader);
+    }
 
 public:
-    ShaderCache() = default;
-    ShaderCache(const ShaderCache&) = delete;
-    ShaderCache(ShaderCache&&) = default;
-
-    ~ShaderCache() = default;
-
-    ShaderCache& operator=(const ShaderCache&) = delete;
-    ShaderCache& operator=(ShaderCache&&) = default;
-
     /**
-     * Register a shader.
+     * Constructor.
      *
-     * @note Registration is idempotent.
-     * @tparam T The shader to register.
-     * @returns Returns `true` if the shader was newly registered, and `false`
-     *     if it already existed.
+     * @param device The render device for this shader cache.
      */
-    template<Shader T>
-    bool register_shader()
+    ShaderCache(
+      RenderDevice& device)
+    : device{device}
     {
-        const ShaderCacheKey key{shader_cache_tag<T>()};
-        if(auto it = shaders_by_key.find(key); it != shaders_by_key.end())
-        {
-            return false;
-        }
-
-        swr::unique_ptr<T> new_shader = swr::make_unique<T>();
-        T* shader = new_shader.get();
-
-        shaders.emplace_back(std::move(new_shader));
-        shaders_by_key.emplace(key, shader);
-        shaders_by_name.emplace(T::name, shader);
-
-        return true;
     }
 
     /**
-     * Checks if a shader exists in the cache and either returns it if found,
-     * or creates a new shader.
+     * Destructor. Releases all shaders.
      *
-     * @tparam T Shader class.
+     * @note Lifetime: The render device has to be valid.
      */
-    template<Shader T>
-    T* get_or_create()
+    ~ShaderCache()
     {
-        register_shader<T>();
-
-        const ShaderCacheKey key{shader_cache_tag<T>()};
-        if(auto it = shaders_by_key.find(key); it != shaders_by_key.end())
+        while(!shader_map.empty())
         {
-            return static_cast<T*>(it->second);
+            delete_shader(shader_map.begin()->first);
         }
-
-        throw std::runtime_error{
-          "Cannot find newly registered shader."};
     }
 
     /**
-     * Get a shader by name.
+     * Load a shader and store it under a key.
      *
-     * @param name The shader name.
-     * @returns Returns the shader, or `nullptr` if not found.
+     * @note Deduplicates: When a key already exists, the corresponding
+     *     shader handle is returned.
+     *
+     * @param key The shader key to use.
+     * @param shader The shader.
+     * @returns Returns the shader handle.
+     * @throws Throws a `std::runtime_error` if the load failed.
      */
-    swr::program_base* get(
-      std::string_view name) const
+    ShaderHandle load(
+      std::string_view key,
+      const swr::program_base* shader);
+
+    /**
+     * Load a shader.
+     *
+     * @note Deduplicates: When the shader is already loaded, it's handle is returned.
+     *
+     * @param shader The shader.
+     * @returns Returns a pair `(shader_handle, key)`, where `key` can be used to
+     *     access the shader in the manager.
+     */
+    std::pair<ShaderHandle, swr::string> load(
+      const swr::program_base* shader)
     {
-        auto it = shaders_by_name.find(swr::string{name});
-        if(it == shaders_by_name.end())
+        std::uint64_t hash = compute_hash(shader);
+        swr::string generated_key =
+          swr::format("hash://{:016x}", hash);
+        return std::make_pair(
+          load(generated_key, shader),
+          std::move(generated_key));
+    }
+
+    /**
+     * Get a shader by key.
+     *
+     * @param key The shader key.
+     * @returns Returns the shader handle, or `std::nullopt` if the key wasn't found.
+     */
+    [[nodiscard]]
+    std::optional<ShaderHandle> get(
+      std::string_view key) const
+    {
+        if(auto it = shader_map.find(key);
+           it != shader_map.end())
         {
-            return nullptr;
+            return it->second;
         }
-
-        return it->second;
+        return std::nullopt;
     }
 
-    /** Get all shader names. */
-    std::vector<swr::string> get_names() const
+    /**
+     * Check if the manager contains the shader.
+     *
+     * @param key The shader key.
+     * @returns Returns `true` if the shader was found, and `false` otherwise.
+     */
+    [[nodiscard]]
+    bool contains(
+      std::string_view key) const
     {
-        return shaders_by_name
-               | std::views::transform(
-                 [](const auto& s) -> swr::string
-                 { return s.first; })
-               | std::ranges::to<std::vector>();
+        return shader_map.contains(key);
     }
 
-    /** Clear the cache. */
-    void clear()
-    {
-        shaders.clear();
-        shaders_by_key.clear();
-        shaders_by_name.clear();
-    }
-
-    /** Return the shader cache size (shader count). */
-    std::size_t size() const
-    {
-        return shaders.size();
-    }
+    /**
+     * Delete a shader by key.
+     *
+     * @param key Shader key.
+     * @returns Returns `true` if the shader was deleted, and `false` if the key was not found.
+     */
+    bool delete_shader(
+      std::string_view key);
 };

@@ -311,7 +311,7 @@ void draw_tools_panel(
             ImGui::TableNextColumn();
             ImGui::Text(
               "%llu",
-              static_cast<unsigned long long>(renderer.get_shader_cache().size()));
+              static_cast<unsigned long long>(renderer.get_shader_factory().size()));
 
             ImGui::EndTable();
         }
@@ -319,8 +319,8 @@ void draw_tools_panel(
 
     if(ImGui::CollapsingHeader("Registered Shaders", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        auto& shader_cache = renderer.get_shader_cache();
-        auto names = shader_cache.get_names();
+        auto& shader_factory = renderer.get_shader_factory();
+        auto names = shader_factory.get_names();
 
         // Helper struct to parse categories cleanly
         struct ParsedShader
@@ -337,7 +337,7 @@ void draw_tools_panel(
 
         for(const auto& name: names)
         {
-            const auto* shader = shader_cache.get(name);
+            const auto* shader = shader_factory.get(name);
 
             size_t sep_pos = name.find_first_of("./");
             if(sep_pos != std::string::npos)
