@@ -115,6 +115,7 @@ public:
      * @param json The JSON string.
      * @returns Returns a pair `(material_handle, key)`, where `key` can be used to
      *     access the material in the manager.
+     * @throws Throws a `std::runtime_error` if loading failed.
      */
     std::pair<MaterialHandle, swr::string> load(
       std::string_view json)

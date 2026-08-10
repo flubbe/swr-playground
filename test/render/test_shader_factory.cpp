@@ -7,12 +7,12 @@
 namespace
 {
 
-struct TestShader final
-: public swr::program<TestShader>
+struct FirstShader final
+: public swr::program<FirstShader>
 {
     static constexpr std::string_view name = "TestShader";
 
-    TestShader() = default;
+    FirstShader() = default;
 
     virtual void pre_link(
       boost::container::static_vector<
@@ -98,9 +98,9 @@ TEST(ShaderCacheTests, Registration)
     ShaderFactory cache;
 
     EXPECT_TRUE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
     EXPECT_FALSE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
 }
 
 TEST(ShaderCacheTests, Names)
@@ -109,10 +109,10 @@ TEST(ShaderCacheTests, Names)
     ShaderFactory cache;
 
     EXPECT_TRUE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
     names = cache.get_names();
     ASSERT_EQ(names.size(), 1);
-    EXPECT_EQ(names[0], TestShader::name);
+    EXPECT_EQ(names[0], FirstShader::name);
 
     EXPECT_TRUE(
       cache.register_shader<SecondTestShader>());
@@ -120,15 +120,15 @@ TEST(ShaderCacheTests, Names)
     std::ranges::sort(names);
     ASSERT_EQ(names.size(), 2);
     EXPECT_EQ(names[0], SecondTestShader::name);
-    EXPECT_EQ(names[1], TestShader::name);
+    EXPECT_EQ(names[1], FirstShader::name);
 
     EXPECT_FALSE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
     names = cache.get_names();
     std::ranges::sort(names);
     ASSERT_EQ(names.size(), 2);
     EXPECT_EQ(names[0], SecondTestShader::name);
-    EXPECT_EQ(names[1], TestShader::name);
+    EXPECT_EQ(names[1], FirstShader::name);
 
     EXPECT_FALSE(
       cache.register_shader<SecondTestShader>());
@@ -136,12 +136,12 @@ TEST(ShaderCacheTests, Names)
     std::ranges::sort(names);
     ASSERT_EQ(names.size(), 2);
     EXPECT_EQ(names[0], SecondTestShader::name);
-    EXPECT_EQ(names[1], TestShader::name);
+    EXPECT_EQ(names[1], FirstShader::name);
 }
 
 TEST(ShaderCacheTests, GetInstance)
 {
-    static_assert(sizeof(TestShader) != sizeof(SecondTestShader));
+    static_assert(sizeof(FirstShader) != sizeof(SecondTestShader));
 
     std::vector<std::string> names;
     ShaderFactory cache;
@@ -150,12 +150,12 @@ TEST(ShaderCacheTests, GetInstance)
     ml::vec4 fragColor;
 
     EXPECT_TRUE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
     EXPECT_TRUE(
       cache.register_shader<SecondTestShader>());
 
-    auto* test_instance = cache.get_or_create<TestShader>();
-    EXPECT_EQ(test_instance->size(), sizeof(TestShader));
+    auto* test_instance = cache.get_or_create<FirstShader>();
+    EXPECT_EQ(test_instance->size(), sizeof(FirstShader));
     EXPECT_EQ(test_instance->fragment_shader(
                 {},
                 true,
@@ -179,7 +179,7 @@ TEST(ShaderCacheTests, GetInstance)
 
 TEST(ShaderCacheTests, GetInstanceByName)
 {
-    static_assert(sizeof(TestShader) != sizeof(SecondTestShader));
+    static_assert(sizeof(FirstShader) != sizeof(SecondTestShader));
 
     std::vector<std::string> names;
     ShaderFactory cache;
@@ -188,12 +188,12 @@ TEST(ShaderCacheTests, GetInstanceByName)
     ml::vec4 fragColor;
 
     EXPECT_TRUE(
-      cache.register_shader<TestShader>());
+      cache.register_shader<FirstShader>());
     EXPECT_TRUE(
       cache.register_shader<SecondTestShader>());
 
-    auto* test_instance = cache.get(TestShader::name);
-    EXPECT_EQ(test_instance->size(), sizeof(TestShader));
+    auto* test_instance = cache.get(FirstShader::name);
+    EXPECT_EQ(test_instance->size(), sizeof(FirstShader));
     EXPECT_EQ(test_instance->fragment_shader(
                 {},
                 true,
