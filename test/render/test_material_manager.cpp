@@ -11,6 +11,12 @@
 #include "shader_factory.h"
 #include "texture_cache.h"
 
+// Asset directory is defined via CMakeTests.txt.
+// We also provide a fallback.
+#ifndef ASSETS_SOURCE_DIR
+#    define ASSETS_SOURCE_DIR "assets"
+#endif
+
 namespace
 {
 
@@ -100,7 +106,7 @@ TEST(MaterialManagerTests, Construction)
     ShaderCache shader_cache{device};
     TextureCache texture_cache{device};
 
-    EXPECT_NO_THROW(
+    ASSERT_NO_THROW(
       MaterialManager manager(
         device,
         shader_cache,
@@ -129,7 +135,7 @@ TEST(MaterialManagerTests, Load)
       "    \"shader\": \"FirstShader\"\n"
       "}";
     std::pair<MaterialHandle, swr::string> result;
-    EXPECT_NO_THROW(result = manager.load(json));
+    ASSERT_NO_THROW(result = manager.load(json));
     EXPECT_EQ(result.first.value, 1);                       // material ids start at 1
     EXPECT_EQ(result.second, "hash://e91290016cb6df0b");    // hash of the JSON
 
@@ -140,6 +146,8 @@ TEST(MaterialManagerTests, Load)
     EXPECT_THROW(
       manager.load(unknown_shader),
       std::runtime_error);
+
+    EXPECT_NO_THROW(manager.delete_material(result.second));
 }
 
 TEST(MaterialManagerTests, LoadWithKey)
@@ -163,15 +171,19 @@ TEST(MaterialManagerTests, LoadWithKey)
       "    \"shader\": \"FirstShader\"\n"
       "}";
     MaterialHandle handle;
-    EXPECT_NO_THROW(handle = manager.load("FirstShader", json));
+    ASSERT_NO_THROW(handle = manager.load("FirstShader", json));
     EXPECT_EQ(handle.value, 1);    // material ids start at 1
 
     std::optional<MaterialHandle> result;
-    EXPECT_NO_THROW(result = manager.get("FirstShader"));
+    ASSERT_NO_THROW(result = manager.get("FirstShader"));
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result.value().value, 1);    // material ids start at 1
 
-    EXPECT_NO_THROW(result = manager.get("UnknownShader"));
+    ASSERT_NO_THROW(result = manager.get("UnknownShader"));
+    ASSERT_FALSE(result.has_value());
+
+    EXPECT_NO_THROW(manager.delete_material("FirstShader"));
+    ASSERT_NO_THROW(result = manager.get("FirstShader"));
     ASSERT_FALSE(result.has_value());
 }
 
@@ -197,11 +209,11 @@ TEST(MaterialManagerTests, Deduplicate)
       "    \"shader\": \"FirstShader\"\n"
       "}";
     std::pair<MaterialHandle, swr::string> result;
-    EXPECT_NO_THROW(result = manager.load(json));
+    ASSERT_NO_THROW(result = manager.load(json));
     EXPECT_EQ(result.first.value, 1);                       // material ids start at 1
     EXPECT_EQ(result.second, "hash://e91290016cb6df0b");    // hash of the JSON
 
-    EXPECT_NO_THROW(result = manager.load(json));
+    ASSERT_NO_THROW(result = manager.load(json));
     EXPECT_EQ(result.first.value, 1);
     EXPECT_EQ(result.second, "hash://e91290016cb6df0b");
 
@@ -209,7 +221,39 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"SecondShader\"\n"
       "}";
-    EXPECT_NO_THROW(result = manager.load(json2));
+    ASSERT_NO_THROW(result = manager.load(json2));
     EXPECT_EQ(result.first.value, 2);
     EXPECT_NE(result.second, "hash://e91290016cb6df0b");
+}
+
+TEST(MaterialManagerTests, LoadWithTextures)
+{
+    RenderDevice device{100, 100};
+    ShaderFactory shader_factory;
+
+    ShaderCache shader_cache{device};
+    TextureCache texture_cache{device};
+
+    shader_factory.register_shader<FirstShader>();
+
+    MaterialManager manager{
+      device,
+      shader_cache,
+      shader_factory,
+      texture_cache};
+
+    const std::string json =
+      "{\n"
+      "    \"shader\": \"FirstShader\",\n"
+      "    \"textures\": [\n"
+      "        \"" ASSETS_SOURCE_DIR
+      "/textures/tiles/tiles_0080_color_1k.png\",\n"
+      "        \"" ASSETS_SOURCE_DIR
+      "/textures/tiles/tiles_0080_normal_opengl_1k.png\"\n"
+      "    ]\n"
+      "}";
+    std::pair<MaterialHandle, swr::string> result;
+    ASSERT_NO_THROW(result = manager.load(json));
+    EXPECT_EQ(result.first.value, 1);
+    // don't validate hash, since it depends on build config.
 }

@@ -17,6 +17,7 @@ target_include_directories(render_tests PRIVATE
 
 target_compile_definitions(render_tests PRIVATE
     SWR_USE_CUSTOM_STD_ALLOCATORS=0
+    ASSETS_SOURCE_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
 target_link_libraries(render_tests PRIVATE
