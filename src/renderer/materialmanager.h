@@ -50,33 +50,20 @@ struct MaterialResources
     swr::vector<assets::ImageRGBA8> textures;
 };
 
-/** A material that is asynchronously resolved. */
-class ResolvableMaterial
+/** A material entry for a resolvable material. */
+struct MaterialEntry
 {
-    struct State
-    {
-        /** Backing render device. */
-        RenderDevice& render_device;
+    /** Backing render device. */
+    RenderDevice& render_device;
 
-        /** Backing shader cache. */
-        ShaderCache& shader_cache;
+    /** Backing shader cache. */
+    ShaderCache& shader_cache;
 
-        /** Material resources future. */
-        task_system::TaskSubmission<MaterialResources> resources;
+    /** Material resources future. */
+    task_system::TaskSubmission<MaterialResources> resources;
 
-        /** The handle returned once uploaded to the device. */
-        std::optional<MaterialHandle> resolved_handle;
-    };
-
-    swr::shared_ptr<State> state;
-
-public:
-    ResolvableMaterial() = delete;
-    ResolvableMaterial(const ResolvableMaterial&) = default;
-    ResolvableMaterial(ResolvableMaterial&&) = default;
-
-    ResolvableMaterial& operator=(const ResolvableMaterial&) = default;
-    ResolvableMaterial& operator=(ResolvableMaterial&&) = default;
+    /** The handle returned once uploaded to the device. */
+    std::optional<MaterialHandle> resolved_handle;
 
     /**
      * Constructor.
@@ -85,24 +72,31 @@ public:
      * @param shader_cache The shader cache.
      * @param resources The resources future.
      */
-    ResolvableMaterial(
+    MaterialEntry(
       RenderDevice& render_device,
       ShaderCache& shader_cache,
       task_system::TaskSubmission<MaterialResources> resources)
-    : state{std::make_shared<State>(
-        State{
-          .render_device = render_device,
-          .shader_cache = shader_cache,
-          .resources = std::move(resources),
-          .resolved_handle = {}})}
+    : render_device{render_device}
+    , shader_cache{shader_cache}
+    , resources{std::move(resources)}
+    , resolved_handle{std::nullopt}
     {
     }
+
+    MaterialEntry(const MaterialEntry&) = delete;
+    MaterialEntry(MaterialEntry&&) = delete;
+
+    /** Destructor. */
+    ~MaterialEntry();
+
+    MaterialEntry& operator=(const MaterialEntry&) = delete;
+    MaterialEntry& operator=(MaterialEntry&&) = delete;
 
     /** Checks if the material has finished uploading to the `RenderDevice`. */
     [[nodiscard]]
     bool is_resolved() const noexcept
     {
-        return state->resolved_handle.has_value();
+        return resolved_handle.has_value();
     }
 
     /**
@@ -117,13 +111,13 @@ public:
     [[nodiscard]]
     bool valid() const
     {
-        return state->resources.future.valid();
+        return resources.future.valid();
     }
 
     /** Blocks until the asynchronous resources have finished loading. */
     void wait()
     {
-        state->resources.future.wait();
+        resources.future.wait();
     }
 
     /**
@@ -136,7 +130,7 @@ public:
     std::future_status wait_for(
       std::chrono::duration<Rep, Period> timeout)
     {
-        return state->resources.future.wait_for(timeout);
+        return resources.future.wait_for(timeout);
     }
 
     /**
@@ -149,7 +143,63 @@ public:
     std::future_status wait_until(
       std::chrono::time_point<Clock, Duration> timeout)
     {
-        return state->resources.future.wait_until(timeout);
+        return resources.future.wait_until(timeout);
+    }
+};
+
+/** A material that is asynchronously resolved. */
+class ResolvableMaterial
+{
+    friend class MaterialManager;
+
+    /** The material entry, containing resources and handles. */
+    swr::shared_ptr<MaterialEntry> entry;
+
+    /**
+     * Constructor.
+     *
+     * @param entry The material entry.
+     */
+    explicit ResolvableMaterial(
+      swr::shared_ptr<MaterialEntry> entry)
+    : entry{std::move(entry)}
+    {
+    }
+
+public:
+    /** Deleted default constructor. */
+    ResolvableMaterial() = delete;
+
+    /** Defaulted copy/moves. */
+    ResolvableMaterial(const ResolvableMaterial&) = default;
+    ResolvableMaterial(ResolvableMaterial&&) = default;
+
+    ResolvableMaterial& operator=(const ResolvableMaterial&) = default;
+    ResolvableMaterial& operator=(ResolvableMaterial&&) = default;
+
+    MaterialEntry* operator->() noexcept
+    {
+        return entry.get();
+    }
+
+    const MaterialEntry* operator->() const noexcept
+    {
+        return entry.get();
+    }
+
+    MaterialEntry& operator*() noexcept
+    {
+        return *entry;
+    }
+
+    const MaterialEntry& operator*() const noexcept
+    {
+        return *entry;
+    }
+
+    explicit operator bool() const noexcept
+    {
+        return static_cast<bool>(entry);
     }
 };
 
@@ -171,11 +221,11 @@ class MaterialManager
     /** Texture cache. */
     TextureCache& texture_cache;
 
-    /** Material map. */
+    /** Material cache. */
     swr::unordered_map<
       swr::string,
-      ResolvableMaterial>
-      material_map;
+      swr::shared_ptr<MaterialEntry>>
+      material_cache;
 
     /**
      * Hash a material string.
@@ -217,9 +267,9 @@ public:
      */
     ~MaterialManager()
     {
-        while(!material_map.empty())
+        while(!material_cache.empty())
         {
-            delete_material(material_map.begin()->first);
+            delete_material(material_cache.begin()->first);
         }
     }
 
@@ -228,11 +278,12 @@ public:
      *
      * @note Deduplicates: When a key already exists, the corresponding
      *     material handle is returned.
+     * @note The underlying `ShaderFactory` needs to stay alive while the material
+     *     is asynchronously resolved.
      *
      * @param key The material key to use.
      * @param json The JSON string.
-     * @returns Returns the material handle.
-     * @throws Throws a `std::runtime_error` if the load failed.
+     * @returns Returns a resolvable material.
      */
     ResolvableMaterial load(
       std::string_view key,
@@ -246,7 +297,6 @@ public:
      * @param json The JSON string.
      * @returns Returns a pair `(material_handle, key)`, where `key` can be used to
      *     access the material in the manager.
-     * @throws Throws a `std::runtime_error` if loading failed.
      */
     std::pair<ResolvableMaterial, swr::string> load(
       std::string_view json)
@@ -263,16 +313,16 @@ public:
      * Get a material by key.
      *
      * @param key The material key.
-     * @returns Returns the material handle, or `std::nullopt` if the key wasn't found.
+     * @returns Returns a resolvable material, or `nullptr` if the key wasn't found.
      */
     [[nodiscard]]
     std::optional<ResolvableMaterial> get(
-      std::string_view key) const
+      std::string_view key)
     {
-        if(auto it = material_map.find(key);
-           it != material_map.end())
+        if(auto it = material_cache.find(key);
+           it != material_cache.end())
         {
-            return it->second;
+            return ResolvableMaterial{it->second};
         }
         return std::nullopt;
     }
@@ -287,12 +337,13 @@ public:
     bool contains(
       std::string_view key) const
     {
-        return material_map.contains(key);
+        return material_cache.contains(key);
     }
 
     /**
-     * Delete a material by key.
+     * Delete a material from the cache.
      *
+     * @note This only affects the cache. Material handles that are still in use remain valid.
      * @param key Material key.
      * @returns Returns `true` if the material was deleted, and `false` if the key was not found.
      */

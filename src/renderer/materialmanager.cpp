@@ -20,14 +20,27 @@
 #include "shader_factory.h"
 #include "texture_cache.h"
 
-MaterialHandle ResolvableMaterial::resolve()
+MaterialEntry::~MaterialEntry()
 {
-    if(state->resolved_handle.has_value())
+    if(resolved_handle.has_value())
     {
-        return *state->resolved_handle;
+        // TODO Shaders and textures likely need to be deleted
+        //      through their caches, since they are not reference
+        //      counted here.
+
+        render_device.delete_material(
+          resolved_handle.value());
+    }
+}
+
+MaterialHandle MaterialEntry::resolve()
+{
+    if(resolved_handle.has_value())
+    {
+        return *resolved_handle;
     }
 
-    MaterialResources loaded = state->resources.future.get();
+    MaterialResources loaded = resources.future.get();
 
     Material material;
 
@@ -37,10 +50,10 @@ MaterialHandle ResolvableMaterial::resolve()
       {
           if(!success)
           {
-              if(state->resolved_handle.has_value())
+              if(resolved_handle.has_value())
               {
-                  state->render_device.delete_material(
-                    state->resolved_handle.value());
+                  render_device.delete_material(
+                    resolved_handle.value());
               }
 
               // TODO Shader release is handled by the cache.
@@ -49,42 +62,42 @@ MaterialHandle ResolvableMaterial::resolve()
               //      the texture cache once textures are cached.
               for(const auto& handle: material.texture_handles)
               {
-                  state->render_device.delete_texture(handle);
+                  render_device.delete_texture(handle);
               }
           }
       });
 
-    material.shader_handle = state->shader_cache.load(
+    material.shader_handle = shader_cache.load(
       loaded.description.shader,
       loaded.shader);
 
     for(const auto& texture: loaded.textures)
     {
         material.texture_handles.push_back(
-          state->render_device.create_texture(texture));
+          render_device.create_texture(texture));
     }
 
-    state->resolved_handle = state->render_device.create_material(material);
+    resolved_handle = render_device.create_material(material);
     success = true;
 
-    return *state->resolved_handle;
+    return *resolved_handle;
 }
 
 ResolvableMaterial MaterialManager::load(
   std::string_view key,
   std::string_view json)
 {
-    if(auto it = material_map.find(key);
-       it != material_map.end())
+    if(auto it = material_cache.find(key);
+       it != material_cache.end())
     {
-        return it->second;
+        return ResolvableMaterial{it->second};
     }
 
     // The material needs to be loaded. We delegate everything
     // to a task.
 
     auto submission = task_system.submit(
-      [this, json = swr::string{json}](
+      [shader_factory = &shader_factory, json = swr::string{json}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -98,7 +111,7 @@ ResolvableMaterial MaterialManager::load(
           // TODO When allowing shader registrations during runtime, the factory call
           //      has to be made thread safe.
           resources.description = assets::load_material(json);
-          resources.shader = shader_factory.get(resources.description.shader);
+          resources.shader = shader_factory->get(resources.description.shader);
           if(resources.shader == nullptr)
           {
               // TODO Handle failure downstream
@@ -123,34 +136,20 @@ ResolvableMaterial MaterialManager::load(
           return resources;
       });
 
-    ResolvableMaterial material{
+    auto material = std::make_shared<MaterialEntry>(
       device,
       shader_cache,
-      std::move(submission)};
+      std::move(submission));
 
-    material_map.emplace(
+    material_cache.emplace(
       swr::string{key},
       material);
 
-    return material;
+    return ResolvableMaterial{material};
 }
 
-// FIXME This invalidates the material, but already-loaded materials
-//       can still exist. These become invalid.
 bool MaterialManager::delete_material(
   std::string_view key)
 {
-    if(auto it = material_map.find(key);
-       it != material_map.end())
-    {
-        if(it->second.is_resolved())
-        {
-            device.delete_material(it->second.resolve());
-        }
-
-        material_map.erase(it);
-        return true;
-    }
-
-    return false;
+    return material_cache.erase(swr::string{key}) != 0;
 }
