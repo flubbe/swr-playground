@@ -32,19 +32,6 @@ class ShaderCache
       ShaderHandle>
       shader_map;
 
-    /**
-     * Hash a shader.
-     *
-     * @param shader The shader to hash.
-     * @returns Returns a 64-bit hash.
-     */
-    [[nodiscard]]
-    static std::uint64_t compute_hash(
-      const swr::program_base* shader) noexcept
-    {
-        return std::hash<const swr::program_base*>{}(shader);
-    }
-
 public:
     /**
      * Constructor.
@@ -68,6 +55,19 @@ public:
         {
             delete_shader(shader_map.begin()->first);
         }
+    }
+
+    /**
+     * Hash a shader.
+     *
+     * @param shader The shader to hash.
+     * @returns Returns a 64-bit hash.
+     */
+    [[nodiscard]]
+    static std::uint64_t compute_hash(
+      const swr::program_base* shader) noexcept
+    {
+        return std::hash<const swr::program_base*>{}(shader);
     }
 
     /**
@@ -97,8 +97,8 @@ public:
     std::pair<ShaderHandle, swr::string> load(
       const swr::program_base* shader)
     {
-        std::uint64_t hash = compute_hash(shader);
-        swr::string generated_key =
+        const std::uint64_t hash = compute_hash(shader);
+        const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
         return std::make_pair(
           load(generated_key, shader),

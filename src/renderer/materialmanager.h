@@ -20,8 +20,9 @@
 #include "containers/format.h"
 #include "containers/unordered_map.h"
 #include "containers/memory.h"
-#include "material.h"
 #include "tasks/task_system.h"
+#include "material.h"
+#include "texture_cache.h"
 
 /*
  * Forward declarations.
@@ -30,7 +31,6 @@
 class RenderDevice;
 class ShaderCache;
 class ShaderFactory;
-class TextureCache;
 
 namespace swr
 {
@@ -54,30 +54,42 @@ struct MaterialResources
 struct MaterialEntry
 {
     /** Backing render device. */
-    RenderDevice& render_device;
+    RenderDevice& device;
 
     /** Backing shader cache. */
     ShaderCache& shader_cache;
 
+    /** Backing texture cache. */
+    TextureCache& texture_cache;
+
     /** Material resources future. */
     task_system::TaskSubmission<MaterialResources> resources;
+
+    /** Textures referenced by this material. */
+    swr::vector<TextureRef> textures;
 
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;
 
+    /** Deleted default constructor. */
+    MaterialEntry() = delete;
+
     /**
      * Constructor.
      *
-     * @param render_device The render device to use.
-     * @param shader_cache The shader cache.
+     * @param device Backing render device.
+     * @param shader_cache Backing shader cache.
+     * @param texture_cache Backing texture cache.
      * @param resources The resources future.
      */
     MaterialEntry(
-      RenderDevice& render_device,
+      RenderDevice& device,
       ShaderCache& shader_cache,
+      TextureCache& texture_cache,
       task_system::TaskSubmission<MaterialResources> resources)
-    : render_device{render_device}
+    : device{device}
     , shader_cache{shader_cache}
+    , texture_cache{texture_cache}
     , resources{std::move(resources)}
     , resolved_handle{std::nullopt}
     {
@@ -313,7 +325,7 @@ public:
      * Get a material by key.
      *
      * @param key The material key.
-     * @returns Returns a resolvable material, or `nullptr` if the key wasn't found.
+     * @returns Returns a resolvable material, or `std::nullopt` if the key wasn't found.
      */
     [[nodiscard]]
     std::optional<ResolvableMaterial> get(

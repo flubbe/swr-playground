@@ -13,7 +13,7 @@
 #include "containers/vector.h"
 #include "types.h"
 
-/** A render material. */
+/** A render device material state used to create a render material. */
 struct Material
 {
     /** Shader handle. */

@@ -8,21 +8,37 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "assets/material.h"
 #include "renderer/renderdevice.h"
-#include "shader_factory.h"
 #include "texture_cache.h"
 
-bool TextureCache::delete_texture(
-  std::string_view key)
+TextureEntry::~TextureEntry()
+{
+    device.delete_texture(handle);
+}
+
+TextureRef TextureCache::load(
+  std::string_view key,
+  const assets::ImageRGBA8& image)
 {
     if(auto it = texture_map.find(key);
        it != texture_map.end())
     {
-        device.delete_texture(it->second);
-        texture_map.erase(it);
-        return true;
+        return TextureRef{it->second};
     }
 
-    return false;
+    auto entry = std::make_shared<TextureEntry>(
+      device,
+      device.create_texture(image));
+
+    texture_map.emplace(
+      swr::string{key},
+      entry);
+
+    return TextureRef{std::move(entry)};
+}
+
+bool TextureCache::delete_texture(
+  std::string_view key)
+{
+    return texture_map.erase(swr::string{key}) != 0;
 }

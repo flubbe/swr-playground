@@ -24,11 +24,7 @@ MaterialEntry::~MaterialEntry()
 {
     if(resolved_handle.has_value())
     {
-        // TODO Shaders and textures likely need to be deleted
-        //      through their caches, since they are not reference
-        //      counted here.
-
-        render_device.delete_material(
+        device.delete_material(
           resolved_handle.value());
     }
 }
@@ -52,18 +48,13 @@ MaterialHandle MaterialEntry::resolve()
           {
               if(resolved_handle.has_value())
               {
-                  render_device.delete_material(
+                  device.delete_material(
                     resolved_handle.value());
               }
 
               // TODO Shader release is handled by the cache.
 
-              // TODO These should probably be released through
-              //      the texture cache once textures are cached.
-              for(const auto& handle: material.texture_handles)
-              {
-                  render_device.delete_texture(handle);
-              }
+              textures.clear();
           }
       });
 
@@ -73,11 +64,20 @@ MaterialHandle MaterialEntry::resolve()
 
     for(const auto& texture: loaded.textures)
     {
+        const std::uint64_t hash = TextureCache::compute_hash(texture);
+        const swr::string generated_key =
+          swr::format("hash://{:016x}", hash);
+
+        auto texture_ref = texture_cache.load(
+          generated_key,
+          texture);
+
+        textures.push_back(texture_ref);
         material.texture_handles.push_back(
-          render_device.create_texture(texture));
+          texture_ref.get());
     }
 
-    resolved_handle = render_device.create_material(material);
+    resolved_handle = device.create_material(material);
     success = true;
 
     return *resolved_handle;
@@ -97,7 +97,8 @@ ResolvableMaterial MaterialManager::load(
     // to a task.
 
     auto submission = task_system.submit(
-      [shader_factory = &shader_factory, json = swr::string{json}](
+      [shader_factory = &shader_factory,
+       json = swr::string{json}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -119,7 +120,6 @@ ResolvableMaterial MaterialManager::load(
           }
 
           // Load textures.
-          resources.textures.clear();
           resources.textures.reserve(resources.description.textures.size());
           for(const auto& texture: resources.description.textures)
           {
@@ -128,7 +128,6 @@ ResolvableMaterial MaterialManager::load(
                   throw task_system::TaskCancelledError{};
               }
 
-              // TODO Async texture asset cache to deduplicate concurrent loads of the same texture.
               resources.textures.emplace_back(
                 assets::load_texture_rgba8(texture));
           }
@@ -139,6 +138,7 @@ ResolvableMaterial MaterialManager::load(
     auto material = std::make_shared<MaterialEntry>(
       device,
       shader_cache,
+      texture_cache,
       std::move(submission));
 
     material_cache.emplace(
