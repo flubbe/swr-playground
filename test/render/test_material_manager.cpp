@@ -148,9 +148,9 @@ TEST(MaterialManagerTests, Load)
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
 
-    ASSERT_TRUE(result->first.valid());
-    ASSERT_NO_THROW(result->first.wait());
-    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE(result->first->valid());
+    ASSERT_NO_THROW(result->first->wait());
+    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
 
     const std::string unknown_shader =
       "{\n"
@@ -158,9 +158,9 @@ TEST(MaterialManagerTests, Load)
       "}";
     ASSERT_NO_THROW(result.emplace(manager.load(unknown_shader)));
 
-    ASSERT_TRUE(result->first.valid());
-    ASSERT_NO_THROW(result->first.wait());
-    ASSERT_THROW(result->first.resolve(), std::runtime_error);
+    ASSERT_TRUE(result->first->valid());
+    ASSERT_NO_THROW(result->first->wait());
+    ASSERT_THROW(result->first->resolve(), std::runtime_error);
 
     EXPECT_NO_THROW(manager.delete_material(result->second));
 }
@@ -191,24 +191,24 @@ TEST(MaterialManagerTests, LoadWithKey)
     std::optional<ResolvableMaterial> handle;
     ASSERT_NO_THROW(handle.emplace(manager.load("FirstShader", json)));
 
-    ASSERT_TRUE(handle->valid());
-    ASSERT_NO_THROW(handle->wait());
-    EXPECT_EQ(handle->resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE((*handle)->valid());
+    ASSERT_NO_THROW((*handle)->wait());
+    EXPECT_EQ((*handle)->resolve(), 1);    // material ids start at 1
 
     std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result = manager.get("FirstShader"));
 
     ASSERT_TRUE(result.has_value());
-    ASSERT_FALSE(result->valid());    // because it's already resolved
-    EXPECT_TRUE(result->is_resolved());
-    EXPECT_EQ(result->resolve(), 1);    // material ids start at 1
+    ASSERT_FALSE(result.value()->valid());    // because it's already resolved
+    EXPECT_TRUE(result.value()->is_resolved());
+    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result = manager.get("UnknownShader"));
-    ASSERT_FALSE(result.has_value());
+    EXPECT_FALSE(result.has_value());
 
     EXPECT_NO_THROW(manager.delete_material("FirstShader"));
     ASSERT_NO_THROW(result = manager.get("FirstShader"));
-    ASSERT_FALSE(result.has_value());
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST(MaterialManagerTests, Deduplicate)
@@ -241,13 +241,13 @@ TEST(MaterialManagerTests, Deduplicate)
     ASSERT_NO_THROW(result.emplace(manager.load(json)));
     EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
 
-    ASSERT_TRUE(result->first.valid());
-    ASSERT_NO_THROW(result->first.wait());
-    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE(result->first->valid());
+    ASSERT_NO_THROW(result->first->wait());
+    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result.emplace(manager.load(json)));
-    EXPECT_TRUE(result->first.is_resolved());
-    EXPECT_EQ(result->first.resolve(), 1);
+    EXPECT_TRUE(result->first->is_resolved());
+    EXPECT_EQ(result->first->resolve(), 1);
     EXPECT_EQ(result->second, "hash://e91290016cb6df0b");
 
     const std::string json2 =
@@ -256,12 +256,12 @@ TEST(MaterialManagerTests, Deduplicate)
       "}";
     ASSERT_NO_THROW(result.emplace(manager.load(json2)));
 
-    ASSERT_TRUE(result->first.valid());
-    ASSERT_NO_THROW(result->first.wait());
-    EXPECT_FALSE(result->first.is_resolved());
+    ASSERT_TRUE(result->first->valid());
+    ASSERT_NO_THROW(result->first->wait());
+    EXPECT_FALSE(result->first->is_resolved());
 
-    EXPECT_EQ(result->first.resolve(), 2);
-    EXPECT_TRUE(result->first.is_resolved());
+    EXPECT_EQ(result->first->resolve(), 2);
+    EXPECT_TRUE(result->first->is_resolved());
 
     EXPECT_NE(result->second, "hash://e91290016cb6df0b");
 }
@@ -299,8 +299,8 @@ TEST(MaterialManagerTests, LoadWithTextures)
       std::pair<ResolvableMaterial, swr::string>>
       result;
     ASSERT_NO_THROW(result.emplace(manager.load(json)));
-    ASSERT_TRUE(result->first.valid());
-    ASSERT_NO_THROW(result->first.wait());
-    EXPECT_EQ(result->first.resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE(result->first->valid());
+    ASSERT_NO_THROW(result->first->wait());
+    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
     // don't validate hash, since it depends on build config.
 }
