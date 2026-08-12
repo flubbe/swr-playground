@@ -15,6 +15,7 @@
 #include <xxhash.h>
 
 #include "assets/texture.h"
+#include "containers/memory.h"
 #include "containers/string.h"
 #include "containers/unordered_map.h"
 #include "renderer/types.h"

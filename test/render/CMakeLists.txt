@@ -1,6 +1,7 @@
 add_executable(render_tests
     test_material_manager.cpp
     test_shader_factory.cpp
+    test_textures.cpp
     ${PROJECT_SOURCE_DIR}/src/assets/material.cpp
     ${PROJECT_SOURCE_DIR}/src/assets/texture.cpp
     ${PROJECT_SOURCE_DIR}/src/renderer/materialmanager.cpp
