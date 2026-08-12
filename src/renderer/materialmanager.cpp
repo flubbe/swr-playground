@@ -54,7 +54,8 @@ MaterialHandle MaterialEntry::resolve()
 
               // TODO Shader release is handled by the cache.
 
-              textures.clear();
+              base_color.reset();
+              normal_map.reset();
           }
       });
 
@@ -62,19 +63,28 @@ MaterialHandle MaterialEntry::resolve()
       loaded.description.shader,
       loaded.shader);
 
-    for(const auto& texture: loaded.textures)
+    if(loaded.base_color.has_value())
     {
-        const std::uint64_t hash = TextureCache::compute_hash(texture);
+        const std::uint64_t hash = TextureCache::compute_hash(*loaded.base_color);
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        auto texture_ref = texture_cache.load(
+        base_color = texture_cache.load(
           generated_key,
-          texture);
+          *loaded.base_color);
+        material.base_color_handle = base_color->get();
+    }
 
-        textures.push_back(texture_ref);
-        material.texture_handles.push_back(
-          texture_ref.get());
+    if(loaded.normal_map.has_value())
+    {
+        const std::uint64_t hash = TextureCache::compute_hash(*loaded.normal_map);
+        const swr::string generated_key =
+          swr::format("hash://{:016x}", hash);
+
+        normal_map = texture_cache.load(
+          generated_key,
+          *loaded.normal_map);
+        material.normal_map_handle = normal_map->get();
     }
 
     resolved_handle = device.create_material(material);
@@ -118,18 +128,33 @@ ResolvableMaterial MaterialManager::load(
               // TODO Handle failure downstream
               throw task_system::TaskCancelledError{};
           }
+          /*
+           * Load textures.
+           */
 
-          // Load textures.
-          resources.textures.reserve(resources.description.textures.size());
-          for(const auto& texture: resources.description.textures)
+          if(resources.description.base_color.has_value())
           {
               if(context.is_cancel_requested())
               {
                   throw task_system::TaskCancelledError{};
               }
 
-              resources.textures.emplace_back(
-                assets::load_texture_rgba8(texture));
+              resources.base_color = assets::load_texture_rgba8(
+                *resources.description.base_color);
+          }
+
+          if(resources.description.normal_map.has_value())
+          {
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              const assets::NormalMapDesc& normal_map =
+                *resources.description.normal_map;
+              resources.normal_map = assets::load_normal_map_rgba8(
+                normal_map.path,
+                normal_map.convention);
           }
 
           return resources;

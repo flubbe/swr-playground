@@ -1,3 +1,4 @@
 {
-  "shader": "ColorFlat"
+  "shader": "ColorFlat",
+  "textures": {}
 }

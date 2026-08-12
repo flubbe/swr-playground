@@ -288,12 +288,18 @@ TEST(MaterialManagerTests, LoadWithTextures)
     const std::string json =
       "{\n"
       "    \"shader\": \"FirstShader\",\n"
-      "    \"textures\": [\n"
-      "        \"" ASSETS_SOURCE_DIR
+      "    \"textures\": {\n"
+      "        \"base_color\": {\n"
+      "            \"path\": \"" ASSETS_SOURCE_DIR
       "/textures/tiles/tiles_0080_color_1k.png\",\n"
-      "        \"" ASSETS_SOURCE_DIR
-      "/textures/tiles/tiles_0080_normal_opengl_1k.png\"\n"
-      "    ]\n"
+      "            \"color_space\": \"srgb\"\n"
+      "        },\n"
+      "        \"normal_map\": {\n"
+      "            \"path\": \"" ASSETS_SOURCE_DIR
+      "/textures/tiles/tiles_0080_normal_opengl_1k.png\",\n"
+      "            \"convention\": \"opengl\"\n"
+      "        }\n"
+      "    }\n"
       "}";
     std::optional<
       std::pair<ResolvableMaterial, swr::string>>

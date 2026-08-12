@@ -437,7 +437,11 @@ void RenderDevice::bind_material(MaterialHandle handle)
 
     swr::BindShader(it->second.shader_handle.value);
 
-    const std::size_t texture_count = it->second.texture_handles.size();
+    const auto material_texture_count =
+      (it->second.base_color_handle ? 1 : 0)
+      + (it->second.normal_map_handle ? 1 : 0);
+    const bool has_material_texture = material_texture_count > 0;
+
     const ShadowMapTargetGpuData* shadow_target =
       current_shadow_map_binding.has_value()
         ? find_shadow_map_target(current_shadow_map_binding->handle)
@@ -449,22 +453,18 @@ void RenderDevice::bind_material(MaterialHandle handle)
       && shadow_target->texture_handle != 0;
     swr::SetState(
       swr::state::texture,
-      texture_count > 0 || has_shadow_texture);
+      has_material_texture || has_shadow_texture);
 
-    for(std::size_t unit = 0; unit < texture_count; ++unit)
-    {
-        swr::ActiveTexture(static_cast<std::uint32_t>(unit));
-        swr::BindTexture(
-          swr::texture_target::texture_2d,
-          it->second.texture_handles[unit].value);
-    }
-    for(std::size_t unit = texture_count; unit < current_bound_texture_count; ++unit)
-    {
-        swr::ActiveTexture(static_cast<std::uint32_t>(unit));
-        swr::BindTexture(
-          swr::texture_target::texture_2d,
-          0);
-    }
+    swr::ActiveTexture(shader::base_color_sampler_unit);
+    swr::BindTexture(
+      swr::texture_target::texture_2d,
+      it->second.base_color_handle.value);    // might be zero for inactive textures
+
+    swr::ActiveTexture(shader::normal_map_sampler_unit);
+    swr::BindTexture(
+      swr::texture_target::texture_2d,
+      it->second.normal_map_handle.value);    // might be zero for inactive textures
+
     if(has_shadow_texture)
     {
         swr::ActiveTexture(shader::shadow_map_sampler_unit);
@@ -478,11 +478,8 @@ void RenderDevice::bind_material(MaterialHandle handle)
         swr::SetTextureMinificationFilter(filter);
         swr::SetTextureMagnificationFilter(filter);
     }
-    current_bound_texture_count = std::max(
-      texture_count,
-      has_shadow_texture
-        ? static_cast<std::size_t>(shader::shadow_map_sampler_unit + 1)
-        : texture_count);
+    current_bound_texture_count = material_texture_count
+                                  + (has_shadow_texture ? 1 : 0);
 }
 
 void RenderDevice::bind_camera_uniforms(const CameraUniforms& uniforms)

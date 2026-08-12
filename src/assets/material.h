@@ -11,13 +11,27 @@
 #pragma once
 
 #include <filesystem>
-#include <span>
+#include <optional>
 
 #include "containers/string.h"
 #include "containers/vector.h"
+#include "texture.h"
 
 namespace assets
 {
+
+/** Description of a tangent-space normal map. */
+struct NormalMapDesc
+{
+    /** Path. */
+    std::filesystem::path path;
+
+    /** Normal map convention. Either `OpenGL` or `DirectX`. */
+    NormalMapConvention convention{NormalMapConvention::OpenGL};
+
+    /** Scale. */
+    float scale{1.f};
+};
 
 /** Material description. */
 struct MaterialDesc
@@ -25,8 +39,11 @@ struct MaterialDesc
     /** Shader identifier. */
     swr::string shader;
 
-    /** Textures. */
-    swr::vector<std::filesystem::path> textures;
+    /** Optional sRGB base-color texture. */
+    std::optional<std::filesystem::path> base_color;
+
+    /** Optional tangent-space normal map. */
+    std::optional<NormalMapDesc> normal_map;
 };
 
 /**

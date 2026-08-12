@@ -19,7 +19,17 @@ TEST(MaterialTests, Parse)
     const std::string material_json =
       "{\n"
       "  \"shader\": \"Test\",\n"
-      "  \"textures\": [\"textures/wood.png\", \"textures/stone.png\"]\n"
+      "  \"textures\": {\n"
+      "    \"base_color\": {\n"
+      "      \"path\": \"textures/wood.png\",\n"
+      "      \"color_space\": \"srgb\"\n"
+      "    },\n"
+      "    \"normal_map\": {\n"
+      "      \"path\": \"textures/stone.png\",\n"
+      "      \"convention\": \"opengl\",\n"
+      "      \"scale\": 0.5\n"
+      "    }\n"
+      "  }\n"
       "}";
 
     assets::MaterialDesc desc;
@@ -27,10 +37,12 @@ TEST(MaterialTests, Parse)
 
     EXPECT_EQ(desc.shader, "Test");
 
-    const std::vector<std::filesystem::path> expected_textures = {
-      "textures/wood.png",
-      "textures/stone.png"};
-    EXPECT_EQ(desc.textures, expected_textures);
+    ASSERT_TRUE(desc.base_color.has_value());
+    EXPECT_EQ(*desc.base_color, "textures/wood.png");
+    ASSERT_TRUE(desc.normal_map.has_value());
+    EXPECT_EQ(desc.normal_map->path, "textures/stone.png");
+    EXPECT_EQ(desc.normal_map->convention, assets::NormalMapConvention::OpenGL);
+    EXPECT_FLOAT_EQ(desc.normal_map->scale, 0.5f);
 }
 
 TEST(MaterialTests, LoadAllMaterialAssets)

@@ -640,7 +640,8 @@ GearParameters create_gear_resources(
     auto* lit_shader = shader_factory.get_or_create<shader::LitSmooth>();
     auto lit_material = device.create_material(
       {.shader_handle = device.create_shader(*lit_shader),
-       .texture_handles = {}});
+       .base_color_handle = {},
+       .normal_map_handle = {}});
 
     auto inner_mesh_data = MeshData{
       .primitive_type = PrimitiveType::Triangles,
@@ -802,7 +803,8 @@ void try_add_textured_floor(
           floor_data.mesh);
         const MaterialHandle material_handle = device.create_material(
           {.shader_handle = device.create_shader(*shader),
-           .texture_handles = {*diffuse_texture, *normal_texture}});
+           .base_color_handle = *diffuse_texture,
+           .normal_map_handle = *normal_texture});
         if(out_texture_handles != nullptr)
         {
             *out_texture_handles = {*diffuse_texture, *normal_texture};
@@ -903,7 +905,8 @@ void finalize_startup_scene(
         auto* shader = shader_factory.get_or_create<shader::LitSmooth>();
         const MaterialHandle material = render_device.create_material(
           {.shader_handle = render_device.create_shader(*shader),
-           .texture_handles = {}});
+           .base_color_handle = {},
+           .normal_map_handle = {}});
         auto lods = create_static_mesh_resources(
           render_device,
           material,
@@ -1912,7 +1915,8 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
 
                 section.material_handle = render_device.create_material(
                   {.shader_handle = render_device.create_shader(*new_shader),
-                   .texture_handles = {}});
+                   .base_color_handle = {},
+                   .normal_map_handle = {}});
             }
         }
     }
@@ -1945,7 +1949,8 @@ void Application::set_floor_shader(FloorShaderType type)
                 section.material_handle =
                   render_device.create_material(
                     {.shader_handle = render_device.create_shader(*new_shader),
-                     .texture_handles = {floor_texture_handles.begin(), floor_texture_handles.end()}});
+                     .base_color_handle = floor_texture_handles[0],
+                     .normal_map_handle = floor_texture_handles[1]});
             }
         }
     }

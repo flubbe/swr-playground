@@ -46,8 +46,11 @@ struct MaterialResources
     /** Shader, as loaded/resolved by the `ShaderFactory`. */
     const swr::program_base* shader;
 
-    /** Texture data. */
-    swr::vector<assets::ImageRGBA8> textures;
+    /** Optional base-color texture data. */
+    std::optional<assets::ImageRGBA8> base_color;
+
+    /** Optional normal-map texture data. */
+    std::optional<assets::ImageRGBA8> normal_map;
 };
 
 /** A material entry for a resolvable material. */
@@ -65,8 +68,11 @@ struct MaterialEntry
     /** Material resources future. */
     task_system::TaskSubmission<MaterialResources> resources;
 
-    /** Textures referenced by this material. */
-    swr::vector<TextureRef> textures;
+    /** Optional base-color texture referenced by this material. */
+    std::optional<TextureRef> base_color;
+
+    /** Optional normal-map texture referenced by this material. */
+    std::optional<TextureRef> normal_map;
 
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;

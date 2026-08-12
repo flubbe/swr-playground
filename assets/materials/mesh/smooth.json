@@ -1,3 +1,4 @@
 {
-  "shader": "ColorSmooth"
+  "shader": "ColorSmooth",
+  "textures": {}
 }

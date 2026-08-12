@@ -402,7 +402,7 @@ void Renderer::build_render_queue(
                 .enabled =
                   shadow_camera.has_value()
                   && static_mesh.receives_shadows
-                  && static_cast<bool>(shadow_map),
+                  && shadow_map != 0,
                 .handle = shadow_map,
                 .clip_from_mesh = shadow_clip_from_mesh,
                 .depth_bias = 0.0008f,
@@ -582,7 +582,8 @@ void Renderer::create_grid_mesh()
     auto gray_material = device.create_material(
       Material{
         .shader_handle = device.create_shader(*gray_shader),
-        .texture_handles = {}});
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
@@ -660,7 +661,8 @@ void Renderer::create_spotlight_depth_debug_mesh()
     const auto debug_shadow_material = device.create_material(
       Material{
         .shader_handle = device.create_shader(*debug_shadow_shader),
-        .texture_handles = {}});
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 
     std::vector<ml::vec4> qvb;
     std::vector<ml::vec4> qnb;
@@ -731,36 +733,41 @@ Renderer::~Renderer()
 
 void Renderer::ensure_shadow_map_resources()
 {
-    if(shadow_map
-       && shadow_material)
+    if(shadow_map != 0
+       && shadow_material != 0)
     {
         return;
     }
 
+    /*
+     * Release previous resources.
+     */
     release_shadow_map_resources();
+
+    /*
+     * Create new resources.
+     */
     shadow_map = device.create_shadow_map(
       shadow_map_resolution,
       shadow_map_resolution);
 
     auto* shadow_shader = shader_factory.get_or_create<shader::ShadowDepth>();
-    if(!shadow_material)
-    {
-        shadow_material = device.create_material(
-          Material{
-            .shader_handle = device.create_shader(*shadow_shader),
-            .texture_handles = {}});
-    }
+    shadow_material = device.create_material(
+      Material{
+        .shader_handle = device.create_shader(*shadow_shader),
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 }
 
 void Renderer::release_shadow_map_resources()
 {
-    if(shadow_map)
+    if(shadow_map != 0)
     {
         device.delete_shadow_map(shadow_map);
         shadow_map = {};
     }
 
-    if(shadow_material)
+    if(shadow_material != 0)
     {
         device.delete_material(shadow_material);
         shadow_material = {};
@@ -824,7 +831,7 @@ void Renderer::render_grid(
 
 void Renderer::render_spotlight_depth_debug()
 {
-    if(!shadow_map)
+    if(shadow_map == 0)
     {
         return;
     }

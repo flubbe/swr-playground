@@ -9,6 +9,7 @@
  */
 
 #include <format>
+#include <optional>
 
 #include <simdjson.h>
 
@@ -25,6 +26,25 @@ const logging::Logger& get_logger()
 
 namespace assets
 {
+
+namespace
+{
+
+NormalMapConvention parse_normal_map_convention(std::string_view value)
+{
+    if(value == "opengl")
+    {
+        return NormalMapConvention::OpenGL;
+    }
+    if(value == "directx")
+    {
+        return NormalMapConvention::DirectX;
+    }
+    throw std::runtime_error{
+      std::format("Unknown normal-map convention '{}'.", value)};
+}
+
+}    // namespace
 
 MaterialDesc load_material(
   std::string_view json)
@@ -61,12 +81,98 @@ MaterialDesc load_material(
         }
         else if(key == "textures")
         {
-            simdjson::ondemand::array arr = field.value().get_array();
-
-            for(auto item: arr)
+            simdjson::ondemand::object textures = field.value().get_object();
+            for(auto texture_field: textures)
             {
-                desc.textures.emplace_back(
-                  swr::string_from(item.value().get_string()));
+                const std::string_view texture_key = texture_field.unescaped_key();
+                simdjson::ondemand::object texture = texture_field.value().get_object();
+
+                if(texture_key == "base_color")
+                {
+                    std::optional<std::filesystem::path> path;
+                    for(auto property: texture)
+                    {
+                        const std::string_view property_key = property.unescaped_key();
+
+                        if(property_key == "path")
+                        {
+                            path = std::filesystem::path{
+                              swr::string_from(property.value().get_string())};
+                        }
+                        else if(property_key == "color_space")
+                        {
+                            const std::string_view color_space =
+                              property.value().get_string();
+                            if(color_space != "srgb")
+                            {
+                                throw std::runtime_error{
+                                  std::format(
+                                    "Unsupported base-color color space '{}'.",
+                                    color_space)};
+                            }
+                        }
+                        else
+                        {
+                            get_logger().warningf(
+                              "Unknown base-color texture key '{}'.",
+                              property_key);
+                        }
+                    }
+                    if(!path.has_value())
+                    {
+                        throw std::runtime_error{
+                          "Base-color texture requires a path."};
+                    }
+                    desc.base_color = std::move(path);
+                }
+                else if(texture_key == "normal_map")
+                {
+                    std::optional<std::filesystem::path> path;
+                    NormalMapConvention convention = NormalMapConvention::OpenGL;
+                    float scale = 1.f;
+
+                    for(auto property: texture)
+                    {
+                        const std::string_view property_key = property.unescaped_key();
+
+                        if(property_key == "path")
+                        {
+                            path = std::filesystem::path{
+                              swr::string_from(property.value().get_string())};
+                        }
+                        else if(property_key == "convention")
+                        {
+                            convention = parse_normal_map_convention(
+                              property.value().get_string());
+                        }
+                        else if(property_key == "scale")
+                        {
+                            scale = static_cast<float>(property.value().get_double());
+                        }
+                        else
+                        {
+                            get_logger().warningf(
+                              "Unknown normal-map texture key '{}'.",
+                              property_key);
+                        }
+                    }
+                    if(!path.has_value())
+                    {
+                        throw std::runtime_error{
+                          "Normal-map texture requires a path."};
+                    }
+                    desc.normal_map = NormalMapDesc{
+                      .path = std::move(*path),
+                      .convention = convention,
+                      .scale = scale,
+                    };
+                }
+                else
+                {
+                    get_logger().warningf(
+                      "Unknown texture slot '{}' found in material.",
+                      texture_key);
+                }
             }
         }
         else

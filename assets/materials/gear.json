@@ -1,3 +1,4 @@
 {
-  "shader": "LitSmooth"
+  "shader": "LitSmooth",
+  "textures": {}
 }

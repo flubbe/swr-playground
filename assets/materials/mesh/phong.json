@@ -1,3 +1,4 @@
 {
-  "shader": "PhongSmooth"
+  "shader": "PhongSmooth",
+  "textures": {}
 }
