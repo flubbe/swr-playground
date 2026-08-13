@@ -18,6 +18,7 @@ TEST(MaterialTests, Parse)
 {
     const std::string material_json =
       "{\n"
+      "  \"name\": \"TestName\",\n"
       "  \"shader\": \"Test\",\n"
       "  \"textures\": {\n"
       "    \"base_color\": {\n"
@@ -35,6 +36,7 @@ TEST(MaterialTests, Parse)
     assets::MaterialDesc desc;
     ASSERT_NO_THROW(desc = assets::load_material(material_json));
 
+    EXPECT_EQ(desc.name.value_or("<none>"), "TestName");
     EXPECT_EQ(desc.shader, "Test");
 
     ASSERT_TRUE(desc.base_color.has_value());

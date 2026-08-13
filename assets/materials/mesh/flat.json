@@ -1,4 +1,5 @@
 {
+  "name": "Flat",
   "shader": "ColorFlat",
   "textures": {}
 }

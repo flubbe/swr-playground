@@ -19,6 +19,20 @@
 #include "shader_cache.h"
 #include "shader_factory.h"
 #include "texture_cache.h"
+#include "logging.h"
+
+namespace
+{
+
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Materials"};
+    return logger;
+}
+
+}    // namespace
 
 MaterialEntry::~MaterialEntry()
 {
@@ -108,7 +122,8 @@ ResolvableMaterial MaterialManager::load(
 
     auto submission = task_system.submit(
       [shader_factory = &shader_factory,
-       json = swr::string{json}](
+       json = swr::string{json},
+       key = swr::string{key}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -157,6 +172,10 @@ ResolvableMaterial MaterialManager::load(
                 normal_map.path,
                 normal_map.convention);
           }
+
+          get_logger().logf(
+            "Loaded material '{}'.",
+            key);
 
           return resources;
       });

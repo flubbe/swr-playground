@@ -727,15 +727,9 @@ constexpr std::string_view floor_object_name = "Stone Floor";
 constexpr std::string_view gear_material_key = "startup://gear";
 constexpr std::string_view static_mesh_material_key = "startup://static-mesh/lit";
 
-constexpr std::string_view gear_material_json = R"json(
+constexpr std::string_view shadowed_material_json = R"json(
 {
-  "shader": "LitSmooth",
-  "textures": {}
-}
-)json";
-
-constexpr std::string_view static_mesh_material_json = R"json(
-{
+  "name": "Shadowed",
   "shader": "LitSmooth",
   "textures": {}
 }
@@ -743,13 +737,14 @@ constexpr std::string_view static_mesh_material_json = R"json(
 
 constexpr std::string_view textured_floor_material_json = R"json(
 {
+  "name": "Textured",
   "shader": "TexturedFloor",
   "textures": {
     "base_color": {
       "path": "assets/textures/tiles/tiles_0080_color_1k.png",
       "color_space": "srgb"
     },
-    "normal_map": {
+    "normal": {
       "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
       "convention": "opengl",
       "scale": 1.0
@@ -760,13 +755,14 @@ constexpr std::string_view textured_floor_material_json = R"json(
 
 constexpr std::string_view shiny_floor_material_json = R"json(
 {
+  "name": "Textured Shiny",
   "shader": "TexturedShinyFloor",
   "textures": {
     "base_color": {
       "path": "assets/textures/tiles/tiles_0080_color_1k.png",
       "color_space": "srgb"
     },
-    "normal_map": {
+    "normal": {
       "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
       "convention": "opengl",
       "scale": 1.0
@@ -1581,13 +1577,13 @@ void Application::begin_startup()
       StartupMaterials{
         .gear = material_manager.load(
           gear_material_key,
-          gear_material_json),
+          shadowed_material_json),
         .floor = material_manager.load(
           get_floor_material_key(active_floor_shader),
           get_floor_material_json(active_floor_shader)),
         .static_mesh = material_manager.load(
           static_mesh_material_key,
-          static_mesh_material_json),
+          shadowed_material_json),
       });
 
     startup_scene = std::make_shared<StagedStartupScene>();

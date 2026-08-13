@@ -36,6 +36,9 @@ struct NormalMapDesc
 /** Material description. */
 struct MaterialDesc
 {
+    /** Optional material display name. */
+    std::optional<swr::string> name;
+
     /** Shader identifier. */
     swr::string shader;
 

@@ -16,6 +16,9 @@
 #include "logging.h"
 #include "material.h"
 
+namespace
+{
+
 [[nodiscard]]
 const logging::Logger& get_logger()
 {
@@ -24,13 +27,23 @@ const logging::Logger& get_logger()
     return logger;
 }
 
+}    // namespace
+
 namespace assets
 {
 
 namespace
 {
 
-NormalMapConvention parse_normal_map_convention(std::string_view value)
+/**
+ * Parse the normal map convention string.
+ *
+ * @param value Normal map convention as a string.
+ * @returns Returns a `NormalMapConvention`.
+ * @throws Throws a `std::runtime_error` if `value` is neither `opengl` nor `directx`.
+ */
+NormalMapConvention parse_normal_map_convention(
+  std::string_view value)
 {
     if(value == "opengl")
     {
@@ -41,7 +54,9 @@ NormalMapConvention parse_normal_map_convention(std::string_view value)
         return NormalMapConvention::DirectX;
     }
     throw std::runtime_error{
-      std::format("Unknown normal-map convention '{}'.", value)};
+      std::format(
+        "Unknown normal-map convention '{}'.",
+        value)};
 }
 
 }    // namespace
@@ -75,7 +90,11 @@ MaterialDesc load_material(
     {
         std::string_view key = field.unescaped_key();
 
-        if(key == "shader")
+        if(key == "name")
+        {
+            desc.name = swr::string_from(field.value().get_string());
+        }
+        else if(key == "shader")
         {
             desc.shader = swr::string_from(field.value().get_string());
         }
@@ -125,7 +144,7 @@ MaterialDesc load_material(
                     }
                     desc.base_color = std::move(path);
                 }
-                else if(texture_key == "normal_map")
+                else if(texture_key == "normal")
                 {
                     std::optional<std::filesystem::path> path;
                     NormalMapConvention convention = NormalMapConvention::OpenGL;
