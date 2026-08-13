@@ -128,6 +128,7 @@ ResolvableMaterial MaterialManager::load(
               // TODO Handle failure downstream
               throw task_system::TaskCancelledError{};
           }
+
           /*
            * Load textures.
            */

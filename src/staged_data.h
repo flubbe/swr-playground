@@ -14,7 +14,6 @@
 #include <optional>
 #include <string>
 
-#include "assets/texture.h"
 #include "containers/string.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
@@ -29,8 +28,6 @@
 struct StagedFloorData
 {
     MeshData mesh;
-    assets::ImageRGBA8 diffuse_texture;
-    assets::ImageRGBA8 normal_texture;
 };
 
 struct StagedStaticMeshSectionLod

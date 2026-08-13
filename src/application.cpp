@@ -32,10 +32,7 @@
 #include "assets/shaders/color_smooth.h"
 #include "assets/shaders/lit_smooth.h"
 #include "assets/shaders/phong_smooth.h"
-#include "assets/shaders/textured_floor.h"
-#include "assets/shaders/textured_shiny_floor.h"
 #include "assets/static_mesh_importer.h"
-#include "assets/texture.h"
 #include "containers/format.h"
 #include "meshes/lod.h"
 #include "renderer/materialmanager.h"
@@ -60,6 +57,30 @@ using task_system::TaskHandle;
 using task_system::TaskSnapshot;
 using task_system::TaskSpec;
 using task_system::TaskState;
+
+struct StartupMaterials
+{
+    ResolvableMaterial gear;
+    ResolvableMaterial floor;
+    ResolvableMaterial static_mesh;
+
+    [[nodiscard]]
+    bool is_ready()
+    {
+        using namespace std::chrono_literals;
+
+        return gear->wait_for(0ms) == std::future_status::ready
+               && floor->wait_for(0ms) == std::future_status::ready
+               && static_mesh->wait_for(0ms) == std::future_status::ready;
+    }
+
+    void wait()
+    {
+        gear->wait();
+        floor->wait();
+        static_mesh->wait();
+    }
+};
 
 namespace
 {
@@ -634,15 +655,9 @@ void imgui_draw_viewport_panel(
 
 GearParameters create_gear_resources(
   RenderDevice& device,
-  ShaderFactory& shader_factory,
+  MaterialHandle material,
   const StagedGearInstance& staged)
 {
-    auto* lit_shader = shader_factory.get_or_create<shader::LitSmooth>();
-    auto lit_material = device.create_material(
-      {.shader_handle = device.create_shader(*lit_shader),
-       .base_color_handle = {},
-       .normal_map_handle = {}});
-
     auto inner_mesh_data = MeshData{
       .primitive_type = PrimitiveType::Triangles,
       .indices = staged.geometry.inner_indices,
@@ -665,13 +680,13 @@ GearParameters create_gear_resources(
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
-        .material_handle = lit_material,
+        .material_handle = material,
         .color = staged.color,
         .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
-        .material_handle = lit_material,
+        .material_handle = material,
         .color = staged.color,
         .triangle_count = outer_mesh_data.indices.size() / 3,
       },
@@ -687,14 +702,14 @@ GearParameters create_gear_resources(
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
-  ShaderFactory& shader_factory,
+  MaterialHandle material,
   const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
     {
         auto params = create_gear_resources(
           device,
-          shader_factory,
+          material,
           staged);
         auto* gear = scene.add_object<Gear>(params);
         gear->casts_shadows = true;
@@ -709,18 +724,82 @@ void add_staged_gears(
 
 constexpr std::string_view floor_object_name = "Stone Floor";
 
-swr::program_base* get_floor_shader_program(
-  FloorShaderType type,
-  ShaderFactory& shader_factory)
+constexpr std::string_view gear_material_key = "startup://gear";
+constexpr std::string_view static_mesh_material_key = "startup://static-mesh/lit";
+
+constexpr std::string_view gear_material_json = R"json(
+{
+  "shader": "LitSmooth",
+  "textures": {}
+}
+)json";
+
+constexpr std::string_view static_mesh_material_json = R"json(
+{
+  "shader": "LitSmooth",
+  "textures": {}
+}
+)json";
+
+constexpr std::string_view textured_floor_material_json = R"json(
+{
+  "shader": "TexturedFloor",
+  "textures": {
+    "base_color": {
+      "path": "assets/textures/tiles/tiles_0080_color_1k.png",
+      "color_space": "srgb"
+    },
+    "normal_map": {
+      "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
+      "convention": "opengl",
+      "scale": 1.0
+    }
+  }
+}
+)json";
+
+constexpr std::string_view shiny_floor_material_json = R"json(
+{
+  "shader": "TexturedShinyFloor",
+  "textures": {
+    "base_color": {
+      "path": "assets/textures/tiles/tiles_0080_color_1k.png",
+      "color_space": "srgb"
+    },
+    "normal_map": {
+      "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
+      "convention": "opengl",
+      "scale": 1.0
+    }
+  }
+}
+)json";
+
+std::string_view get_floor_material_json(
+  FloorShaderType type)
 {
     switch(type)
     {
     case FloorShaderType::TexturedFloor:
-        return shader_factory.get_or_create<shader::TexturedFloor>();
+        return textured_floor_material_json;
     case FloorShaderType::TexturedShinyFloor:
-        return shader_factory.get_or_create<shader::TexturedShinyFloor>();
+        return shiny_floor_material_json;
     default:
-        throw std::runtime_error{"Unknown shader type for the floor."};
+        throw std::runtime_error{"Unknown material type for the floor."};
+    }
+}
+
+std::string_view get_floor_material_key(
+  FloorShaderType type)
+{
+    switch(type)
+    {
+    case FloorShaderType::TexturedFloor:
+        return "startup://floor/textured";
+    case FloorShaderType::TexturedShinyFloor:
+        return "startup://floor/shiny";
+    default:
+        throw std::runtime_error{"Unknown material type for the floor."};
     }
 }
 
@@ -778,46 +857,24 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
-  ShaderFactory& shader_factory,
-  FloorShaderType floor_shader_type,
-  const StagedFloorData& floor_data,
-  std::array<TextureHandle, 2>* out_texture_handles = nullptr)
+  MaterialHandle material,
+  const StagedFloorData& floor_data)
 {
-    std::optional<TextureHandle> diffuse_texture;
-    std::optional<TextureHandle> normal_texture;
     std::optional<MeshHandle> mesh_handle;
 
     try
     {
         constexpr float floor_height = -6.25f;
 
-        diffuse_texture = device.create_texture(
-          floor_data.diffuse_texture);
-        normal_texture = device.create_texture(
-          floor_data.normal_texture);
-        swr::program_base* shader = get_floor_shader_program(
-          floor_shader_type,
-          shader_factory);
-
         mesh_handle = device.create_mesh(
           floor_data.mesh);
-        const MaterialHandle material_handle = device.create_material(
-          {.shader_handle = device.create_shader(*shader),
-           .base_color_handle = *diffuse_texture,
-           .normal_map_handle = *normal_texture});
-        if(out_texture_handles != nullptr)
-        {
-            *out_texture_handles = {*diffuse_texture, *normal_texture};
-        }
-        diffuse_texture.reset();
-        normal_texture.reset();
 
         auto* floor = scene.add_object<StaticMesh>(
           "",
           swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
-              .material_handle = material_handle,
+              .material_handle = material,
               .color = {1.f, 1.f, 1.f, 1.f},
               .triangle_count = floor_data.mesh.indices.size() / 3,
             }},
@@ -832,14 +889,6 @@ void try_add_textured_floor(
         if(mesh_handle.has_value())
         {
             device.delete_mesh(*mesh_handle);
-        }
-        if(diffuse_texture.has_value())
-        {
-            device.delete_texture(*diffuse_texture);
-        }
-        if(normal_texture.has_value())
-        {
-            device.delete_texture(*normal_texture);
         }
         logging::warningf(
           "failed to create textured floor: {}",
@@ -867,46 +916,34 @@ void finalize_startup_scene(
   Scene& scene,
   Viewport& viewport,
   RenderDevice& render_device,
-  Renderer& renderer,
-  FloorShaderType floor_shader_type,
-  bool& has_floor_textures,
-  std::array<TextureHandle, 2>& floor_texture_handles,
+  StartupMaterials& startup_materials,
   const StagedStartupScene& staged_scene)
 {
-    ShaderFactory& shader_factory = renderer.get_shader_factory();
-
     configure_default_directional_lights(scene);
     configure_default_spot_lights(scene);
+
+    const MaterialHandle gear_material = startup_materials.gear->resolve();
 
     add_staged_gears(
       scene,
       render_device,
-      shader_factory,
+      gear_material,
       staged_scene.gears);
 
-    has_floor_textures = false;
-    floor_texture_handles = {};
     if(staged_scene.floor.has_value())
     {
+        const MaterialHandle floor_material = startup_materials.floor->resolve();
         try_add_textured_floor(
           scene,
           render_device,
-          shader_factory,
-          floor_shader_type,
-          *staged_scene.floor,
-          &floor_texture_handles);
-        has_floor_textures =
-          floor_texture_handles[0] != 0
-          && floor_texture_handles[1] != 0;
+          floor_material,
+          *staged_scene.floor);
     }
 
     if(staged_scene.sample_mesh.has_value())
     {
-        auto* shader = shader_factory.get_or_create<shader::LitSmooth>();
-        const MaterialHandle material = render_device.create_material(
-          {.shader_handle = render_device.create_shader(*shader),
-           .base_color_handle = {},
-           .normal_map_handle = {}});
+        const MaterialHandle material = startup_materials.static_mesh->resolve();
+
         auto lods = create_static_mesh_resources(
           render_device,
           material,
@@ -1323,10 +1360,7 @@ void Application::on_startup_complete(const StagedStartupScene& staged_scene)
       scene,
       viewport,
       render_device,
-      renderer,
-      active_floor_shader,
-      has_floor_textures,
-      floor_texture_handles,
+      *startup_materials,
       staged_scene);
     scene.add_default_systems();
     setup_viewport();
@@ -1334,8 +1368,8 @@ void Application::on_startup_complete(const StagedStartupScene& staged_scene)
 
 void Application::on_startup_complete_error(const std::string& error_message)
 {
-    const logging::Logger startup_logger{"startup"};
-    startup_logger.errorf("loading failed: {}", error_message);
+    const logging::Logger startup_logger{"Startup"};
+    startup_logger.errorf("Loading failed: {}", error_message);
     startup_error = error_message;
 }
 
@@ -1543,6 +1577,19 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
+    startup_materials = swr::make_unique<StartupMaterials>(
+      StartupMaterials{
+        .gear = material_manager.load(
+          gear_material_key,
+          gear_material_json),
+        .floor = material_manager.load(
+          get_floor_material_key(active_floor_shader),
+          get_floor_material_json(active_floor_shader)),
+        .static_mesh = material_manager.load(
+          static_mesh_material_key,
+          static_mesh_material_json),
+      });
+
     startup_scene = std::make_shared<StagedStartupScene>();
     auto tasks = startup_tasks::create_startup_tasks(*startup_scene);
 
@@ -1593,7 +1640,7 @@ void Application::begin_startup()
 
 bool Application::is_startup_ready() const
 {
-    if(startup_task_futures.empty())
+    if(startup_task_futures.empty() || startup_materials == nullptr)
     {
         return false;
     }
@@ -1608,7 +1655,7 @@ bool Application::is_startup_ready() const
         }
     }
 
-    return true;
+    return startup_materials->is_ready();
 }
 
 bool Application::finish_startup_if_ready()
@@ -1632,13 +1679,18 @@ bool Application::finish_startup_if_ready()
         {
             throw std::runtime_error{"startup scene state is missing"};
         }
+        if(startup_materials == nullptr)
+        {
+            throw std::runtime_error{"startup material state is missing"};
+        }
 
+        startup_materials->wait();
         on_startup_complete(*startup_scene);
         startup_task_handles.clear();
         startup_task_futures.clear();
         startup_task_weights.clear();
         startup_scene.reset();
-        return true;
+        startup_materials.reset();
     }
     catch(const std::exception& e)
     {
@@ -1647,8 +1699,12 @@ bool Application::finish_startup_if_ready()
         startup_task_futures.clear();
         startup_task_weights.clear();
         startup_scene.reset();
-        return false;
+        startup_materials.reset();
+
+        throw;
     }
+
+    return true;
 }
 
 void Application::cancel_startup()
@@ -1667,6 +1723,7 @@ void Application::cancel_startup()
     startup_task_futures.clear();
     startup_task_weights.clear();
     startup_scene.reset();
+    startup_materials.reset();
 }
 
 void Application::start_debug_test_tasks()
@@ -1925,15 +1982,11 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
 void Application::set_floor_shader(FloorShaderType type)
 {
     active_floor_shader = type;
-    if(!has_floor_textures)
-    {
-        return;
-    }
-
-    ShaderFactory& shader_factory = renderer.get_shader_factory();
-    swr::program_base* new_shader = get_floor_shader_program(
-      type,
-      shader_factory);
+    const MaterialHandle material =
+      material_manager.load(
+                        get_floor_material_key(type),
+                        get_floor_material_json(type))
+        ->resolve();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
@@ -1946,11 +1999,7 @@ void Application::set_floor_shader(FloorShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                section.material_handle =
-                  render_device.create_material(
-                    {.shader_handle = render_device.create_shader(*new_shader),
-                     .base_color_handle = floor_texture_handles[0],
-                     .normal_map_handle = floor_texture_handles[1]});
+                section.material_handle = material;
             }
         }
     }

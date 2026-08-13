@@ -167,12 +167,12 @@ int main(int argc, char* argv[])
     }
     catch(const std::exception& e)
     {
-        logging::errorf("{}", e.what());
+        logging::fatalf("{}", e.what());
         return EXIT_FAILURE;
     }
     catch(...)
     {
-        logging::errorf("Terminating after uncaught exception.");
+        logging::fatalf("Terminating after uncaught exception.");
         return EXIT_FAILURE;
     }
 #endif

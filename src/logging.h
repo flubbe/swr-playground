@@ -16,6 +16,7 @@
 #include <format>
 #include <fstream>
 #include <mutex>
+#include <print>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -125,6 +126,9 @@ protected:
 public:
     /** Default, virtual destructor */
     virtual ~LogDevice() = default;
+
+    /** Whether the log device writes to `stderr`. */
+    virtual bool writes_to_stderr() const = 0;
 
     /**
      * Write a log record. If the timestamp field is empty, it is added here.
@@ -424,6 +428,35 @@ void errorf(
       std::make_format_args(args...));
 }
 
+/**
+ * Formatted fatal error emission to the global logger.
+ * Additionally, the error is written to `stderr`.
+ *
+ * @param format Format string.
+ * @param args Arguments.
+ */
+template<typename... Args>
+void fatalf(
+  std::string_view format,
+  const Args&... args)
+{
+    auto& log = LogDevice::get();
+
+    log.error(
+      format,
+      std::make_format_args(args...));
+
+    if(!log.writes_to_stderr())
+    {
+        std::println(
+          stderr,
+          "Fatal error: {}",
+          std::vformat(
+            format,
+            std::make_format_args(args...)));
+    }
+}
+
 /** Log empty line to the global logger. */
 inline void log_n()
 {
@@ -440,6 +473,12 @@ class LogNull : public LogDevice
 protected:
     void log_n(std::string_view) override
     {
+    }
+
+public:
+    bool writes_to_stderr() const override
+    {
+        return false;
     }
 };
 
@@ -559,6 +598,11 @@ public:
 
     /** Stop the writer thread and flush all pending records. */
     ~FileLogDevice() override;
+
+    bool writes_to_stderr() const override
+    {
+        return false;
+    }
 
     /** Return the configured output path for this file logger. */
     [[nodiscard]]

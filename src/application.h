@@ -12,7 +12,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <array>
 #include <filesystem>
 #include <future>
 #include <optional>
@@ -34,6 +33,7 @@ class RenderDevice;
 class Renderer;
 class Scene;
 struct StagedStartupScene;
+struct StartupMaterials;
 class Viewport;
 class MainLoop;
 
@@ -118,8 +118,6 @@ class Application
      */
     StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::LitSmooth};
     FloorShaderType active_floor_shader{FloorShaderType::TexturedFloor};
-    std::array<TextureHandle, 2> floor_texture_handles{};
-    bool has_floor_textures{false};
 
     ViewportInputState viewport_input{};
     bool viewport_mouse_captured{false};
@@ -133,6 +131,7 @@ class Application
 
     // Startup task state (parallel submissions aggregated by the main thread).
     swr::shared_ptr<StagedStartupScene> startup_scene;
+    swr::unique_ptr<StartupMaterials> startup_materials;
     swr::vector<task_system::TaskHandle> startup_task_handles;
     swr::vector<std::future<void>> startup_task_futures;
     swr::vector<float> startup_task_weights;

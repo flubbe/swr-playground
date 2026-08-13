@@ -9,9 +9,11 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <span>
 #include <utility>
+#include <type_traits>
 
 #include <gsl/gsl>
 
@@ -218,7 +220,20 @@ TextureHandle RenderDevice::create_texture(
        || image.pixels.size()
             != static_cast<std::size_t>(image.width * image.height * 4))
     {
-        throw std::runtime_error{"Unable to create texture from invalid RGBA8 image data"};
+        throw std::runtime_error{
+          "Unable to create texture from invalid RGBA8 image data"};
+    }
+
+    // Validate image size.
+    // FIXME Should this be done in the graphics API?
+    if(!std::has_single_bit(static_cast<unsigned int>(image.width))
+       || !std::has_single_bit(static_cast<unsigned int>(image.height)))
+    {
+        throw std::runtime_error{
+          std::format(
+            "Image dimensions ({}, {}) are not powers of two.",
+            image.width,
+            image.height)};
     }
 
     const std::uint32_t texture_id = swr::CreateTexture();

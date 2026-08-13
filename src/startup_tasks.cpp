@@ -137,25 +137,10 @@ MeshData make_floor_mesh(
 
 std::optional<StagedFloorData> try_prepare_floor_data()
 {
-    const std::filesystem::path diffuse_path{
-      "assets/textures/tiles/tiles_0080_color_1k.png"};
-    const std::filesystem::path normal_path{
-      "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"};
-
-    if(!std::filesystem::exists(diffuse_path)
-       || !std::filesystem::exists(normal_path))
-    {
-        return std::nullopt;
-    }
-
     constexpr float floor_half_extent = 28.f;
     constexpr float uv_repeat = 1.f;
     return StagedFloorData{
       .mesh = make_floor_mesh(floor_half_extent, uv_repeat),
-      .diffuse_texture = assets::load_texture_rgba8(diffuse_path),
-      .normal_texture = assets::load_normal_map_rgba8(
-        normal_path,
-        assets::NormalMapConvention::DirectX),
     };
 }
 
@@ -422,25 +407,25 @@ TaskSpec make_gear_task(StagedStartupScene& scene)
     };
 }
 
-// Create a task that loads floor textures and mesh
+// Create a task that generates the floor mesh.
 [[nodiscard]]
 TaskSpec make_floor_task(StagedStartupScene& scene)
 {
     return TaskSpec{
-      .name = "Loading floor textures...",
+      .name = "Generating floor mesh...",
       .weight = 2.f,
       .run = [&scene](TaskExecutionContext& context)
       {
-          context.update("Loading floor textures...", 0.f);
-          get_logger().logf("loading floor textures");
+          context.update("Generating floor mesh...", 0.f);
+          get_logger().logf("generating floor mesh");
           scene.floor = try_prepare_floor_data();
           if(!scene.floor.has_value())
           {
               add_startup_notice(
                 scene,
-                "floor textures were not found");
+                "floor mesh could not be generated");
           }
-          context.update("Loaded floor textures.", 1.f);
+          context.update("Generated floor mesh.", 1.f);
       },
     };
 }
