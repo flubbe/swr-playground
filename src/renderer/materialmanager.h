@@ -22,6 +22,7 @@
 #include "containers/memory.h"
 #include "tasks/task_system.h"
 #include "material.h"
+#include "resolvablematerial.h"
 #include "texture_cache.h"
 
 /*
@@ -68,11 +69,17 @@ struct MaterialEntry
     /** Material resources future. */
     task_system::TaskSubmission<MaterialResources> resources;
 
+    /** Material display name. */
+    swr::string name;
+
+    /** Material path. */
+    swr::string path;
+
     /** Optional base-color texture referenced by this material. */
     std::optional<TextureRef> base_color;
 
     /** Optional normal-map texture referenced by this material. */
-    std::optional<TextureRef> normal_map;
+    std::optional<TextureRef> normal;
 
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;
@@ -162,62 +169,6 @@ struct MaterialEntry
       std::chrono::time_point<Clock, Duration> timeout)
     {
         return resources.future.wait_until(timeout);
-    }
-};
-
-/** A material that is asynchronously resolved. */
-class ResolvableMaterial
-{
-    friend class MaterialManager;
-
-    /** The material entry, containing resources and handles. */
-    swr::shared_ptr<MaterialEntry> entry;
-
-    /**
-     * Constructor.
-     *
-     * @param entry The material entry.
-     */
-    explicit ResolvableMaterial(
-      swr::shared_ptr<MaterialEntry> entry)
-    : entry{std::move(entry)}
-    {
-    }
-
-public:
-    /** Deleted default constructor. */
-    ResolvableMaterial() = delete;
-
-    /** Defaulted copy/moves. */
-    ResolvableMaterial(const ResolvableMaterial&) = default;
-    ResolvableMaterial(ResolvableMaterial&&) = default;
-
-    ResolvableMaterial& operator=(const ResolvableMaterial&) = default;
-    ResolvableMaterial& operator=(ResolvableMaterial&&) = default;
-
-    MaterialEntry* operator->() noexcept
-    {
-        return entry.get();
-    }
-
-    const MaterialEntry* operator->() const noexcept
-    {
-        return entry.get();
-    }
-
-    MaterialEntry& operator*() noexcept
-    {
-        return *entry;
-    }
-
-    const MaterialEntry& operator*() const noexcept
-    {
-        return *entry;
-    }
-
-    explicit operator bool() const noexcept
-    {
-        return static_cast<bool>(entry);
     }
 };
 

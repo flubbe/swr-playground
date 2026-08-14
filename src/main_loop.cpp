@@ -48,9 +48,11 @@ void MainLoop::run()
 
 bool MainLoop::run_startup()
 {
+    using namespace std::literals;
+
     bool running = true;
 
-    constexpr auto frame_time = std::chrono::milliseconds(100);
+    constexpr auto frame_time = 100ms;
     auto next_frame_time = std::chrono::steady_clock::now();
 
     application.begin_startup();

@@ -294,7 +294,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "/textures/tiles/tiles_0080_color_1k.png\",\n"
       "            \"color_space\": \"srgb\"\n"
       "        },\n"
-      "        \"normal_map\": {\n"
+      "        \"normal\": {\n"
       "            \"path\": \"" ASSETS_SOURCE_DIR
       "/textures/tiles/tiles_0080_normal_opengl_1k.png\",\n"
       "            \"convention\": \"opengl\"\n"

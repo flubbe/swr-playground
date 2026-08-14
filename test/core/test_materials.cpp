@@ -25,7 +25,7 @@ TEST(MaterialTests, Parse)
       "      \"path\": \"textures/wood.png\",\n"
       "      \"color_space\": \"srgb\"\n"
       "    },\n"
-      "    \"normal_map\": {\n"
+      "    \"normal\": {\n"
       "      \"path\": \"textures/stone.png\",\n"
       "      \"convention\": \"opengl\",\n"
       "      \"scale\": 0.5\n"
@@ -41,10 +41,10 @@ TEST(MaterialTests, Parse)
 
     ASSERT_TRUE(desc.base_color.has_value());
     EXPECT_EQ(*desc.base_color, "textures/wood.png");
-    ASSERT_TRUE(desc.normal_map.has_value());
-    EXPECT_EQ(desc.normal_map->path, "textures/stone.png");
-    EXPECT_EQ(desc.normal_map->convention, assets::NormalMapConvention::OpenGL);
-    EXPECT_FLOAT_EQ(desc.normal_map->scale, 0.5f);
+    ASSERT_TRUE(desc.normal.has_value());
+    EXPECT_EQ(desc.normal->path, "textures/stone.png");
+    EXPECT_EQ(desc.normal->convention, assets::NormalMapConvention::OpenGL);
+    EXPECT_FLOAT_EQ(desc.normal->scale, 0.5f);
 }
 
 TEST(MaterialTests, LoadAllMaterialAssets)

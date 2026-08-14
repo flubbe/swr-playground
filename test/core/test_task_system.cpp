@@ -39,6 +39,8 @@ void update_maximum(
 
 TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerWaits)
 {
+    using namespace std::literals;
+
     TaskSystem task_system{4};
 
     std::atomic<int> running_count{0};
@@ -60,7 +62,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
         update_maximum(max_running_count, running_now);
         ready_count.fetch_add(1, std::memory_order_relaxed);
 
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{500};
+        const auto deadline = std::chrono::steady_clock::now() + 500ms;
         while(ready_count.load(std::memory_order_relaxed) < 2)
         {
             if(context.is_cancel_requested())
@@ -71,7 +73,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
             {
                 throw std::runtime_error{"Parallel branches did not overlap"};
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            std::this_thread::sleep_for(1ms);
         }
 
         {
@@ -79,7 +81,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
             execution_order.push_back(branch_index);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds{20});
+        std::this_thread::sleep_for(20ms);
         done_flag.store(true, std::memory_order_relaxed);
         running_count.fetch_sub(1, std::memory_order_relaxed);
     };
@@ -152,6 +154,8 @@ TEST(TaskSystemTests, SubmitTaskSpecsRunsIndependentTasksInParallelAndFinalizerW
 
 TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBranches)
 {
+    using namespace std::literals;
+
     TaskSystem task_system{4};
 
     std::atomic<bool> branch_started{false};
@@ -168,14 +172,14 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
       .run = [&](TaskExecutionContext&)
       {
           const auto deadline =
-            std::chrono::steady_clock::now() + std::chrono::milliseconds{500};
+            std::chrono::steady_clock::now() + 500ms;
           while(!branch_started.load(std::memory_order_relaxed))
           {
               if(std::chrono::steady_clock::now() > deadline)
               {
                   throw std::runtime_error{"Timed out waiting for sibling branch"};
               }
-              std::this_thread::sleep_for(std::chrono::milliseconds{1});
+              std::this_thread::sleep_for(1ms);
           }
 
           throw std::runtime_error{"Expected task failure"};
@@ -190,7 +194,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
           branch_started.store(true, std::memory_order_relaxed);
 
           const auto deadline =
-            std::chrono::steady_clock::now() + std::chrono::milliseconds{1000};
+            std::chrono::steady_clock::now() + 1s;
           while(std::chrono::steady_clock::now() < deadline)
           {
               if(context.is_cancel_requested())
@@ -199,7 +203,7 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
                   throw TaskCancelledError{};
               }
 
-              std::this_thread::sleep_for(std::chrono::milliseconds{2});
+              std::this_thread::sleep_for(2ms);
           }
 
           branch_finished_normally.store(true, std::memory_order_relaxed);
@@ -234,12 +238,12 @@ TEST(TaskSystemTests, SubmitTaskSpecsPropagatesFirstExceptionAndCancelsOtherBran
     }
 
     const auto cancel_deadline =
-      std::chrono::steady_clock::now() + std::chrono::milliseconds{300};
+      std::chrono::steady_clock::now() + 300ms;
     while(!branch_observed_cancel.load(std::memory_order_relaxed)
           && !branch_finished_normally.load(std::memory_order_relaxed)
           && std::chrono::steady_clock::now() < cancel_deadline)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        std::this_thread::sleep_for(1ms);
     }
 
     EXPECT_TRUE(branch_started.load(std::memory_order_relaxed));

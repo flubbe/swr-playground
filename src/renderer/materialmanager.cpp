@@ -60,6 +60,8 @@ MaterialHandle MaterialEntry::resolve()
       {
           if(!success)
           {
+              name.clear();
+
               if(resolved_handle.has_value())
               {
                   device.delete_material(
@@ -69,9 +71,12 @@ MaterialHandle MaterialEntry::resolve()
               // TODO Shader release is handled by the cache.
 
               base_color.reset();
-              normal_map.reset();
+              normal.reset();
           }
       });
+
+    // FIXME Make name mandatory?
+    name = loaded.description.name.value_or("");
 
     material.shader_handle = shader_cache.load(
       loaded.description.shader,
@@ -95,10 +100,10 @@ MaterialHandle MaterialEntry::resolve()
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        normal_map = texture_cache.load(
+        normal = texture_cache.load(
           generated_key,
           *loaded.normal_map);
-        material.normal_map_handle = normal_map->get();
+        material.normal_map_handle = normal->get();
     }
 
     resolved_handle = device.create_material(material);
@@ -159,7 +164,7 @@ ResolvableMaterial MaterialManager::load(
                 *resources.description.base_color);
           }
 
-          if(resources.description.normal_map.has_value())
+          if(resources.description.normal.has_value())
           {
               if(context.is_cancel_requested())
               {
@@ -167,7 +172,7 @@ ResolvableMaterial MaterialManager::load(
               }
 
               const assets::NormalMapDesc& normal_map =
-                *resources.description.normal_map;
+                *resources.description.normal;
               resources.normal_map = assets::load_normal_map_rgba8(
                 normal_map.path,
                 normal_map.convention);

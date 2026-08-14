@@ -46,7 +46,7 @@ struct MaterialDesc
     std::optional<std::filesystem::path> base_color;
 
     /** Optional tangent-space normal map. */
-    std::optional<NormalMapDesc> normal_map;
+    std::optional<NormalMapDesc> normal;
 };
 
 /**

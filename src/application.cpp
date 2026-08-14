@@ -655,6 +655,7 @@ void imgui_draw_viewport_panel(
 
 GearParameters create_gear_resources(
   RenderDevice& device,
+  std::string_view material_path,
   MaterialHandle material,
   const StagedGearInstance& staged)
 {
@@ -680,12 +681,14 @@ GearParameters create_gear_resources(
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
+        .material_path = swr::string{material_path},
         .material_handle = material,
         .color = staged.color,
         .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
+        .material_path = swr::string{material_path},
         .material_handle = material,
         .color = staged.color,
         .triangle_count = outer_mesh_data.indices.size() / 3,
@@ -702,6 +705,7 @@ GearParameters create_gear_resources(
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
+  std::string_view material_path,
   MaterialHandle material,
   const swr::vector<StagedGearInstance>& gears)
 {
@@ -709,6 +713,7 @@ void add_staged_gears(
     {
         auto params = create_gear_resources(
           device,
+          material_path,
           material,
           staged);
         auto* gear = scene.add_object<Gear>(params);
@@ -724,9 +729,7 @@ void add_staged_gears(
 
 constexpr std::string_view floor_object_name = "Stone Floor";
 
-constexpr std::string_view gear_material_key = "startup://gear";
-constexpr std::string_view static_mesh_material_key = "startup://static-mesh/lit";
-
+constexpr std::string_view shadowed_material_key = "assets/materials/mesh/lit.json";
 constexpr std::string_view shadowed_material_json = R"json(
 {
   "name": "Shadowed",
@@ -791,9 +794,9 @@ std::string_view get_floor_material_key(
     switch(type)
     {
     case FloorShaderType::TexturedFloor:
-        return "startup://floor/textured";
+        return "assets/materials/floor/floor.json";
     case FloorShaderType::TexturedShinyFloor:
-        return "startup://floor/shiny";
+        return "assets/materials/floor/floor_shiny.json";
     default:
         throw std::runtime_error{"Unknown material type for the floor."};
     }
@@ -801,6 +804,7 @@ std::string_view get_floor_material_key(
 
 swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
+  std::string_view material_path,
   MaterialHandle material,
   const StagedStaticMeshAsset& staged_asset)
 {
@@ -833,6 +837,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .mesh_handle = mesh_handle,
+                .material_path = swr::string{material_path},
                 .material_handle = material,
                 .color = section.diffuse_color,
                 .triangle_count = staged_lod.mesh.indices.size() / 3,
@@ -853,6 +858,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
+  std::string_view material_path,
   MaterialHandle material,
   const StagedFloorData& floor_data)
 {
@@ -870,6 +876,7 @@ void try_add_textured_floor(
           swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
+              .material_path = swr::string{material_path},
               .material_handle = material,
               .color = {1.f, 1.f, 1.f, 1.f},
               .triangle_count = floor_data.mesh.indices.size() / 3,
@@ -923,15 +930,18 @@ void finalize_startup_scene(
     add_staged_gears(
       scene,
       render_device,
+      startup_materials.gear->name,
       gear_material,
       staged_scene.gears);
 
     if(staged_scene.floor.has_value())
     {
         const MaterialHandle floor_material = startup_materials.floor->resolve();
+
         try_add_textured_floor(
           scene,
           render_device,
+          startup_materials.floor->name,
           floor_material,
           *staged_scene.floor);
     }
@@ -942,6 +952,7 @@ void finalize_startup_scene(
 
         auto lods = create_static_mesh_resources(
           render_device,
+          startup_materials.static_mesh->name,
           material,
           *staged_scene.sample_mesh);
 
@@ -965,10 +976,13 @@ void finalize_startup_scene(
     viewport.use_local_camera();
 }
 
+template<
+  typename Rep,
+  typename Period>
 TaskSpec make_wait_task(
   swr::string name,
   int iterations,
-  std::chrono::milliseconds per_iteration,
+  std::chrono::duration<Rep, Period> per_iteration,
   float weight)
 {
     const auto task_name = name;
@@ -1576,13 +1590,13 @@ void Application::begin_startup()
     startup_materials = swr::make_unique<StartupMaterials>(
       StartupMaterials{
         .gear = material_manager.load(
-          gear_material_key,
+          shadowed_material_key,
           shadowed_material_json),
         .floor = material_manager.load(
           get_floor_material_key(active_floor_shader),
           get_floor_material_json(active_floor_shader)),
         .static_mesh = material_manager.load(
-          static_mesh_material_key,
+          shadowed_material_key,
           shadowed_material_json),
       });
 
@@ -1636,6 +1650,8 @@ void Application::begin_startup()
 
 bool Application::is_startup_ready() const
 {
+    using namespace std::literals;
+
     if(startup_task_futures.empty() || startup_materials == nullptr)
     {
         return false;
@@ -1644,7 +1660,7 @@ bool Application::is_startup_ready() const
     for(const auto& startup_task_future: startup_task_futures)
     {
         if(!startup_task_future.valid()
-           || startup_task_future.wait_for(std::chrono::milliseconds{0})
+           || startup_task_future.wait_for(0ms)
                 != std::future_status::ready)
         {
             return false;
@@ -1724,6 +1740,8 @@ void Application::cancel_startup()
 
 void Application::start_debug_test_tasks()
 {
+    using namespace std::literals;
+
     if(runtime_test_task_handle.valid())
     {
         return;
@@ -1738,19 +1756,19 @@ void Application::start_debug_test_tasks()
     tasks.push_back(make_wait_task(
       "Loading assets...",
       8,
-      std::chrono::milliseconds{100},
+      100ms,
       2.f));
 
     tasks.push_back(make_wait_task(
       "Preparing scene data...",
       10,
-      std::chrono::milliseconds{90},
+      90ms,
       3.f));
 
     TaskSpec finalizing = make_wait_task(
       "Finalizing...",
       6,
-      std::chrono::milliseconds{110},
+      110ms,
       1.f);
     finalizing.dependencies = {0, 1};
     tasks.push_back(std::move(finalizing));
@@ -1768,12 +1786,14 @@ bool Application::is_debug_test_tasks_running() const noexcept
 
 void Application::update_runtime_test_task()
 {
+    using namespace std::literals;
+
     if(!runtime_test_task_future.valid())
     {
         return;
     }
 
-    if(runtime_test_task_future.wait_for(std::chrono::milliseconds{0})
+    if(runtime_test_task_future.wait_for(0ms)
        != std::future_status::ready)
     {
         return;

@@ -61,6 +61,8 @@ TEST(LoggingTests, FileLogDevicePersistsMessages)
 
 TEST(LoggingTests, FileLogDeviceReportsDroppedMessagesUnderBackpressure)
 {
+    using namespace std::literals;
+
     const auto path = std::filesystem::temp_directory_path() / "swr_playground_file_log_device_backpressure.log";
     std::filesystem::remove(path);
 
@@ -70,7 +72,7 @@ TEST(LoggingTests, FileLogDeviceReportsDroppedMessagesUnderBackpressure)
           logging::FileLogDeviceOptions{
             .max_pending_records = 4,
             .notify_batch_size = 1024,
-            .flush_interval = std::chrono::milliseconds{500},
+            .flush_interval = 500ms,
             .overflow_policy = logging::OverflowPolicy::DropNewest,
           }};
 

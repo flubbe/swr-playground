@@ -180,7 +180,7 @@ MaterialDesc load_material(
                         throw std::runtime_error{
                           "Normal-map texture requires a path."};
                     }
-                    desc.normal_map = NormalMapDesc{
+                    desc.normal = NormalMapDesc{
                       .path = std::move(*path),
                       .convention = convention,
                       .scale = scale,

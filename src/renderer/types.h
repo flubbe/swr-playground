@@ -16,6 +16,9 @@
 
 #include <ml/all.h>
 
+#include "containers/string.h"
+#include "renderer/resolvablematerial.h"
+
 template<typename Tag>
 struct RenderHandle
 {
@@ -66,6 +69,9 @@ struct MeshSection
 {
     /** Mesh handle. */
     MeshHandle mesh_handle{};
+
+    /** Material path. */
+    swr::string material_path;
 
     /** Material handle. */
     MaterialHandle material_handle{};
