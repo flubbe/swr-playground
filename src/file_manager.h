@@ -194,3 +194,33 @@ public:
       const std::filesystem::path& path,
       std::endian target_byte_order = std::endian::little) const;
 };
+
+/*
+ * Helpers.
+ */
+
+/**
+ * Read a text file.
+ *
+ * @param file_manager File manager used to resolve the path.
+ * @param path File path.
+ * @returns The file contents.
+ * @throws `FileError` if the file cannot be opened or read.
+ */
+[[nodiscard]]
+swr::string read_text_file(
+  FileManager& file_manager,
+  const std::filesystem::path& path);
+
+/**
+ * Write a text file.
+ *
+ * @param file_manager File manager used to resolve the path.
+ * @param path File path.
+ * @param contents Text contents to write.
+ * @throws `FileError` if the file cannot be opened or written.
+ */
+void write_text_file(
+  FileManager& file_manager,
+  const std::filesystem::path& path,
+  swr::string contents);

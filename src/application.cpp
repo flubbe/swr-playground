@@ -1517,34 +1517,6 @@ void Application::update_viewport_mouse_capture()
     set_viewport_mouse_capture(should_capture);
 }
 
-static swr::string read_text_file(
-  FileManager& file_manager,
-  const std::filesystem::path& path)
-{
-    auto ar = file_manager.open_read(path);
-
-    swr::string contents(ar->size(), '\0');
-    std::span<std::byte> bytes{
-      std::as_writable_bytes(
-        std::span{contents.data(), contents.size()})};
-    ar->serialize(bytes);
-
-    return contents;
-}
-
-static void write_text_file(
-  FileManager& file_manager,
-  const std::filesystem::path& path,
-  swr::string contents)
-{
-    auto ar = file_manager.open_write(path);
-
-    std::span<std::byte> bytes{
-      std::as_writable_bytes(
-        std::span{contents.data(), contents.size()})};
-    ar->serialize(bytes);
-}
-
 void Application::begin_startup()
 {
     /*
