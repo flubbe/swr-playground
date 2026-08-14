@@ -42,13 +42,14 @@
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "serialization/file.h"
+#include "tasks/task_system.h"
 #include "ui/imgui.h"
 #include "application.h"
+#include "file_manager.h"
 #include "logging.h"
 #include "shader_factory.h"
 #include "startup_tasks.h"
 #include "staged_data.h"
-#include "tasks/task_system.h"
 #include "viewport.h"
 
 using task_system::TaskCancelledError;
@@ -1349,6 +1350,7 @@ void Application::setup_viewport()
 Application::Application(
   std::string_view title,
   logging::BufferedLogDevice& log_device,
+  FileManager& file_manager,
   task_system::TaskSystem& task_system,
   RenderDevice& render_device,
   Renderer& renderer,
@@ -1357,6 +1359,7 @@ Application::Application(
   Viewport& viewport)
 : title{title}
 , log_device{log_device}
+, file_manager{file_manager}
 , task_system{task_system}
 , render_device{render_device}
 , renderer{renderer}
@@ -1514,35 +1517,33 @@ void Application::update_viewport_mouse_capture()
     set_viewport_mouse_capture(should_capture);
 }
 
-static swr::string read_file(const std::string_view path)
+static swr::string read_text_file(
+  FileManager& file_manager,
+  const std::filesystem::path& path)
 {
-    auto abs_path = std::filesystem::absolute(path);
-    logging::logf(
-      "Loading '{}'...",
-      abs_path.string());
+    auto ar = file_manager.open_read(path);
 
-    std::ifstream file{abs_path, std::ios::binary};
-    if(!file.is_open())
-    {
-        throw std::runtime_error{
-          std::format(
-            "Failed to open file: {}",
-            abs_path.string())};
-    }
-
-    const auto file_size = std::filesystem::file_size(abs_path);
-    swr::string contents(file_size, '\0');
-
-    if(!file.read(contents.data(), file_size))
-    {
-        throw std::runtime_error{
-          std::format(
-            "Failed to read file: {}",
-            abs_path.string())};
-    }
+    swr::string contents(ar->size(), '\0');
+    std::span<std::byte> bytes{
+      std::as_writable_bytes(
+        std::span{contents.data(), contents.size()})};
+    ar->serialize(bytes);
 
     return contents;
-};
+}
+
+static void write_text_file(
+  FileManager& file_manager,
+  const std::filesystem::path& path,
+  swr::string contents)
+{
+    auto ar = file_manager.open_write(path);
+
+    std::span<std::byte> bytes{
+      std::as_writable_bytes(
+        std::span{contents.data(), contents.size()})};
+    ar->serialize(bytes);
+}
 
 void Application::begin_startup()
 {
@@ -1559,10 +1560,10 @@ void Application::begin_startup()
 
     auto floor_material = material_manager.load(
       floor_material_path,
-      read_file(floor_material_path));
+      read_text_file(file_manager, floor_material_path));
     auto shadowed_material = material_manager.load(
       shadowed_material_path,
-      read_file(shadowed_material_path));
+      read_text_file(file_manager, shadowed_material_path));
 
     startup_materials = swr::make_unique<StartupMaterials>(
       StartupMaterials{
@@ -1997,7 +1998,7 @@ void Application::set_floor_shader(FloorShaderType type)
 
         return material_manager.load(
                                  path,
-                                 read_file(path))
+                                 read_text_file(file_manager, path))
           ->resolve();
     }();
 
@@ -2021,30 +2022,7 @@ void Application::set_floor_shader(FloorShaderType type)
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
-    auto abs_path = std::filesystem::absolute(path);
-    logging::logf(
-      "Loading scene from '{}'...",
-      abs_path.string());
-
-    std::ifstream file{abs_path, std::ios::binary};
-    if(!file.is_open())
-    {
-        logging::errorf(
-          "Failed to open file: {}",
-          abs_path.string());
-        return false;
-    }
-
-    const auto file_size = std::filesystem::file_size(abs_path);
-    std::string contents(file_size, '\0');
-
-    if(!file.read(contents.data(), file_size))
-    {
-        logging::errorf(
-          "Failed to read file: {}",
-          abs_path.string());
-        return false;
-    }
+    auto contents = read_text_file(file_manager, path);
 
     try
     {
@@ -2065,7 +2043,7 @@ bool Application::load_scene(
 bool Application::save_scene(
   const std::filesystem::path& path)
 {
-    auto abs_path = std::filesystem::absolute(path);
+    auto abs_path = file_manager.resolve_write(path);
 
     std::error_code ec;
     std::filesystem::create_directories(abs_path.parent_path(), ec);
@@ -2080,8 +2058,10 @@ bool Application::save_scene(
         return false;
     }
 
-    std::ofstream file{path, std::ios::binary};
-    file << scene.save();
+    write_text_file(
+      file_manager,
+      path,
+      scene.save());
 
     logging::logf(
       "Scene saved to '{}'.",

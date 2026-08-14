@@ -19,50 +19,50 @@ using serial::FileReadArchive;
 using serial::FileWriteArchive;
 
 bool FileManager::exists(
-  const fs::path& p) const
+  const fs::path& path) const
 {
-    if(p.is_absolute())
+    if(path.is_absolute())
     {
-        return fs::exists(p);
+        return fs::exists(path);
     }
 
     return std::ranges::any_of(
       search_paths,
-      [&p](const auto& sp) -> bool
+      [&path](const auto& sp) -> bool
       {
-          return fs::exists(sp / p);
+          return fs::exists(sp / path);
       });
 }
 
 bool FileManager::is_file(
-  const fs::path& p) const
+  const fs::path& path) const
 {
-    if(p.is_absolute())
+    if(path.is_absolute())
     {
-        return fs::is_regular_file(p);
+        return fs::is_regular_file(path);
     }
 
     return std::ranges::any_of(
       search_paths,
-      [&p](const auto& sp) -> bool
+      [&path](const auto& sp) -> bool
       {
-          return fs::is_regular_file(sp / p);
+          return fs::is_regular_file(sp / path);
       });
 }
 
 bool FileManager::is_directory(
-  const fs::path& p) const
+  const fs::path& path) const
 {
-    if(p.is_absolute())
+    if(path.is_absolute())
     {
-        return fs::is_directory(p);
+        return fs::is_directory(path);
     }
 
     return std::ranges::any_of(
       search_paths,
-      [&p](const auto& sp) -> bool
+      [&path](const auto& sp) -> bool
       {
-          return fs::is_directory(sp / p);
+          return fs::is_directory(sp / path);
       });
 }
 
@@ -100,10 +100,10 @@ fs::path FileManager::resolve_write(
 {
     if(path.is_absolute())
     {
-        return path;
+        return path.lexically_normal();
     }
 
-    return writable_root / path;
+    return (writable_root / path).lexically_normal();
 }
 
 swr::unique_ptr<FileReadArchive> FileManager::open_read(

@@ -22,6 +22,7 @@
 #include "scene/scene.h"
 #include "memory/manager.h"
 #include "application.h"
+#include "file_manager.h"
 #include "logging.h"
 #include "main_loop.h"
 #include "platform.h"
@@ -92,8 +93,13 @@ int main(int argc, char* argv[])
       gsl::finally([]() -> void
                    { logging::shutdown(); });
 
+    FileManager file_manager;
+    file_manager.add_search_path(".");
+    file_manager.set_writable_root(".");
+
     logging::FileLogDevice log_device{
-      resolve_log_path(argc, argv),
+      file_manager.resolve_write(
+        resolve_log_path(argc, argv)),
       logging::FileLogDeviceOptions{
         .overflow_policy = logging::OverflowPolicy::DropNewest,
       }};
@@ -146,6 +152,7 @@ int main(int argc, char* argv[])
         Application app{
           "SWR Playground",
           log_device,
+          file_manager,
           task_system,
           render_device,
           renderer,

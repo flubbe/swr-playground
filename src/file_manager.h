@@ -44,32 +44,50 @@ public:
     FileManager& operator=(FileManager&&) = default;
 
     /**
-     * Add a search path. Does nothing if the path already is in the search path list.
-     * Does not check if the path actually exists.
+     * Add a search path. Does nothing if the path is already present.
      *
-     * @param p The search path to add.
+     * @param path The directory to add.
+     * @throws FileError if the path does not exist or is not a directory.
      */
     void add_search_path(
-      std::filesystem::path p)
+      std::filesystem::path path)
     {
-        p = std::filesystem::canonical(p);
-        if(std::ranges::find(search_paths, p) == search_paths.end())
+        path = std::filesystem::canonical(path);
+
+        if(!std::filesystem::is_directory(path))
         {
-            search_paths.emplace_back(std::move(p));
+            throw FileError{
+              std::format(
+                "Cannot add search path. '{}' is not a directory.",
+                path.string())};
+        }
+
+        if(std::ranges::find(search_paths, path) == search_paths.end())
+        {
+            search_paths.emplace_back(std::move(path));
         }
     }
 
     /**
-     * Set the writable root directors.
+     * Set the writable root directory.
      *
      * @param path The new writable root directory.
-     * @throws Throws a `std::filesystem::filesystem_error` if the path does not exists.
-     *     Throws a `FileError` if `path` is not a directory.
+     * @throws Throws a `std::filesystem::filesystem_error` if the path does not exists
+     *     or if `path` is not a directory.
      */
     void set_writable_root(
       std::filesystem::path path)
     {
-        path = std::filesystem::canonical(path);
+        try
+        {
+            path = std::filesystem::canonical(path);
+        }
+        catch(std::filesystem::filesystem_error& e)
+        {
+            throw FileError{
+              e.what()};
+        }
+
         if(!std::filesystem::is_directory(path))
         {
             throw FileError{
@@ -82,22 +100,39 @@ public:
     }
 
     /**
-     * Check if a path exists. If the path is not an absolute path, the
-     * path is checked within the search paths.
+     * Check whether a path exists.
+     *
+     * Relative paths are searched using the configured search paths.
+     * Absolute paths are checked directly.
+     *
+     * @param path The path to check.
+     * @returns Returns `true` if the path exists, and `false` otherwise.
      */
     bool exists(
-      const std::filesystem::path& p) const;
+      const std::filesystem::path& path) const;
 
     /**
-     * Check if a path represents a regular file. If the path is not an absolute path,
-     * the path is checked within the search paths.
+     * Check if a path represents a regular file.
+     *
+     * Relative paths are searched using the configured search paths.
+     * Absolute paths are checked directly.
+     *
+     * @param path The path to check.
+     * @returns Returns `true` if the path is a file, and `false` otherwise.
+     *     In particular, if the path does not exist, `false` is returned.
      */
     bool is_file(
-      const std::filesystem::path& p) const;
+      const std::filesystem::path& path) const;
 
     /**
-     * Check if a path represents a directory. If the path is not an absolute path,
-     * the path is checked within the search paths.
+     * Check if a path represents a directory.
+     *
+     * Relative paths are searched using the configured search paths.
+     * Absolute paths are checked directly.
+     *
+     * @param path The path to check.
+     * @returns Returns `true` if the path is a directory, and `false` otherwise.
+     *     In particular, if the path does not exist, `false` is returned.
      */
     bool is_directory(
       const std::filesystem::path& p) const;

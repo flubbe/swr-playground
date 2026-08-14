@@ -28,6 +28,8 @@
 #include "logging.h"
 #include "splash.h"
 
+class FileManager;
+class MainLoop;
 class MaterialManager;
 class RenderDevice;
 class Renderer;
@@ -35,7 +37,6 @@ class Scene;
 struct StagedStartupScene;
 struct StartupMaterials;
 class Viewport;
-class MainLoop;
 
 struct ViewportInputState
 {
@@ -87,6 +88,7 @@ class Application
 {
     swr::string title;
     logging::BufferedLogDevice& log_device;
+    FileManager& file_manager;
 
     swr::unique_ptr<SplashScreen> splash_screen;
 
@@ -235,6 +237,7 @@ public:
     Application(
       std::string_view title,
       logging::BufferedLogDevice& log_device,
+      FileManager& file_manager,
       task_system::TaskSystem& task_system,
       RenderDevice& render_device,
       Renderer& renderer,
