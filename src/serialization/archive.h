@@ -71,15 +71,6 @@ class Archive
     /** Whether this is a persistent archive. */
     bool persistent;
 
-protected:
-    /**
-     * Serialize raw bytes.
-     *
-     * @param bytes Span containing the bytes.
-     */
-    virtual void serialize_bytes(
-      std::span<std::byte> bytes) = 0;
-
 public:
     /** Defaulted and deleted constructors. */
     Archive() = delete;
@@ -164,31 +155,39 @@ public:
     }
 
     /**
+     * Serialize raw bytes.
+     *
+     * @param bytes Span containing the bytes.
+     */
+    virtual void serialize(
+      std::span<std::byte> bytes) = 0;
+
+    /**
      * Serialize byte span to little endian. That is, if `bytes.size()>1`,
      * the buffer is reversed on big endian architectures.
      *
      * @param bytes The bytes to serialize.
      */
-    virtual void serialize(
+    virtual void byte_order_serialize(
       std::span<std::byte> bytes)
     {
         if(!is_persistent())
         {
             // in-memory archive.
-            serialize_bytes(bytes);
+            serialize(bytes);
         }
         else
         {
             // persistent archive.
             if(target_byte_order == std::endian::native)
             {
-                serialize_bytes(bytes);
+                serialize(bytes);
             }
             else
             {
                 for(std::size_t i = bytes.size(); i > 0; --i)
                 {
-                    serialize_bytes({&bytes[i - 1], 1});    // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+                    serialize({&bytes[i - 1], 1});    // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
                 }
             }
         }
@@ -203,7 +202,7 @@ public:
     template<serializable_scalar T>
     Archive& operator&(T& s)
     {
-        serialize(std::as_writable_bytes(std::span<T>(&s, 1)));
+        byte_order_serialize(std::as_writable_bytes(std::span<T>(&s, 1)));
         return *this;
     }
 };

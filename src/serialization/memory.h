@@ -23,11 +23,6 @@ protected:
     /** The archive buffer. */
     swr::vector<std::byte> memory_buffer;
 
-    void serialize_bytes(std::span<std::byte> bytes) override
-    {
-        memory_buffer.insert(memory_buffer.end(), bytes.begin(), bytes.end());
-    }
-
 public:
     /** Defaulted and deleted constructors. */
     MemoryWriteArchive() = delete;
@@ -67,6 +62,12 @@ public:
         return memory_buffer.size();
     }
 
+    void serialize(
+      std::span<std::byte> bytes) override
+    {
+        memory_buffer.insert(memory_buffer.end(), bytes.begin(), bytes.end());
+    }
+
     /** Clear the internal buffer. */
     void clear()
     {
@@ -90,21 +91,6 @@ protected:
 
     /** Current buffer read offset. */
     std::size_t offset = 0;
-
-    void serialize_bytes(std::span<std::byte> bytes) override
-    {
-        if(offset + bytes.size() > memory_buffer.size())
-        {
-            throw SerializationError{
-              "MemoryReadArchive: read out of bounds."};
-        }
-
-        std::copy(
-          memory_buffer.begin() + offset,
-          memory_buffer.begin() + offset + bytes.size(),
-          bytes.begin());
-        offset += bytes.size();
-    }
 
 public:
     /** Defaulted and deleted constructors. */
@@ -152,6 +138,22 @@ public:
     std::size_t size() override
     {
         return memory_buffer.size();
+    }
+
+    void serialize(
+      std::span<std::byte> bytes) override
+    {
+        if(offset + bytes.size() > memory_buffer.size())
+        {
+            throw SerializationError{
+              "MemoryReadArchive: read out of bounds."};
+        }
+
+        std::copy(
+          memory_buffer.begin() + offset,
+          memory_buffer.begin() + offset + bytes.size(),
+          bytes.begin());
+        offset += bytes.size();
     }
 
     /** Get the internal buffer. */

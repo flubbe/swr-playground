@@ -2,6 +2,7 @@ add_executable(core_tests
     test_allocators.cpp
     test_hash.cpp
     test_logging.cpp
+    test_file_manager.cpp
     test_materials.cpp
     test_mesh.cpp
     test_serialization.cpp
@@ -32,6 +33,7 @@ add_executable(core_tests
     ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
+    ${PROJECT_SOURCE_DIR}/src/file_manager.cpp
     ${PROJECT_SOURCE_DIR}/src/viewport.cpp
 )
 

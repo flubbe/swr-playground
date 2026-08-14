@@ -22,14 +22,6 @@ class HashArchive
     Hasher hasher;
     std::size_t processed_bytes;
 
-protected:
-    void serialize_bytes(
-      std::span<std::byte> bytes) override
-    {
-        hasher.update(bytes);
-        processed_bytes += bytes.size();
-    }
-
 public:
     HashArchive(
       std::uint64_t seed = 0)
@@ -54,6 +46,13 @@ public:
     std::size_t size() override
     {
         return processed_bytes;
+    }
+
+    void serialize(
+      std::span<std::byte> bytes) override
+    {
+        hasher.update(bytes);
+        processed_bytes += bytes.size();
     }
 
     std::uint64_t digest() const
