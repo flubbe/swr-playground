@@ -14,8 +14,8 @@
 
 #include <gsl/gsl>
 
-#include "materialmanager.h"
-#include "renderdevice.h"
+#include "material_manager.h"
+#include "render_device.h"
 #include "shader_cache.h"
 #include "shader_factory.h"
 #include "texture_cache.h"

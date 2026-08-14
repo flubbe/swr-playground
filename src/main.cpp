@@ -16,8 +16,8 @@
 #include <gsl/gsl>
 
 #include "containers/memory.h"
-#include "renderer/materialmanager.h"
-#include "renderer/renderdevice.h"
+#include "renderer/material_manager.h"
+#include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "scene/scene.h"
 #include "memory/manager.h"

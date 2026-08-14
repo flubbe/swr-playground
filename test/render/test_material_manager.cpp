@@ -6,8 +6,8 @@
 #include <gtest/gtest.h>
 
 #include "tasks/task_system.h"
-#include "renderer/materialmanager.h"
-#include "renderer/renderdevice.h"
+#include "renderer/material_manager.h"
+#include "renderer/render_device.h"
 #include "shader_cache.h"
 #include "shader_factory.h"
 #include "texture_cache.h"

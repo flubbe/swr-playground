@@ -17,7 +17,7 @@
 
 #include "containers/format.h"
 #include "reflection/builtin_properties.h"
-#include "renderer/renderdevice.h"
+#include "renderer/render_device.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"

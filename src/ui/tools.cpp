@@ -15,9 +15,9 @@
 #include <imgui.h>
 
 #include "containers/format.h"
-#include "scene/directionallight.h"
+#include "scene/directional_light.h"
 #include "scene/scene.h"
-#include "renderer/renderdevice.h"
+#include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "viewport.h"
 #include "application.h"

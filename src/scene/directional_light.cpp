@@ -8,7 +8,7 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "directionallight.h"
+#include "directional_light.h"
 
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"

@@ -16,7 +16,7 @@
 
 #include <ml/all.h>
 
-#include "scene/directionallight.h"
+#include "scene/directional_light.h"
 #include "scene/scene.h"
 #include "scene/spotlight.h"
 #include "system.h"

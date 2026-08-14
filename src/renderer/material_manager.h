@@ -22,7 +22,7 @@
 #include "containers/memory.h"
 #include "tasks/task_system.h"
 #include "material.h"
-#include "resolvablematerial.h"
+#include "resolvable_material.h"
 #include "texture_cache.h"
 
 /*

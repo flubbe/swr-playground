@@ -8,7 +8,7 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "renderer/renderdevice.h"
+#include "renderer/render_device.h"
 #include "texture_cache.h"
 
 TextureEntry::~TextureEntry()

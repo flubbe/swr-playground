@@ -24,7 +24,7 @@
 #include "systems/system.h"
 #include "animation.h"
 #include "camera.h"
-#include "directionallight.h"
+#include "directional_light.h"
 #include "spotlight.h"
 #include "object.h"
 

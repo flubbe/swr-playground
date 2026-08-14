@@ -19,7 +19,7 @@
 
 #include "scene/camera.h"
 #include "scene/scene.h"
-#include "renderdevice.h"
+#include "render_device.h"
 
 void RenderDevice::apply_rasterizer_state(const RasterizerState& state)
 {

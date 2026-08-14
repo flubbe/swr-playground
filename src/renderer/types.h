@@ -17,7 +17,7 @@
 #include <ml/all.h>
 
 #include "containers/string.h"
-#include "renderer/resolvablematerial.h"
+#include "renderer/resolvable_material.h"
 
 template<typename Tag>
 struct RenderHandle

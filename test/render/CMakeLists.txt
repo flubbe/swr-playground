@@ -4,8 +4,8 @@ add_executable(render_tests
     test_textures.cpp
     ${PROJECT_SOURCE_DIR}/src/assets/material.cpp
     ${PROJECT_SOURCE_DIR}/src/assets/texture.cpp
-    ${PROJECT_SOURCE_DIR}/src/renderer/materialmanager.cpp
-    ${PROJECT_SOURCE_DIR}/src/renderer/renderdevice.cpp
+    ${PROJECT_SOURCE_DIR}/src/renderer/material_manager.cpp
+    ${PROJECT_SOURCE_DIR}/src/renderer/render_device.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp

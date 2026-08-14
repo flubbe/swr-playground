@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "renderer/renderdevice.h"
+#include "renderer/render_device.h"
 #include "texture_cache.h"
 
 TEST(TextureCache, Construction)
