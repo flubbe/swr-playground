@@ -24,17 +24,23 @@ class ResolvableMaterial
 {
     friend class MaterialManager;
 
+    /** Asset path identifying the material. */
+    swr::string path;
+
     /** The material entry, containing resources and handles. */
     swr::shared_ptr<MaterialEntry> entry;
 
     /**
      * Constructor.
      *
+     * @param path Path identifying the material.
      * @param entry The material entry.
      */
     explicit ResolvableMaterial(
+      std::string_view path,
       swr::shared_ptr<MaterialEntry> entry)
-    : entry{std::move(entry)}
+    : path{path}
+    , entry{std::move(entry)}
     {
         assert(this->entry != nullptr);
     }
@@ -73,5 +79,11 @@ public:
     explicit operator bool() const noexcept
     {
         return static_cast<bool>(entry);
+    }
+
+    /** Get the path identifying this material. */
+    const swr::string& get_path() const
+    {
+        return path;
     }
 };

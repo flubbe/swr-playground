@@ -72,9 +72,6 @@ struct MaterialEntry
     /** Material display name. */
     swr::string name;
 
-    /** Material path. */
-    swr::string path;
-
     /** Optional base-color texture referenced by this material. */
     std::optional<TextureRef> base_color;
 
@@ -250,12 +247,12 @@ public:
      * @note The underlying `ShaderFactory` needs to stay alive while the material
      *     is asynchronously resolved.
      *
-     * @param key The material key to use.
+     * @param path Path used for material identification.
      * @param json The JSON string.
      * @returns Returns a resolvable material.
      */
     ResolvableMaterial load(
-      std::string_view key,
+      std::string_view path,
       std::string_view json);
 
     /**
@@ -281,17 +278,17 @@ public:
     /**
      * Get a material by key.
      *
-     * @param key The material key.
+     * @param path The material path.
      * @returns Returns a resolvable material, or `std::nullopt` if the key wasn't found.
      */
     [[nodiscard]]
     std::optional<ResolvableMaterial> get(
-      std::string_view key)
+      std::string_view path)
     {
-        if(auto it = material_cache.find(key);
+        if(auto it = material_cache.find(path);
            it != material_cache.end())
         {
-            return ResolvableMaterial{it->second};
+            return ResolvableMaterial{path, it->second};
         }
         return std::nullopt;
     }

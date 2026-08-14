@@ -400,8 +400,7 @@ private:
 };
 
 void draw_static_mesh_sections(
-  const StaticMesh& mesh,
-  RenderDevice& render_device)
+  const StaticMesh& mesh)
 {
     if(!mesh.has_mesh_sections())
     {
@@ -420,9 +419,8 @@ void draw_static_mesh_sections(
     if(ImGui::BeginTable("MeshSections", 4, table_flags))
     {
         ImGui::TableSetupColumn("LOD", ImGuiTableColumnFlags_WidthFixed, 32.0f);
-        ImGui::TableSetupColumn("Section", ImGuiTableColumnFlags_WidthFixed, 56.0f);
-        ImGui::TableSetupColumn("Material", ImGuiTableColumnFlags_WidthFixed, 72.0f);
-        ImGui::TableSetupColumn("Shader", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Section", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+        ImGui::TableSetupColumn("Material", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
         for(std::size_t lod_index = 0; lod_index < mesh.get_lod_count(); ++lod_index)
@@ -440,18 +438,7 @@ void draw_static_mesh_sections(
                 ImGui::Text("%zu", section_index);
 
                 ImGui::TableSetColumnIndex(2);
-                ImGui::Text("%u", section.material_handle.value);
-
-                ImGui::TableSetColumnIndex(3);
-                const Material* material = render_device.get_material(section.material_handle);
-                if(material != nullptr)
-                {
-                    ImGui::Text("%u", material->shader_handle.value);
-                }
-                else
-                {
-                    ImGui::TextDisabled("n/a");
-                }
+                ImGui::Text("%s", section.material_path.c_str());
             }
         }
 
@@ -466,8 +453,7 @@ namespace imgui
 
 void draw_scene_inspector_panel(
   State& ui_state,
-  Scene& scene,
-  RenderDevice& render_device)
+  Scene& scene)
 {
     ImGui::Begin("Scene Inspector");
     validate_selected_object(ui_state, scene);
@@ -575,7 +561,7 @@ void draw_scene_inspector_panel(
 
                 if(auto* mesh = reflect::try_cast<StaticMesh>(object.get()))
                 {
-                    draw_static_mesh_sections(*mesh, render_device);
+                    draw_static_mesh_sections(*mesh);
                 }
             }
 

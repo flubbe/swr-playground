@@ -41,6 +41,7 @@
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
+#include "serialization/file.h"
 #include "ui/imgui.h"
 #include "application.h"
 #include "logging.h"
@@ -729,79 +730,6 @@ void add_staged_gears(
 
 constexpr std::string_view floor_object_name = "Stone Floor";
 
-constexpr std::string_view shadowed_material_key = "assets/materials/mesh/lit.json";
-constexpr std::string_view shadowed_material_json = R"json(
-{
-  "name": "Shadowed",
-  "shader": "LitSmooth",
-  "textures": {}
-}
-)json";
-
-constexpr std::string_view textured_floor_material_json = R"json(
-{
-  "name": "Textured",
-  "shader": "TexturedFloor",
-  "textures": {
-    "base_color": {
-      "path": "assets/textures/tiles/tiles_0080_color_1k.png",
-      "color_space": "srgb"
-    },
-    "normal": {
-      "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
-      "convention": "opengl",
-      "scale": 1.0
-    }
-  }
-}
-)json";
-
-constexpr std::string_view shiny_floor_material_json = R"json(
-{
-  "name": "Textured Shiny",
-  "shader": "TexturedShinyFloor",
-  "textures": {
-    "base_color": {
-      "path": "assets/textures/tiles/tiles_0080_color_1k.png",
-      "color_space": "srgb"
-    },
-    "normal": {
-      "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
-      "convention": "opengl",
-      "scale": 1.0
-    }
-  }
-}
-)json";
-
-std::string_view get_floor_material_json(
-  FloorShaderType type)
-{
-    switch(type)
-    {
-    case FloorShaderType::TexturedFloor:
-        return textured_floor_material_json;
-    case FloorShaderType::TexturedShinyFloor:
-        return shiny_floor_material_json;
-    default:
-        throw std::runtime_error{"Unknown material type for the floor."};
-    }
-}
-
-std::string_view get_floor_material_key(
-  FloorShaderType type)
-{
-    switch(type)
-    {
-    case FloorShaderType::TexturedFloor:
-        return "assets/materials/floor/floor.json";
-    case FloorShaderType::TexturedShinyFloor:
-        return "assets/materials/floor/floor_shiny.json";
-    default:
-        throw std::runtime_error{"Unknown material type for the floor."};
-    }
-}
-
 swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
   std::string_view material_path,
@@ -930,7 +858,7 @@ void finalize_startup_scene(
     add_staged_gears(
       scene,
       render_device,
-      startup_materials.gear->name,
+      startup_materials.gear.get_path(),
       gear_material,
       staged_scene.gears);
 
@@ -941,7 +869,7 @@ void finalize_startup_scene(
         try_add_textured_floor(
           scene,
           render_device,
-          startup_materials.floor->name,
+          startup_materials.floor.get_path(),
           floor_material,
           *staged_scene.floor);
     }
@@ -952,7 +880,7 @@ void finalize_startup_scene(
 
         auto lods = create_static_mesh_resources(
           render_device,
-          startup_materials.static_mesh->name,
+          startup_materials.static_mesh.get_path(),
           material,
           *staged_scene.sample_mesh);
 
@@ -1190,6 +1118,35 @@ DisplayProgress aggregate_startup_progress(
 
 }    // namespace
 
+/*
+ * ApplicationTaskSystemLogger.
+ */
+
+ApplicationTaskSystemLogger::ApplicationTaskSystemLogger(
+  logging::LogDevice& log_device)
+: logger{"TaskSystem", log_device}
+{
+}
+
+void ApplicationTaskSystemLogger::log(std::string_view message) const
+{
+    logger.logf("{}", message);
+}
+
+void ApplicationTaskSystemLogger::warn(std::string_view message) const
+{
+    logger.warningf("{}", message);
+}
+
+void ApplicationTaskSystemLogger::error(std::string_view message) const
+{
+    logger.errorf("{}", message);
+}
+
+/*
+ * Application.
+ */
+
 void Application::show_window()
 {
     if(window == nullptr)
@@ -1340,7 +1297,7 @@ void Application::render_frame()
           benchmark_iterations);
     }
 
-    imgui::draw_scene_inspector_panel(ui_state, scene, render_device);
+    imgui::draw_scene_inspector_panel(ui_state, scene);
     imgui::draw_class_inspector_panel(ui_state);
 
     draw_runtime_test_modal();
@@ -1387,27 +1344,6 @@ void Application::setup_viewport()
 {
     // Keep the local camera initialized as a fallback if the bound scene camera is removed.
     viewport.reset_editor_camera();
-}
-
-ApplicationTaskSystemLogger::ApplicationTaskSystemLogger(
-  logging::LogDevice& log_device)
-: logger{"TaskSystem", log_device}
-{
-}
-
-void ApplicationTaskSystemLogger::log(std::string_view message) const
-{
-    logger.logf("{}", message);
-}
-
-void ApplicationTaskSystemLogger::warn(std::string_view message) const
-{
-    logger.warningf("{}", message);
-}
-
-void ApplicationTaskSystemLogger::error(std::string_view message) const
-{
-    logger.errorf("{}", message);
 }
 
 Application::Application(
@@ -1578,6 +1514,36 @@ void Application::update_viewport_mouse_capture()
     set_viewport_mouse_capture(should_capture);
 }
 
+static swr::string read_file(const std::string_view path)
+{
+    auto abs_path = std::filesystem::absolute(path);
+    logging::logf(
+      "Loading '{}'...",
+      abs_path.string());
+
+    std::ifstream file{abs_path, std::ios::binary};
+    if(!file.is_open())
+    {
+        throw std::runtime_error{
+          std::format(
+            "Failed to open file: {}",
+            abs_path.string())};
+    }
+
+    const auto file_size = std::filesystem::file_size(abs_path);
+    swr::string contents(file_size, '\0');
+
+    if(!file.read(contents.data(), file_size))
+    {
+        throw std::runtime_error{
+          std::format(
+            "Failed to read file: {}",
+            abs_path.string())};
+    }
+
+    return contents;
+};
+
 void Application::begin_startup()
 {
     /*
@@ -1587,17 +1553,22 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
+    // Load materials.
+    const std::string_view floor_material_path = "assets/materials/floor/floor.json";
+    const std::string_view shadowed_material_path = "assets/materials/mesh/lit.json";
+
+    auto floor_material = material_manager.load(
+      floor_material_path,
+      read_file(floor_material_path));
+    auto shadowed_material = material_manager.load(
+      shadowed_material_path,
+      read_file(shadowed_material_path));
+
     startup_materials = swr::make_unique<StartupMaterials>(
       StartupMaterials{
-        .gear = material_manager.load(
-          shadowed_material_key,
-          shadowed_material_json),
-        .floor = material_manager.load(
-          get_floor_material_key(active_floor_shader),
-          get_floor_material_json(active_floor_shader)),
-        .static_mesh = material_manager.load(
-          shadowed_material_key,
-          shadowed_material_json),
+        .gear = shadowed_material,
+        .floor = floor_material,
+        .static_mesh = shadowed_material,
       });
 
     startup_scene = std::make_shared<StagedStartupScene>();
@@ -1998,11 +1969,37 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
 void Application::set_floor_shader(FloorShaderType type)
 {
     active_floor_shader = type;
-    const MaterialHandle material =
-      material_manager.load(
-                        get_floor_material_key(type),
-                        get_floor_material_json(type))
-        ->resolve();
+
+    const swr::string path = [&]() -> swr::string
+    {
+        if(type == FloorShaderType::TexturedFloor)
+        {
+            return "assets/materials/floor/floor.json";
+        }
+        else if(type == FloorShaderType::TexturedShinyFloor)
+        {
+            return "assets/materials/floor/shiny_floor.json";
+        }
+        else
+        {
+            throw std::runtime_error{"Unknown floor shader type."};
+        }
+    }();
+
+    const MaterialHandle material = [&]() -> MaterialHandle
+    {
+        // Avoid filesystem access.
+        auto cached_material = material_manager.get(path);
+        if(cached_material.has_value())
+        {
+            return cached_material.value()->resolve();
+        }
+
+        return material_manager.load(
+                                 path,
+                                 read_file(path))
+          ->resolve();
+    }();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
@@ -2029,23 +2026,23 @@ bool Application::load_scene(
       "Loading scene from '{}'...",
       abs_path.string());
 
-    std::ifstream file{path, std::ios::binary};
+    std::ifstream file{abs_path, std::ios::binary};
     if(!file.is_open())
     {
         logging::errorf(
           "Failed to open file: {}",
-          path.string());
+          abs_path.string());
         return false;
     }
 
-    const auto file_size = std::filesystem::file_size(path);
+    const auto file_size = std::filesystem::file_size(abs_path);
     std::string contents(file_size, '\0');
 
     if(!file.read(contents.data(), file_size))
     {
         logging::errorf(
           "Failed to read file: {}",
-          path.string());
+          abs_path.string());
         return false;
     }
 

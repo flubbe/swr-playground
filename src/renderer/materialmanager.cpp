@@ -113,13 +113,13 @@ MaterialHandle MaterialEntry::resolve()
 }
 
 ResolvableMaterial MaterialManager::load(
-  std::string_view key,
+  std::string_view path,
   std::string_view json)
 {
-    if(auto it = material_cache.find(key);
+    if(auto it = material_cache.find(path);
        it != material_cache.end())
     {
-        return ResolvableMaterial{it->second};
+        return ResolvableMaterial{path, it->second};
     }
 
     // The material needs to be loaded. We delegate everything
@@ -128,7 +128,7 @@ ResolvableMaterial MaterialManager::load(
     auto submission = task_system.submit(
       [shader_factory = &shader_factory,
        json = swr::string{json},
-       key = swr::string{key}](
+       path = swr::string{path}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -180,7 +180,7 @@ ResolvableMaterial MaterialManager::load(
 
           get_logger().logf(
             "Loaded material '{}'.",
-            key);
+            path);
 
           return resources;
       });
@@ -192,14 +192,14 @@ ResolvableMaterial MaterialManager::load(
       std::move(submission));
 
     material_cache.emplace(
-      swr::string{key},
+      swr::string{path},
       material);
 
-    return ResolvableMaterial{material};
+    return ResolvableMaterial{path, material};
 }
 
 bool MaterialManager::delete_material(
-  std::string_view key)
+  std::string_view path)
 {
-    return material_cache.erase(swr::string{key}) != 0;
+    return material_cache.erase(swr::string{path}) != 0;
 }
