@@ -1910,13 +1910,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         }
 
         auto json = read_text_file(file_manager, material_path);
-        auto material = material_manager.load(material_path, json);
-
-        // FIXME remove
-        material->wait();
-
-        // FIXME material is kept alive by the cache.
-        return material;
+        return material_manager.load(material_path, json);
     };
 
     for(auto& mesh: scene.objects_of<StaticMesh>())

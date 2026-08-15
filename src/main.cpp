@@ -171,6 +171,8 @@ int main(int argc, char* argv[])
         splash_screen.reset();
         main_loop.run();
 
+        // TODO cancel tasks and wait for all before resource cleanup.
+
 #ifndef DEBUG
     }
     catch(const std::exception& e)
