@@ -393,12 +393,13 @@ void Renderer::build_render_queue(
         {
             // TODO We could add bound checks for the mesh sections here.
 
-            if(section.material->is_resolved())
+            if(auto material = section.material.try_get();
+               material.has_value())
             {
                 render_queue.push_back({
                   .sort_depth = obj_sort_depth,
                   .mesh_handle = section.mesh_handle,
-                  .material_handle = section.material->resolved_handle.value(),
+                  .material_handle = material.value(),
                   .color = section.color,
                   .view_from_mesh = obj_view,
                   .shadow_map = {

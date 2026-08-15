@@ -6,6 +6,7 @@ add_executable(render_tests
     ${PROJECT_SOURCE_DIR}/src/assets/texture.cpp
     ${PROJECT_SOURCE_DIR}/src/renderer/material_manager.cpp
     ${PROJECT_SOURCE_DIR}/src/renderer/render_device.cpp
+    ${PROJECT_SOURCE_DIR}/src/renderer/resolvable_material.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/dag.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/scheduler.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp

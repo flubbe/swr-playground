@@ -128,7 +128,7 @@ struct MaterialEntry
      *
      * @returns Returns the material handle if available, or `std::nullopt`.
      */
-    std::optional<MaterialHandle> try_get()
+    std::optional<MaterialHandle> try_get() const
     {
         return resolved_handle;
     }

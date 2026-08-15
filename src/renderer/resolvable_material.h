@@ -19,23 +19,17 @@
  */
 struct MaterialEntry;
 
-/** A material that is asynchronously resolved. */
+/** A material that is potentially asynchronously resolved. */
 class ResolvableMaterial
 {
-    friend class MaterialManager;
-
     /** Asset path identifying the material. */
     swr::string path;
 
-    /*
-     * TODO unify these into a variant.
-     */
-
-    /** The async material entry, containing resources and handles. */
-    swr::shared_ptr<MaterialEntry> entry;
-
-    /** The directly loaded handle. */
-    MaterialHandle handle;
+    /** Async or directly loaded material. */
+    std::variant<
+      swr::shared_ptr<MaterialEntry>,
+      MaterialHandle>
+      material;
 
 public:
     /** Deleted default constructor. */
@@ -55,8 +49,7 @@ public:
       std::string_view path,
       swr::shared_ptr<MaterialEntry> entry)
     : path{path}
-    , entry{std::move(entry)}
-    , handle{0}
+    , material{std::move(entry)}
     {
     }
 
@@ -70,38 +63,29 @@ public:
       std::string_view path,
       MaterialHandle handle)
     : path{path}
-    , entry{}
-    , handle{handle}
+    , material{handle}
     {
     }
 
     ResolvableMaterial& operator=(const ResolvableMaterial&) = default;
     ResolvableMaterial& operator=(ResolvableMaterial&&) = default;
 
-    MaterialEntry* operator->() noexcept
-    {
-        return entry.get();
-    }
-
-    const MaterialEntry* operator->() const noexcept
-    {
-        return entry.get();
-    }
-
-    MaterialEntry& operator*() noexcept
-    {
-        return *entry;
-    }
-
-    const MaterialEntry& operator*() const noexcept
-    {
-        return *entry;
-    }
-
     explicit operator bool() const noexcept
     {
-        return static_cast<bool>(entry);
+        if(auto* result =
+             std::get_if<swr::shared_ptr<MaterialEntry>>(&material))
+        {
+            return static_cast<bool>(*result);
+        }
+
+        return std::get<MaterialHandle>(material) != 0;
     }
+
+    /** Whether the material is resolved. */
+    bool is_resolved() const;
+
+    /** Get the material handle. */
+    std::optional<MaterialHandle> try_get() const;
 
     /** Get the path identifying this material. */
     const swr::string& get_path() const
@@ -109,6 +93,15 @@ public:
         return path;
     }
 
-    /** Get the material handle. */
-    std::optional<MaterialHandle> try_get();
+    /**
+     * Get the `MaterialEntry`.
+     *
+     * @throws Throws `std::bad_variant_access` if the resolvable materials
+     *     holds a material handle.
+     */
+    [[nodiscard]]
+    MaterialEntry& get_entry()
+    {
+        return *std::get<swr::shared_ptr<MaterialEntry>>(material);
+    }
 };

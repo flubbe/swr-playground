@@ -11,11 +11,24 @@
 #include "material_manager.h"
 #include "resolvable_material.h"
 
-std::optional<MaterialHandle> ResolvableMaterial::try_get()
+bool ResolvableMaterial::is_resolved() const
 {
-    if(entry)
+    if(auto* result =
+         std::get_if<swr::shared_ptr<MaterialEntry>>(&material))
     {
-        return entry->try_get();
+        return (*result)->is_resolved();
     }
-    return handle;
+
+    return std::get<MaterialHandle>(material) != 0;
+}
+
+std::optional<MaterialHandle> ResolvableMaterial::try_get() const
+{
+    if(auto* result =
+         std::get_if<swr::shared_ptr<MaterialEntry>>(&material))
+    {
+        return (*result)->try_get();
+    }
+
+    return std::get<MaterialHandle>(material);
 }

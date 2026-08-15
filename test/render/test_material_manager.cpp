@@ -149,10 +149,10 @@ TEST(MaterialManagerTests, Load)
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
     ASSERT_TRUE(result.has_value());
 
-    ASSERT_TRUE(result.value()->valid());
-    ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_NO_THROW(result.value()->finalize());
-    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
+    ASSERT_TRUE(result.value().get_entry().valid());
+    ASSERT_NO_THROW(result.value().get_entry().wait());
+    ASSERT_NO_THROW(result.value().get_entry().finalize());
+    EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 
     const std::string unknown_shader =
       "{\n"
@@ -160,9 +160,9 @@ TEST(MaterialManagerTests, Load)
       "}";
     ASSERT_NO_THROW(result.emplace(manager.load("UnknownMaterial", unknown_shader)));
 
-    ASSERT_TRUE(result.value()->valid());
-    ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_THROW(result.value()->finalize(), task_system::TaskCancelledError);
+    ASSERT_TRUE(result.value().get_entry().valid());
+    ASSERT_NO_THROW(result.value().get_entry().wait());
+    ASSERT_THROW(result.value().get_entry().finalize(), task_system::TaskCancelledError);
 
     EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
 }
@@ -195,18 +195,18 @@ TEST(MaterialManagerTests, LoadWithKey)
     std::optional<ResolvableMaterial> handle;
     ASSERT_NO_THROW(handle.emplace(manager.load("FirstMaterial", json)));
 
-    ASSERT_TRUE((*handle)->valid());
-    ASSERT_NO_THROW((*handle)->wait());
-    ASSERT_NO_THROW((*handle)->finalize());
-    EXPECT_EQ((*handle)->try_get(), 1);    // material ids start at 1
+    ASSERT_TRUE((*handle).get_entry().valid());
+    ASSERT_NO_THROW((*handle).get_entry().wait());
+    ASSERT_NO_THROW((*handle).get_entry().finalize());
+    EXPECT_EQ((*handle).try_get(), 1);    // material ids start at 1
 
     std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
 
     ASSERT_TRUE(result.has_value());
-    ASSERT_FALSE(result.value()->valid());    // because it's already resolved
-    EXPECT_TRUE(result.value()->is_resolved());
-    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
+    ASSERT_FALSE(result.value().get_entry().valid());    // because it's already resolved
+    EXPECT_TRUE(result.value().get_entry().is_resolved());
+    EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result = manager.get("UnknownShader"));
     EXPECT_FALSE(result.has_value());
@@ -245,14 +245,14 @@ TEST(MaterialManagerTests, Deduplicate)
     std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
 
-    ASSERT_TRUE(result.value()->valid());
-    ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_NO_THROW(result.value()->finalize());
-    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
+    ASSERT_TRUE(result.value().get_entry().valid());
+    ASSERT_NO_THROW(result.value().get_entry().wait());
+    ASSERT_NO_THROW(result.value().get_entry().finalize());
+    EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
-    EXPECT_TRUE(result.value()->is_resolved());
-    EXPECT_EQ(result.value()->try_get(), 1);
+    EXPECT_TRUE(result.value().get_entry().is_resolved());
+    EXPECT_EQ(result.value().try_get(), 1);
 
     const std::string json2 =
       "{\n"
@@ -260,12 +260,12 @@ TEST(MaterialManagerTests, Deduplicate)
       "}";
     ASSERT_NO_THROW(result.emplace(manager.load("SecondMaterial", json2)));
 
-    ASSERT_TRUE(result.value()->valid());
-    ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_NO_THROW(result.value()->finalize());
-    EXPECT_TRUE(result.value()->is_resolved());
+    ASSERT_TRUE(result.value().get_entry().valid());
+    ASSERT_NO_THROW(result.value().get_entry().wait());
+    ASSERT_NO_THROW(result.value().get_entry().finalize());
+    EXPECT_TRUE(result.value().get_entry().is_resolved());
 
-    EXPECT_EQ(result.value()->try_get(), 2);
+    EXPECT_EQ(result.value().try_get(), 2);
 }
 
 TEST(MaterialManagerTests, LoadWithTextures)
@@ -307,8 +307,8 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "}";
     std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
-    ASSERT_TRUE(result.value()->valid());
-    ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_NO_THROW(result.value()->finalize());
-    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
+    ASSERT_TRUE(result.value().get_entry().valid());
+    ASSERT_NO_THROW(result.value().get_entry().wait());
+    ASSERT_NO_THROW(result.value().get_entry().finalize());
+    EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 }

@@ -71,16 +71,16 @@ struct StartupMaterials
     {
         using namespace std::chrono_literals;
 
-        return gear->wait_for(0ms) == std::future_status::ready
-               && floor->wait_for(0ms) == std::future_status::ready
-               && static_mesh->wait_for(0ms) == std::future_status::ready;
+        return gear.get_entry().wait_for(0ms) == std::future_status::ready
+               && floor.get_entry().wait_for(0ms) == std::future_status::ready
+               && static_mesh.get_entry().wait_for(0ms) == std::future_status::ready;
     }
 
     void wait()
     {
-        gear->wait();
-        floor->wait();
-        static_mesh->wait();
+        gear.get_entry().wait();
+        floor.get_entry().wait();
+        static_mesh.get_entry().wait();
     }
 };
 
