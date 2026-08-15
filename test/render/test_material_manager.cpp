@@ -104,6 +104,7 @@ TEST(MaterialManagerTests, Construction)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
+    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -113,6 +114,7 @@ TEST(MaterialManagerTests, Construction)
       MaterialManager manager(
         task_system,
         device,
+        queue,
         shader_cache,
         shader_factory,
         texture_cache));
@@ -123,6 +125,7 @@ TEST(MaterialManagerTests, Load)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
+    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -133,6 +136,7 @@ TEST(MaterialManagerTests, Load)
     MaterialManager manager{
       task_system,
       device,
+      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -147,7 +151,8 @@ TEST(MaterialManagerTests, Load)
 
     ASSERT_TRUE(result.value()->valid());
     ASSERT_NO_THROW(result.value()->wait());
-    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
+    ASSERT_NO_THROW(result.value()->finalize());
+    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
 
     const std::string unknown_shader =
       "{\n"
@@ -157,7 +162,7 @@ TEST(MaterialManagerTests, Load)
 
     ASSERT_TRUE(result.value()->valid());
     ASSERT_NO_THROW(result.value()->wait());
-    ASSERT_THROW(result.value()->resolve(), std::runtime_error);
+    ASSERT_THROW(result.value()->finalize(), task_system::TaskCancelledError);
 
     EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
 }
@@ -167,6 +172,7 @@ TEST(MaterialManagerTests, LoadWithKey)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
+    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -177,6 +183,7 @@ TEST(MaterialManagerTests, LoadWithKey)
     MaterialManager manager{
       task_system,
       device,
+      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -190,7 +197,8 @@ TEST(MaterialManagerTests, LoadWithKey)
 
     ASSERT_TRUE((*handle)->valid());
     ASSERT_NO_THROW((*handle)->wait());
-    EXPECT_EQ((*handle)->resolve(), 1);    // material ids start at 1
+    ASSERT_NO_THROW((*handle)->finalize());
+    EXPECT_EQ((*handle)->try_get(), 1);    // material ids start at 1
 
     std::optional<ResolvableMaterial> result;
     ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
@@ -198,7 +206,7 @@ TEST(MaterialManagerTests, LoadWithKey)
     ASSERT_TRUE(result.has_value());
     ASSERT_FALSE(result.value()->valid());    // because it's already resolved
     EXPECT_TRUE(result.value()->is_resolved());
-    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
+    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result = manager.get("UnknownShader"));
     EXPECT_FALSE(result.has_value());
@@ -213,6 +221,7 @@ TEST(MaterialManagerTests, Deduplicate)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
+    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -224,6 +233,7 @@ TEST(MaterialManagerTests, Deduplicate)
     MaterialManager manager{
       task_system,
       device,
+      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -237,11 +247,12 @@ TEST(MaterialManagerTests, Deduplicate)
 
     ASSERT_TRUE(result.value()->valid());
     ASSERT_NO_THROW(result.value()->wait());
-    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
+    ASSERT_NO_THROW(result.value()->finalize());
+    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
 
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
     EXPECT_TRUE(result.value()->is_resolved());
-    EXPECT_EQ(result.value()->resolve(), 1);
+    EXPECT_EQ(result.value()->try_get(), 1);
 
     const std::string json2 =
       "{\n"
@@ -251,10 +262,10 @@ TEST(MaterialManagerTests, Deduplicate)
 
     ASSERT_TRUE(result.value()->valid());
     ASSERT_NO_THROW(result.value()->wait());
-    EXPECT_FALSE(result.value()->is_resolved());
-
-    EXPECT_EQ(result.value()->resolve(), 2);
+    ASSERT_NO_THROW(result.value()->finalize());
     EXPECT_TRUE(result.value()->is_resolved());
+
+    EXPECT_EQ(result.value()->try_get(), 2);
 }
 
 TEST(MaterialManagerTests, LoadWithTextures)
@@ -262,6 +273,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
+    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -272,6 +284,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
     MaterialManager manager{
       task_system,
       device,
+      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -296,5 +309,6 @@ TEST(MaterialManagerTests, LoadWithTextures)
     ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
     ASSERT_TRUE(result.value()->valid());
     ASSERT_NO_THROW(result.value()->wait());
-    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
+    ASSERT_NO_THROW(result.value()->finalize());
+    EXPECT_EQ(result.value()->try_get(), 1);    // material ids start at 1
 }

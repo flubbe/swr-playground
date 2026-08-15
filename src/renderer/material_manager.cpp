@@ -43,11 +43,11 @@ MaterialEntry::~MaterialEntry()
     }
 }
 
-MaterialHandle MaterialEntry::resolve()
+void MaterialEntry::finalize()
 {
     if(resolved_handle.has_value())
     {
-        return *resolved_handle;
+        return;
     }
 
     MaterialResources loaded = resources.future.get();
@@ -108,8 +108,6 @@ MaterialHandle MaterialEntry::resolve()
 
     resolved_handle = device.create_material(material);
     success = true;
-
-    return *resolved_handle;
 }
 
 ResolvableMaterial MaterialManager::load(
@@ -182,6 +180,9 @@ ResolvableMaterial MaterialManager::load(
             "Loaded material '{}'.",
             path);
 
+          // MaterialResources contains only CPU-side data and can be transferred
+          // to the render/main thread for finalization.
+
           return resources;
       });
 
@@ -194,6 +195,9 @@ ResolvableMaterial MaterialManager::load(
     material_cache.emplace(
       swr::string{path},
       material);
+
+    // Push to pending material queue which is processed on render/main thread.
+    pending_material_queue.push_back(material);
 
     return ResolvableMaterial{path, material};
 }

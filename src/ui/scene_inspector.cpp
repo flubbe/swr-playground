@@ -438,7 +438,7 @@ void draw_static_mesh_sections(
                 ImGui::Text("%zu", section_index);
 
                 ImGui::TableSetColumnIndex(2);
-                ImGui::Text("%s", section.material_path.c_str());
+                ImGui::Text("%s", section.material.get_path().c_str());
             }
         }
 

@@ -24,12 +24,14 @@
 #include "material.h"
 #include "resolvable_material.h"
 #include "texture_cache.h"
+#include "queue.h"
 
 /*
  * Forward declarations.
  */
 
 class RenderDevice;
+class RenderTaskQueue;
 class ShaderCache;
 class ShaderFactory;
 
@@ -122,12 +124,21 @@ struct MaterialEntry
     }
 
     /**
-     * Get the resolved material handle.
+     * Get the material handle if the material is resolved.
      *
-     * @note Performs `RenderDevice` upload on first access.
-     * @returns Returns the material handle.
+     * @returns Returns the material handle if available, or `std::nullopt`.
      */
-    MaterialHandle resolve();
+    std::optional<MaterialHandle> try_get()
+    {
+        return resolved_handle;
+    }
+
+    /**
+     * Finalize material loading.
+     *
+     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
+     */
+    void finalize();
 
     /** Checks if the underlying future is valid. */
     [[nodiscard]]
@@ -181,6 +192,11 @@ class MaterialManager
     /** Render device reference. */
     RenderDevice& device;
 
+    /** Pending material queue. */
+    ThreadSafeQueue<
+      swr::shared_ptr<
+        MaterialEntry>>& pending_material_queue;
+
     /** Shader cache. */
     ShaderCache& shader_cache;
 
@@ -218,11 +234,15 @@ public:
     MaterialManager(
       task_system::TaskSystem& task_system,
       RenderDevice& device,
+      ThreadSafeQueue<
+        swr::shared_ptr<
+          MaterialEntry>>& pending_material_queue,
       ShaderCache& shader_cache,
       ShaderFactory& shader_factory,
       TextureCache& texture_cache)
     : task_system{task_system}
     , device{device}
+    , pending_material_queue{pending_material_queue}
     , shader_cache{shader_cache}
     , shader_factory{shader_factory}
     , texture_cache{texture_cache}

@@ -29,13 +29,14 @@
 #include "assets/shaders/textured_shiny_floor.h"
 #include "containers/format.h"
 #include "containers/vector.h"
+#include "logging.h"
+#include "material_manager.h"
 #include "render_device.h"
 #include "renderer.h"
 #include "scene/directional_light.h"
 #include "scene/spotlight.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
-#include "logging.h"
 #include "viewport.h"
 
 namespace
@@ -392,23 +393,26 @@ void Renderer::build_render_queue(
         {
             // TODO We could add bound checks for the mesh sections here.
 
-            render_queue.push_back({
-              .sort_depth = obj_sort_depth,
-              .mesh_handle = section.mesh_handle,
-              .material_handle = section.material_handle,
-              .color = section.color,
-              .view_from_mesh = obj_view,
-              .shadow_map = {
-                .enabled =
-                  shadow_camera.has_value()
-                  && static_mesh.receives_shadows
-                  && shadow_map != 0,
-                .handle = shadow_map,
-                .clip_from_mesh = shadow_clip_from_mesh,
-                .depth_bias = 0.0008f,
-                .linear_filter = shadow_linear_filter,
-              },
-            });
+            if(section.material->is_resolved())
+            {
+                render_queue.push_back({
+                  .sort_depth = obj_sort_depth,
+                  .mesh_handle = section.mesh_handle,
+                  .material_handle = section.material->resolved_handle.value(),
+                  .color = section.color,
+                  .view_from_mesh = obj_view,
+                  .shadow_map = {
+                    .enabled =
+                      shadow_camera.has_value()
+                      && static_mesh.receives_shadows
+                      && shadow_map != 0,
+                    .handle = shadow_map,
+                    .clip_from_mesh = shadow_clip_from_mesh,
+                    .depth_bias = 0.0008f,
+                    .linear_filter = shadow_linear_filter,
+                  },
+                });
+            }
 
             // update stats.
             ++render_stats.mesh_sections_drawn;
@@ -575,6 +579,7 @@ void Renderer::end_render()
 
 void Renderer::create_grid_mesh()
 {
+#if 0
     release_grid_mesh();
 
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
@@ -627,34 +632,37 @@ void Renderer::create_grid_mesh()
         }
     }
 
-    overlay_grid = {
-      .mesh_handle = device.create_mesh(
-        MeshData{
-          .primitive_type = PrimitiveType::Lines,
-          .indices = std::move(ib),
-          .vertices = std::move(vb),
-          .normals = std::move(nb),
-          .texcoords = {}}),
-      .material_handle = gray_material,
-      .color = color_gray};
+    overlay_grid = swr::make_unique<MeshSection>(
+      MeshSection{
+        .mesh_handle = device.create_mesh(
+          MeshData{
+            .primitive_type = PrimitiveType::Lines,
+            .indices = std::move(ib),
+            .vertices = std::move(vb),
+            .normals = std::move(nb),
+            .texcoords = {}}),
+        .material = gray_material, // FIXME needs material_manager
+        .color = color_gray});
+#endif
 }
 
 void Renderer::release_grid_mesh()
 {
-    if(overlay_grid.mesh_handle)
+    if(overlay_grid != nullptr)
     {
-        device.delete_mesh(overlay_grid.mesh_handle);
-        overlay_grid.mesh_handle = {};
-    }
-    if(overlay_grid.material_handle)
-    {
-        device.delete_material(overlay_grid.material_handle);
-        overlay_grid.material_handle = {};
+        if(overlay_grid->mesh_handle)
+        {
+            device.delete_mesh(overlay_grid->mesh_handle);
+            overlay_grid->mesh_handle = {};
+        }
+
+        overlay_grid.reset();
     }
 }
 
 void Renderer::create_spotlight_depth_debug_mesh()
 {
+#if 0
     release_spotlight_depth_debug_mesh();
 
     auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
@@ -705,23 +713,23 @@ void Renderer::create_spotlight_depth_debug_mesh()
           .normals = std::move(qnb),
           .texcoords = std::move(qtb),
         }),
-      .material_handle = debug_shadow_material,
+      .material_handle = debug_shadow_material, // FIXME needs material_manager
       .color = {1.f, 1.f, 1.f, 1.f},
     };
+#endif
 }
 
 void Renderer::release_spotlight_depth_debug_mesh()
 {
-    if(overlay_spotlight_depth.mesh_handle)
+    // TODO Should be handled by .reset(), too.
+    if(overlay_spotlight_depth != nullptr
+       && overlay_spotlight_depth->mesh_handle)
     {
-        device.delete_mesh(overlay_spotlight_depth.mesh_handle);
-        overlay_spotlight_depth.mesh_handle = {};
+        device.delete_mesh(overlay_spotlight_depth->mesh_handle);
+        overlay_spotlight_depth->mesh_handle = {};
     }
-    if(overlay_spotlight_depth.material_handle)
-    {
-        device.delete_material(overlay_spotlight_depth.material_handle);
-        overlay_spotlight_depth.material_handle = {};
-    }
+
+    overlay_spotlight_depth.reset();
 }
 
 Renderer::~Renderer()
@@ -807,6 +815,17 @@ void Renderer::render_scene(
 void Renderer::render_grid(
   const Camera& camera)
 {
+    if(overlay_grid == nullptr)
+    {
+        return;
+    }
+
+    std::optional<MaterialHandle> material = overlay_grid->material->try_get();
+    if(!material.has_value())
+    {
+        return;
+    }
+
     device.bind_rasterizer_state({
       .wireframe = false,
       .cull_face = false,
@@ -815,22 +834,23 @@ void Renderer::render_grid(
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
 
-    device.bind_material(overlay_grid.material_handle);
+    device.bind_material(material.value());
     device.bind_camera_uniforms({
       .proj = projection,
       .view = view,
     });
     device.bind_lighting_uniforms({});
     device.bind_material_uniforms({
-      .base_color = overlay_grid.color,
+      .base_color = overlay_grid->color,
     });
     device.bind_shadow_uniforms({});
 
-    device.draw_mesh(overlay_grid.mesh_handle);
+    device.draw_mesh(overlay_grid->mesh_handle);
 }
 
 void Renderer::render_spotlight_depth_debug()
 {
+#if 0
     if(shadow_map == 0)
     {
         return;
@@ -848,7 +868,7 @@ void Renderer::render_spotlight_depth_debug()
       .depth_bias = 0.f,
       .linear_filter = false,
     });
-    device.bind_material(overlay_spotlight_depth.material_handle);
+    device.bind_material(overlay_spotlight_depth.material_handle);    // FIXME materail
     device.bind_camera_uniforms({
       .proj = ml::mat4x4::identity(),
       .view = ml::mat4x4::identity(),
@@ -862,8 +882,9 @@ void Renderer::render_spotlight_depth_debug()
       .clip_from_mesh = ml::mat4x4::identity(),
       .params = {0.f, static_cast<float>(ShadowPcfMode::Off), 0.f, 0.f},
     });
-    device.draw_mesh(overlay_spotlight_depth.mesh_handle);
+    device.draw_mesh(overlay_spotlight_depth->mesh_handle);
     device.clear_shadow_map();
+#endif
 }
 
 void Renderer::render(
@@ -875,10 +896,13 @@ void Renderer::render(
 
     const Camera& camera = viewport.get_camera(scene);
 
+    // Process pending resources.
+    process_pending_resources();
+
     begin_render(scene);
 
     /*
-     * scene rendering.
+     * Scene rendering.
      */
 
     render_shadow_map(scene);
@@ -897,7 +921,7 @@ void Renderer::render(
     }
 
     /*
-     * viewport overlays.
+     * Viewport overlays.
      */
 
     if(!display_settings.debug_spotlight_depth
@@ -1083,4 +1107,25 @@ void Renderer::update_sorting_benchmark(
             }
         }
     }
+}
+
+void Renderer::process_pending_resources()
+{
+    using namespace std::literals;
+
+    // TODO Could make this subject to a time budget.
+    pending_materials.for_each(
+      [](swr::shared_ptr<MaterialEntry>& entry)
+      {
+          if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
+          {
+              entry->finalize();
+              logging::logf(
+                "Finalized material '{}'.",
+                entry->name);
+
+              return true;    // remove entry.
+          }
+          return false;    // keep entry for next time.
+      });
 }

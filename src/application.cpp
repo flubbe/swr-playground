@@ -657,8 +657,7 @@ void imgui_draw_viewport_panel(
 
 GearParameters create_gear_resources(
   RenderDevice& device,
-  std::string_view material_path,
-  MaterialHandle material,
+  ResolvableMaterial material,
   const StagedGearInstance& staged)
 {
     auto inner_mesh_data = MeshData{
@@ -683,15 +682,13 @@ GearParameters create_gear_resources(
     return GearParameters{
       .inner = MeshSection{
         .mesh_handle = inner_mesh,
-        .material_path = swr::string{material_path},
-        .material_handle = material,
+        .material = material,
         .color = staged.color,
         .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
         .mesh_handle = outer_mesh,
-        .material_path = swr::string{material_path},
-        .material_handle = material,
+        .material = material,
         .color = staged.color,
         .triangle_count = outer_mesh_data.indices.size() / 3,
       },
@@ -707,15 +704,13 @@ GearParameters create_gear_resources(
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
-  std::string_view material_path,
-  MaterialHandle material,
+  ResolvableMaterial material,
   const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
     {
         auto params = create_gear_resources(
           device,
-          material_path,
           material,
           staged);
         auto* gear = scene.add_object<Gear>(params);
@@ -733,8 +728,7 @@ constexpr std::string_view floor_object_name = "Stone Floor";
 
 swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
-  std::string_view material_path,
-  MaterialHandle material,
+  ResolvableMaterial material,
   const StagedStaticMeshAsset& staged_asset)
 {
     swr::vector<StaticMeshLod> result_lods;
@@ -766,8 +760,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .mesh_handle = mesh_handle,
-                .material_path = swr::string{material_path},
-                .material_handle = material,
+                .material = material,
                 .color = section.diffuse_color,
                 .triangle_count = staged_lod.mesh.indices.size() / 3,
               });
@@ -787,8 +780,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
-  std::string_view material_path,
-  MaterialHandle material,
+  ResolvableMaterial material,
   const StagedFloorData& floor_data)
 {
     std::optional<MeshHandle> mesh_handle;
@@ -805,8 +797,7 @@ void try_add_textured_floor(
           swr::vector<MeshSection>{
             MeshSection{
               .mesh_handle = *mesh_handle,
-              .material_path = swr::string{material_path},
-              .material_handle = material,
+              .material = material,
               .color = {1.f, 1.f, 1.f, 1.f},
               .triangle_count = floor_data.mesh.indices.size() / 3,
             }},
@@ -854,35 +845,26 @@ void finalize_startup_scene(
     configure_default_directional_lights(scene);
     configure_default_spot_lights(scene);
 
-    const MaterialHandle gear_material = startup_materials.gear->resolve();
-
     add_staged_gears(
       scene,
       render_device,
-      startup_materials.gear.get_path(),
-      gear_material,
+      startup_materials.gear,
       staged_scene.gears);
 
     if(staged_scene.floor.has_value())
     {
-        const MaterialHandle floor_material = startup_materials.floor->resolve();
-
         try_add_textured_floor(
           scene,
           render_device,
-          startup_materials.floor.get_path(),
-          floor_material,
+          startup_materials.floor,
           *staged_scene.floor);
     }
 
     if(staged_scene.sample_mesh.has_value())
     {
-        const MaterialHandle material = startup_materials.static_mesh->resolve();
-
         auto lods = create_static_mesh_resources(
           render_device,
-          startup_materials.static_mesh.get_path(),
-          material,
+          startup_materials.static_mesh,
           *staged_scene.sample_mesh);
 
         if(!lods.empty())
@@ -1918,13 +1900,13 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         }
     }();
 
-    auto get_material_handle = [&]() -> MaterialHandle
+    auto get_material = [&]() -> ResolvableMaterial
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(material_path);
         if(cached_material.has_value())
         {
-            return cached_material.value()->resolve();
+            return cached_material.value();
         }
 
         auto json = read_text_file(file_manager, material_path);
@@ -1934,7 +1916,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         material->wait();
 
         // FIXME material is kept alive by the cache.
-        return material->resolve();
+        return material;
     };
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
@@ -1953,8 +1935,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                section.material_path = material_path;
-                section.material_handle = get_material_handle();
+                section.material = get_material();
             }
         }
     }
@@ -1980,19 +1961,18 @@ void Application::set_floor_shader(FloorShaderType type)
         }
     }();
 
-    const MaterialHandle material = [&]() -> MaterialHandle
+    const ResolvableMaterial material = [&]() -> ResolvableMaterial
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(path);
         if(cached_material.has_value())
         {
-            return cached_material.value()->resolve();
+            return cached_material.value();
         }
 
         return material_manager.load(
-                                 path,
-                                 read_text_file(file_manager, path))
-          ->resolve();
+          path,
+          read_text_file(file_manager, path));
     }();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
@@ -2006,7 +1986,7 @@ void Application::set_floor_shader(FloorShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                section.material_handle = material;
+                section.material = material;
             }
         }
     }

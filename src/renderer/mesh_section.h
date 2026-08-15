@@ -22,11 +22,8 @@ struct MeshSection
     /** Mesh handle. */
     MeshHandle mesh_handle{};
 
-    /** Material path. */
-    swr::string material_path;
-
-    /** Material handle. */
-    MaterialHandle material_handle{};
+    /** Material. */
+    ResolvableMaterial material;
 
     /** Base color used by the lighting shader. */
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};

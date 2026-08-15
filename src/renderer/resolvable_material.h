@@ -31,6 +31,14 @@ class ResolvableMaterial
     /** The material entry, containing resources and handles. */
     swr::shared_ptr<MaterialEntry> entry;
 
+public:
+    /** Deleted default constructor. */
+    ResolvableMaterial() = delete;
+
+    /** Defaulted copy/moves. */
+    ResolvableMaterial(const ResolvableMaterial&) = default;
+    ResolvableMaterial(ResolvableMaterial&&) = default;
+
     /**
      * Constructor.
      *
@@ -43,16 +51,7 @@ class ResolvableMaterial
     : path{path}
     , entry{std::move(entry)}
     {
-        assert(this->entry != nullptr);
     }
-
-public:
-    /** Deleted default constructor. */
-    ResolvableMaterial() = delete;
-
-    /** Defaulted copy/moves. */
-    ResolvableMaterial(const ResolvableMaterial&) = default;
-    ResolvableMaterial(ResolvableMaterial&&) = default;
 
     ResolvableMaterial& operator=(const ResolvableMaterial&) = default;
     ResolvableMaterial& operator=(ResolvableMaterial&&) = default;

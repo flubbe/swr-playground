@@ -19,9 +19,12 @@
 #include "containers/memory.h"
 #include "mesh_section.h"
 #include "shader_factory.h"
+#include "material_manager.h"
+#include "queue.h"
 
 class Scene;
 class Camera;
+struct MaterialEntry;
 class Viewport;
 struct ViewportDisplaySettings;
 class RenderDevice;
@@ -334,6 +337,11 @@ inline const char* RenderQueueSorter::get_name() const
       get_sort_mode());
 }
 
+struct MaterialResolveRequest
+{
+    swr::shared_ptr<MaterialEntry> entry;
+};
+
 class Renderer final
 {
     static constexpr int shadow_map_resolution = 1024;
@@ -355,6 +363,15 @@ class Renderer final
      */
 
     void register_shaders();
+
+    /*
+     * Resource resolution.
+     */
+
+    ThreadSafeQueue<
+      swr::shared_ptr<
+        MaterialEntry>>
+      pending_materials;
 
     /*
      * Render queues.
@@ -406,8 +423,8 @@ class Renderer final
      * Viewport overlays.
      */
 
-    MeshSection overlay_grid;
-    MeshSection overlay_spotlight_depth;
+    swr::unique_ptr<MeshSection> overlay_grid;
+    swr::unique_ptr<MeshSection> overlay_spotlight_depth;
     ShadowMapHandle shadow_map{};
 
     void create_grid_mesh();
@@ -574,4 +591,26 @@ public:
     void render(
       const Scene& scene,
       const Viewport& viewport);
+
+    /*
+     * Resource resolution.
+     */
+
+    void process_pending_resources();
+
+    ThreadSafeQueue<
+      swr::shared_ptr<
+        MaterialEntry>>&
+      get_pending_materials()
+    {
+        return pending_materials;
+    }
+
+    const ThreadSafeQueue<
+      swr::shared_ptr<
+        MaterialEntry>>&
+      get_pending_materials() const
+    {
+        return pending_materials;
+    }
 };

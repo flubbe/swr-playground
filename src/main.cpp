@@ -142,6 +142,7 @@ int main(int argc, char* argv[])
         MaterialManager material_manager{
           task_system,
           render_device,
+          renderer.get_pending_materials(),
           shader_cache,
           renderer.get_shader_factory(),
           texture_cache};
