@@ -358,6 +358,12 @@ class Renderer final
 
     MaterialHandle shadow_material{0};
 
+    MaterialHandle grid_material{0};
+    ShaderHandle grid_shader{0};
+
+    MaterialHandle shadow_debug_overlay_material{0};
+    ShaderHandle shadow_debug_overlay_shader{0};
+
     /*
      * Initialization.
      */

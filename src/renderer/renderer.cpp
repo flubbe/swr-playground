@@ -579,7 +579,6 @@ void Renderer::end_render()
 
 void Renderer::create_grid_mesh()
 {
-#if 0
     release_grid_mesh();
 
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
@@ -641,34 +640,45 @@ void Renderer::create_grid_mesh()
             .vertices = std::move(vb),
             .normals = std::move(nb),
             .texcoords = {}}),
-        .material = gray_material, // FIXME needs material_manager
+        .material = ResolvableMaterial{
+          "GrayMaterial",
+          gray_material},
         .color = color_gray});
-#endif
 }
 
 void Renderer::release_grid_mesh()
 {
-    if(overlay_grid != nullptr)
+    if(overlay_grid != nullptr
+       && overlay_grid->mesh_handle)
     {
-        if(overlay_grid->mesh_handle)
-        {
-            device.delete_mesh(overlay_grid->mesh_handle);
-            overlay_grid->mesh_handle = {};
-        }
+        device.delete_mesh(overlay_grid->mesh_handle);
+        overlay_grid->mesh_handle = {};
+    }
 
-        overlay_grid.reset();
+    overlay_grid.reset();
+
+    if(grid_material != 0)
+    {
+        device.delete_material(grid_material);
+        grid_material = {};
+    }
+
+    if(grid_shader != 0)
+    {
+        device.delete_shader(grid_shader);
+        grid_shader = {};
     }
 }
 
 void Renderer::create_spotlight_depth_debug_mesh()
 {
-#if 0
     release_spotlight_depth_debug_mesh();
 
     auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
-    const auto debug_shadow_material = device.create_material(
+    shadow_debug_overlay_shader = device.create_shader(*debug_shadow_shader);
+    shadow_debug_overlay_material = device.create_material(
       Material{
-        .shader_handle = device.create_shader(*debug_shadow_shader),
+        .shader_handle = shadow_debug_overlay_shader,
         .base_color_handle = {},
         .normal_map_handle = {}});
 
@@ -704,24 +714,25 @@ void Renderer::create_spotlight_depth_debug_mesh()
     qib.push_back(2);
     qib.push_back(3);
 
-    overlay_spotlight_depth = {
-      .mesh_handle = device.create_mesh(
-        MeshData{
-          .primitive_type = PrimitiveType::Triangles,
-          .indices = std::move(qib),
-          .vertices = std::move(qvb),
-          .normals = std::move(qnb),
-          .texcoords = std::move(qtb),
-        }),
-      .material_handle = debug_shadow_material, // FIXME needs material_manager
-      .color = {1.f, 1.f, 1.f, 1.f},
-    };
-#endif
+    overlay_spotlight_depth = swr::make_unique<MeshSection>(
+      MeshSection{
+        .mesh_handle = device.create_mesh(
+          MeshData{
+            .primitive_type = PrimitiveType::Triangles,
+            .indices = std::move(qib),
+            .vertices = std::move(qvb),
+            .normals = std::move(qnb),
+            .texcoords = std::move(qtb),
+          }),
+        .material = ResolvableMaterial{
+          "SpotlightDepthDebug",
+          shadow_debug_overlay_material},
+        .color = {1.f, 1.f, 1.f, 1.f},
+      });
 }
 
 void Renderer::release_spotlight_depth_debug_mesh()
 {
-    // TODO Should be handled by .reset(), too.
     if(overlay_spotlight_depth != nullptr
        && overlay_spotlight_depth->mesh_handle)
     {
@@ -730,6 +741,18 @@ void Renderer::release_spotlight_depth_debug_mesh()
     }
 
     overlay_spotlight_depth.reset();
+
+    if(shadow_debug_overlay_material != 0)
+    {
+        device.delete_material(shadow_debug_overlay_material);
+        shadow_debug_overlay_material = {};
+    }
+
+    if(shadow_debug_overlay_shader != 0)
+    {
+        device.delete_shader(shadow_debug_overlay_shader);
+        shadow_debug_overlay_shader = {};
+    }
 }
 
 Renderer::~Renderer()
@@ -820,7 +843,7 @@ void Renderer::render_grid(
         return;
     }
 
-    std::optional<MaterialHandle> material = overlay_grid->material->try_get();
+    std::optional<MaterialHandle> material = overlay_grid->material.try_get();
     if(!material.has_value())
     {
         return;
@@ -850,8 +873,13 @@ void Renderer::render_grid(
 
 void Renderer::render_spotlight_depth_debug()
 {
-#if 0
     if(shadow_map == 0)
+    {
+        return;
+    }
+
+    std::optional<MaterialHandle> material = overlay_spotlight_depth->material.try_get();
+    if(!material.has_value())
     {
         return;
     }
@@ -868,7 +896,7 @@ void Renderer::render_spotlight_depth_debug()
       .depth_bias = 0.f,
       .linear_filter = false,
     });
-    device.bind_material(overlay_spotlight_depth.material_handle);    // FIXME materail
+    device.bind_material(material.value());
     device.bind_camera_uniforms({
       .proj = ml::mat4x4::identity(),
       .view = ml::mat4x4::identity(),
@@ -884,7 +912,6 @@ void Renderer::render_spotlight_depth_debug()
     });
     device.draw_mesh(overlay_spotlight_depth->mesh_handle);
     device.clear_shadow_map();
-#endif
 }
 
 void Renderer::render(

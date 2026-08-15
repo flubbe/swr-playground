@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * A material that is asynchronously resolved.
+ * A material that is potentially asynchronously resolved.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -10,10 +10,9 @@
 
 #pragma once
 
-#include <cassert>
-
 #include "containers/memory.h"
 #include "containers/string.h"
+#include "types.h"
 
 /*
  * Forward declarations.
@@ -28,8 +27,15 @@ class ResolvableMaterial
     /** Asset path identifying the material. */
     swr::string path;
 
-    /** The material entry, containing resources and handles. */
+    /*
+     * TODO unify these into a variant.
+     */
+
+    /** The async material entry, containing resources and handles. */
     swr::shared_ptr<MaterialEntry> entry;
+
+    /** The directly loaded handle. */
+    MaterialHandle handle;
 
 public:
     /** Deleted default constructor. */
@@ -40,7 +46,7 @@ public:
     ResolvableMaterial(ResolvableMaterial&&) = default;
 
     /**
-     * Constructor.
+     * Constructor for async material loading.
      *
      * @param path Path identifying the material.
      * @param entry The material entry.
@@ -50,6 +56,22 @@ public:
       swr::shared_ptr<MaterialEntry> entry)
     : path{path}
     , entry{std::move(entry)}
+    , handle{0}
+    {
+    }
+
+    /**
+     * Direct material construction.
+     *
+     * @param path Path identifying the material.
+     * @param handle The material handle.
+     */
+    explicit ResolvableMaterial(
+      std::string_view path,
+      MaterialHandle handle)
+    : path{path}
+    , entry{}
+    , handle{handle}
     {
     }
 
@@ -86,4 +108,7 @@ public:
     {
         return path;
     }
+
+    /** Get the material handle. */
+    std::optional<MaterialHandle> try_get();
 };
