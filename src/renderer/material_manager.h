@@ -259,26 +259,6 @@ public:
       std::string_view json);
 
     /**
-     * Load a material from a JSON string.
-     *
-     * @note Deduplicates: When the material is already loaded, it's handle is returned.
-     *
-     * @param json The JSON string.
-     * @returns Returns a pair `(material_handle, key)`, where `key` can be used to
-     *     access the material in the manager.
-     */
-    std::pair<ResolvableMaterial, swr::string> load(
-      std::string_view json)
-    {
-        std::uint64_t hash = compute_hash(json);
-        swr::string generated_key =
-          swr::format("hash://{:016x}", hash);
-        return std::make_pair(
-          load(generated_key, json),
-          std::move(generated_key));
-    }
-
-    /**
      * Get a material by key.
      *
      * @param path The material path.

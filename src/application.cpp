@@ -1928,7 +1928,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         }
 
         auto json = read_text_file(file_manager, material_path);
-        auto material = material_manager.load(json).first;
+        auto material = material_manager.load(material_path, json);
 
         // FIXME remove
         material->wait();

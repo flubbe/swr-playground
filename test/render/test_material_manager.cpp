@@ -141,28 +141,25 @@ TEST(MaterialManagerTests, Load)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<
-      std::pair<ResolvableMaterial, swr::string>>
-      result;
-    ASSERT_NO_THROW(result.emplace(manager.load(json)));
+    std::optional<ResolvableMaterial> result;
+    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
     ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
 
-    ASSERT_TRUE(result->first->valid());
-    ASSERT_NO_THROW(result->first->wait());
-    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE(result.value()->valid());
+    ASSERT_NO_THROW(result.value()->wait());
+    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
 
     const std::string unknown_shader =
       "{\n"
       "    \"shader\": \"Unknown\"\n"
       "}";
-    ASSERT_NO_THROW(result.emplace(manager.load(unknown_shader)));
+    ASSERT_NO_THROW(result.emplace(manager.load("UnknownMaterial", unknown_shader)));
 
-    ASSERT_TRUE(result->first->valid());
-    ASSERT_NO_THROW(result->first->wait());
-    ASSERT_THROW(result->first->resolve(), std::runtime_error);
+    ASSERT_TRUE(result.value()->valid());
+    ASSERT_NO_THROW(result.value()->wait());
+    ASSERT_THROW(result.value()->resolve(), std::runtime_error);
 
-    EXPECT_NO_THROW(manager.delete_material(result->second));
+    EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
 }
 
 TEST(MaterialManagerTests, LoadWithKey)
@@ -189,14 +186,14 @@ TEST(MaterialManagerTests, LoadWithKey)
       "    \"shader\": \"FirstShader\"\n"
       "}";
     std::optional<ResolvableMaterial> handle;
-    ASSERT_NO_THROW(handle.emplace(manager.load("FirstShader", json)));
+    ASSERT_NO_THROW(handle.emplace(manager.load("FirstMaterial", json)));
 
     ASSERT_TRUE((*handle)->valid());
     ASSERT_NO_THROW((*handle)->wait());
     EXPECT_EQ((*handle)->resolve(), 1);    // material ids start at 1
 
     std::optional<ResolvableMaterial> result;
-    ASSERT_NO_THROW(result = manager.get("FirstShader"));
+    ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_FALSE(result.value()->valid());    // because it's already resolved
@@ -206,8 +203,8 @@ TEST(MaterialManagerTests, LoadWithKey)
     ASSERT_NO_THROW(result = manager.get("UnknownShader"));
     EXPECT_FALSE(result.has_value());
 
-    EXPECT_NO_THROW(manager.delete_material("FirstShader"));
-    ASSERT_NO_THROW(result = manager.get("FirstShader"));
+    EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
+    ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
     EXPECT_FALSE(result.has_value());
 }
 
@@ -235,35 +232,29 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<
-      std::pair<ResolvableMaterial, swr::string>>
-      result;
-    ASSERT_NO_THROW(result.emplace(manager.load(json)));
-    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");    // hash of the JSON
+    std::optional<ResolvableMaterial> result;
+    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
 
-    ASSERT_TRUE(result->first->valid());
-    ASSERT_NO_THROW(result->first->wait());
-    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
+    ASSERT_TRUE(result.value()->valid());
+    ASSERT_NO_THROW(result.value()->wait());
+    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
 
-    ASSERT_NO_THROW(result.emplace(manager.load(json)));
-    EXPECT_TRUE(result->first->is_resolved());
-    EXPECT_EQ(result->first->resolve(), 1);
-    EXPECT_EQ(result->second, "hash://e91290016cb6df0b");
+    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    EXPECT_TRUE(result.value()->is_resolved());
+    EXPECT_EQ(result.value()->resolve(), 1);
 
     const std::string json2 =
       "{\n"
       "    \"shader\": \"SecondShader\"\n"
       "}";
-    ASSERT_NO_THROW(result.emplace(manager.load(json2)));
+    ASSERT_NO_THROW(result.emplace(manager.load("SecondMaterial", json2)));
 
-    ASSERT_TRUE(result->first->valid());
-    ASSERT_NO_THROW(result->first->wait());
-    EXPECT_FALSE(result->first->is_resolved());
+    ASSERT_TRUE(result.value()->valid());
+    ASSERT_NO_THROW(result.value()->wait());
+    EXPECT_FALSE(result.value()->is_resolved());
 
-    EXPECT_EQ(result->first->resolve(), 2);
-    EXPECT_TRUE(result->first->is_resolved());
-
-    EXPECT_NE(result->second, "hash://e91290016cb6df0b");
+    EXPECT_EQ(result.value()->resolve(), 2);
+    EXPECT_TRUE(result.value()->is_resolved());
 }
 
 TEST(MaterialManagerTests, LoadWithTextures)
@@ -301,12 +292,9 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "        }\n"
       "    }\n"
       "}";
-    std::optional<
-      std::pair<ResolvableMaterial, swr::string>>
-      result;
-    ASSERT_NO_THROW(result.emplace(manager.load(json)));
-    ASSERT_TRUE(result->first->valid());
-    ASSERT_NO_THROW(result->first->wait());
-    EXPECT_EQ(result->first->resolve(), 1);    // material ids start at 1
-    // don't validate hash, since it depends on build config.
+    std::optional<ResolvableMaterial> result;
+    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    ASSERT_TRUE(result.value()->valid());
+    ASSERT_NO_THROW(result.value()->wait());
+    EXPECT_EQ(result.value()->resolve(), 1);    // material ids start at 1
 }
