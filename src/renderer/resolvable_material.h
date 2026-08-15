@@ -13,6 +13,7 @@
 #include <cassert>
 
 #include "containers/memory.h"
+#include "containers/string.h"
 
 /*
  * Forward declarations.

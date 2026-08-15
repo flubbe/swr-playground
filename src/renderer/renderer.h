@@ -17,8 +17,8 @@
 #include <ml/all.h>
 
 #include "containers/memory.h"
+#include "mesh_section.h"
 #include "shader_factory.h"
-#include "types.h"
 
 class Scene;
 class Camera;

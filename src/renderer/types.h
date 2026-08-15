@@ -64,29 +64,6 @@ using TextureHandle = RenderHandle<struct TextureHandleTag>;
 using VertexBufferHandle = RenderHandle<struct VertexBufferTag>;
 using IndexBufferHandle = RenderHandle<struct IndexBufferTag>;
 
-/** Part of a mesh using one material. */
-struct MeshSection
-{
-    /** Mesh handle. */
-    MeshHandle mesh_handle{};
-
-    /** Material path. */
-    swr::string material_path;
-
-    /** Material handle. */
-    MaterialHandle material_handle{};
-
-    /** Base color used by the lighting shader. */
-    ml::vec4 color{1.f, 1.f, 1.f, 1.f};
-
-    /*
-     * Metadata.
-     */
-
-    /** Triangle count in this level of detail. */
-    std::size_t triangle_count{0};
-};
-
 /** One shadow map input for a draw call. */
 struct ShadowMapBinding
 {
