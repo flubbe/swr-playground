@@ -139,7 +139,10 @@ struct MaterialEntry
     /** Blocks until the asynchronous resources have finished loading. */
     void wait()
     {
-        resources.future.wait();
+        if(valid())
+        {
+            resources.future.wait();
+        }
     }
 
     /**

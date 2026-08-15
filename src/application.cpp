@@ -1893,7 +1893,49 @@ void Application::tick(float delta_time)
 void Application::set_static_mesh_shader(StaticMeshShaderType type)
 {
     active_static_mesh_shader = type;
-    ShaderFactory& shader_factory = renderer.get_shader_factory();
+
+    const swr::string material_path = [&]() -> swr::string
+    {
+        if(type == StaticMeshShaderType::ColorFlat)
+        {
+            return "assets/materials/mesh/flat.json";
+        }
+        else if(type == StaticMeshShaderType::ColorSmooth)
+        {
+            return "assets/materials/mesh/smooth.json";
+        }
+        else if(type == StaticMeshShaderType::PhongSmooth)
+        {
+            return "assets/materials/mesh/phong.json";
+        }
+        else if(type == StaticMeshShaderType::LitSmooth)
+        {
+            return "assets/materials/mesh/lit.json";
+        }
+        else
+        {
+            throw std::runtime_error{"Unknown mesh material."};
+        }
+    }();
+
+    auto get_material_handle = [&]() -> MaterialHandle
+    {
+        // Avoid filesystem access.
+        auto cached_material = material_manager.get(material_path);
+        if(cached_material.has_value())
+        {
+            return cached_material.value()->resolve();
+        }
+
+        auto json = read_text_file(file_manager, material_path);
+        auto material = material_manager.load(json).first;
+
+        // FIXME remove
+        material->wait();
+
+        // FIXME material is kept alive by the cache.
+        return material->resolve();
+    };
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
@@ -1911,29 +1953,8 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                swr::program_base* new_shader = nullptr;
-                switch(type)
-                {
-                case StaticMeshShaderType::ColorFlat:
-                    new_shader = shader_factory.get_or_create<shader::ColorFlat>();
-                    break;
-                case StaticMeshShaderType::ColorSmooth:
-                    new_shader = shader_factory.get_or_create<shader::ColorSmooth>();
-                    break;
-                case StaticMeshShaderType::PhongSmooth:
-                    new_shader = shader_factory.get_or_create<shader::PhongSmooth>();
-                    break;
-                case StaticMeshShaderType::LitSmooth:
-                    new_shader = shader_factory.get_or_create<shader::LitSmooth>();
-                    break;
-                default:
-                    throw std::runtime_error{"Unknown shader type for static meshes."};
-                }
-
-                section.material_handle = render_device.create_material(
-                  {.shader_handle = render_device.create_shader(*new_shader),
-                   .base_color_handle = {},
-                   .normal_map_handle = {}});
+                section.material_path = material_path;
+                section.material_handle = get_material_handle();
             }
         }
     }
