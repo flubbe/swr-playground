@@ -371,15 +371,6 @@ class Renderer final
     void register_shaders();
 
     /*
-     * Resource resolution.
-     */
-
-    ThreadSafeQueue<
-      swr::shared_ptr<
-        MaterialEntry>>
-      pending_materials;
-
-    /*
      * Render queues.
      */
 
@@ -597,26 +588,4 @@ public:
     void render(
       const Scene& scene,
       const Viewport& viewport);
-
-    /*
-     * Resource resolution.
-     */
-
-    void process_pending_resources();
-
-    ThreadSafeQueue<
-      swr::shared_ptr<
-        MaterialEntry>>&
-      get_pending_materials()
-    {
-        return pending_materials;
-    }
-
-    const ThreadSafeQueue<
-      swr::shared_ptr<
-        MaterialEntry>>&
-      get_pending_materials() const
-    {
-        return pending_materials;
-    }
 };

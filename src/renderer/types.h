@@ -63,16 +63,6 @@ using TextureHandle = RenderHandle<struct TextureHandleTag>;
 using VertexBufferHandle = RenderHandle<struct VertexBufferTag>;
 using IndexBufferHandle = RenderHandle<struct IndexBufferTag>;
 
-/** One shadow map input for a draw call. */
-struct ShadowMapBinding
-{
-    bool enabled{false};
-    ShadowMapHandle handle{};
-    ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
-    float depth_bias{0.0015f};
-    bool linear_filter{false};
-};
-
 namespace std
 {
 
@@ -87,3 +77,13 @@ struct hash<RenderHandle<Tag>>
 };
 
 }    // namespace std
+
+/** One shadow map input for a draw call. */
+struct ShadowMapBinding
+{
+    bool enabled{false};
+    ShadowMapHandle handle{};
+    ml::mat4x4 clip_from_mesh{ml::mat4x4::identity()};
+    float depth_bias{0.0015f};
+    bool linear_filter{false};
+};

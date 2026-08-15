@@ -195,7 +195,8 @@ class MaterialManager
     /** Pending material queue. */
     ThreadSafeQueue<
       swr::shared_ptr<
-        MaterialEntry>>& pending_material_queue;
+        MaterialEntry>>
+      pending_materials;
 
     /** Shader cache. */
     ShaderCache& shader_cache;
@@ -234,15 +235,11 @@ public:
     MaterialManager(
       task_system::TaskSystem& task_system,
       RenderDevice& device,
-      ThreadSafeQueue<
-        swr::shared_ptr<
-          MaterialEntry>>& pending_material_queue,
       ShaderCache& shader_cache,
       ShaderFactory& shader_factory,
       TextureCache& texture_cache)
     : task_system{task_system}
     , device{device}
-    , pending_material_queue{pending_material_queue}
     , shader_cache{shader_cache}
     , shader_factory{shader_factory}
     , texture_cache{texture_cache}
@@ -318,4 +315,11 @@ public:
      */
     bool delete_material(
       std::string_view key);
+
+    /**
+     * Process pending materials.
+     *
+     * @note Needs to be called from the render/main thread.
+     */
+    void process_pending();
 };

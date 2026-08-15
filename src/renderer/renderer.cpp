@@ -924,9 +924,6 @@ void Renderer::render(
 
     const Camera& camera = viewport.get_camera(scene);
 
-    // Process pending resources.
-    process_pending_resources();
-
     begin_render(scene);
 
     /*
@@ -1135,25 +1132,4 @@ void Renderer::update_sorting_benchmark(
             }
         }
     }
-}
-
-void Renderer::process_pending_resources()
-{
-    using namespace std::literals;
-
-    // TODO Could make this subject to a time budget.
-    pending_materials.for_each(
-      [](swr::shared_ptr<MaterialEntry>& entry)
-      {
-          if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
-          {
-              entry->finalize();
-              logging::logf(
-                "Finalized material '{}'.",
-                entry->name);
-
-              return true;    // remove entry.
-          }
-          return false;    // keep entry for next time.
-      });
 }

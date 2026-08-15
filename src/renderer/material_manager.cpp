@@ -197,7 +197,7 @@ ResolvableMaterial MaterialManager::load(
       material);
 
     // Push to pending material queue which is processed on render/main thread.
-    pending_material_queue.push_back(material);
+    pending_materials.push_back(material);
 
     return ResolvableMaterial{path, material};
 }
@@ -206,4 +206,27 @@ bool MaterialManager::delete_material(
   std::string_view path)
 {
     return material_cache.erase(swr::string{path}) != 0;
+}
+
+void MaterialManager::process_pending()
+{
+    using namespace std::literals;
+
+    // TODO Could make this subject to a time budget.
+    auto material_queue = pending_materials.drain();
+    for(auto& entry: material_queue)
+    {
+        if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
+        {
+            entry->finalize();
+            logging::logf(
+              "Finalized material '{}'.",
+              entry->name);    // FIXME Should likely be a path to match loading message.
+        }
+        else
+        {
+            // TODO We could place them into a temporary buffer and add them all at once.
+            pending_materials.emplace_back(std::move(entry));
+        }
+    }
 }

@@ -7,6 +7,7 @@ add_executable(core_tests
     test_mesh.cpp
     test_serialization.cpp
     test_task_system.cpp
+    test_queue.cpp
     test_utils.cpp
     test_viewport.cpp
     test_camera_reflection.cpp

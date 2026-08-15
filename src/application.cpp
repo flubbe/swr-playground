@@ -1242,6 +1242,8 @@ void Application::prepare_frame()
     memory::frame_bump()->reset();
     memory::frame_arena()->reset();
 
+    material_manager.process_pending();
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();

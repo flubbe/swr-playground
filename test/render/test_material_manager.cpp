@@ -104,7 +104,6 @@ TEST(MaterialManagerTests, Construction)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
-    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -114,7 +113,6 @@ TEST(MaterialManagerTests, Construction)
       MaterialManager manager(
         task_system,
         device,
-        queue,
         shader_cache,
         shader_factory,
         texture_cache));
@@ -125,7 +123,6 @@ TEST(MaterialManagerTests, Load)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
-    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -136,7 +133,6 @@ TEST(MaterialManagerTests, Load)
     MaterialManager manager{
       task_system,
       device,
-      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -172,7 +168,6 @@ TEST(MaterialManagerTests, LoadWithKey)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
-    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -183,7 +178,6 @@ TEST(MaterialManagerTests, LoadWithKey)
     MaterialManager manager{
       task_system,
       device,
-      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -221,7 +215,6 @@ TEST(MaterialManagerTests, Deduplicate)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
-    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -233,7 +226,6 @@ TEST(MaterialManagerTests, Deduplicate)
     MaterialManager manager{
       task_system,
       device,
-      queue,
       shader_cache,
       shader_factory,
       texture_cache};
@@ -273,7 +265,6 @@ TEST(MaterialManagerTests, LoadWithTextures)
     task_system::TaskSystem task_system{1};
 
     RenderDevice device{100, 100};
-    ThreadSafeQueue<swr::shared_ptr<MaterialEntry>> queue;
     ShaderFactory shader_factory;
 
     ShaderCache shader_cache{device};
@@ -284,7 +275,6 @@ TEST(MaterialManagerTests, LoadWithTextures)
     MaterialManager manager{
       task_system,
       device,
-      queue,
       shader_cache,
       shader_factory,
       texture_cache};
