@@ -246,11 +246,12 @@ FileLogDevice::FileLogDevice(
 {
     if(this->output_path.empty())
     {
-        throw std::invalid_argument("FileLogDevice requires a non-empty path.");
+        throw std::invalid_argument{"FileLogDevice requires a non-empty path."};
     }
 
     if(this->output_path.has_parent_path())
     {
+        // Note: This throws on error.
         std::filesystem::create_directories(this->output_path.parent_path());
     }
 

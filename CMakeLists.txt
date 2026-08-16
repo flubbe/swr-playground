@@ -36,6 +36,38 @@ endif()
 set_target_properties(${BOOST_HEADERS_TARGET} PROPERTIES SYSTEM TRUE)
 
 #
+# assimp
+#
+find_package(assimp QUIET CONFIG)
+if(NOT TARGET assimp::assimp)
+    message(STATUS "assimp not found on system; fetching assimp.")
+
+    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
+
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        assimp_src
+        GIT_REPOSITORY https://github.com/assimp/assimp.git
+        GIT_TAG v6.0.5
+        SYSTEM
+    )
+
+    FetchContent_MakeAvailable(assimp_src)
+endif()
+
+if(NOT TARGET assimp::assimp)
+    message(FATAL_ERROR "assimp::assimp target is not available.")
+endif()
+
+#
 # Guidelines Support Library
 #
 FetchContent_Declare(
@@ -46,6 +78,39 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(gsl)
+
+#
+# ImGui
+#
+FetchContent_Declare(
+    imgui_src
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG docking
+    SYSTEM
+)
+FetchContent_MakeAvailable(imgui_src)
+
+add_library(imgui STATIC
+    ${imgui_src_SOURCE_DIR}/imgui.cpp
+    ${imgui_src_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_src_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_src_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_src_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${imgui_src_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+    ${imgui_src_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+
+target_include_directories(imgui PUBLIC
+    ${imgui_src_SOURCE_DIR}
+    ${imgui_src_SOURCE_DIR}/backends
+)
+
+target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_DOCKING)
+
+target_link_libraries(imgui PUBLIC
+    SDL3::SDL3
+    OpenGL::GL
+)
 
 #
 # SDL3
@@ -64,25 +129,6 @@ endif()
 
 if(NOT TARGET SDL3::SDL3)
     message(FATAL_ERROR "SDL3::SDL3 target is not available.")
-endif()
-
-#
-# SDL3_ttf
-#
-find_package(SDL3_ttf QUIET CONFIG)
-if(NOT TARGET SDL3_ttf::SDL3_ttf)
-    message(STATUS "SDL3_ttf not found on system; fetching SDL3_ttf.")
-    FetchContent_Declare(
-        SDL3_ttf_src
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
-        GIT_TAG release-3.2.2
-        SYSTEM
-    )
-    FetchContent_MakeAvailable(SDL3_ttf_src)
-endif()
-
-if(NOT TARGET SDL3_ttf::SDL3_ttf)
-    message(FATAL_ERROR "SDL3_ttf::SDL3_ttf target is not available.")
 endif()
 
 #
@@ -122,56 +168,35 @@ else()
 endif()
 
 #
-# swr
+# SDL3_ttf
 #
-set(SWR_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
-set(SWR_BUILD_APP OFF CACHE BOOL "" FORCE)
-set(SWR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
-set(SWR_ENABLE_MULTI_THREADING ON CACHE BOOL "" FORCE)
+find_package(SDL3_ttf QUIET CONFIG)
+if(NOT TARGET SDL3_ttf::SDL3_ttf)
+    message(STATUS "SDL3_ttf not found on system; fetching SDL3_ttf.")
+    FetchContent_Declare(
+        SDL3_ttf_src
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
+        GIT_TAG release-3.2.2
+        SYSTEM
+    )
+    FetchContent_MakeAvailable(SDL3_ttf_src)
+endif()
 
+if(NOT TARGET SDL3_ttf::SDL3_ttf)
+    message(FATAL_ERROR "SDL3_ttf::SDL3_ttf target is not available.")
+endif()
+
+#
+# simdjson
+#
 FetchContent_Declare(
-    swr_src
-    GIT_REPOSITORY https://github.com/flubbe/swr.git
-    GIT_TAG main
-    SYSTEM
-    UPDATE_DISCONNECTED FALSE
-)
-FetchContent_MakeAvailable(swr_src)
-
-#
-# ImGui
-#
-FetchContent_Declare(
-    imgui_src
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG docking
+    simdjson_src
+    GIT_REPOSITORY https://github.com/simdjson/simdjson.git
+    GIT_TAG v4.6.6
     SYSTEM
 )
-FetchContent_MakeAvailable(imgui_src)
+FetchContent_MakeAvailable(simdjson_src)
 
-add_library(imgui STATIC
-    ${imgui_src_SOURCE_DIR}/imgui.cpp
-    ${imgui_src_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_src_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_src_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_src_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
-    ${imgui_src_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
-    ${imgui_src_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-)
-
-target_include_directories(imgui PUBLIC
-    ${imgui_src_SOURCE_DIR}
-    ${imgui_src_SOURCE_DIR}/backends
-)
-
-target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_DOCKING)
-
-target_link_libraries(imgui PUBLIC
-    SDL3::SDL3
-    OpenGL::GL
-)
 
 #
 # stb
@@ -190,38 +215,6 @@ add_library(stb INTERFACE)
 target_include_directories(stb SYSTEM INTERFACE
     "${stb_src_SOURCE_DIR}"
 )
-
-#
-# assimp
-#
-find_package(assimp QUIET CONFIG)
-if(NOT TARGET assimp::assimp)
-    message(STATUS "assimp not found on system; fetching assimp.")
-
-    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-    set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-
-    set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
-    set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
-
-    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
-    set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
-    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
-
-    FetchContent_Declare(
-        assimp_src
-        GIT_REPOSITORY https://github.com/assimp/assimp.git
-        GIT_TAG v6.0.5
-        SYSTEM
-    )
-
-    FetchContent_MakeAvailable(assimp_src)
-endif()
-
-if(NOT TARGET assimp::assimp)
-    message(FATAL_ERROR "assimp::assimp target is not available.")
-endif()
 
 #
 # xxHash
@@ -258,6 +251,25 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(concurrency_utils_src)
 
 #
+# swr
+#
+set(SWR_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_APP OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(SWR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SWR_RASTERIZER_BLOCK_SHIFT "5" CACHE STRING "" FORCE)
+set(SWR_ENABLE_MULTI_THREADING ON CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    swr_src
+    GIT_REPOSITORY https://github.com/flubbe/swr.git
+    GIT_TAG main
+    SYSTEM
+    UPDATE_DISCONNECTED FALSE
+)
+FetchContent_MakeAvailable(swr_src)
+
+#
 # Compiler specific warnings.
 #
 add_library(swr_playground_warnings INTERFACE)
@@ -290,20 +302,9 @@ target_compile_definitions(swr_playground_options INTERFACE
 # Playground executable
 #
 add_executable(swr_playground
+    src/assets/material.cpp
     src/assets/static_mesh_importer.cpp
     src/assets/texture.cpp
-    src/reflection/builtin_properties.cpp
-    src/reflection/class_registry.cpp
-    src/scene/camera.cpp
-    src/scene/directionallight.cpp
-    src/scene/gear.cpp
-    src/scene/light.cpp
-    src/scene/object.cpp
-    src/scene/properties.cpp
-    src/scene/scene.cpp
-    src/serialization/file.cpp
-    src/scene/spotlight.cpp
-    src/scene/static_mesh.cpp
     src/memory/allocators/arena.cpp
     src/memory/allocators/bump.cpp
     src/memory/allocators/malloc.cpp
@@ -311,8 +312,28 @@ add_executable(swr_playground
     src/memory/new.cpp
     src/meshes/mesh.cpp
     src/meshes/simplifier.cpp
-    src/renderer/renderdevice.cpp
+    src/reflection/builtin_properties.cpp
+    src/reflection/class_registry.cpp
+    src/renderer/material_manager.cpp
+    src/renderer/render_device.cpp
     src/renderer/renderer.cpp
+    src/renderer/resolvable_material.cpp
+    src/scene/camera.cpp
+    src/scene/directional_light.cpp
+    src/scene/gear.cpp
+    src/scene/light.cpp
+    src/scene/object.cpp
+    src/scene/properties.cpp
+    src/scene/scene.cpp
+    src/serialization/file.cpp
+    src/serialization/json/json_property_writer.cpp
+    src/serialization/json/json_scene_loader.cpp
+    src/scene/spotlight.cpp
+    src/scene/static_mesh.cpp
+    src/tasks/dag.cpp
+    src/tasks/scheduler.cpp
+    src/tasks/state.cpp
+    src/tasks/task_system.cpp
     src/ui/class_inspector.cpp
     src/ui/console.cpp
     src/ui/imgui.cpp
@@ -321,15 +342,14 @@ add_executable(swr_playground
     src/ui/scene_inspector.cpp
     src/ui/tools.cpp
     src/application.cpp
+    src/file_manager.cpp
     src/logging.cpp
     src/main.cpp
     src/main_loop.cpp
     src/platform.cpp
+    src/shader_cache.cpp
     src/startup_tasks.cpp
-    src/tasks/dag.cpp
-    src/tasks/scheduler.cpp
-    src/tasks/state.cpp
-    src/tasks/task_system.cpp
+    src/texture_cache.cpp
     src/viewport.cpp
 )
 
@@ -341,15 +361,16 @@ target_include_directories(swr_playground PRIVATE
 target_link_libraries(swr_playground PRIVATE
     swr_playground_options
     swr_playground_warnings
-    swrast
+    assimp::assimp
     imgui
     Microsoft.GSL::GSL
     OpenGL::GL
     SDL3::SDL3
-    SDL3_ttf::SDL3_ttf
     SDL3_image::SDL3_image
-    assimp::assimp
+    SDL3_ttf::SDL3_ttf
+    simdjson
     stb
+    swrast
     xxhash
 )
 

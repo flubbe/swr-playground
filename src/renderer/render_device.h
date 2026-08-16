@@ -20,40 +20,37 @@
 #include <swr/swr.h>
 #include <swr/shaders.h>
 
+#include "assets/material.h"
 #include "assets/texture.h"
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "render_types.h"
+#include "material.h"
 #include "shader_constants.h"
+#include "types.h"
 
 class Scene;
 class Camera;
 
+// TODO namespace renderer
+
 /** GPU-side mesh data. */
-struct MeshGpuData
+struct MeshGpuData    // TODO rename: renderer::Mesh
 {
+    /** Mesh primitive type. */
+    PrimitiveType primitive_type{PrimitiveType::Triangles};
+
+    /** Index buffer. */
+    std::vector<std::uint32_t> indices;
+
     /** Handle to the vertex buffer. */
-    std::uint32_t vertices_handle{0};
+    VertexBufferHandle vertices_handle{0};
 
     /** Handle to the normal buffer. */
-    std::uint32_t normals_handle{0};
+    NormalBufferHandle normals_handle{0};
 
     /** Handle to the texture coordinate buffer. */
-    std::optional<std::uint32_t> texcoords_handle;
-};
-
-/** A render material. */
-struct Material
-{
-    /** Shader instance. */
-    const swr::program_base* shader{nullptr};
-
-    /** Shader handle. */
-    std::uint32_t shader_handle{0};
-
-    /** Bound 2D textures by texture unit index. */
-    swr::vector<std::uint32_t> texture_handles{};
+    std::optional<TexCoordBufferHandle> texcoords_handle;
 };
 
 /** Camera-related shader uniforms. */
@@ -129,8 +126,8 @@ struct RasterizerState
 /** GPU-side shadow-map render target data. */
 struct ShadowMapTargetGpuData
 {
-    std::uint32_t texture_handle{0};
-    std::uint32_t framebuffer_handle{0};
+    TextureHandle texture_handle{0};
+    FrameBufferHandle framebuffer_handle{0};
     int width{0};
     int height{0};
 };
@@ -150,14 +147,11 @@ class RenderDevice
     /** rasterizer context. */
     swr::context_handle context{nullptr};
 
-    /** meshes. */
-    swr::unordered_map<MeshHandle, MeshData> meshes;
-
     /** uploaded mesh data. */
-    swr::unordered_map<MeshHandle, MeshGpuData> mesh_gpu_data;
+    swr::unordered_map<MeshHandle, MeshGpuData> meshes;
 
-    /** Mesh bounds. */
-    swr::unordered_map<MeshHandle, MeshBounds> mesh_bounds;
+    /** Shaders. */
+    swr::unordered_map<ShaderHandle, const swr::program_base*> shaders;
 
     /** materials. */
     swr::unordered_map<MaterialHandle, Material> materials;
@@ -191,15 +185,18 @@ protected:
         {
             delete_mesh(meshes.begin()->first);
         }
-        while(!mesh_gpu_data.empty())
+        while(!meshes.empty())
         {
-            delete_mesh(mesh_gpu_data.begin()->first);
+            delete_mesh(meshes.begin()->first);
         }
-        mesh_bounds.clear();
 
         while(!materials.empty())
         {
             delete_material(materials.begin()->first);
+        }
+        while(!shaders.empty())
+        {
+            delete_shader(shaders.begin()->first);
         }
         while(!shadow_map_targets.empty())
         {
@@ -256,42 +253,28 @@ public:
         return data;
     }
 
-    // FIXME this accessor should not exist?
-    const Material* get_material(MaterialHandle handle) const
-    {
-        auto it = materials.find(handle);
-        if(it == materials.cend())
-        {
-            return nullptr;
-        }
-        return &it->second;
-    }
-
     /*
      * resource management.
      */
 
-    MeshHandle create_mesh(MeshData mesh);
+    MeshHandle create_mesh(
+      const MeshData& mesh);
 
     bool update_mesh(
       MeshHandle handle,
-      MeshData mesh);
-
-    [[nodiscard]]
-    const MeshBounds* get_mesh_bounds(
-      MeshHandle handle) const;
-
-    // FIXME temporary?
-    [[nodiscard]]
-    std::size_t get_mesh_triangle_count(
-      MeshHandle handle) const;
+      const MeshData& mesh);
 
     void delete_mesh(MeshHandle handle);
 
-    std::uint32_t create_texture(
+    ShaderHandle create_shader(
+      const swr::program_base& shader);
+
+    void delete_shader(ShaderHandle handle);
+
+    TextureHandle create_texture(
       const assets::ImageRGBA8& image);
 
-    void delete_texture(std::uint32_t handle);
+    void delete_texture(TextureHandle handle);
 
     ShadowMapHandle create_shadow_map(
       int width,
@@ -300,15 +283,10 @@ public:
     void delete_shadow_map(ShadowMapHandle handle);
 
     MaterialHandle create_material(
-      const swr::program_base& shader);
-
-    MaterialHandle create_material(
-      const swr::program_base& shader,
-      std::span<const std::uint32_t> texture_handles);
+      const Material& material);
 
     void delete_material(
-      MaterialHandle handle,
-      bool delete_textures = true);
+      MaterialHandle handle);
 
     /*
      * begin/end frame.

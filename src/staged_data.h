@@ -14,7 +14,6 @@
 #include <optional>
 #include <string>
 
-#include "assets/texture.h"
 #include "containers/string.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
@@ -29,8 +28,6 @@
 struct StagedFloorData
 {
     MeshData mesh;
-    assets::ImageRGBA8 diffuse_texture;
-    assets::ImageRGBA8 normal_texture;
 };
 
 struct StagedStaticMeshSectionLod
@@ -79,6 +76,7 @@ inline serial::Archive& operator&(
 
 struct StagedStaticMeshAsset
 {
+    swr::string path;
     swr::string name;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
@@ -95,6 +93,7 @@ inline serial::Archive& operator&(
   serial::Archive& ar,
   StagedStaticMeshAsset& mesh)
 {
+    ar & mesh.path;
     ar & mesh.name;
     ar & mesh.fit_transform;
     ar & mesh.sections;
@@ -124,7 +123,7 @@ struct StagedStartupScene
 {
     swr::vector<StagedGearInstance> gears;
     std::optional<StagedFloorData> floor;
-    std::optional<StagedStaticMeshAsset> sample_mesh;
+    swr::vector<StagedStaticMeshAsset> sample_meshes;
 
     mutable std::mutex notices_mutex;
     swr::vector<swr::string> notices;

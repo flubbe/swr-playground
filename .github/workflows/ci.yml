@@ -24,6 +24,16 @@ jobs:
         run: sudo apt-get update
         shell: bash
 
+      - name: Cache dependencies build directory
+        uses: actions/cache@v6
+        with:
+          path: |
+            build/_deps
+
+          key: ${{ runner.os }}-gcc14-${{ env.BUILD_TYPE }}-deps-${{ hashFiles('**/CMakeLists.txt', 'vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-gcc14-${{ env.BUILD_TYPE }}-deps-
+
       - uses: libsdl-org/setup-sdl@main
         id: sdl
         with:

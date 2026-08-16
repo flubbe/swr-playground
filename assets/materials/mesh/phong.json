@@ -1,0 +1,5 @@
+{
+  "name": "Phong",
+  "shader": "PhongSmooth",
+  "textures": {}
+}

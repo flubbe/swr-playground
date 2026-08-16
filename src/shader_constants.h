@@ -41,6 +41,8 @@ constexpr std::size_t spot_light_position_uniform_offset = 0;
 constexpr std::size_t spot_light_direction_uniform_offset = 1;
 constexpr std::size_t spot_light_params_uniform_offset = 2;
 constexpr std::size_t spot_light_color_uniform_offset = 3;
+constexpr std::size_t base_color_sampler_unit = 0;
+constexpr std::size_t normal_map_sampler_unit = 1;
 constexpr std::size_t shadow_map_sampler_unit = 2;
 
 constexpr std::size_t directional_light_uniform_index(

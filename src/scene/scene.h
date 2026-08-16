@@ -20,17 +20,18 @@
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
+#include "reflection/construct.h"
 #include "systems/system.h"
 #include "animation.h"
 #include "camera.h"
-#include "directionallight.h"
+#include "directional_light.h"
 #include "spotlight.h"
 #include "object.h"
 
 class Scene
 {
     /** scene objects. */
-    swr::vector<swr::unique_ptr<Object>> objects;
+    swr::vector<reflect::unique_ptr<Object>> objects;
 
     /** scene update systems. */
     swr::vector<swr::unique_ptr<SceneSystem>> systems;
@@ -78,6 +79,11 @@ public:
     float get_time() const
     {
         return time;
+    }
+
+    void set_time(float new_time)
+    {
+        time = new_time;
     }
 
     void clear();
@@ -261,7 +267,16 @@ public:
           std::is_base_of_v<Object, T>)
     T* add_object(Args&&... args)
     {
-        auto obj = swr::make_unique<T>(std::forward<Args>(args)...);
+        return add_object<T>(
+          reflect::construct_and_init<Object, T>(
+            std::forward<Args>(args)...));
+    }
+
+    template<typename T>
+        requires(
+          std::is_base_of_v<Object, T>)
+    T* add_object(reflect::unique_ptr<T> obj)
+    {
         T* ptr = obj.get();
         objects.emplace_back(std::move(obj));
 
@@ -294,12 +309,41 @@ public:
         return ptr;
     }
 
-    const swr::vector<swr::unique_ptr<Object>>& get_objects() const
+    /*
+     * Import and export.
+     */
+
+    /**
+     * Save the scene to JSON.
+     *
+     * @param indentation_size Indentation size. Defaults to 4.
+     * @param use_compacted_format Whether to use a compacted format: no indentation, no newlines.
+     *     Defaults to `false`.
+     * @returns Returns the JSON description of the scene.
+     * @throws `std::runtime_error` if saving fails.
+     */
+    swr::string save(
+      std::size_t indentation_size = 4,
+      bool use_compacted_format = false) const;
+
+    /**
+     * Load the scene from JSON.
+     *
+     * @param text The JSON text.
+     * @throws `std::runtime_error` if loading fails.
+     */
+    void load(const std::string_view& text);
+
+    /*
+     * Accessors.
+     */
+
+    const swr::vector<reflect::unique_ptr<Object>>& get_objects() const
     {
         return objects;
     }
 
-    swr::vector<swr::unique_ptr<Object>>& get_objects()
+    swr::vector<reflect::unique_ptr<Object>>& get_objects()
     {
         return objects;
     }

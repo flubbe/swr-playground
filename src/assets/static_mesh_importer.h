@@ -24,6 +24,9 @@ struct ImportedMesh
     swr::string name;
     MeshData mesh_data;
     ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.0f};
+
+    // transient mesh bounds
+    MeshBounds bounds;
 };
 
 struct ImportedStaticMesh

@@ -4,6 +4,10 @@
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 
+#include "../utils.h"
+
+namespace fs = std::filesystem;
+
 namespace
 {
 
@@ -18,6 +22,13 @@ void ensure_scene_reflection_ready()
     reflect::ReflectionSystem::allow_auto_registration(false);
     reflect::ReflectionSystem::process_pending_registrations();
     initialized = true;
+}
+
+ResolvableMaterial make_test_material()
+{
+    return ResolvableMaterial{
+      "Test",
+      nullptr};
 }
 
 }    // namespace
@@ -119,16 +130,25 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
 
     Scene scene;
     StaticMesh* mesh = scene.add_object<StaticMesh>(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 12},
-          .material_handle = {.value = 34}}});
+          .material = make_test_material(),
+          .triangle_count = 4}},
+      MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
     EXPECT_TRUE(mesh->is_a<StaticMesh>());
-    ASSERT_EQ(mesh->get_mesh_sections().size(), 1U);
-    EXPECT_EQ(mesh->get_mesh_sections()[0].mesh_handle, MeshHandle{.value = 12U});
-    EXPECT_EQ(mesh->get_mesh_sections()[0].material_handle, MaterialHandle{.value = 34U});
+
+    const auto& mesh_lods = mesh->get_lods();
+    ASSERT_EQ(mesh_lods.size(), 1u);
+
+    const auto& mesh_sections = mesh_lods[0].mesh_sections;
+    ASSERT_EQ(mesh_sections.size(), 1u);
+
+    EXPECT_EQ(mesh_sections[0].mesh_handle, MeshHandle{.value = 12U});
+
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
 
@@ -136,15 +156,17 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 {
     ensure_scene_reflection_ready();
 
-    StaticMesh mesh{
+    StaticMesh mesh;
+    mesh.init(
+      "<mesh>",
       swr::vector{
         StaticMeshLod{
           .mesh_sections =
             {
               MeshSection{
                 .mesh_handle = {.value = 10},
-                .material_handle = {.value = 20},
-              },
+                .material = make_test_material(),
+                .triangle_count = 4},
             },
           .triangle_count = 100000,
           .bounds = {},
@@ -154,8 +176,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
             {
               MeshSection{
                 .mesh_handle = {.value = 11},
-                .material_handle = {.value = 21},
-              },
+                .material = make_test_material(),
+                .triangle_count = 4},
             },
           .triangle_count = 10000,
           .bounds = {},
@@ -165,13 +187,13 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
             {
               MeshSection{
                 .mesh_handle = {.value = 12},
-                .material_handle = {.value = 22},
-              },
+                .material = make_test_material(),
+                .triangle_count = 4},
             },
           .triangle_count = 1000,
           .bounds = {},
         },
-      }};
+      });
 
     EXPECT_EQ(mesh.get_lod_count(), 3U);
 
@@ -200,14 +222,16 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
       .valid = true,
     };
 
-    StaticMesh mesh{
+    StaticMesh mesh;
+    mesh.init(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 10},
-          .material_handle = {.value = 20},
-        },
+          .material = make_test_material(),
+          .triangle_count = 4},
       },
-      bounds};
+      bounds);
 
     EXPECT_TRUE(mesh.get_bounds().valid);
     EXPECT_EQ(mesh.get_bounds().min.x, -1.f);
@@ -225,10 +249,13 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     Scene scene;
     [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
     StaticMesh* mesh = scene.add_object<StaticMesh>(
+      "<mesh>",
       swr::vector{
         MeshSection{
           .mesh_handle = {.value = 56},
-          .material_handle = {.value = 78}}});
+          .material = make_test_material(),
+          .triangle_count = 4}},
+      MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
     int mutable_visit_count = 0;
@@ -253,4 +280,93 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
       });
 
     EXPECT_EQ(const_visit_count, 1);
+}
+
+TEST(SceneTests, EmptySaveLoad)
+{
+    ensure_scene_reflection_ready();
+
+    {
+        Scene scene;
+        swr::string json;
+        EXPECT_NO_THROW(json = scene.save(
+                          0,      // indentation size (ignored)
+                          true    // compacted
+                          ));
+        EXPECT_EQ(json,
+                  "{\"time\":0,\"paused\":false,\"objects\":[]}");
+    }
+
+    {
+        Scene scene;
+        EXPECT_NO_THROW(scene.load("{}"));
+
+        std::size_t object_count{0};
+        scene.for_each_object<Object>(
+          [&]([[maybe_unused]] const Object& obj)
+          {
+              ++object_count;
+          });
+
+        EXPECT_EQ(object_count, 0);
+    }
+}
+
+TEST(SceneTests, SaveLoad)
+{
+    ensure_scene_reflection_ready();
+
+    const std::string_view expected =
+      "{"
+      "\"time\":0,"
+      "\"paused\":false,"
+      "\"objects\":["
+      "{"
+      "\"class\":\"Scene.StaticMesh\","
+      "\"object_id\":1,"
+      "\"name\":\"StaticMesh_1\","
+      "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
+      "\"visible\":true,"
+      "\"path\":\"\","
+      "\"casts_shadows\":true,"
+      "\"receives_shadows\":false"
+      "}"
+      "]}";
+
+    {
+        Scene scene;
+        auto* mesh = scene.add_object<StaticMesh>();
+        ASSERT_NE(mesh, nullptr);
+
+        mesh->casts_shadows = true;
+        mesh->receives_shadows = false;
+
+        swr::string json;
+        EXPECT_NO_THROW(json = scene.save(
+                          0,      // indentation size (ignored)
+                          true    // compacted
+                          ));
+        EXPECT_EQ(json, expected);
+    }
+
+    {
+        Scene scene;
+        EXPECT_NO_THROW(scene.load(expected));
+
+        std::size_t object_count{0};
+        scene.for_each_object<Object>(
+          [&]([[maybe_unused]] const Object& obj)
+          {
+              ++object_count;
+          });
+        EXPECT_EQ(object_count, 1);
+
+        std::size_t mesh_count{0};
+        scene.for_each_object<StaticMesh>(
+          [&]([[maybe_unused]] const StaticMesh& mesh)
+          {
+              ++mesh_count;
+          });
+        EXPECT_EQ(mesh_count, 1);
+    }
 }

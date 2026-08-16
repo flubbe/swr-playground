@@ -13,7 +13,7 @@
 #include <cstddef>
 #include <optional>
 
-#include "property.h"
+#include "reflection/property.h"
 
 namespace reflect
 {

@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "reflection/builtin_properties.h"
+#include "scene/properties.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -22,6 +23,11 @@ DEFINE_REFLECTION(StaticMesh);
 void StaticMesh::register_properties(
   reflect::ClassInfo& class_info)
 {
+    reflect::register_property<&StaticMesh::path>(
+      class_info,
+      "path",
+      "Asset Path",
+      reflect::PropertyFlags::ReadOnly);
     reflect::register_property<&StaticMesh::casts_shadows>(
       class_info,
       "casts_shadows",
@@ -32,50 +38,24 @@ void StaticMesh::register_properties(
       "Receives Shadows");
 }
 
-StaticMesh::StaticMesh(
-  swr::vector<MeshSection> sections)
-{
-    set_mesh_sections(std::move(sections));
-}
-
-StaticMesh::StaticMesh(
+void StaticMesh::init(
+  std::string_view path,
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
-    set_mesh_sections(
-      std::move(sections),
-      bounds);
+    this->path = path;
+    set_lods(
+      {StaticMeshLod{
+        .mesh_sections = std::move(sections),
+        .bounds = bounds}});
 }
 
-StaticMesh::StaticMesh(
+void StaticMesh::init(
+  std::string_view path,
   swr::vector<StaticMeshLod> lods)
 {
+    this->path = path;
     set_lods(std::move(lods));
-}
-
-void StaticMesh::set_mesh_sections(
-  swr::vector<MeshSection> sections)
-{
-    set_mesh_sections(
-      std::move(sections),
-      {});
-}
-
-void StaticMesh::set_mesh_sections(
-  swr::vector<MeshSection> sections,
-  MeshBounds bounds)
-{
-    mesh_lods.clear();
-    if(!sections.empty())
-    {
-        mesh_lods.push_back(
-          StaticMeshLod{
-            .mesh_sections = std::move(sections),
-            .bounds = bounds,
-          });
-    }
-
-    update_bounds();
 }
 
 void StaticMesh::set_lods(

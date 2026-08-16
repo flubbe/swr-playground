@@ -19,11 +19,20 @@
 #include "meshes/lod.h"
 #include "serialization/file.h"
 #include "serialization/hash.h"
+#include "colors.h"
 #include "logging.h"
 #include "startup_tasks.h"
 
 namespace
 {
+
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Startup"};
+    return logger;
+}
 
 void add_startup_notice(
   StagedStartupScene& scene,
@@ -48,15 +57,17 @@ struct GearInit
 };
 
 MeshBounds calculate_imported_mesh_bounds(
-  const ImportedStaticMesh& imported_mesh)
+  ImportedStaticMesh& imported_mesh)
 {
     MeshBounds bounds;
-    for(const auto& mesh: imported_mesh.meshes)
+
+    for(auto& mesh: imported_mesh.meshes)
     {
-        expand_bounds(
-          bounds,
-          calculate_mesh_bounds(mesh.mesh_data));
+        expand_bounds(bounds, mesh.bounds);
     }
+
+    bounds.center = (bounds.min + bounds.max) * 0.5f;
+    bounds.radius = (bounds.center - bounds.max).length();
 
     return bounds;
 }
@@ -126,25 +137,10 @@ MeshData make_floor_mesh(
 
 std::optional<StagedFloorData> try_prepare_floor_data()
 {
-    const std::filesystem::path diffuse_path{
-      "assets/textures/tiles/tiles_0080_color_1k.png"};
-    const std::filesystem::path normal_path{
-      "assets/textures/tiles/tiles_0080_normal_opengl_1k.png"};
-
-    if(!std::filesystem::exists(diffuse_path)
-       || !std::filesystem::exists(normal_path))
-    {
-        return std::nullopt;
-    }
-
     constexpr float floor_half_extent = 28.f;
     constexpr float uv_repeat = 1.f;
     return StagedFloorData{
       .mesh = make_floor_mesh(floor_half_extent, uv_repeat),
-      .diffuse_texture = assets::load_texture_rgba8(diffuse_path),
-      .normal_texture = assets::load_normal_map_rgba8(
-        normal_path,
-        assets::NormalMapConvention::DirectX),
     };
 }
 
@@ -254,7 +250,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     {
         if(auto cached = try_load_cached_mesh(cache_path))
         {
-            logging::logf(
+            get_logger().logf(
               "Using cache entry for '{}' (hash: {:016x}).",
               static_mesh_path.string(),
               cache_key);
@@ -263,7 +259,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
         }
     }
 
-    logging::logf(
+    get_logger().logf(
       "No cache entry found for '{}' (hash: {:016x}).",
       static_mesh_path.string(),
       cache_key);
@@ -273,6 +269,12 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     ImportedStaticMesh imported_mesh = import_static_mesh(static_mesh_path);
     const MeshBounds mesh_bounds =
       calculate_imported_mesh_bounds(imported_mesh);
+
+    // TODO Fix color space. This works for some models.
+    for(auto& mesh: imported_mesh.meshes)
+    {
+        mesh.diffuse_color = colors::linear_to_srgb(mesh.diffuse_color);
+    }
 
     auto sections = build_static_mesh_sections(std::move(imported_mesh));
     std::erase_if(
@@ -288,6 +290,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     }
 
     auto mesh_asset = StagedStaticMeshAsset{
+      .path = swr::string_from(static_mesh_path.string()),
       .name = swr::string_from(static_mesh_path.filename().string()),
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,
@@ -296,10 +299,21 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     };
 
     // Write the processed asset.
-    std::filesystem::create_directories(cache_path.parent_path());
+    std::error_code ec;
+    std::filesystem::create_directories(cache_path.parent_path(), ec);
 
-    serial::FileWriteArchive ar{cache_path};
-    ar & mesh_asset;
+    if(ec)
+    {
+        get_logger().errorf(
+          "Cannot write cached asset. Failed to create directory structure '{}': {}",
+          cache_path.parent_path().string(),
+          ec.message());
+    }
+    else
+    {
+        serial::FileWriteArchive ar{cache_path};
+        ar & mesh_asset;
+    }
 
     return mesh_asset;
 }
@@ -313,14 +327,6 @@ using task_system::TaskCancelledError;
 using task_system::TaskExecutionContext;
 using task_system::TaskSpec;
 
-[[nodiscard]]
-const logging::Logger& get_startup_logger()
-{
-    // Create on first use so it binds after logging initialization.
-    static const logging::Logger startup_logger{"Startup"};
-    return startup_logger;
-}
-
 // Create a task that generates procedural gears
 [[nodiscard]]
 TaskSpec make_gear_task(StagedStartupScene& scene)
@@ -331,7 +337,7 @@ TaskSpec make_gear_task(StagedStartupScene& scene)
       .run = [&scene](TaskExecutionContext& context)
       {
           context.update("Generating procedural scene data...", 0.f);
-          get_startup_logger().logf("generating procedural scene data");
+          get_logger().logf("generating procedural scene data");
 
           const std::array<GearInit, 3> gears = {{
             {
@@ -401,25 +407,25 @@ TaskSpec make_gear_task(StagedStartupScene& scene)
     };
 }
 
-// Create a task that loads floor textures and mesh
+// Create a task that generates the floor mesh.
 [[nodiscard]]
 TaskSpec make_floor_task(StagedStartupScene& scene)
 {
     return TaskSpec{
-      .name = "Loading floor textures...",
+      .name = "Generating floor mesh...",
       .weight = 2.f,
       .run = [&scene](TaskExecutionContext& context)
       {
-          context.update("Loading floor textures...", 0.f);
-          get_startup_logger().logf("loading floor textures");
+          context.update("Generating floor mesh...", 0.f);
+          get_logger().logf("generating floor mesh");
           scene.floor = try_prepare_floor_data();
           if(!scene.floor.has_value())
           {
               add_startup_notice(
                 scene,
-                "floor textures were not found");
+                "floor mesh could not be generated");
           }
-          context.update("Loaded floor textures.", 1.f);
+          context.update("Generated floor mesh.", 1.f);
       },
     };
 }
@@ -428,31 +434,52 @@ TaskSpec make_floor_task(StagedStartupScene& scene)
 [[nodiscard]]
 TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
 {
-    return TaskSpec{
-      .name = "Importing sample mesh...",
-      .weight = 3.f,
-      .run = [&scene](TaskExecutionContext& context)
-      {
-          const std::filesystem::path sample_mesh_path{"assets/models/bunny.obj"};
+    const std::array<std::filesystem::path, 3> sample_mesh_paths = {
+      "assets/models/bunny.obj",
+      "assets/models/cars/COP.obj",
+      "assets/models/bunny.obj"};
 
-          context.update(
-            std::format(
-              "Importing {}...",
-              sample_mesh_path.string()),
-            0.f);
-          get_startup_logger().logf(
-            "importing sample mesh '{}'",
-            sample_mesh_path.generic_string());
-          scene.sample_mesh = try_prepare_sample_mesh(sample_mesh_path);
-          if(!scene.sample_mesh.has_value())
+    return TaskSpec{
+      .name = sample_mesh_paths.size() == 1
+                ? "Importing sample mesh..."
+                : "Importing sample meshes...",
+      .weight = 3.f,
+      .run = [&scene, sample_mesh_paths](TaskExecutionContext& context)
+      {
+          for(const auto& path: sample_mesh_paths)
           {
-              add_startup_notice(
-                scene,
+              context.update(
                 std::format(
-                  "sample static mesh was not found or had no renderable data: {}",
-                  sample_mesh_path.generic_string()));
+                  "Importing {}...",
+                  path.string()),
+                0.f);
+              get_logger().logf(
+                "importing sample mesh '{}'",
+                path.generic_string());
+              auto sample_mesh = try_prepare_sample_mesh(path);
+              if(!sample_mesh.has_value())
+              {
+                  add_startup_notice(
+                    scene,
+                    std::format(
+                      "sample static mesh was not found or had no renderable data: {}",
+                      path.generic_string()));
+              }
+              else
+              {
+                  scene.sample_meshes.emplace_back(
+                    std::move(sample_mesh.value()));
+              }
           }
-          context.update("Startup data prepared.", 1.f);
+
+          if(sample_mesh_paths.size() == 1)
+          {
+              context.update("Mesh loaded.", 1.f);
+          }
+          else
+          {
+              context.update("Meshes loaded.", 1.f);
+          }
       },
     };
 }

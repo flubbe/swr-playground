@@ -43,6 +43,8 @@ namespace shader
 struct ColorFlat final
 : public swr::program<ColorFlat>
 {
+    static constexpr std::string_view name = "ColorFlat";
+
     ColorFlat() = default;
 
     swr::program_metadata get_metadata() const override

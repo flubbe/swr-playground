@@ -39,6 +39,8 @@ class ShadowMapDebug final
 : public swr::program<ShadowMapDebug>
 {
 public:
+    static constexpr std::string_view name = "ShadowMapDepth";
+
     ShadowMapDebug() = default;
 
     swr::program_metadata get_metadata() const override

@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * console panel.
+ * Console panel.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

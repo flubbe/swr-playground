@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * tool panel.
+ * Tools panel.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -15,9 +15,9 @@
 #include <imgui.h>
 
 #include "containers/format.h"
-#include "scene/directionallight.h"
+#include "scene/directional_light.h"
 #include "scene/scene.h"
-#include "renderer/renderdevice.h"
+#include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "viewport.h"
 #include "application.h"
@@ -96,28 +96,28 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
-        const char* shader_names[] = {
+        const char* material_names[] = {
           "Flat",
           "Smooth",
           "Phong",
           "Shadowed"};
-        int shader_index = static_cast<int>(app.get_static_mesh_shader());
-        if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
+        int material_index = static_cast<int>(app.get_static_mesh_shader());
+        if(ImGui::Combo("Material", &material_index, material_names, IM_ARRAYSIZE(material_names)))
         {
-            app.set_static_mesh_shader(static_cast<StaticMeshShaderType>(shader_index));
+            app.set_static_mesh_material(static_cast<StaticMeshMaterial>(material_index));
         }
 
-        const char* floor_shader_names[] = {
+        const char* floor_material_names[] = {
           "Textured",
           "Textured Shiny"};
-        int floor_shader_index = static_cast<int>(app.get_floor_shader());
+        int floor_material_index = static_cast<int>(app.get_floor_material());
         if(ImGui::Combo(
-             "Floor Shader",
-             &floor_shader_index,
-             floor_shader_names,
-             IM_ARRAYSIZE(floor_shader_names)))
+             "Floor Material",
+             &floor_material_index,
+             floor_material_names,
+             IM_ARRAYSIZE(floor_material_names)))
         {
-            app.set_floor_shader(static_cast<FloorShaderType>(floor_shader_index));
+            app.set_floor_material(static_cast<FloorMaterial>(floor_material_index));
         }
 
         const char* light_mode_names[] = {
@@ -311,9 +311,107 @@ void draw_tools_panel(
             ImGui::TableNextColumn();
             ImGui::Text(
               "%llu",
-              static_cast<unsigned long long>(renderer.get_shader_cache().size()));
+              static_cast<unsigned long long>(renderer.get_shader_factory().size()));
 
             ImGui::EndTable();
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Registered Shaders", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        auto& shader_factory = renderer.get_shader_factory();
+        auto names = shader_factory.get_names();
+
+        // Helper struct to parse categories cleanly
+        struct ParsedShader
+        {
+            std::string_view category;
+            std::string_view local_name;
+            std::string_view full_name;
+            std::size_t size{0};
+        };
+
+        static swr::vector<ParsedShader> parsed_shaders;
+        parsed_shaders.clear();
+        parsed_shaders.reserve(names.size());
+
+        for(const auto& name: names)
+        {
+            const auto* shader = shader_factory.get(name);
+
+            size_t sep_pos = name.find_first_of("./");
+            if(sep_pos != std::string::npos)
+            {
+                parsed_shaders.push_back(
+                  {.category = std::string_view(name).substr(0, sep_pos),
+                   .local_name = std::string_view(name).substr(sep_pos + 1),
+                   .full_name = name,
+                   .size = shader->size()});
+            }
+            else
+            {
+                parsed_shaders.push_back(
+                  {.category = "General",
+                   .local_name = name,
+                   .full_name = name,
+                   .size = shader->size()});
+            }
+        }
+
+        // Sort primarily by Category, secondarily by Local Name
+        std::sort(parsed_shaders.begin(), parsed_shaders.end(),
+                  [](const ParsedShader& a, const ParsedShader& b)
+                  {
+                      if(a.category != b.category)
+                          return a.category < b.category;
+                      return a.local_name < b.local_name;
+                  });
+
+        // Render Tree Nodes
+        std::string_view current_category = "";
+        bool category_open = false;
+
+        for(const auto& shader: parsed_shaders)
+        {
+            // When encountering a new category
+            if(shader.category != current_category)
+            {
+                // Pop previous category tree node if it was open
+                if(!current_category.empty() && category_open)
+                {
+                    ImGui::TreePop();
+                }
+
+                current_category = shader.category;
+
+                // Use category string as a unique ID scope
+                ImGui::PushID(
+                  current_category.data(),
+                  current_category.data() + current_category.size());
+                category_open = ImGui::TreeNodeEx(
+                  "CategoryNode",
+                  ImGuiTreeNodeFlags_DefaultOpen,
+                  "%.*s",
+                  static_cast<int>(current_category.size()),
+                  current_category.data());
+                ImGui::PopID();
+            }
+
+            // Render leaf item if the parent node is currently expanded
+            if(category_open)
+            {
+                ImGui::BulletText(
+                  "%.*s [%d b]",
+                  static_cast<int>(shader.local_name.size()),
+                  shader.local_name.data(),
+                  static_cast<int>(shader.size));
+            }
+        }
+
+        // Pop final category node if left open
+        if(!current_category.empty() && category_open)
+        {
+            ImGui::TreePop();
         }
     }
 

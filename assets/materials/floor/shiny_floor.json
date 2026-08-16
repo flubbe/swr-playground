@@ -1,0 +1,15 @@
+{
+  "name": "Textured Shiny",
+  "shader": "TexturedShinyFloor",
+  "textures": {
+    "base_color": {
+      "path": "assets/textures/tiles/tiles_0080_color_1k.png",
+      "color_space": "srgb"
+    },
+    "normal": {
+      "path": "assets/textures/tiles/tiles_0080_normal_opengl_1k.png",
+      "convention": "opengl",
+      "scale": 1.0
+    }
+  }
+}

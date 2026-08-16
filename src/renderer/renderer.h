@@ -17,8 +17,10 @@
 #include <ml/all.h>
 
 #include "containers/memory.h"
-#include "render_types.h"
-#include "shader_cache.h"
+#include "mesh_section.h"
+#include "shader_factory.h"
+#include "material_manager.h"
+#include "queue.h"
 
 class Scene;
 class Camera;
@@ -34,7 +36,6 @@ struct RendererStats
     std::size_t mesh_sections_drawn{0};
     std::size_t mesh_sections_culled{0};
     std::size_t triangles_submitted{0};
-    std::size_t triangles_frustum_culled{0};
     std::array<std::size_t, tracked_lod_count> static_mesh_lods_selected{};
     std::size_t static_mesh_lods_selected_overflow{0};
 };
@@ -340,7 +341,7 @@ class Renderer final
     static constexpr int shadow_map_resolution = 1024;
 
     RenderDevice& device;
-    ShaderCache shader_cache;
+    ShaderFactory shader_factory;
 
     float render_time{0.f};
     RendererStats render_stats;
@@ -350,6 +351,18 @@ class Renderer final
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
     MaterialHandle shadow_material{0};
+
+    MaterialHandle grid_material{0};
+    ShaderHandle grid_shader{0};
+
+    MaterialHandle shadow_debug_overlay_material{0};
+    ShaderHandle shadow_debug_overlay_shader{0};
+
+    /*
+     * Initialization.
+     */
+
+    void register_shaders();
 
     /*
      * Render queues.
@@ -401,8 +414,8 @@ class Renderer final
      * Viewport overlays.
      */
 
-    MeshSection overlay_grid;
-    MeshSection overlay_spotlight_depth;
+    swr::unique_ptr<MeshSection> overlay_grid;
+    swr::unique_ptr<MeshSection> overlay_spotlight_depth;
     ShadowMapHandle shadow_map{};
 
     void create_grid_mesh();
@@ -433,6 +446,8 @@ public:
       RenderDevice& device)
     : device{device}
     {
+        register_shaders();
+
         create_grid_mesh();
         create_spotlight_depth_debug_mesh();
     }
@@ -440,9 +455,9 @@ public:
     ~Renderer();
 
     [[nodiscard]]
-    ShaderCache& get_shader_cache()
+    ShaderFactory& get_shader_factory()
     {
-        return shader_cache;
+        return shader_factory;
     }
 
     [[nodiscard]]

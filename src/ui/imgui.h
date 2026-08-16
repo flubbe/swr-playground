@@ -83,8 +83,7 @@ bool check_and_clear_sorting_benchmark_request();
 
 void draw_scene_inspector_panel(
   State& ui_state,
-  Scene& scene,
-  RenderDevice& render_device);
+  Scene& scene);
 
 void draw_class_inspector_panel(
   State& ui_state);

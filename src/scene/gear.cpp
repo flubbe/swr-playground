@@ -317,30 +317,25 @@ DEFINE_REFLECTION(Gear);
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-Gear::Gear(
+void Gear::init(
   const GearParameters& params)
-: Reflected<Gear, StaticMesh>{
-    swr::vector{
-      MeshSection{
-        .mesh_handle = params.inner.mesh_handle,
-        .material_handle = params.inner.material_handle,
-        .color = params.inner.color},
-      MeshSection{
-        .mesh_handle = params.outer.mesh_handle,
-        .material_handle = params.outer.material_handle,
-        .color = params.outer.color}},
-    params.bounds}
-, inner_radius{params.inner_radius}
-, outer_radius{params.outer_radius}
-, width{params.width}
-, teeth{params.teeth}
-, tooth_depth{params.tooth_depth}
-, built_inner_radius{params.inner_radius}
-, built_outer_radius{params.outer_radius}
-, built_width{params.width}
-, built_teeth{params.teeth}
-, built_tooth_depth{params.tooth_depth}
 {
+    Reflected<Gear, StaticMesh>::init(
+      "",
+      swr::vector{params.inner, params.outer},
+      params.bounds);
+
+    inner_radius = params.inner_radius;
+    outer_radius = params.outer_radius;
+    width = params.width;
+    teeth = params.teeth;
+    tooth_depth = params.tooth_depth;
+    built_inner_radius = params.inner_radius;
+    built_outer_radius = params.outer_radius;
+    built_width = params.width;
+    built_teeth = params.teeth;
+    built_tooth_depth = params.tooth_depth;
+
     clamp_runtime_parameters();
     built_teeth = teeth;
     built_tooth_depth = tooth_depth;

@@ -1,102 +1,147 @@
+/**
+ * Software Rasterizer Playground.
+ *
+ * Shader cache.
+ *
+ * \author Felix Lubbe
+ * \copyright Copyright (c) 2026
+ * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
+ */
+
 #pragma once
 
-#include <algorithm>
-#include <concepts>
-#include <cstddef>
-#include <utility>
-
-#include <swr/shaders.h>
-
-#include "containers/memory.h"
+#include "containers/format.h"
+#include "containers/string.h"
 #include "containers/unordered_map.h"
-#include "containers/vector.h"
+#include "renderer/types.h"
 
-using ShaderCacheKey = void*;
-
-/** Shader concept. */
-template<typename T>
-concept Shader = std::is_base_of_v<swr::program<T>, T>;
-
-/**
- * Generate a unique tag per shader.
- *
- * @tparam T Shader class.
+/*
+ * Forward declarations.
  */
-template<Shader T>
-ShaderCacheKey shader_cache_tag() noexcept
-{
-    /*
-     * Uses the same unique-address tagging trick as the reflection system's
-     * `reflect::detail::type_tag<T>()`: each template instantiation owns a
-     * function-local static, and its address becomes the stable runtime tag.
-     */
+class RenderDevice;
 
-    static int tag = 0;
-    return &tag;
-}
-
-/**
- * Shader cache. Manages shader creation.
- *
- * TODO Decide if we need targetted removal/invalidation.
- */
+/** Shader cache. */
 class ShaderCache
 {
-    /** Cached shaders. */
-    swr::vector<
-      swr::unique_ptr<
-        swr::program_base>>
-      shaders;
+    /** Render device reference. */
+    RenderDevice& device;
 
-    /** Shader keys for fast access. */
+    /** Cached shaders. */
     swr::unordered_map<
-      ShaderCacheKey,
-      swr::program_base*>
-      shaders_by_key;
+      swr::string,
+      ShaderHandle>
+      shader_map;
 
 public:
-    ShaderCache() = default;
-    ShaderCache(const ShaderCache&) = delete;
-    ShaderCache(ShaderCache&&) = default;
-
-    ~ShaderCache() = default;
-
-    ShaderCache& operator=(const ShaderCache&) = delete;
-    ShaderCache& operator=(ShaderCache&&) = default;
+    /**
+     * Constructor.
+     *
+     * @param device The render device for this shader cache.
+     */
+    ShaderCache(
+      RenderDevice& device)
+    : device{device}
+    {
+    }
 
     /**
-     * Checks if a shader exists in the cache and either returns it if found,
-     * or creates a new shader.
+     * Destructor. Releases all shaders.
      *
-     * @tparam T Shader class.
+     * @note Lifetime: The render device has to be valid.
      */
-    template<Shader T>
-    T* get_or_create()
+    ~ShaderCache()
     {
-        const ShaderCacheKey key{shader_cache_tag<T>()};
-        if(auto it = shaders_by_key.find(key); it != shaders_by_key.end())
+        while(!shader_map.empty())
         {
-            return static_cast<T*>(it->second);
+            delete_shader(shader_map.begin()->first);
         }
-
-        swr::unique_ptr<T> new_shader = swr::make_unique<T>();
-        T* shader = new_shader.get();
-
-        shaders.emplace_back(std::move(new_shader));
-        shaders_by_key.emplace(key, shader);
-        return shader;
     }
 
-    /** Clear the cache. */
-    void clear()
+    /**
+     * Hash a shader.
+     *
+     * @param shader The shader to hash.
+     * @returns Returns a 64-bit hash.
+     */
+    [[nodiscard]]
+    static std::uint64_t compute_hash(
+      const swr::program_base* shader) noexcept
     {
-        shaders.clear();
-        shaders_by_key.clear();
+        return std::hash<const swr::program_base*>{}(shader);
     }
 
-    /** Return the shader cache size (shader count). */
-    std::size_t size() const
+    /**
+     * Load a shader and store it under a key.
+     *
+     * @note Deduplicates: When a key already exists, the corresponding
+     *     shader handle is returned.
+     *
+     * @param key The shader key to use.
+     * @param shader The shader.
+     * @returns Returns the shader handle.
+     * @throws Throws a `std::runtime_error` if the load failed.
+     */
+    ShaderHandle load(
+      std::string_view key,
+      const swr::program_base* shader);
+
+    /**
+     * Load a shader.
+     *
+     * @note Deduplicates: When the shader is already loaded, it's handle is returned.
+     *
+     * @param shader The shader.
+     * @returns Returns a pair `(shader_handle, key)`, where `key` can be used to
+     *     access the shader in the manager.
+     */
+    std::pair<ShaderHandle, swr::string> load(
+      const swr::program_base* shader)
     {
-        return shaders.size();
+        const std::uint64_t hash = compute_hash(shader);
+        const swr::string generated_key =
+          swr::format("hash://{:016x}", hash);
+        return std::make_pair(
+          load(generated_key, shader),
+          std::move(generated_key));
     }
+
+    /**
+     * Get a shader by key.
+     *
+     * @param key The shader key.
+     * @returns Returns the shader handle, or `std::nullopt` if the key wasn't found.
+     */
+    [[nodiscard]]
+    std::optional<ShaderHandle> get(
+      std::string_view key) const
+    {
+        if(auto it = shader_map.find(key);
+           it != shader_map.end())
+        {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
+    /**
+     * Check if the manager contains the shader.
+     *
+     * @param key The shader key.
+     * @returns Returns `true` if the shader was found, and `false` otherwise.
+     */
+    [[nodiscard]]
+    bool contains(
+      std::string_view key) const
+    {
+        return shader_map.contains(key);
+    }
+
+    /**
+     * Delete a shader by key.
+     *
+     * @param key Shader key.
+     * @returns Returns `true` if the shader was deleted, and `false` if the key was not found.
+     */
+    bool delete_shader(
+      std::string_view key);
 };

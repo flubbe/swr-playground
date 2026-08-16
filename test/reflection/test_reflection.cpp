@@ -8,12 +8,28 @@
 #include "containers/memory.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/class_registry.h"
+#include "reflection/construct.h"
 #include "reflection/except.h"
 
 class TestRoot : public reflect::ReflectRoot<TestRoot>
 {
+protected:
+    std::size_t* destructor_calls{nullptr};
+
 public:
+    virtual ~TestRoot()
+    {
+        if(destructor_calls != nullptr)
+        {
+            ++(*destructor_calls);
+        }
+    }
+
     static void register_properties(reflect::ClassInfo& class_info);
+    void init(std::size_t* destructor_calls)
+    {
+        this->destructor_calls = destructor_calls;
+    }
 
     int root_value{42};
     std::string root_name{"root"};
@@ -37,7 +53,16 @@ void TestRoot::register_properties(reflect::ClassInfo& class_info)
 
 class TestChild : public reflect::Reflected<TestChild, TestRoot>
 {
+
 public:
+    virtual ~TestChild()
+    {
+        if(destructor_calls != nullptr)
+        {
+            ++(*destructor_calls);
+        }
+    }
+
     static void register_properties(reflect::ClassInfo& class_info);
 
     bool enabled{true};
@@ -1327,4 +1352,46 @@ TEST(ReflectionSystemTests, ClearThenReregisterWorks)
       nullptr);
 
     reflect::ReflectionSystem::unregister_module("RuntimeClear");
+}
+
+TEST(ReflectionSystemTests, ConstructFromName)
+{
+    ensure_reflection_ready();
+
+    // Construct instance from name
+    reflect::unique_ptr<TestRoot> obj =
+      reflect::construct<TestRoot>("Test.TestChild");
+    ASSERT_NE(obj, nullptr);
+    EXPECT_TRUE(obj->is_a(TestChild::static_class()));
+    EXPECT_TRUE(obj->is_a(TestRoot::static_class()));
+}
+
+TEST(ReflectionSystemTests, ConstructFromClass)
+{
+    ensure_reflection_ready();
+
+    // Construct instance from class
+    reflect::unique_ptr<TestRoot> obj =
+      reflect::construct<TestRoot>(TestChild::static_class());
+    ASSERT_NE(obj, nullptr);
+    EXPECT_TRUE(obj->is_a(TestChild::static_class()));
+    EXPECT_TRUE(obj->is_a(TestRoot::static_class()));
+}
+
+TEST(ReflectionSystemTests, ConstructAndInit)
+{
+    ensure_reflection_ready();
+
+    std::size_t destructor_calls{0};
+
+    {
+        // Construct instance from class with arguments
+        reflect::unique_ptr<TestChild> obj =
+          reflect::construct_and_init<TestRoot, TestChild>(&destructor_calls);
+        ASSERT_NE(obj, nullptr);
+        EXPECT_TRUE(obj->is_a(TestChild::static_class()));
+        EXPECT_TRUE(obj->is_a(TestRoot::static_class()));
+    }
+
+    EXPECT_EQ(destructor_calls, 2);
 }

@@ -16,14 +16,18 @@
 #include <gsl/gsl>
 
 #include "containers/memory.h"
-#include "renderer/renderdevice.h"
+#include "renderer/material_manager.h"
+#include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "scene/scene.h"
 #include "memory/manager.h"
 #include "application.h"
+#include "file_manager.h"
 #include "logging.h"
 #include "main_loop.h"
 #include "platform.h"
+#include "shader_cache.h"
+#include "texture_cache.h"
 #include "viewport.h"
 
 namespace
@@ -89,8 +93,13 @@ int main(int argc, char* argv[])
       gsl::finally([]() -> void
                    { logging::shutdown(); });
 
+    FileManager file_manager;
+    file_manager.add_search_path(".");
+    file_manager.set_writable_root(".");
+
     logging::FileLogDevice log_device{
-      resolve_log_path(argc, argv),
+      file_manager.resolve_write(
+        resolve_log_path(argc, argv)),
       logging::FileLogDeviceOptions{
         .overflow_policy = logging::OverflowPolicy::DropNewest,
       }};
@@ -118,10 +127,24 @@ int main(int argc, char* argv[])
         reflect::ReflectionSystem::allow_auto_registration(false);
         reflect::ReflectionSystem::process_pending_registrations();
 
+        ApplicationTaskSystemLogger task_system_logger{log_device};
+        task_system::TaskSystem task_system{
+          std::thread::hardware_concurrency(),
+          task_system_logger};
+
         RenderDevice render_device{
           initial_framebuffer_width,
           initial_framebuffer_height};
         Renderer renderer{render_device};
+
+        ShaderCache shader_cache{render_device};
+        TextureCache texture_cache{render_device};
+        MaterialManager material_manager{
+          task_system,
+          render_device,
+          shader_cache,
+          renderer.get_shader_factory(),
+          texture_cache};
 
         Scene scene;
         Viewport viewport;
@@ -129,11 +152,13 @@ int main(int argc, char* argv[])
         Application app{
           "SWR Playground",
           log_device,
+          file_manager,
+          task_system,
           render_device,
           renderer,
+          material_manager,
           scene,
-          viewport,
-          std::thread::hardware_concurrency()};
+          viewport};
 
         // Set up the main loop and exit the splash screen just before entering.
         MainLoop main_loop{*splash_screen, app};
@@ -145,16 +170,18 @@ int main(int argc, char* argv[])
         splash_screen.reset();
         main_loop.run();
 
+        // TODO cancel tasks and wait for all before resource cleanup.
+
 #ifndef DEBUG
     }
     catch(const std::exception& e)
     {
-        logging::errorf("{}", e.what());
+        logging::fatalf("{}", e.what());
         return EXIT_FAILURE;
     }
     catch(...)
     {
-        logging::errorf("Terminating after uncaught exception.");
+        logging::fatalf("Terminating after uncaught exception.");
         return EXIT_FAILURE;
     }
 #endif

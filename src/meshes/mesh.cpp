@@ -23,6 +23,9 @@ void expand_bounds(
         bounds.min = p;
         bounds.max = p;
         bounds.valid = true;
+
+        bounds.center = p;
+        bounds.radius = 0;
         return;
     }
 
@@ -32,6 +35,9 @@ void expand_bounds(
     bounds.max.x = std::max(bounds.max.x, p.x);
     bounds.max.y = std::max(bounds.max.y, p.y);
     bounds.max.z = std::max(bounds.max.z, p.z);
+
+    bounds.center = (bounds.min + bounds.max) * 0.5f;
+    bounds.radius = (bounds.center - bounds.max).length();
 }
 
 void expand_bounds(

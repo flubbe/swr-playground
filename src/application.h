@@ -12,7 +12,7 @@
 
 #include <chrono>
 #include <cstdint>
-#include <array>
+#include <filesystem>
 #include <future>
 #include <optional>
 #include <string>
@@ -22,17 +22,21 @@
 #include <SDL3/SDL_opengl.h>
 
 #include "containers/memory.h"
-#include "logging.h"
-#include "splash.h"
+#include "renderer/types.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
+#include "logging.h"
+#include "splash.h"
 
+class FileManager;
+class MainLoop;
+class MaterialManager;
 class RenderDevice;
 class Renderer;
 class Scene;
 struct StagedStartupScene;
+struct StartupMaterials;
 class Viewport;
-class MainLoop;
 
 struct ViewportInputState
 {
@@ -47,7 +51,7 @@ struct ViewportInputState
     float mouse_wheel_delta{0.f};
 };
 
-enum class StaticMeshShaderType
+enum class StaticMeshMaterial
 {
     ColorFlat,
     ColorSmooth,
@@ -55,7 +59,7 @@ enum class StaticMeshShaderType
     LitSmooth
 };
 
-enum class FloorShaderType
+enum class FloorMaterial
 {
     TexturedFloor,
     TexturedShinyFloor
@@ -84,20 +88,21 @@ class Application
 {
     swr::string title;
     logging::BufferedLogDevice& log_device;
+    FileManager& file_manager;
 
     swr::unique_ptr<SplashScreen> splash_screen;
 
     SDL_Window* window{nullptr};
     SDL_GLContext gl_context{nullptr};
 
+    task_system::TaskSystem& task_system;
+
     RenderDevice& render_device;
     Renderer& renderer;
+    MaterialManager& material_manager;
 
     Scene& scene;
     Viewport& viewport;
-
-    ApplicationTaskSystemLogger task_system_logger;
-    task_system::TaskSystem task_system;
 
     int window_w{0};
     int window_h{0};
@@ -113,10 +118,8 @@ class Application
      *
      * FIXME Likely not the correct place, but convenient for experimenting.
      */
-    StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::LitSmooth};
-    FloorShaderType active_floor_shader{FloorShaderType::TexturedFloor};
-    std::array<std::uint32_t, 2> floor_texture_handles{};
-    bool has_floor_textures{false};
+    StaticMeshMaterial active_static_mesh_material{StaticMeshMaterial::LitSmooth};
+    FloorMaterial active_floor_material{FloorMaterial::TexturedFloor};
 
     ViewportInputState viewport_input{};
     bool viewport_mouse_captured{false};
@@ -130,6 +133,7 @@ class Application
 
     // Startup task state (parallel submissions aggregated by the main thread).
     swr::shared_ptr<StagedStartupScene> startup_scene;
+    swr::unique_ptr<StartupMaterials> startup_materials;
     swr::vector<task_system::TaskHandle> startup_task_handles;
     swr::vector<std::future<void>> startup_task_futures;
     swr::vector<float> startup_task_weights;
@@ -230,6 +234,19 @@ private:
     void draw_runtime_test_modal();
 
 public:
+    Application(
+      std::string_view title,
+      logging::BufferedLogDevice& log_device,
+      FileManager& file_manager,
+      task_system::TaskSystem& task_system,
+      RenderDevice& render_device,
+      Renderer& renderer,
+      MaterialManager& material_manager,
+      Scene& scene,
+      Viewport& viewport);
+
+    ~Application();
+
     void tick(float delta_time);
 
     /** Start async runtime test tasks from Debug menu. */
@@ -239,33 +256,41 @@ public:
     [[nodiscard]]
     bool is_debug_test_tasks_running() const noexcept;
 
-public:
-    Application(
-      std::string_view title,
-      logging::BufferedLogDevice& log_device,
-      RenderDevice& render_device,
-      Renderer& renderer,
-      Scene& scene,
-      Viewport& viewport,
-      std::size_t thread_pool_workers);
+    /**
+     * Load a scene from JSON.
+     *
+     * @param path The scene path.
+     * @returns Returns `true` on success and `false` on failure.
+     */
+    bool load_scene(const std::filesystem::path& path);
 
-    ~Application();
+    /**
+     * Save the scene as JSON.
+     *
+     * @param path Output path.
+     * @returns Returns `true` on success and `false` on failure.
+     */
+    bool save_scene(const std::filesystem::path& path);
+
+    /*
+     * Accessors.
+     */
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_static_mesh_shader(StaticMeshShaderType type);
+    void set_static_mesh_material(StaticMeshMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_floor_shader(FloorShaderType type);
+    void set_floor_material(FloorMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    StaticMeshShaderType get_static_mesh_shader() const noexcept
+    StaticMeshMaterial get_static_mesh_shader() const noexcept
     {
-        return active_static_mesh_shader;
+        return active_static_mesh_material;
     }
 
-    FloorShaderType get_floor_shader() const noexcept
+    FloorMaterial get_floor_material() const noexcept
     {
-        return active_floor_shader;
+        return active_floor_material;
     }
 
     // FIXME Likely not the correct place, but convenient for experimenting.

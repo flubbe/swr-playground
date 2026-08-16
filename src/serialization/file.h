@@ -12,6 +12,7 @@
 
 #include <fstream>
 #include <filesystem>
+#include <format>
 
 #include "archive.h"
 
@@ -57,16 +58,9 @@ public:
 };
 
 /** A file writer. */
-class FileWriteArchive
+struct FileWriteArchive
 : public FileArchive
 {
-protected:
-    void serialize_bytes(std::span<std::byte> bytes) override
-    {
-        file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-    }
-
-public:
     /** Defaulted and deleted constructors. */
     FileWriteArchive() = delete;
     FileWriteArchive(const FileWriteArchive&) = delete;
@@ -113,27 +107,18 @@ public:
 
         return end - beg;
     }
+
+    void serialize(
+      std::span<std::byte> bytes) override
+    {
+        file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    }
 };
 
 /** A file reader. */
-class FileReadArchive
+struct FileReadArchive
 : public FileArchive
 {
-protected:
-    void serialize_bytes(std::span<std::byte> bytes) override
-    {
-        file.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
-        if(static_cast<std::size_t>(file.gcount()) != bytes.size())
-        {
-            throw SerializationError{
-              std::format(
-                "Unable to read {} bytes from file '{}'.",
-                bytes.size(),
-                path.string())};
-        }
-    }
-
-public:
     /** Defaulted and deleted constructors. */
     FileReadArchive() = delete;
     FileReadArchive(const FileReadArchive&) = delete;
@@ -179,6 +164,20 @@ public:
         seek(cur);
 
         return end - beg;
+    }
+
+    void serialize(
+      std::span<std::byte> bytes) override
+    {
+        file.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
+        if(static_cast<std::size_t>(file.gcount()) != bytes.size())
+        {
+            throw SerializationError{
+              std::format(
+                "Unable to read {} bytes from file '{}'.",
+                bytes.size(),
+                path.string())};
+        }
     }
 };
 

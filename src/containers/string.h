@@ -14,6 +14,7 @@
 #include <type_traits>
 
 #include "containers/allocator.h"
+#include "containers/hash.h"
 
 namespace swr
 {
@@ -34,6 +35,48 @@ using string = std::basic_string<
 using string = std::string;
 
 #endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
+/*
+ * Hashing and comparisons.
+ */
+
+template<>
+struct hash<string>
+{
+    using hash_type = std::hash<std::string_view>;
+    using is_transparent = void;
+
+    std::size_t operator()(
+      const char* str) const noexcept
+    {
+        return hash_type{}(str);
+    }
+
+    std::size_t operator()(
+      std::string_view str) const noexcept
+    {
+        return hash_type{}(str);
+    }
+
+    std::size_t operator()(
+      const string& str) const noexcept
+    {
+        return hash_type{}(str);
+    }
+};
+
+template<>
+struct equal_to<string>
+{
+    using is_transparent = void;
+
+    bool operator()(
+      std::string_view lhs,
+      std::string_view rhs) const noexcept
+    {
+        return lhs == rhs;
+    }
+};
 
 namespace detail
 {

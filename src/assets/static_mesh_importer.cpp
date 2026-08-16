@@ -94,6 +94,15 @@ MeshData import_mesh_data(const aiMesh& mesh)
     return result;
 }
 
+void calculate_imported_mesh_bounds(
+  ImportedStaticMesh& imported_mesh)
+{
+    for(auto& mesh: imported_mesh.meshes)
+    {
+        mesh.bounds = calculate_mesh_bounds(mesh.mesh_data);
+    }
+}
+
 }    // namespace
 
 ImportedStaticMesh import_static_mesh(
@@ -137,8 +146,9 @@ ImportedStaticMesh import_static_mesh(
             .name = mesh->mName.C_Str(),
             .mesh_data = std::move(mesh_data),
             .diffuse_color = read_diffuse_color(*scene, mesh->mMaterialIndex),
-          });
+            .bounds = {}});
     }
 
+    calculate_imported_mesh_bounds(result);
     return result;
 }

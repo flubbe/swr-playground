@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * type traits.
+ * Type traits.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026

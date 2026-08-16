@@ -14,19 +14,26 @@
 #include <cmath>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <utility>
 #include <vector>
 
 #include "assets/shaders/color_only.h"
+#include "assets/shaders/color_flat.h"
+#include "assets/shaders/color_smooth.h"
 #include "assets/shaders/lit_smooth.h"
+#include "assets/shaders/phong_smooth.h"
 #include "assets/shaders/shadow_depth.h"
 #include "assets/shaders/shadow_map_debug.h"
 #include "assets/shaders/textured_floor.h"
 #include "assets/shaders/textured_shiny_floor.h"
+#include "containers/format.h"
 #include "containers/vector.h"
-#include "renderdevice.h"
+#include "logging.h"
+#include "material_manager.h"
+#include "render_device.h"
 #include "renderer.h"
-#include "scene/directionallight.h"
+#include "scene/directional_light.h"
 #include "scene/spotlight.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
@@ -34,6 +41,14 @@
 
 namespace
 {
+
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"Renderer"};
+    return logger;
+}
 
 std::array<ml::vec4, 8> make_bounds_corners(
   const MeshBounds& bounds)
@@ -153,65 +168,23 @@ bool bounds_intersect_frustum(
                }));
 }
 
-std::pair<float, float> estimate_screen_dimensions_fraction(
-  const MeshBounds& bounds,
-  const ml::mat4x4& clip_from_mesh)
-{
-    if(!bounds.valid)
-    {
-        return {1.f, 1.f};
-    }
-
-    constexpr float w_epsilon = 0.0001f;
-
-    float min_x = std::numeric_limits<float>::max();
-    float max_x = std::numeric_limits<float>::lowest();
-
-    float min_y = std::numeric_limits<float>::max();
-    float max_y = std::numeric_limits<float>::lowest();
-
-    const auto corners = make_bounds_corners(bounds);
-    for(const auto& corner: corners)
-    {
-        const ml::vec4 clip = clip_from_mesh * corner;
-        if(clip.w <= w_epsilon)
-        {
-            return {1.f, 1.f};
-        }
-
-        const float ndc_x = clip.x / clip.w;
-        const float ndc_y = clip.y / clip.w;
-
-        min_x = std::min(min_x, ndc_x);
-        max_x = std::max(max_x, ndc_x);
-
-        min_y = std::min(min_y, ndc_y);
-        max_y = std::max(max_y, ndc_y);
-    }
-
-    return {
-      std::clamp((max_x - min_x) * 0.5f, 0.f, 1.f),
-      std::clamp((max_y - min_y) * 0.5f, 0.f, 1.f)};
-}
-
+/**
+ * Estimate the depth of a mesh using the mesh bounds' center.
+ *
+ * @param bounds Mesh bounds.
+ * @param transform Mesh transformation matrix.
+ * @returns Returns the estimated depth.
+ */
 float estimate_sort_depth(
   const MeshBounds& bounds,
-  const ml::mat4x4& view_from_mesh)
+  const ml::mat4x4& transform)
 {
-    ml::vec4 local_center{0.f, 0.f, 0.f, 1.f};
-    if(bounds.valid)
-    {
-        local_center = {
-          (bounds.min.x + bounds.max.x) * 0.5f,
-          (bounds.min.y + bounds.max.y) * 0.5f,
-          (bounds.min.z + bounds.max.z) * 0.5f,
-          1.f,
-        };
-    }
+    const ml::vec4 local_center =
+      bounds.valid
+        ? ml::vec4{bounds.center, 1.f}
+        : ml::vec4{0.f, 0.f, 0.f, 1.f};
 
-    // In view space, visible geometry is typically in negative Z.
-    // Sorting by -z yields near-to-far submission.
-    const ml::vec4 view_center = view_from_mesh * local_center;
+    const ml::vec4 view_center = transform * local_center;
     return -view_center.z;
 }
 
@@ -327,6 +300,21 @@ std::optional<ShadowCamera> collect_shadow_camera(
 
 }    // namespace
 
+void Renderer::register_shaders()
+{
+    // register all shaders.
+    shader_factory.register_shader<shader::ColorFlat>();
+    shader_factory.register_shader<shader::ColorSmooth>();
+    shader_factory.register_shader<shader::LitSmooth>();
+    shader_factory.register_shader<shader::PhongSmooth>();
+    shader_factory.register_shader<shader::TexturedFloor>();
+    shader_factory.register_shader<shader::TexturedShinyFloor>();
+
+    auto shader_names = shader_factory.get_names();
+    std::ranges::sort(shader_names);
+    get_logger().logf("Registered shaders: {}", shader_names);
+}
+
 void Renderer::build_render_queue(
   const Scene& scene,
   const ViewportDisplaySettings& display_settings)
@@ -345,39 +333,51 @@ void Renderer::build_render_queue(
             continue;
         }
 
-        const auto obj_view = view * static_mesh.get_transform();
-        const auto obj_clip = projection * obj_view;
-        const ml::mat4x4 shadow_clip_from_mesh =
-          shadow_camera.has_value()
-            ? make_shadow_bias_matrix()
-                * shadow_camera->proj
-                * shadow_camera->view
-                * static_mesh.get_transform()
-            : ml::mat4x4::identity();
-        const float obj_sort_depth =
-          estimate_sort_depth(static_mesh.get_bounds(), obj_view);
+        const auto obj_transform = static_mesh.get_transform();
+        const auto& obj_bounds = static_mesh.get_bounds();
 
-        const MeshBounds& mesh_bounds = static_mesh.get_bounds();
+        const auto obj_view = view * obj_transform;
+        const auto obj_clip = projection * obj_view;
+
         if(display_settings.cull_frustum
-           && mesh_bounds.valid
-           && !bounds_intersect_frustum(mesh_bounds, obj_clip))
+           && obj_bounds.valid
+           && !bounds_intersect_frustum(obj_bounds, obj_clip))
         {
-            const auto& culled_lod = static_mesh.get_lod(0);
-            render_stats.mesh_sections_culled += culled_lod.mesh_sections.size();
-            for(const auto& section: culled_lod.mesh_sections)
-            {
-                render_stats.triangles_frustum_culled +=
-                  device.get_mesh_triangle_count(section.mesh_handle);
-            }
             continue;
         }
 
-        const auto [screen_width_fraction, screen_height_fraction] =
-          estimate_screen_dimensions_fraction(mesh_bounds, obj_clip);
-        const float screen_width_pixels = screen_width_fraction * device.get_height();
-        const float screen_height_pixels = screen_height_fraction * device.get_height();
+        const ml::vec3 view_center =
+          (obj_view * ml::vec4{obj_bounds.center, 1.f}).xyz();
+
+        const float distance = -view_center.z;
+        if(distance <= 0.0f)
+        {
+            continue;
+        }
+
+        const float obj_sort_depth =
+          estimate_sort_depth(obj_bounds, obj_view);
+
+        ml::mat4x4 shadow_clip_from_mesh = ml::mat4x4::identity();
+        if(shadow_camera)
+        {
+            shadow_clip_from_mesh =
+              make_shadow_bias_matrix()
+              * shadow_camera->proj
+              * shadow_camera->view
+              * obj_transform;
+        }
+
+        const float scale =
+          std::max({obj_transform.rows[0].xyz().length(),
+                    obj_transform.rows[1].xyz().length(),
+                    obj_transform.rows[2].xyz().length()});
+        const float world_radius =
+          obj_bounds.radius * scale;
+        const float projected_radius_pixels =
+          world_radius * projection.rows[1].y * device.get_height() * 0.5f / distance;
         const float projected_pixel_area =
-          screen_width_pixels * screen_height_pixels;
+          std::numbers::pi_v<float> * projected_radius_pixels * projected_radius_pixels;
 
         const std::size_t lod_index =
           display_settings.dynamic_lod
@@ -391,37 +391,33 @@ void Renderer::build_render_queue(
         const auto& lod = static_mesh.get_lod(lod_index);
         for(const auto& section: lod.mesh_sections)
         {
-            const MeshBounds* bounds = device.get_mesh_bounds(section.mesh_handle);
-            if(display_settings.cull_frustum
-               && bounds != nullptr
-               && !bounds_intersect_frustum(*bounds, obj_clip))
+            // TODO We could add bound checks for the mesh sections here.
+
+            if(auto material = section.material.try_get();
+               material.has_value())
             {
-                ++render_stats.mesh_sections_culled;
-                render_stats.triangles_frustum_culled +=
-                  device.get_mesh_triangle_count(section.mesh_handle);
-                continue;
+                render_queue.push_back({
+                  .sort_depth = obj_sort_depth,
+                  .mesh_handle = section.mesh_handle,
+                  .material_handle = material.value(),
+                  .color = section.color,
+                  .view_from_mesh = obj_view,
+                  .shadow_map = {
+                    .enabled =
+                      shadow_camera.has_value()
+                      && static_mesh.receives_shadows
+                      && shadow_map != 0,
+                    .handle = shadow_map,
+                    .clip_from_mesh = shadow_clip_from_mesh,
+                    .depth_bias = 0.0008f,
+                    .linear_filter = shadow_linear_filter,
+                  },
+                });
             }
 
-            render_queue.push_back({
-              .sort_depth = obj_sort_depth,
-              .mesh_handle = section.mesh_handle,
-              .material_handle = section.material_handle,
-              .color = section.color,
-              .view_from_mesh = obj_view,
-              .shadow_map = {
-                .enabled =
-                  shadow_camera.has_value()
-                  && static_mesh.receives_shadows
-                  && static_cast<bool>(shadow_map),
-                .handle = shadow_map,
-                .clip_from_mesh = shadow_clip_from_mesh,
-                .depth_bias = 0.0008f,
-                .linear_filter = shadow_linear_filter,
-              },
-            });
+            // update stats.
             ++render_stats.mesh_sections_drawn;
-            render_stats.triangles_submitted +=
-              device.get_mesh_triangle_count(section.mesh_handle);
+            render_stats.triangles_submitted += section.triangle_count;
         }
     }
 }
@@ -587,8 +583,12 @@ void Renderer::create_grid_mesh()
     release_grid_mesh();
 
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
-    auto* gray_shader = shader_cache.get_or_create<shader::ColorOnly>();
-    auto gray_material = device.create_material(*gray_shader);
+    auto* gray_shader = shader_factory.get_or_create<shader::ColorOnly>();
+    auto gray_material = device.create_material(
+      Material{
+        .shader_handle = device.create_shader(*gray_shader),
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 
     std::vector<ml::vec4> vb;
     std::vector<ml::vec4> nb;
@@ -632,29 +632,42 @@ void Renderer::create_grid_mesh()
         }
     }
 
-    overlay_grid = {
-      .mesh_handle = device.create_mesh(
-        MeshData{
-          .primitive_type = PrimitiveType::Lines,
-          .indices = std::move(ib),
-          .vertices = std::move(vb),
-          .normals = std::move(nb),
-          .texcoords = {}}),
-      .material_handle = gray_material,
-      .color = color_gray};
+    overlay_grid = swr::make_unique<MeshSection>(
+      MeshSection{
+        .mesh_handle = device.create_mesh(
+          MeshData{
+            .primitive_type = PrimitiveType::Lines,
+            .indices = std::move(ib),
+            .vertices = std::move(vb),
+            .normals = std::move(nb),
+            .texcoords = {}}),
+        .material = ResolvableMaterial{
+          "GrayMaterial",
+          gray_material},
+        .color = color_gray});
 }
 
 void Renderer::release_grid_mesh()
 {
-    if(overlay_grid.mesh_handle)
+    if(overlay_grid != nullptr
+       && overlay_grid->mesh_handle)
     {
-        device.delete_mesh(overlay_grid.mesh_handle);
-        overlay_grid.mesh_handle = {};
+        device.delete_mesh(overlay_grid->mesh_handle);
+        overlay_grid->mesh_handle = {};
     }
-    if(overlay_grid.material_handle)
+
+    overlay_grid.reset();
+
+    if(grid_material != 0)
     {
-        device.delete_material(overlay_grid.material_handle, false);
-        overlay_grid.material_handle = {};
+        device.delete_material(grid_material);
+        grid_material = {};
+    }
+
+    if(grid_shader != 0)
+    {
+        device.delete_shader(grid_shader);
+        grid_shader = {};
     }
 }
 
@@ -662,8 +675,13 @@ void Renderer::create_spotlight_depth_debug_mesh()
 {
     release_spotlight_depth_debug_mesh();
 
-    auto* debug_shadow_shader = shader_cache.get_or_create<shader::ShadowMapDebug>();
-    const auto debug_shadow_material = device.create_material(*debug_shadow_shader);
+    auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
+    shadow_debug_overlay_shader = device.create_shader(*debug_shadow_shader);
+    shadow_debug_overlay_material = device.create_material(
+      Material{
+        .shader_handle = shadow_debug_overlay_shader,
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 
     std::vector<ml::vec4> qvb;
     std::vector<ml::vec4> qnb;
@@ -697,31 +715,44 @@ void Renderer::create_spotlight_depth_debug_mesh()
     qib.push_back(2);
     qib.push_back(3);
 
-    overlay_spotlight_depth = {
-      .mesh_handle = device.create_mesh(
-        MeshData{
-          .primitive_type = PrimitiveType::Triangles,
-          .indices = std::move(qib),
-          .vertices = std::move(qvb),
-          .normals = std::move(qnb),
-          .texcoords = std::move(qtb),
-        }),
-      .material_handle = debug_shadow_material,
-      .color = {1.f, 1.f, 1.f, 1.f},
-    };
+    overlay_spotlight_depth = swr::make_unique<MeshSection>(
+      MeshSection{
+        .mesh_handle = device.create_mesh(
+          MeshData{
+            .primitive_type = PrimitiveType::Triangles,
+            .indices = std::move(qib),
+            .vertices = std::move(qvb),
+            .normals = std::move(qnb),
+            .texcoords = std::move(qtb),
+          }),
+        .material = ResolvableMaterial{
+          "SpotlightDepthDebug",
+          shadow_debug_overlay_material},
+        .color = {1.f, 1.f, 1.f, 1.f},
+      });
 }
 
 void Renderer::release_spotlight_depth_debug_mesh()
 {
-    if(overlay_spotlight_depth.mesh_handle)
+    if(overlay_spotlight_depth != nullptr
+       && overlay_spotlight_depth->mesh_handle)
     {
-        device.delete_mesh(overlay_spotlight_depth.mesh_handle);
-        overlay_spotlight_depth.mesh_handle = {};
+        device.delete_mesh(overlay_spotlight_depth->mesh_handle);
+        overlay_spotlight_depth->mesh_handle = {};
     }
-    if(overlay_spotlight_depth.material_handle)
+
+    overlay_spotlight_depth.reset();
+
+    if(shadow_debug_overlay_material != 0)
     {
-        device.delete_material(overlay_spotlight_depth.material_handle, false);
-        overlay_spotlight_depth.material_handle = {};
+        device.delete_material(shadow_debug_overlay_material);
+        shadow_debug_overlay_material = {};
+    }
+
+    if(shadow_debug_overlay_shader != 0)
+    {
+        device.delete_shader(shadow_debug_overlay_shader);
+        shadow_debug_overlay_shader = {};
     }
 }
 
@@ -734,35 +765,43 @@ Renderer::~Renderer()
 
 void Renderer::ensure_shadow_map_resources()
 {
-    if(shadow_map
-       && shadow_material)
+    if(shadow_map != 0
+       && shadow_material != 0)
     {
         return;
     }
 
+    /*
+     * Release previous resources.
+     */
     release_shadow_map_resources();
+
+    /*
+     * Create new resources.
+     */
     shadow_map = device.create_shadow_map(
       shadow_map_resolution,
       shadow_map_resolution);
 
-    auto* shadow_shader = shader_cache.get_or_create<shader::ShadowDepth>();
-    if(!shadow_material)
-    {
-        shadow_material = device.create_material(*shadow_shader);
-    }
+    auto* shadow_shader = shader_factory.get_or_create<shader::ShadowDepth>();
+    shadow_material = device.create_material(
+      Material{
+        .shader_handle = device.create_shader(*shadow_shader),
+        .base_color_handle = {},
+        .normal_map_handle = {}});
 }
 
 void Renderer::release_shadow_map_resources()
 {
-    if(shadow_map)
+    if(shadow_map != 0)
     {
         device.delete_shadow_map(shadow_map);
         shadow_map = {};
     }
 
-    if(shadow_material)
+    if(shadow_material != 0)
     {
-        device.delete_material(shadow_material, false);
+        device.delete_material(shadow_material);
         shadow_material = {};
     }
 }
@@ -800,6 +839,17 @@ void Renderer::render_scene(
 void Renderer::render_grid(
   const Camera& camera)
 {
+    if(overlay_grid == nullptr)
+    {
+        return;
+    }
+
+    std::optional<MaterialHandle> material = overlay_grid->material.try_get();
+    if(!material.has_value())
+    {
+        return;
+    }
+
     device.bind_rasterizer_state({
       .wireframe = false,
       .cull_face = false,
@@ -808,23 +858,29 @@ void Renderer::render_grid(
     auto view = camera.get_transform();
     auto projection = camera.get_projection_matrix();
 
-    device.bind_material(overlay_grid.material_handle);
+    device.bind_material(material.value());
     device.bind_camera_uniforms({
       .proj = projection,
       .view = view,
     });
     device.bind_lighting_uniforms({});
     device.bind_material_uniforms({
-      .base_color = overlay_grid.color,
+      .base_color = overlay_grid->color,
     });
     device.bind_shadow_uniforms({});
 
-    device.draw_mesh(overlay_grid.mesh_handle);
+    device.draw_mesh(overlay_grid->mesh_handle);
 }
 
 void Renderer::render_spotlight_depth_debug()
 {
-    if(!shadow_map)
+    if(shadow_map == 0)
+    {
+        return;
+    }
+
+    std::optional<MaterialHandle> material = overlay_spotlight_depth->material.try_get();
+    if(!material.has_value())
     {
         return;
     }
@@ -841,7 +897,7 @@ void Renderer::render_spotlight_depth_debug()
       .depth_bias = 0.f,
       .linear_filter = false,
     });
-    device.bind_material(overlay_spotlight_depth.material_handle);
+    device.bind_material(material.value());
     device.bind_camera_uniforms({
       .proj = ml::mat4x4::identity(),
       .view = ml::mat4x4::identity(),
@@ -855,7 +911,7 @@ void Renderer::render_spotlight_depth_debug()
       .clip_from_mesh = ml::mat4x4::identity(),
       .params = {0.f, static_cast<float>(ShadowPcfMode::Off), 0.f, 0.f},
     });
-    device.draw_mesh(overlay_spotlight_depth.mesh_handle);
+    device.draw_mesh(overlay_spotlight_depth->mesh_handle);
     device.clear_shadow_map();
 }
 
@@ -871,7 +927,7 @@ void Renderer::render(
     begin_render(scene);
 
     /*
-     * scene rendering.
+     * Scene rendering.
      */
 
     render_shadow_map(scene);
@@ -890,7 +946,7 @@ void Renderer::render(
     }
 
     /*
-     * viewport overlays.
+     * Viewport overlays.
      */
 
     if(!display_settings.debug_spotlight_depth

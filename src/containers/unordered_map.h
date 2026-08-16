@@ -13,6 +13,7 @@
 #include <unordered_map>
 
 #include "containers/allocator.h"
+#include "containers/hash.h"
 
 namespace swr
 {
@@ -27,8 +28,8 @@ using unordered_map =
   std::unordered_map<
     K,
     V,
-    std::hash<K>,
-    std::equal_to<K>,
+    swr::hash<K>,
+    swr::equal_to<K>,
     swr::StdAllocator<
       std::pair<const K, V>,
       MemoryTag::UnorderedMap,
@@ -44,8 +45,8 @@ using unordered_map =
   std::unordered_map<
     K,
     V,
-    std::hash<K>,
-    std::equal_to<K>,
+    swr::hash<K>,
+    swr::equal_to<K>,
     std::allocator<
       std::pair<const K, V>>>;
 

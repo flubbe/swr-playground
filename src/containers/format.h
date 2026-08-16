@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * formatters into `swr::string`.
+ * Formatters into `swr::string`.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -11,8 +11,10 @@
 #pragma once
 
 #include <format>
+#include <version>
 
 #include "containers/string.h"
+#include "containers/vector.h"
 
 namespace swr
 {
@@ -49,3 +51,42 @@ auto format(
 #endif
 
 }    // namespace swr
+
+/*
+ * Enable if C++23 range formatting is missing.
+ */
+
+#if !defined(__cpp_lib_format_ranges)
+
+namespace std
+{
+template<
+  typename T,
+  typename Allocator,
+  typename CharT>
+struct formatter<std::vector<T, Allocator>, CharT>
+: formatter<std::string_view, CharT>
+{
+    template<typename FormatContext>
+    auto format(
+      const std::vector<T, Allocator>& vec,
+      FormatContext& ctx) const
+    {
+        swr::string result = "[";
+        for(size_t i = 0; i < vec.size(); ++i)
+        {
+            if(i > 0)
+            {
+                result += ", ";
+            }
+            result += std::format("{}", vec[i]);
+        }
+        result += "]";
+
+        return formatter<string_view, CharT>::format(result, ctx);
+    }
+};
+
+}    // namespace std
+
+#endif /* !defined(__cpp_lib_format_ranges) */

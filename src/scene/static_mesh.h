@@ -15,7 +15,7 @@
 
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "renderer/render_types.h"
+#include "renderer/mesh_section.h"
 #include "object.h"
 
 /** One renderable level of detail for a static mesh. */
@@ -34,6 +34,7 @@ struct StaticMeshLod
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
+    swr::string path;
     swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
 
@@ -50,35 +51,17 @@ public:
 
     StaticMesh() = default;
 
-    explicit StaticMesh(swr::vector<MeshSection> sections);
-
-    StaticMesh(
+    void init(
+      std::string_view path,
       swr::vector<MeshSection> sections,
       MeshBounds bounds);
-
-    explicit StaticMesh(swr::vector<StaticMeshLod> lods);
-
-    void set_mesh_sections(swr::vector<MeshSection> sections);
-
-    void set_mesh_sections(
-      swr::vector<MeshSection> sections,
-      MeshBounds bounds);
+    void init(
+      std::string_view path,
+      swr::vector<StaticMeshLod> lods);
 
     void set_lods(swr::vector<StaticMeshLod> lods);
 
     void clear_mesh_sections() noexcept;
-
-    [[nodiscard]]
-    const swr::vector<MeshSection>& get_mesh_sections() const
-    {
-        static const swr::vector<MeshSection> empty;
-        if(mesh_lods.empty())
-        {
-            return empty;
-        }
-
-        return mesh_lods.front().mesh_sections;
-    }
 
     [[nodiscard]]
     const swr::vector<StaticMeshLod>& get_lods() const
