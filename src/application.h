@@ -51,7 +51,7 @@ struct ViewportInputState
     float mouse_wheel_delta{0.f};
 };
 
-enum class StaticMeshShaderType
+enum class StaticMeshMaterial
 {
     ColorFlat,
     ColorSmooth,
@@ -59,7 +59,7 @@ enum class StaticMeshShaderType
     LitSmooth
 };
 
-enum class FloorShaderType
+enum class FloorMaterial
 {
     TexturedFloor,
     TexturedShinyFloor
@@ -118,8 +118,8 @@ class Application
      *
      * FIXME Likely not the correct place, but convenient for experimenting.
      */
-    StaticMeshShaderType active_static_mesh_shader{StaticMeshShaderType::LitSmooth};
-    FloorShaderType active_floor_shader{FloorShaderType::TexturedFloor};
+    StaticMeshMaterial active_static_mesh_material{StaticMeshMaterial::LitSmooth};
+    FloorMaterial active_floor_material{FloorMaterial::TexturedFloor};
 
     ViewportInputState viewport_input{};
     bool viewport_mouse_captured{false};
@@ -277,20 +277,20 @@ public:
      */
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_static_mesh_shader(StaticMeshShaderType type);
+    void set_static_mesh_material(StaticMeshMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_floor_shader(FloorShaderType type);
+    void set_floor_material(FloorMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    StaticMeshShaderType get_static_mesh_shader() const noexcept
+    StaticMeshMaterial get_static_mesh_shader() const noexcept
     {
-        return active_static_mesh_shader;
+        return active_static_mesh_material;
     }
 
-    FloorShaderType get_floor_shader() const noexcept
+    FloorMaterial get_floor_material() const noexcept
     {
-        return active_floor_shader;
+        return active_floor_material;
     }
 
     // FIXME Likely not the correct place, but convenient for experimenting.

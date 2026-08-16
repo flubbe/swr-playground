@@ -96,28 +96,28 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
-        const char* shader_names[] = {
+        const char* material_names[] = {
           "Flat",
           "Smooth",
           "Phong",
           "Shadowed"};
-        int shader_index = static_cast<int>(app.get_static_mesh_shader());
-        if(ImGui::Combo("Shader", &shader_index, shader_names, IM_ARRAYSIZE(shader_names)))
+        int material_index = static_cast<int>(app.get_static_mesh_shader());
+        if(ImGui::Combo("Material", &material_index, material_names, IM_ARRAYSIZE(material_names)))
         {
-            app.set_static_mesh_shader(static_cast<StaticMeshShaderType>(shader_index));
+            app.set_static_mesh_material(static_cast<StaticMeshMaterial>(material_index));
         }
 
-        const char* floor_shader_names[] = {
+        const char* floor_material_names[] = {
           "Textured",
           "Textured Shiny"};
-        int floor_shader_index = static_cast<int>(app.get_floor_shader());
+        int floor_material_index = static_cast<int>(app.get_floor_material());
         if(ImGui::Combo(
-             "Floor Shader",
-             &floor_shader_index,
-             floor_shader_names,
-             IM_ARRAYSIZE(floor_shader_names)))
+             "Floor Material",
+             &floor_material_index,
+             floor_material_names,
+             IM_ARRAYSIZE(floor_material_names)))
         {
-            app.set_floor_shader(static_cast<FloorShaderType>(floor_shader_index));
+            app.set_floor_material(static_cast<FloorMaterial>(floor_material_index));
         }
 
         const char* light_mode_names[] = {

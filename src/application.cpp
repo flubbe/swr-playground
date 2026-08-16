@@ -1879,25 +1879,25 @@ void Application::tick(float delta_time)
     scene.tick(delta_time);
 }
 
-void Application::set_static_mesh_shader(StaticMeshShaderType type)
+void Application::set_static_mesh_material(StaticMeshMaterial type)
 {
-    active_static_mesh_shader = type;
+    active_static_mesh_material = type;
 
     const swr::string material_path = [&]() -> swr::string
     {
-        if(type == StaticMeshShaderType::ColorFlat)
+        if(type == StaticMeshMaterial::ColorFlat)
         {
             return "assets/materials/mesh/flat.json";
         }
-        else if(type == StaticMeshShaderType::ColorSmooth)
+        else if(type == StaticMeshMaterial::ColorSmooth)
         {
             return "assets/materials/mesh/smooth.json";
         }
-        else if(type == StaticMeshShaderType::PhongSmooth)
+        else if(type == StaticMeshMaterial::PhongSmooth)
         {
             return "assets/materials/mesh/phong.json";
         }
-        else if(type == StaticMeshShaderType::LitSmooth)
+        else if(type == StaticMeshMaterial::LitSmooth)
         {
             return "assets/materials/mesh/lit.json";
         }
@@ -1907,7 +1907,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         }
     }();
 
-    auto get_material = [&]() -> ResolvableMaterial
+    const ResolvableMaterial material = [&]() -> ResolvableMaterial
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(material_path);
@@ -1918,7 +1918,7 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
 
         auto json = read_text_file(file_manager, material_path);
         return material_manager.load(material_path, json);
-    };
+    }();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
@@ -1936,23 +1936,23 @@ void Application::set_static_mesh_shader(StaticMeshShaderType type)
         {
             for(auto& section: lod.mesh_sections)
             {
-                section.material = get_material();
+                section.material = material;
             }
         }
     }
 }
 
-void Application::set_floor_shader(FloorShaderType type)
+void Application::set_floor_material(FloorMaterial type)
 {
-    active_floor_shader = type;
+    active_floor_material = type;
 
     const swr::string path = [&]() -> swr::string
     {
-        if(type == FloorShaderType::TexturedFloor)
+        if(type == FloorMaterial::TexturedFloor)
         {
             return "assets/materials/floor/floor.json";
         }
-        else if(type == FloorShaderType::TexturedShinyFloor)
+        else if(type == FloorMaterial::TexturedShinyFloor)
         {
             return "assets/materials/floor/shiny_floor.json";
         }
