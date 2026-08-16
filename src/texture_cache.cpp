@@ -41,13 +41,13 @@ TextureRef TextureCache::load(
   std::string_view key,
   const assets::ImageRGBA8& image)
 {
-    if(auto it = texture_map.find(key);
-       it != texture_map.end())
+    if(auto it = texture_cache.find(key);
+       it != texture_cache.end())
     {
         if(auto texture = it->second.lock())
         {
             get_logger().logf(
-              "Using cached texture for '{}'.",
+              "Using cached texture '{}'.",
               key);
 
             return TextureRef{texture};
@@ -55,21 +55,23 @@ TextureRef TextureCache::load(
 
         // Expired entry.
         get_logger().logf(
-          "{} expired.",
+          "Cached texture '{}' no longer exists; recreating.",
           key);
 
-        texture_map.erase(it);
+        texture_cache.erase(it);
     }
-
-    get_logger().logf(
-      "Creating texture for '{}'.",
-      key);
+    else
+    {
+        get_logger().logf(
+          "Creating texture '{}'.",
+          key);
+    }
 
     auto entry = std::make_shared<TextureEntry>(
       device,
       device.create_texture(image));
 
-    texture_map.emplace(
+    texture_cache.emplace(
       swr::string{key},
       entry);
 
@@ -80,25 +82,25 @@ bool TextureCache::delete_texture(
   std::string_view key)
 {
     get_logger().logf(
-      "Deleting texture for '{}'.",
+      "Deleting texture '{}'.",
       key);
 
-    return texture_map.erase(swr::string{key}) != 0;
+    return texture_cache.erase(swr::string{key}) != 0;
 }
 
 void TextureCache::prune()
 {
     get_logger().logf("Pruning...");
 
-    for(auto it = texture_map.begin(); it != texture_map.end();)
+    for(auto it = texture_cache.begin(); it != texture_cache.end();)
     {
         if(it->second.expired())
         {
             get_logger().logf(
-              "'{}' expired.",
+              "Cache entry expired: '{}'",
               it->first);
 
-            it = texture_map.erase(it);
+            it = texture_cache.erase(it);
         }
         else
         {

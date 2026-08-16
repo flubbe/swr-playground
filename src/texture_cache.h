@@ -107,7 +107,7 @@ class TextureCache
     swr::unordered_map<
       swr::string,
       std::weak_ptr<TextureEntry>>
-      texture_map;
+      texture_cache;
 
 public:
     /**
@@ -181,8 +181,8 @@ public:
     std::optional<TextureRef> get(
       std::string_view key) const
     {
-        if(auto it = texture_map.find(key);
-           it != texture_map.end())
+        if(auto it = texture_cache.find(key);
+           it != texture_cache.end())
         {
             if(auto texture = it->second.lock())
             {
@@ -191,19 +191,6 @@ public:
         }
 
         return std::nullopt;
-    }
-
-    /**
-     * Check if the cache contains the texture.
-     *
-     * @param key The texture key.
-     * @returns Returns `true` if the texture was found.
-     */
-    [[nodiscard]]
-    bool contains(
-      std::string_view key) const
-    {
-        return texture_map.contains(key);
     }
 
     /**

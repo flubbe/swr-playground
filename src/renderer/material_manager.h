@@ -30,9 +30,7 @@
  * Forward declarations.
  */
 
-class MaterialManager;
 class RenderDevice;
-class RenderTaskQueue;
 class ShaderCache;
 class ShaderFactory;
 
@@ -60,9 +58,6 @@ struct MaterialResources
 /** A material entry for a resolvable material. */
 struct MaterialEntry
 {
-    /** Backing material manager. */
-    MaterialManager& material_manager;
-
     /** Backing render device. */
     RenderDevice& device;
 
@@ -71,9 +66,6 @@ struct MaterialEntry
 
     /** Backing texture cache. */
     TextureCache& texture_cache;
-
-    /** Material key. */
-    swr::string key;
 
     /** Material resources future. */
     task_system::TaskSubmission<MaterialResources> resources;
@@ -102,17 +94,13 @@ struct MaterialEntry
      * @param resources The resources future.
      */
     MaterialEntry(
-      MaterialManager& material_manager,
       RenderDevice& device,
       ShaderCache& shader_cache,
       TextureCache& texture_cache,
-      std::string_view key,
       task_system::TaskSubmission<MaterialResources> resources)
-    : material_manager{material_manager}
-    , device{device}
+    : device{device}
     , shader_cache{shader_cache}
     , texture_cache{texture_cache}
-    , key{key}
     , resources{std::move(resources)}
     , resolved_handle{std::nullopt}
     {
@@ -223,7 +211,7 @@ class MaterialManager
     /** Material cache. */
     swr::unordered_map<
       swr::string,
-      swr::shared_ptr<MaterialEntry>>
+      std::weak_ptr<MaterialEntry>>
       material_cache;
 
     /**
@@ -301,22 +289,15 @@ public:
         if(auto it = material_cache.find(path);
            it != material_cache.end())
         {
-            return ResolvableMaterial{path, it->second};
+            if(auto texture = it->second.lock())
+            {
+                return ResolvableMaterial{
+                  path,
+                  texture};
+            }
         }
-        return std::nullopt;
-    }
 
-    /**
-     * Check if the manager contains the material.
-     *
-     * @param key The material key.
-     * @returns Returns `true` if the material was found, and `false` otherwise.
-     */
-    [[nodiscard]]
-    bool contains(
-      std::string_view key) const
-    {
-        return material_cache.contains(key);
+        return std::nullopt;
     }
 
     /**
@@ -335,4 +316,7 @@ public:
      * @note Needs to be called from the render/main thread.
      */
     void process_pending();
+
+    /** Remove expired cache entries. */
+    void prune();
 };

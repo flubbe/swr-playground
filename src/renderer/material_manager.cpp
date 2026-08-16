@@ -40,17 +40,11 @@ const logging::Logger& get_logger()
 
 MaterialEntry::~MaterialEntry()
 {
-    get_logger().logf(
-      "Deleting material '{}'...",
-      key);
-
     if(resolved_handle.has_value())
     {
         device.delete_material(
           resolved_handle.value());
     }
-
-    material_manager.delete_material(key);
 }
 
 void MaterialEntry::finalize()
@@ -131,7 +125,29 @@ ResolvableMaterial MaterialManager::load(
     if(auto it = material_cache.find(path);
        it != material_cache.end())
     {
-        return ResolvableMaterial{path, it->second};
+        if(auto material = it->second.lock())
+        {
+            get_logger().logf(
+              "Using cached material '{}'.",
+              path);
+
+            return ResolvableMaterial{
+              path,
+              material};
+        }
+
+        // Expired entry.
+        get_logger().logf(
+          "Cached material '{}' no longer exists; recreating.",
+          path);
+
+        material_cache.erase(it);
+    }
+    else
+    {
+        get_logger().logf(
+          "Creating material '{}'.",
+          path);
     }
 
     // The material needs to be loaded. We delegate everything
@@ -201,11 +217,9 @@ ResolvableMaterial MaterialManager::load(
       });
 
     auto material = std::make_shared<MaterialEntry>(
-      *this,
       device,
       shader_cache,
       texture_cache,
-      path,
       std::move(submission));
 
     material_cache.emplace(
@@ -222,6 +236,10 @@ ResolvableMaterial MaterialManager::load(
 bool MaterialManager::delete_material(
   std::string_view path)
 {
+    get_logger().logf(
+      "Deleting material '{}'.",
+      path);
+
     return material_cache.erase(swr::string{path}) != 0;
 }
 
@@ -247,6 +265,27 @@ void MaterialManager::process_pending()
               std::make_pair(
                 std::move(key),
                 std::move(entry)));
+        }
+    }
+}
+
+void MaterialManager::prune()
+{
+    get_logger().logf("Pruning...");
+
+    for(auto it = material_cache.begin(); it != material_cache.end();)
+    {
+        if(it->second.expired())
+        {
+            get_logger().logf(
+              "Cache entry expired: '{}'",
+              it->first);
+
+            it = material_cache.erase(it);
+        }
+        else
+        {
+            ++it;
         }
     }
 }

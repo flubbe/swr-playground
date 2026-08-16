@@ -143,7 +143,6 @@ TEST(TextureCache, ContainsGet)
 
     std::optional<std::pair<TextureRef, swr::string>> retained_texture;    // keeps the cache entry valid.
     ASSERT_NO_THROW(retained_texture.emplace(cache.load(image)));
-    ASSERT_TRUE(cache.contains("hash://bfd691c4f6750254"));
 
     std::optional<TextureRef> texture;
     ASSERT_NO_THROW(texture = cache.get("hash://bfd691c4f6750254"));
@@ -161,10 +160,9 @@ TEST(TextureCache, Delete)
       .height = 1,
       .pixels = {0xAA, 0xBB, 0xCC, 0xDD}};
 
-    ASSERT_NO_THROW(cache.load(image));
-    ASSERT_TRUE(cache.contains("hash://bfd691c4f6750254"));
+    std::optional<std::__1::pair<TextureRef, swr::string>> retained_texture;    // keeps the cache entry valid.
+    ASSERT_NO_THROW(retained_texture.emplace(cache.load(image)));
 
     ASSERT_NO_THROW(cache.delete_texture("hash://bfd691c4f6750254"));
-    ASSERT_FALSE(cache.contains("hash://bfd691c4f6750254"));
     ASSERT_FALSE(cache.get("hash://bfd691c4f6750254").has_value());
 }
