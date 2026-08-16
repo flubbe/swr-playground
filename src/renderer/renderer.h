@@ -24,7 +24,6 @@
 
 class Scene;
 class Camera;
-struct MaterialEntry;
 class Viewport;
 struct ViewportDisplaySettings;
 class RenderDevice;
@@ -336,11 +335,6 @@ inline const char* RenderQueueSorter::get_name() const
     return RenderQueueSortFactory::get_name(
       get_sort_mode());
 }
-
-struct MaterialResolveRequest
-{
-    swr::shared_ptr<MaterialEntry> entry;
-};
 
 class Renderer final
 {
