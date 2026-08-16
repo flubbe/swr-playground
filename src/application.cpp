@@ -860,21 +860,26 @@ void finalize_startup_scene(
           *staged_scene.floor);
     }
 
-    if(staged_scene.sample_mesh.has_value())
+    // place sample meshes in a line.
+    for(std::size_t i = 0; i < staged_scene.sample_meshes.size(); ++i)
     {
+        auto& staged_sample_mesh = staged_scene.sample_meshes[i];
         auto lods = create_static_mesh_resources(
           render_device,
           startup_materials.static_mesh,
-          *staged_scene.sample_mesh);
+          staged_sample_mesh);
+
+        const float mesh_x =
+          (static_cast<float>(i) - static_cast<float>(staged_scene.sample_meshes.size() - 1) * 0.5f) * 5.f;
 
         if(!lods.empty())
         {
             StaticMesh* sample_mesh = create_static_mesh_instance(
-              staged_scene.sample_mesh.value().path,
+              staged_sample_mesh.path,
               scene,
-              *staged_scene.sample_mesh,
+              staged_sample_mesh,
               std::move(lods),
-              ml::matrices::translation(0.f, 0.f, 5.f));
+              ml::matrices::translation(mesh_x, 0.f, 5.f));
             sample_mesh->casts_shadows = true;
         }
     }

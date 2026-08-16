@@ -123,7 +123,7 @@ struct StagedStartupScene
 {
     swr::vector<StagedGearInstance> gears;
     std::optional<StagedFloorData> floor;
-    std::optional<StagedStaticMeshAsset> sample_mesh;
+    swr::vector<StagedStaticMeshAsset> sample_meshes;
 
     mutable std::mutex notices_mutex;
     swr::vector<swr::string> notices;

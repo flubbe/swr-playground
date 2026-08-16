@@ -434,31 +434,52 @@ TaskSpec make_floor_task(StagedStartupScene& scene)
 [[nodiscard]]
 TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
 {
-    return TaskSpec{
-      .name = "Importing sample mesh...",
-      .weight = 3.f,
-      .run = [&scene](TaskExecutionContext& context)
-      {
-          const std::filesystem::path sample_mesh_path{"assets/models/bunny.obj"};
+    const std::array<std::filesystem::path, 3> sample_mesh_paths = {
+      "assets/models/bunny.obj",
+      "assets/models/cars/COP.obj",
+      "assets/models/bunny.obj"};
 
-          context.update(
-            std::format(
-              "Importing {}...",
-              sample_mesh_path.string()),
-            0.f);
-          get_logger().logf(
-            "importing sample mesh '{}'",
-            sample_mesh_path.generic_string());
-          scene.sample_mesh = try_prepare_sample_mesh(sample_mesh_path);
-          if(!scene.sample_mesh.has_value())
+    return TaskSpec{
+      .name = sample_mesh_paths.size() == 1
+                ? "Importing sample mesh..."
+                : "Importing sample meshes...",
+      .weight = 3.f,
+      .run = [&scene, sample_mesh_paths](TaskExecutionContext& context)
+      {
+          for(const auto& path: sample_mesh_paths)
           {
-              add_startup_notice(
-                scene,
+              context.update(
                 std::format(
-                  "sample static mesh was not found or had no renderable data: {}",
-                  sample_mesh_path.generic_string()));
+                  "Importing {}...",
+                  path.string()),
+                0.f);
+              get_logger().logf(
+                "importing sample mesh '{}'",
+                path.generic_string());
+              auto sample_mesh = try_prepare_sample_mesh(path);
+              if(!sample_mesh.has_value())
+              {
+                  add_startup_notice(
+                    scene,
+                    std::format(
+                      "sample static mesh was not found or had no renderable data: {}",
+                      path.generic_string()));
+              }
+              else
+              {
+                  scene.sample_meshes.emplace_back(
+                    std::move(sample_mesh.value()));
+              }
           }
-          context.update("Startup data prepared.", 1.f);
+
+          if(sample_mesh_paths.size() == 1)
+          {
+              context.update("Mesh loaded.", 1.f);
+          }
+          else
+          {
+              context.update("Meshes loaded.", 1.f);
+          }
       },
     };
 }
