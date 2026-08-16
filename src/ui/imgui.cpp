@@ -329,6 +329,10 @@ void draw_main_dockspace(Application& app)
     {
         if(ImGui::BeginMenu("File"))
         {
+            if(ImGui::MenuItem("Load Scene", nullptr, false, true))
+            {
+                app.load_scene("scene.json");
+            }
             if(ImGui::MenuItem("Save Scene", nullptr, false, true))
             {
                 app.save_scene("scene.json");

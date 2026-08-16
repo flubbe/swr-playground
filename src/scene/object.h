@@ -146,6 +146,11 @@ public:
         return *this;
     }
 
+    /** Called after object loading/construction. */
+    virtual void post_load()
+    {
+    }
+
     /** Return the object id. */
     ObjectId get_object_id() const noexcept
     {

@@ -12,6 +12,7 @@
 
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
+#include "logging.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -36,6 +37,13 @@ void StaticMesh::register_properties(
       class_info,
       "receives_shadows",
       "Receives Shadows");
+}
+
+void StaticMesh::post_load()
+{
+    // TODO Construct mesh from path.
+    //      Likely should be conditional for meshes defined inline?
+    logging::warningf("StaticMesh::post_load");
 }
 
 void StaticMesh::init(

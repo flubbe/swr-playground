@@ -31,6 +31,7 @@ struct StaticMeshLod
     MeshBounds bounds;
 };
 
+/** A static mesh. */
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
@@ -50,6 +51,8 @@ public:
     bool receives_shadows{true};
 
     StaticMesh() = default;
+
+    void post_load() override;
 
     void init(
       std::string_view path,

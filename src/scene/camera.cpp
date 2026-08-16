@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "camera.h"
+#include "logging.h"
 #include "properties.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -20,6 +21,14 @@
 DEFINE_REFLECTION(Camera)
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+void Camera::post_load()
+{
+    Super::post_load();
+
+    // TODO constuct e.g. perspective matrix
+    logging::warningf("Camera::post_load");
+}
 
 void Camera::register_properties(reflect::ClassInfo& class_info)
 {

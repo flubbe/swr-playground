@@ -55,6 +55,8 @@ public:
 
     Camera();
 
+    void post_load() override;
+
     void on_properties_changed() override;
     void update_projection_matrix(float aspect_ratio);
     ml::mat4x4 get_projection_matrix() const;

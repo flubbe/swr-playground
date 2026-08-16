@@ -14,6 +14,7 @@
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
 #include "scene/properties.h"
+#include "serialization/json/deserializer_visitor.h"
 #include "serialization/json/json_property_writer.h"
 #include "systems/animation.h"
 #include "systems/lights.h"
@@ -31,222 +32,6 @@ const logging::Logger& get_logger()
     static const logging::Logger logger{"Startup"};
     return logger;
 }
-
-class DeserializerVisitor : public reflect::PropertyVisitor
-{
-    Object& object;
-    simdjson::ondemand::value& value;
-
-public:
-    explicit DeserializerVisitor(
-      Object& object,
-      simdjson::ondemand::value& value)
-    : object{object}
-    , value{value}
-    {
-    }
-
-    void visit(
-      reflect::Property& property) override
-    {
-        if(auto* p = property.try_as<reflect::IntProperty>())
-        {
-            std::int64_t val{0};
-            if(auto err = value.get_int64().get(val); !err)
-            {
-                p->set_value(static_cast<reflect::IntProperty::Type>(val));
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize int64 '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else if(auto* p = property.try_as<reflect::UIntProperty>())
-        {
-            std::uint64_t val{0};
-            if(auto err = value.get_uint64().get(val); !err)
-            {
-                p->set_value(static_cast<reflect::UIntProperty::Type>(val));
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize uint64 '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else if(auto* p = property.try_as<reflect::FloatProperty>())
-        {
-            double val{0.0};
-            if(auto err = value.get_double().get(val); !err)
-            {
-                p->set_value(static_cast<reflect::FloatProperty::Type>(val));
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize float '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else if(auto* p = property.try_as<reflect::BoolProperty>())
-        {
-            bool val{false};
-            if(auto err = value.get_bool().get(val); !err)
-            {
-                p->set_value(val);
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize bool '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else if(auto* p = property.try_as<reflect::StringProperty>())
-        {
-            std::string val;
-            if(auto err = value.get_string().get(val); !err)
-            {
-                p->set_value(val);
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize string '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-#if SWR_CUSTOM_STRING_TYPE
-        else if(auto* p = property.try_as<reflect::SwrStringProperty>())
-        {
-            std::string val;
-            if(auto err = value.get_string().get(val); !err)
-            {
-                p->set_value(val);
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize string '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-#endif /* SWR_CUSTOM_STRING_TYPE */
-        else if(auto* p = property.try_as<reflect::Mat4Property>())
-        {
-            simdjson::ondemand::array outer_arr;
-            if(auto err = value.get_array().get(outer_arr); !err)
-            {
-                ml::mat4x4 m;
-                std::size_t row_idx = 0;
-
-                for(auto row_elem: outer_arr)
-                {
-                    if(row_idx >= 4)
-                    {
-                        get_logger().warningf(
-                          "Too many rows when deserializing mat4x4 '{}.{}' from JSON",
-                          object.get_name(), p->get_name());
-
-                        break;
-                    }
-
-                    simdjson::ondemand::array inner_arr;
-                    if(auto inner_err = row_elem.get_array().get(inner_arr); !inner_err)
-                    {
-                        std::size_t col_idx = 0;
-                        for(auto col_elem: inner_arr)
-                        {
-                            double d{};
-                            if(!col_elem.get_double().get(d))
-                            {
-                                if(col_idx < 4)
-                                {
-                                    m.rows[row_idx][col_idx] = static_cast<float>(d);
-                                }
-                                else
-                                {
-                                    get_logger().warningf(
-                                      "Too many columns when deserializing mat4x4 '{}.{}' from JSON",
-                                      object.get_name(), p->get_name());
-
-                                    break;
-                                }
-                            }
-                            ++col_idx;
-                        }
-
-                        if(col_idx != 4)
-                        {
-                            get_logger().warningf(
-                              "Too few columns when deserializing mat4x4 '{}.{}' from JSON",
-                              object.get_name(), p->get_name());
-                        }
-                    }
-                    ++row_idx;
-                }
-
-                if(row_idx != 4)
-                {
-                    get_logger().warningf(
-                      "Too few rows when deserializing mat4x4 '{}.{}' from JSON",
-                      object.get_name(), p->get_name());
-                }
-
-                p->set_value(m);
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize mat4 '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else if(auto* p = property.try_as<reflect::Vec4Property>())
-        {
-            // Deserialize JSON array [x, y, z, w]
-            simdjson::ondemand::array arr;
-            if(auto err = value.get_array().get(arr); !err)
-            {
-                ml::vec4 v{};
-                std::size_t idx = 0;
-                for(auto elem: arr)
-                {
-                    double d{};
-                    if(!elem.get_double().get(d))
-                    {
-                        if(idx == 0)
-                            v.x = static_cast<float>(d);
-                        else if(idx == 1)
-                            v.y = static_cast<float>(d);
-                        else if(idx == 2)
-                            v.z = static_cast<float>(d);
-                        else if(idx == 3)
-                            v.w = static_cast<float>(d);
-                    }
-                    ++idx;
-                }
-                p->set_value(v);
-            }
-            else
-            {
-                get_logger().warningf(
-                  "Unable to deserialize vec4 '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
-            }
-        }
-        else
-        {
-            throw std::runtime_error{
-              std::format(
-                "Unsupported property type for property '{}'",
-                property.get_name())};
-        }
-    }
-};
 
 }    // namespace
 
@@ -488,7 +273,10 @@ void Scene::load(
                     {
                         auto& prop = *prop_it;
 
-                        DeserializerVisitor visitor{*new_object, entry.value};
+                        serial::json::DeserializerVisitor visitor{
+                          get_logger(),
+                          *new_object,
+                          entry.value};
                         prop->accept(visitor);
 
                         processed_keys.insert(entry.key);

@@ -78,6 +78,8 @@ public:
 
     Gear() = default;
 
+    void post_load() override;
+
     void init(const GearParameters& params);
 
     void clamp_runtime_parameters() noexcept;

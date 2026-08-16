@@ -14,6 +14,7 @@
 
 #include "reflection/builtin_properties.h"
 #include "gear.h"
+#include "logging.h"
 
 /** create the gear geometry. the code here is adapted from glxgears.c. */
 GearGeometry make_gear(
@@ -316,6 +317,12 @@ GearGeometry make_gear(
 DEFINE_REFLECTION(Gear);
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+void Gear::post_load()
+{
+    // TODO construct gear from parameters.
+    logging::warningf("Gear::post_load");
+}
 
 void Gear::init(
   const GearParameters& params)
