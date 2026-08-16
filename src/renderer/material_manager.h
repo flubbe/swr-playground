@@ -30,6 +30,7 @@
  * Forward declarations.
  */
 
+class MaterialManager;
 class RenderDevice;
 class RenderTaskQueue;
 class ShaderCache;
@@ -59,6 +60,9 @@ struct MaterialResources
 /** A material entry for a resolvable material. */
 struct MaterialEntry
 {
+    /** Backing material manager. */
+    MaterialManager& material_manager;
+
     /** Backing render device. */
     RenderDevice& device;
 
@@ -67,6 +71,9 @@ struct MaterialEntry
 
     /** Backing texture cache. */
     TextureCache& texture_cache;
+
+    /** Material key. */
+    swr::string key;
 
     /** Material resources future. */
     task_system::TaskSubmission<MaterialResources> resources;
@@ -95,13 +102,17 @@ struct MaterialEntry
      * @param resources The resources future.
      */
     MaterialEntry(
+      MaterialManager& material_manager,
       RenderDevice& device,
       ShaderCache& shader_cache,
       TextureCache& texture_cache,
+      std::string_view key,
       task_system::TaskSubmission<MaterialResources> resources)
-    : device{device}
+    : material_manager{material_manager}
+    , device{device}
     , shader_cache{shader_cache}
     , texture_cache{texture_cache}
+    , key{key}
     , resources{std::move(resources)}
     , resolved_handle{std::nullopt}
     {
@@ -192,10 +203,12 @@ class MaterialManager
     /** Render device reference. */
     RenderDevice& device;
 
-    /** Pending material queue. */
+    /** Pending material queue with entries (key, material_entry). */
     ThreadSafeQueue<
-      swr::shared_ptr<
-        MaterialEntry>>
+      std::pair<
+        swr::string,
+        swr::shared_ptr<
+          MaterialEntry>>>
       pending_materials;
 
     /** Shader cache. */

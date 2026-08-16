@@ -10,11 +10,32 @@
 
 #include "renderer/render_device.h"
 #include "texture_cache.h"
+#include "logging.h"
+
+namespace
+{
+[[nodiscard]]
+const logging::Logger& get_logger()
+{
+    // Create on first use so it binds after logging initialization.
+    static const logging::Logger logger{"TextureCache"};
+    return logger;
+}
+
+}    // namespace
+
+/*
+ * TextureEntry.
+ */
 
 TextureEntry::~TextureEntry()
 {
     device.delete_texture(handle);
 }
+
+/*
+ * TextureCache.
+ */
 
 TextureRef TextureCache::load(
   std::string_view key,
@@ -23,8 +44,26 @@ TextureRef TextureCache::load(
     if(auto it = texture_map.find(key);
        it != texture_map.end())
     {
-        return TextureRef{it->second};
+        if(auto texture = it->second.lock())
+        {
+            get_logger().logf(
+              "Using cached texture for '{}'.",
+              key);
+
+            return TextureRef{texture};
+        }
+
+        // Expired entry.
+        get_logger().logf(
+          "{} expired.",
+          key);
+
+        texture_map.erase(it);
     }
+
+    get_logger().logf(
+      "Creating texture for '{}'.",
+      key);
 
     auto entry = std::make_shared<TextureEntry>(
       device,
@@ -40,5 +79,30 @@ TextureRef TextureCache::load(
 bool TextureCache::delete_texture(
   std::string_view key)
 {
+    get_logger().logf(
+      "Deleting texture for '{}'.",
+      key);
+
     return texture_map.erase(swr::string{key}) != 0;
+}
+
+void TextureCache::prune()
+{
+    get_logger().logf("Pruning...");
+
+    for(auto it = texture_map.begin(); it != texture_map.end();)
+    {
+        if(it->second.expired())
+        {
+            get_logger().logf(
+              "'{}' expired.",
+              it->first);
+
+            it = texture_map.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }

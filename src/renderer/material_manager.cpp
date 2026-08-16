@@ -34,13 +34,23 @@ const logging::Logger& get_logger()
 
 }    // namespace
 
+/*
+ * MaterialEntry.
+ */
+
 MaterialEntry::~MaterialEntry()
 {
+    get_logger().logf(
+      "Deleting material '{}'...",
+      key);
+
     if(resolved_handle.has_value())
     {
         device.delete_material(
           resolved_handle.value());
     }
+
+    material_manager.delete_material(key);
 }
 
 void MaterialEntry::finalize()
@@ -109,6 +119,10 @@ void MaterialEntry::finalize()
     resolved_handle = device.create_material(material);
     success = true;
 }
+
+/*
+ * MaterialManager.
+ */
 
 ResolvableMaterial MaterialManager::load(
   std::string_view path,
@@ -187,9 +201,11 @@ ResolvableMaterial MaterialManager::load(
       });
 
     auto material = std::make_shared<MaterialEntry>(
+      *this,
       device,
       shader_cache,
       texture_cache,
+      path,
       std::move(submission));
 
     material_cache.emplace(
@@ -197,7 +213,8 @@ ResolvableMaterial MaterialManager::load(
       material);
 
     // Push to pending material queue which is processed on render/main thread.
-    pending_materials.push_back(material);
+    pending_materials.emplace_back(
+      std::make_pair(swr::string{path}, material));
 
     return ResolvableMaterial{path, material};
 }
@@ -214,19 +231,22 @@ void MaterialManager::process_pending()
 
     // TODO Could make this subject to a time budget.
     auto material_queue = pending_materials.drain();
-    for(auto& entry: material_queue)
+    for(auto& [key, entry]: material_queue)
     {
         if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
         {
             entry->finalize();
-            logging::logf(
+            get_logger().logf(
               "Finalized material '{}'.",
-              entry->name);    // FIXME Should likely be a path to match loading message.
+              key);
         }
         else
         {
             // TODO We could place them into a temporary buffer and add them all at once.
-            pending_materials.emplace_back(std::move(entry));
+            pending_materials.emplace_back(
+              std::make_pair(
+                std::move(key),
+                std::move(entry)));
         }
     }
 }

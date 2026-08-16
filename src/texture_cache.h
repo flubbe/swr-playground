@@ -10,11 +10,10 @@
 
 #pragma once
 
-#include "containers/format.h"
-
 #include <xxhash.h>
 
 #include "assets/texture.h"
+#include "containers/format.h"
 #include "containers/memory.h"
 #include "containers/string.h"
 #include "containers/unordered_map.h"
@@ -107,7 +106,7 @@ class TextureCache
     /** Cached textures. */
     swr::unordered_map<
       swr::string,
-      swr::shared_ptr<TextureEntry>>
+      std::weak_ptr<TextureEntry>>
       texture_map;
 
 public:
@@ -120,16 +119,6 @@ public:
       RenderDevice& device)
     : device{device}
     {
-    }
-
-    /**
-     * Destructor. Releases all textures.
-     *
-     * @note Lifetime: The render device has to be valid.
-     */
-    ~TextureCache()
-    {
-        texture_map.clear();
     }
 
     /**
@@ -195,7 +184,10 @@ public:
         if(auto it = texture_map.find(key);
            it != texture_map.end())
         {
-            return TextureRef{it->second};
+            if(auto texture = it->second.lock())
+            {
+                return TextureRef{texture};
+            }
         }
 
         return std::nullopt;
@@ -224,4 +216,7 @@ public:
      */
     bool delete_texture(
       std::string_view key);
+
+    /** Remove expired cache entries. */
+    void prune();
 };

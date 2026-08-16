@@ -95,7 +95,6 @@ TEST(ThreadSafeQueue, ConcurrentProducersAndConsumer)
     constexpr int total_items =
       producer_count * items_per_producer;
 
-    std::atomic<bool> producers_done{false};
     std::atomic<int> consumed{0};
 
     std::vector<std::thread> producers;

@@ -141,7 +141,8 @@ TEST(TextureCache, ContainsGet)
       .height = 1,
       .pixels = {0xAA, 0xBB, 0xCC, 0xDD}};
 
-    ASSERT_NO_THROW(cache.load(image));
+    std::optional<std::pair<TextureRef, swr::string>> retained_texture;    // keeps the cache entry valid.
+    ASSERT_NO_THROW(retained_texture.emplace(cache.load(image)));
     ASSERT_TRUE(cache.contains("hash://bfd691c4f6750254"));
 
     std::optional<TextureRef> texture;
