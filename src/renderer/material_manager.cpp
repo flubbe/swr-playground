@@ -8,9 +8,9 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include <chrono>
 #include <future>
-#include <optional>
-#include <stdexcept>
+#include <utility>
 
 #include <gsl/gsl>
 
@@ -245,7 +245,7 @@ bool MaterialManager::delete_material(
 
 void MaterialManager::process_pending()
 {
-    using namespace std::literals;
+    using namespace std::chrono_literals;
 
     // TODO Could make this subject to a time budget.
     auto material_queue = pending_materials.drain();

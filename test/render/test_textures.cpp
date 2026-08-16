@@ -160,7 +160,7 @@ TEST(TextureCache, Delete)
       .height = 1,
       .pixels = {0xAA, 0xBB, 0xCC, 0xDD}};
 
-    std::optional<std::__1::pair<TextureRef, swr::string>> retained_texture;    // keeps the cache entry valid.
+    std::optional<std::pair<TextureRef, swr::string>> retained_texture;    // keeps the cache entry valid.
     ASSERT_NO_THROW(retained_texture.emplace(cache.load(image)));
 
     ASSERT_NO_THROW(cache.delete_texture("hash://bfd691c4f6750254"));
