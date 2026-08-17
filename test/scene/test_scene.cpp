@@ -52,7 +52,7 @@ TEST(SceneTests, AddObjectSynchronizesObjectIndex)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
+    Camera* camera = scene.create_object<Camera>();
     ASSERT_NE(camera, nullptr);
 
     const ObjectId id = camera->get_object_id();
@@ -66,8 +66,8 @@ TEST(SceneTests, TypedFindObjectFiltersByRequestedType)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
-    StaticMesh* mesh = scene.add_object<StaticMesh>();
+    Camera* camera = scene.create_object<Camera>();
+    StaticMesh* mesh = scene.create_object<StaticMesh>();
     ASSERT_NE(camera, nullptr);
     ASSERT_NE(mesh, nullptr);
 
@@ -83,9 +83,9 @@ TEST(SceneTests, ObjectOfFiltersCameras)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* first_camera = scene.add_object<Camera>();
-    [[maybe_unused]] StaticMesh* mesh = scene.add_object<StaticMesh>();
-    Camera* second_camera = scene.add_object<Camera>();
+    Camera* first_camera = scene.create_object<Camera>();
+    [[maybe_unused]] StaticMesh* mesh = scene.create_object<StaticMesh>();
+    Camera* second_camera = scene.create_object<Camera>();
     ASSERT_NE(first_camera, nullptr);
     ASSERT_NE(second_camera, nullptr);
 
@@ -117,7 +117,7 @@ TEST(SceneTests, ClearRemovesObjectIndexAndSpinAnimations)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
+    Camera* camera = scene.create_object<Camera>();
     ASSERT_NE(camera, nullptr);
     const ObjectId id = camera->get_object_id();
 
@@ -143,7 +143,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
+    StaticMesh* mesh = scene.create_object<StaticMesh>(
       "<mesh>",
       swr::vector{
         make_mesh_section("test", 12)},
@@ -237,8 +237,8 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
+    [[maybe_unused]] Camera* camera = scene.create_object<Camera>();
+    StaticMesh* mesh = scene.create_object<StaticMesh>(
       "<mesh>",
       swr::vector{
         make_mesh_section("test", 56)},
@@ -316,7 +316,7 @@ TEST(SceneTests, SaveLoad)
       "\"name\":\"StaticMesh_1\","
       "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
       "\"visible\":true,"
-      "\"path\":\"\","
+      "\"path\":\"assets/models/car.obj\","
       "\"casts_shadows\":true,"
       "\"receives_shadows\":false"
       "}"
@@ -324,7 +324,8 @@ TEST(SceneTests, SaveLoad)
 
     {
         Scene scene;
-        auto* mesh = scene.add_object<StaticMesh>();
+        auto* mesh = scene.create_object<StaticMesh>();
+        ASSERT_NO_THROW(mesh->init("assets/models/car.obj", {}));
         ASSERT_NE(mesh, nullptr);
 
         mesh->casts_shadows = true;
@@ -358,6 +359,17 @@ TEST(SceneTests, SaveLoad)
           {
               ++mesh_count;
           });
-        EXPECT_EQ(mesh_count, 1);
+        ASSERT_EQ(mesh_count, 1);
+
+        auto& objects = scene.get_objects();
+        ASSERT_EQ(objects.size(), 1);
+        ASSERT_NE(objects[0], nullptr);
+        ASSERT_TRUE(objects[0]->is_a(StaticMesh::static_class()));
+
+        auto& mesh = reflect::cast<StaticMesh>(*objects[0]);
+        EXPECT_EQ(mesh.get_name(), "StaticMesh_1");
+        EXPECT_EQ(mesh.casts_shadows, true);
+        EXPECT_EQ(mesh.receives_shadows, false);
+        EXPECT_EQ(mesh.get_path(), assets::AssetPath{"assets/models/car.obj"});
     }
 }

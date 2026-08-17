@@ -67,7 +67,7 @@ TEST(ViewportTests, UsesSceneCameraWhenPresent)
     Scene scene;
     Viewport viewport;
 
-    Camera* scene_camera = scene.add_object<Camera>();
+    Camera* scene_camera = scene.create_object<Camera>();
     ASSERT_NE(scene_camera, nullptr);
 
     viewport.use_scene_camera(scene_camera->get_object_id());
@@ -106,7 +106,7 @@ TEST(ViewportTests, UseLocalCameraClearsSceneCameraSelection)
 
     Scene scene;
     Viewport viewport;
-    Camera* scene_camera = scene.add_object<Camera>();
+    Camera* scene_camera = scene.create_object<Camera>();
     ASSERT_NE(scene_camera, nullptr);
 
     viewport.use_scene_camera(scene_camera->get_object_id());

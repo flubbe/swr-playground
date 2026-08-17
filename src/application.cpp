@@ -716,7 +716,7 @@ void add_staged_gears(
           device,
           material,
           staged);
-        auto* gear = scene.add_object<Gear>(params);
+        auto* gear = scene.create_object<Gear>(params);
         gear->casts_shadows = true;
         gear->set_transform(staged.transform);
         scene.set_spin_animation(
@@ -796,7 +796,7 @@ void try_add_textured_floor(
         mesh_handle = device.create_mesh(
           floor_data.mesh);
 
-        auto* floor = scene.add_object<StaticMesh>(
+        auto* floor = scene.create_object<StaticMesh>(
           "",
           swr::vector<MeshSection>{
             MeshSection{
@@ -831,7 +831,7 @@ StaticMesh* create_static_mesh_instance(
   swr::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
+    StaticMesh* mesh = scene.create_object<StaticMesh>(
       path,
       std::move(lods));
     mesh->set_name(resources.name);
@@ -889,7 +889,7 @@ void finalize_startup_scene(
         }
     }
 
-    Camera* camera = scene.add_object<Camera>();
+    Camera* camera = scene.create_object<Camera>();
     camera->set_transform(viewport.get_local_camera().get_transform());
     camera->set_name("Editor Camera");
     camera->capture_snapshot();
@@ -1022,7 +1022,7 @@ void rebuild_gear_mesh_if_needed(
 
 void configure_default_directional_lights(Scene& scene)
 {
-    auto* key_light = scene.add_object<DirectionalLight>();
+    auto* key_light = scene.create_object<DirectionalLight>();
     key_light->set_name("Key Light");
     key_light->behavior = DirectionalLightBehavior::Rotating;
     key_light->brightness = 0.55f;
@@ -1032,7 +1032,7 @@ void configure_default_directional_lights(Scene& scene)
     key_light->set_position({5.f, 8.f, 10.f});
     key_light->capture_snapshot();
 
-    auto* fill_light = scene.add_object<DirectionalLight>();
+    auto* fill_light = scene.create_object<DirectionalLight>();
     fill_light->set_name("Fill Light");
     fill_light->behavior = DirectionalLightBehavior::Stationary;
     fill_light->brightness = 0.6f;
@@ -1045,7 +1045,7 @@ void configure_default_directional_lights(Scene& scene)
 
 void configure_default_spot_lights(Scene& scene)
 {
-    auto* spotlight = scene.add_object<SpotLight>();
+    auto* spotlight = scene.create_object<SpotLight>();
     spotlight->set_name("Spot Light");
     spotlight->casts_shadows = true;
     spotlight->color = {1.f, 1.f, 1.f, 1.f};

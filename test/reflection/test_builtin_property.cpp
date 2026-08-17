@@ -40,20 +40,6 @@ TEST(BuiltinPropertyTests, ConstructorsRejectNullValuePointers)
       std::invalid_argument);
 }
 
-TEST(BuiltinPropertyTests, ReadOnlyIntPropertyPreventsWrites)
-{
-    int value = 7;
-    reflect::IntProperty property(
-      "value",
-      "Value",
-      &value,
-      0,
-      reflect::PropertyFlags::ReadOnly);
-
-    EXPECT_FALSE(property.set_value(11));
-    EXPECT_EQ(value, 7);
-}
-
 TEST(BuiltinPropertyTests, TypeTagCastsWorkForPropertyBase)
 {
     int value = 3;

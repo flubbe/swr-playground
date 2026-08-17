@@ -49,11 +49,6 @@ IntProperty::Type IntProperty::get_value() const noexcept
 
 bool IntProperty::set_value(Type in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     if(range_constraint.has_value())
     {
         if(range_constraint->min.has_value()
@@ -123,11 +118,6 @@ UIntProperty::Type UIntProperty::get_value() const noexcept
 
 bool UIntProperty::set_value(Type in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     if(range_constraint.has_value())
     {
         if(range_constraint->min.has_value() && in_value < *range_constraint->min)
@@ -197,11 +187,6 @@ FloatProperty::Type FloatProperty::get_value() const noexcept
 
 bool FloatProperty::set_value(Type in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     if(range_constraint.has_value())
     {
         if(range_constraint->min.has_value() && in_value < *range_constraint->min)
@@ -271,11 +256,6 @@ BoolProperty::Type BoolProperty::get_value() const noexcept
 
 bool BoolProperty::set_value(Type in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     *value = in_value;
     return true;
 }
@@ -317,11 +297,6 @@ const StringProperty::Type& StringProperty::get_value() const noexcept
 
 bool StringProperty::set_value(std::string_view in_value)
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     const std::size_t count = std::min(in_value.size(), max_length);
     value->assign(in_value.data(), count);
     return true;
@@ -367,11 +342,6 @@ const PathProperty::Type& PathProperty::get_value() const noexcept
 
 bool PathProperty::set_value(const std::filesystem::path& in_value)
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     value->assign(in_value);
     return true;
 }

@@ -46,6 +46,8 @@ struct StaticMeshLod
         {
             section.resolve(resolver);
         }
+
+        // TODO triangle count and bounds are available here and need to be set up.
     }
 };
 
@@ -84,6 +86,12 @@ public:
     void set_lods(swr::vector<StaticMeshLod> lods);
 
     void clear_mesh_sections() noexcept;
+
+    [[nodiscard]]
+    const assets::AssetPath& get_path() const
+    {
+        return path;
+    }
 
     [[nodiscard]]
     const swr::vector<StaticMeshLod>& get_lods() const

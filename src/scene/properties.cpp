@@ -49,11 +49,6 @@ const SwrStringProperty::Type& SwrStringProperty::get_value() const noexcept
 
 bool SwrStringProperty::set_value(std::string_view in_value)
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     const std::size_t count = std::min(in_value.size(), max_length);
     value->assign(in_value.data(), count);
     return true;
@@ -99,11 +94,6 @@ const Vec4Property::Type& Vec4Property::get_value() const noexcept
 
 bool Vec4Property::set_value(const Type& in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     *value = in_value;
     return true;
 }
@@ -141,11 +131,6 @@ const Mat4Property::Type& Mat4Property::get_value() const noexcept
 
 bool Mat4Property::set_value(const Type& in_value) noexcept
 {
-    if(is_read_only())
-    {
-        return false;
-    }
-
     *value = in_value;
     return true;
 }

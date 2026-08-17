@@ -221,10 +221,6 @@ bool Object::reset_to_snapshot()
     bool success = true;
     for(const auto& prop: snapshot->get_properties())
     {
-        if(prop->is_read_only())
-        {
-            continue;
-        }
         success &= reset_property_to_snapshot(prop->get_name());
     }
     return success;

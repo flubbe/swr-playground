@@ -265,9 +265,9 @@ public:
     template<typename T, typename... Args>
         requires(
           std::is_base_of_v<Object, T>)
-    T* add_object(Args&&... args)
+    T* create_object(Args&&... args)
     {
-        return add_object<T>(
+        return create_object<T>(
           reflect::construct_and_init<Object, T>(
             std::forward<Args>(args)...));
     }
@@ -275,10 +275,9 @@ public:
     template<typename T>
         requires(
           std::is_base_of_v<Object, T>)
-    T* add_object(reflect::unique_ptr<T> obj)
+    T* create_object(reflect::unique_ptr<T> obj)
     {
         T* ptr = obj.get();
-        objects.emplace_back(std::move(obj));
 
         // set object id and name,
         std::uint32_t object_id = ++next_id;
@@ -293,9 +292,28 @@ public:
             class_info->name,
             name_counter));
         ptr->capture_snapshot();
-        objects_by_id.emplace(ptr->get_object_id(), ptr);
+
+        add_object(std::move(obj));
 
         return ptr;
+    }
+
+    void add_object(
+      reflect::unique_ptr<Object> obj)
+    {
+        auto object_ptr = obj.get();
+        auto object_id = obj->get_object_id();
+
+        if(objects_by_id.contains(object_id))
+        {
+            throw std::runtime_error{
+              std::format(
+                "Object with id '{}' already exists in scene.",
+                object_id.value)};
+        }
+
+        objects.emplace_back(std::move(obj));
+        objects_by_id.emplace(object_id, object_ptr);
     }
 
     template<typename T, typename... Args>
