@@ -53,7 +53,7 @@ struct StaticMeshLod
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
-    swr::string path;
+    assets::AssetPath path;
     swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
 

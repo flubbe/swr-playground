@@ -54,7 +54,9 @@ struct hash<ObjectId>
 
 }    // namespace std
 
-// Property support.
+/*
+ * Property support.
+ */
 
 namespace reflect
 {

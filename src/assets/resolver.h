@@ -10,13 +10,22 @@
 
 #pragma once
 
+#include "assets/path.h"
+#include "logging.h"
+
 namespace assets
 {
 
 /** Asset resolver. */
 struct Resolver
 {
-    // TODO
+    template<typename T>
+    T resolve(const assets::AssetPath& path)
+    {
+        logging::warningf("Resolver::resolve called for '{}'", path.path.string());
+
+        return {};
+    }
 };
 
 }    // namespace assets

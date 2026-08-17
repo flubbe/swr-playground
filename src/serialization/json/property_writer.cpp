@@ -46,6 +46,10 @@ void JsonPropertyWriter::visit(
     {
         writer.write_key_value(p->get_name(), p->get_value());
     }
+    else if(auto* p = property.try_as<reflect::PathProperty>())
+    {
+        writer.write_key_value(p->get_name(), p->get_value().string());
+    }
 #if SWR_CUSTOM_STRING_TYPE
     else if(auto* p = property.try_as<reflect::SwrStringProperty>())
     {

@@ -337,4 +337,48 @@ const void* StringProperty::get_type_tag() const noexcept
     return detail::type_tag<StringProperty>();
 }
 
+PathProperty::PathProperty(
+  std::string_view name,
+  std::string_view label,
+  Type* value,
+  std::size_t offset,
+  PropertyFlags flags,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+: Property{
+    name,
+    label,
+    sizeof(Type),
+    offset,
+    alignof(Type),
+    flags,
+    std::move(constraint)}
+, value{value}
+{
+    if(value == nullptr)
+    {
+        throw std::invalid_argument{"PathProperty requires non-null value pointer"};
+    }
+}
+
+const PathProperty::Type& PathProperty::get_value() const noexcept
+{
+    return *value;
+}
+
+bool PathProperty::set_value(const std::filesystem::path& in_value)
+{
+    if(is_read_only())
+    {
+        return false;
+    }
+
+    value->assign(in_value);
+    return true;
+}
+
+const void* PathProperty::get_type_tag() const noexcept
+{
+    return detail::type_tag<PathProperty>();
+}
+
 }    // namespace reflect

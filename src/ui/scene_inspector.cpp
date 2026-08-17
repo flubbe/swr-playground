@@ -80,6 +80,10 @@ public:
         {
             render_string(*p, object);
         }
+        else if(auto* p = property.try_as<reflect::PathProperty>())
+        {
+            render_path(*p, object);
+        }
 #if SWR_CUSTOM_STRING_TYPE
         else if(auto* p = property.try_as<reflect::SwrStringProperty>())
         {
@@ -307,6 +311,26 @@ private:
             {
                 value.resize(property.get_max_length());
             }
+            if(property.set_value(value))
+            {
+                object.on_properties_changed();
+            }
+        }
+    }
+
+    static void render_path(
+      reflect::PathProperty& property,
+      Object& object)
+    {
+        if(property.is_read_only())
+        {
+            ImGui::TextUnformatted(property.get_value().c_str());
+            return;
+        }
+
+        std::string value = swr::std_string_from(property.get_value().string());
+        if(ImGui::InputText("##value", &value))
+        {
             if(property.set_value(value))
             {
                 object.on_properties_changed();

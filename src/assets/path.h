@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "reflection/property.h"
+
 #include <filesystem>
 #include <string_view>
 #include <utility>
@@ -52,3 +54,23 @@ struct AssetPath
 };
 
 }    // namespace assets
+
+/*
+ * Reflection support.
+ */
+
+namespace reflect
+{
+
+template<>
+struct UnwrapType<assets::AssetPath>
+{
+    using ValueType = decltype(assets::AssetPath::path);
+
+    static ValueType& get(assets::AssetPath& value) noexcept
+    {
+        return value.path;
+    }
+};
+
+}    // namespace reflect

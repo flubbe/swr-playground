@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 #include <optional>
 
 #include "reflection/property.h"
@@ -282,6 +283,49 @@ public:
     std::size_t get_max_length() const noexcept;
 };
 
+/** Built-in reflected path property. */
+class PathProperty : public Property
+{
+public:
+    using Type = std::filesystem::path;
+
+private:
+    /** Pointer to the reflected value. */
+    Type* value{nullptr};
+
+public:
+    /**
+     * Construct a path property.
+     *
+     * @param name Internal property name.
+     * @param label Display name.
+     * @param value Pointer to the reflected value.
+     * @param offset Byte offset from owning object base.
+     * @param flags Property flags.
+     * @throws `std::invalid_argument` if `value` is `nullptr`.
+     */
+    PathProperty(
+      std::string_view name,
+      std::string_view label,
+      Type* value,
+      std::size_t offset,
+      PropertyFlags flags = PropertyFlags::None,
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
+
+    const void* get_type_tag() const noexcept override;
+
+    /** Return the current value. */
+    const Type& get_value() const noexcept;
+
+    /**
+     * Set the current value.
+     *
+     * @param in_value New value.
+     * @returns `true` if written, `false` if read-only.
+     */
+    bool set_value(const std::filesystem::path& in_value);
+};
+
 template<>
 struct PropertyFactory<int>
 {
@@ -388,6 +432,27 @@ struct PropertyFactory<std::string>
           offset,
           flags,
           256,
+          constraint);
+    }
+};
+
+template<>
+struct PropertyFactory<std::filesystem::path>
+{
+    static swr::unique_ptr<Property> construct(
+      std::string_view name,
+      std::string_view label,
+      std::filesystem::path& value,
+      std::size_t offset,
+      PropertyFlags flags,
+      const swr::shared_ptr<const PropertyConstraint>& constraint)
+    {
+        return swr::make_unique<PathProperty>(
+          name,
+          label,
+          &value,
+          offset,
+          flags,
           constraint);
     }
 };

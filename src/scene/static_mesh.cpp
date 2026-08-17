@@ -43,12 +43,17 @@ void StaticMesh::register_properties(
 void StaticMesh::resolve(
   assets::Resolver& resolver)
 {
-    for(auto& lod: mesh_lods)
+    mesh_lods.clear();
+
+    if(path.path.empty())
     {
-        lod.resolve(resolver);
+        // Parametric asset.
+        return;
     }
 
-    logging::warningf("StaticMesh::resolve");
+    mesh_lods.emplace_back(
+      resolver.resolve<StaticMeshLod>(
+        path));
 }
 
 void StaticMesh::post_load()
