@@ -21,20 +21,21 @@
 #include "reflection/class_registry.h"
 #include "reflection/property.h"
 
+/*
+ * Forward declarations.
+ */
+
+namespace assets
+{
+struct Resolver;
+}    // namespace assets
+
+/** An object identifier. */
 struct ObjectId
 {
-    using Type = unsigned int;
+    std::uint32_t value = 0;
 
-    Type value = 0;
-
-    bool operator==(const ObjectId& other) const noexcept
-    {
-        return value == other.value;
-    }
-    bool operator!=(const ObjectId& other) const noexcept
-    {
-        return !(*this == other);
-    }
+    bool operator==(const ObjectId& other) const noexcept = default;
 };
 
 // std::hash support.
@@ -47,7 +48,7 @@ struct hash<ObjectId>
 {
     std::size_t operator()(const ObjectId& id) const noexcept
     {
-        return std::hash<ObjectId::Type>{}(id.value);
+        return std::hash<decltype(ObjectId::value)>{}(id.value);
     }
 };
 
@@ -61,7 +62,7 @@ namespace reflect
 template<>
 struct UnwrapType<ObjectId>
 {
-    using ValueType = unsigned int;
+    using ValueType = decltype(ObjectId::value);
 
     static ValueType& get(ObjectId& value) noexcept
     {
@@ -146,7 +147,16 @@ public:
         return *this;
     }
 
-    /** Called after object loading/construction. */
+    /**
+     * Called after object data loading is complete.
+     * Resolves object dependencies (e.g. resources/assets).
+     */
+    virtual void resolve(
+      [[maybe_unused]] assets::Resolver& resolver)
+    {
+    }
+
+    /** Called after object dependency resolution. */
     virtual void post_load()
     {
     }

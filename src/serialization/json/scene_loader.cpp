@@ -10,13 +10,14 @@
 
 #include <simdjson.h>
 
+#include "assets/resolver.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
 #include "scene/properties.h"
 #include "scene/scene.h"
 #include "serialization/except.h"
-#include "deserializer_visitor.h"
-#include "json_scene_loader.h"
+#include "property_deserializer.h"
+#include "scene_loader.h"
 #include "logging.h"
 
 namespace
@@ -61,7 +62,7 @@ void deserialize_properties(
 
         if(prop_it != object.get_properties().end())
         {
-            serial::json::DeserializerVisitor visitor{
+            serial::json::JsonPropertyDeserializer visitor{
               get_logger(),
               object,
               entry.value};
@@ -155,7 +156,15 @@ void JsonSceneLoader::load(
   Scene& scene,
   std::string_view source_text)
 {
+    /*
+     * Clear scene.
+     */
+
     scene.clear();
+
+    /*
+     * Set up JSON processing.
+     */
 
     simdjson::padded_string padded_json(source_text);
     simdjson::ondemand::parser json_parser;
@@ -172,6 +181,10 @@ void JsonSceneLoader::load(
     {
         throw std::runtime_error{"Root JSON value must be an object."};
     }
+
+    /*
+     * Load JSON into scene.
+     */
 
     for(auto field: root_obj)
     {
@@ -196,6 +209,19 @@ void JsonSceneLoader::load(
               key);
         }
     }
+
+    /*
+     * Dependency resolution.
+     */
+
+    assets::Resolver resolver;
+    scene.for_each_object<Object>(
+      [&resolver](Object& obj)
+      { obj.resolve(resolver); });
+
+    /*
+     * Post-load processing.
+     */
 
     scene.for_each_object<Object>(
       [](Object& obj)

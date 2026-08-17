@@ -18,6 +18,15 @@
 #include "renderer/mesh_section.h"
 #include "object.h"
 
+/*
+ * Forward declarations.
+ */
+
+namespace assets
+{
+struct Resolver;
+}    // namespace assets
+
 /** One renderable level of detail for a static mesh. */
 struct StaticMeshLod
 {
@@ -29,6 +38,15 @@ struct StaticMeshLod
 
     /** Combined local-space bounds for all sections in this LOD. */
     MeshBounds bounds;
+
+    /** Resolve dependencies. */
+    void resolve(assets::Resolver& resolver)
+    {
+        for(auto& section: mesh_sections)
+        {
+            section.resolve(resolver);
+        }
+    }
 };
 
 /** A static mesh. */
@@ -52,6 +70,7 @@ public:
 
     StaticMesh() = default;
 
+    void resolve(assets::Resolver& resolver) override;
     void post_load() override;
 
     void init(

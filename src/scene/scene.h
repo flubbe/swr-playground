@@ -326,14 +326,6 @@ public:
       std::size_t indentation_size = 4,
       bool use_compacted_format = false) const;
 
-    /**
-     * Load the scene from JSON.
-     *
-     * @param text The JSON text.
-     * @throws `std::runtime_error` if loading fails.
-     */
-    void load(const std::string_view& text);
-
     /*
      * Accessors.
      */

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "reflection/class_registry.h"
+#include "serialization/json/scene_loader.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 
@@ -299,7 +300,9 @@ TEST(SceneTests, EmptySaveLoad)
 
     {
         Scene scene;
-        EXPECT_NO_THROW(scene.load("{}"));
+        serial::json::JsonSceneLoader loader;
+
+        EXPECT_NO_THROW(loader.load(scene, "{}"));
 
         std::size_t object_count{0};
         scene.for_each_object<Object>(
@@ -351,7 +354,9 @@ TEST(SceneTests, SaveLoad)
 
     {
         Scene scene;
-        EXPECT_NO_THROW(scene.load(expected));
+        serial::json::JsonSceneLoader loader;
+
+        EXPECT_NO_THROW(loader.load(scene, expected));
 
         std::size_t object_count{0};
         scene.for_each_object<Object>(

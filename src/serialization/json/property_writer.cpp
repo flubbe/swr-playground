@@ -12,7 +12,7 @@
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
 #include "serialization/except.h"
-#include "json_property_writer.h"
+#include "property_writer.h"
 
 namespace serial::json
 {

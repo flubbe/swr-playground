@@ -40,9 +40,9 @@ TEST(MaterialTests, Parse)
     EXPECT_EQ(desc.shader, "Test");
 
     ASSERT_TRUE(desc.base_color.has_value());
-    EXPECT_EQ(*desc.base_color, "textures/wood.png");
+    EXPECT_EQ(desc.base_color.value(), assets::AssetPath{"textures/wood.png"});
     ASSERT_TRUE(desc.normal.has_value());
-    EXPECT_EQ(desc.normal->path, "textures/stone.png");
+    EXPECT_EQ(desc.normal->path, assets::AssetPath{"textures/stone.png"});
     EXPECT_EQ(desc.normal->convention, assets::NormalMapConvention::OpenGL);
     EXPECT_FLOAT_EQ(desc.normal->scale, 0.5f);
 }

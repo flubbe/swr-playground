@@ -1,6 +1,7 @@
 add_library(scene_test_common STATIC
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
+    ${PROJECT_SOURCE_DIR}/src/renderer/mesh_section.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/object.cpp
 )
@@ -15,7 +16,9 @@ target_compile_definitions(scene_test_common PRIVATE
 
 target_link_libraries(scene_test_common PRIVATE
     swr_playground_warnings
+    concurrency_utils
     ml
+    xxhash
 )
 
 add_executable(object_tests
@@ -48,7 +51,9 @@ add_executable(scene_tests
     ${PROJECT_SOURCE_DIR}/src/scene/spotlight.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/scene.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/static_mesh.cpp
-    ${PROJECT_SOURCE_DIR}/src/serialization/json/json_property_writer.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/json/property_deserializer.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/json/property_writer.cpp
+    ${PROJECT_SOURCE_DIR}/src/serialization/json/scene_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
 )
 

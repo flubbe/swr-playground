@@ -189,7 +189,7 @@ ResolvableMaterial MaterialManager::load(
               }
 
               resources.base_color = assets::load_texture_rgba8(
-                *resources.description.base_color);
+                resources.description.base_color.value().path);
           }
 
           if(resources.description.normal.has_value())
@@ -202,7 +202,7 @@ ResolvableMaterial MaterialManager::load(
               const assets::NormalMapDesc& normal_map =
                 *resources.description.normal;
               resources.normal_map = assets::load_normal_map_rgba8(
-                normal_map.path,
+                normal_map.path.path,
                 normal_map.convention);
           }
 

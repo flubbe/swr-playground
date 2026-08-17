@@ -315,6 +315,7 @@ add_executable(swr_playground
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/renderer/material_manager.cpp
+    src/renderer/mesh_section.cpp
     src/renderer/render_device.cpp
     src/renderer/renderer.cpp
     src/renderer/resolvable_material.cpp
@@ -326,8 +327,9 @@ add_executable(swr_playground
     src/scene/properties.cpp
     src/scene/scene.cpp
     src/serialization/file.cpp
-    src/serialization/json/json_property_writer.cpp
-    src/serialization/json/json_scene_loader.cpp
+    src/serialization/json/property_deserializer.cpp
+    src/serialization/json/property_writer.cpp
+    src/serialization/json/scene_loader.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/tasks/dag.cpp

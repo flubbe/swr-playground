@@ -42,6 +42,7 @@
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "serialization/file.h"
+#include "serialization/json/scene_loader.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
 #include "application.h"
@@ -681,15 +682,17 @@ GearParameters create_gear_resources(
 
     return GearParameters{
       .inner = MeshSection{
+        .material_path = {},
+        .color = staged.color,
         .mesh_handle = inner_mesh,
         .material = material,
-        .color = staged.color,
         .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
+        .material_path = {},
+        .color = staged.color,
         .mesh_handle = outer_mesh,
         .material = material,
-        .color = staged.color,
         .triangle_count = outer_mesh_data.indices.size() / 3,
       },
       .bounds = bounds,
@@ -759,9 +762,10 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
               staged_lod.bounds);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
+                .material_path = {},
+                .color = section.diffuse_color,
                 .mesh_handle = mesh_handle,
                 .material = material,
-                .color = section.diffuse_color,
                 .triangle_count = staged_lod.mesh.indices.size() / 3,
               });
         }
@@ -796,9 +800,10 @@ void try_add_textured_floor(
           "",
           swr::vector<MeshSection>{
             MeshSection{
+              .material_path = {},
+              .color = {1.f, 1.f, 1.f, 1.f},
               .mesh_handle = *mesh_handle,
               .material = material,
-              .color = {1.f, 1.f, 1.f, 1.f},
               .triangle_count = floor_data.mesh.indices.size() / 3,
             }},
           calculate_mesh_bounds(floor_data.mesh));
@@ -956,7 +961,12 @@ void rebuild_gear_mesh_if_needed(
     if(mesh_lods.size() != 1
        || mesh_lods[0].mesh_sections.size() != 2)
     {
-        logging::errorf("Cannot rebuild gear mesh: LOD parameters do not match.");
+        static bool has_warned = false;
+        if(!has_warned)
+        {
+            logging::errorf("Cannot rebuild gear mesh: LOD parameters do not match.");
+            has_warned = true;
+        }
         return;
     }
 
@@ -2000,7 +2010,8 @@ bool Application::load_scene(
 
     try
     {
-        scene.load(contents);
+        serial::json::JsonSceneLoader loader;
+        loader.load(scene, contents);
     }
     catch(const std::runtime_error& e)
     {

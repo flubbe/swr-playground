@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "assets/resolver.h"
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
 #include "logging.h"
@@ -39,10 +40,22 @@ void StaticMesh::register_properties(
       "Receives Shadows");
 }
 
+void StaticMesh::resolve(
+  assets::Resolver& resolver)
+{
+    for(auto& lod: mesh_lods)
+    {
+        lod.resolve(resolver);
+    }
+
+    logging::warningf("StaticMesh::resolve");
+}
+
 void StaticMesh::post_load()
 {
-    // TODO Construct mesh from path.
+    // TODO Construct mesh/LODs from path.
     //      Likely should be conditional for meshes defined inline?
+
     logging::warningf("StaticMesh::post_load");
 }
 

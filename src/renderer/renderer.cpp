@@ -634,6 +634,8 @@ void Renderer::create_grid_mesh()
 
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
+        .material_path = {},
+        .color = color_gray,
         .mesh_handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Lines,
@@ -643,8 +645,7 @@ void Renderer::create_grid_mesh()
             .texcoords = {}}),
         .material = ResolvableMaterial{
           "GrayMaterial",
-          gray_material},
-        .color = color_gray});
+          gray_material}});
 }
 
 void Renderer::release_grid_mesh()
@@ -717,6 +718,8 @@ void Renderer::create_spotlight_depth_debug_mesh()
 
     overlay_spotlight_depth = swr::make_unique<MeshSection>(
       MeshSection{
+        .material_path = {},
+        .color = {1.f, 1.f, 1.f, 1.f},
         .mesh_handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Triangles,
@@ -728,7 +731,6 @@ void Renderer::create_spotlight_depth_debug_mesh()
         .material = ResolvableMaterial{
           "SpotlightDepthDebug",
           shadow_debug_overlay_material},
-        .color = {1.f, 1.f, 1.f, 1.f},
       });
 }
 

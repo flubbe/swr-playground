@@ -9,7 +9,7 @@
  */
 
 #include "reflection/property.h"
-#include "serialization/json/json_writer.h"
+#include "serialization/json/writer.h"
 
 namespace serial::json
 {
