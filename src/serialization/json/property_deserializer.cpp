@@ -30,8 +30,11 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize int64 '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize int64 '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else if(auto* p = property.try_as<reflect::UIntProperty>())
@@ -44,8 +47,11 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize uint64 '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize uint64 '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else if(auto* p = property.try_as<reflect::FloatProperty>())
@@ -58,8 +64,11 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize float '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize float '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else if(auto* p = property.try_as<reflect::BoolProperty>())
@@ -72,8 +81,11 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize bool '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize bool '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else if(auto* p = property.try_as<reflect::StringProperty>())
@@ -86,8 +98,11 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize string '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize string '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
 #if SWR_CUSTOM_STRING_TYPE
@@ -101,14 +116,17 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize string '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize string '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
 #endif /* SWR_CUSTOM_STRING_TYPE */
     else if(auto* p = property.try_as<reflect::Mat4Property>())
     {
-        simdjson::ondemand::array outer_arr;
+        simdjson::dom::array outer_arr;
         if(auto err = value.get_array().get(outer_arr); !err)
         {
             ml::mat4x4 m;
@@ -119,13 +137,16 @@ void JsonPropertyDeserializer::visit(
                 if(row_idx >= 4)
                 {
                     logger.warningf(
-                      "Too many rows when deserializing mat4x4 '{}.{}' from JSON",
-                      object.get_name(), p->get_name());
+                      "Too many rows when deserializing mat4x4 '{}.{}' from JSON: {}",
+                      object.get_name(),
+                      object.get_class()->name,
+                      p->get_name(),
+                      simdjson::error_message(err));
 
                     break;
                 }
 
-                simdjson::ondemand::array inner_arr;
+                simdjson::dom::array inner_arr;
                 if(auto inner_err = row_elem.get_array().get(inner_arr); !inner_err)
                 {
                     std::size_t col_idx = 0;
@@ -141,8 +162,11 @@ void JsonPropertyDeserializer::visit(
                             else
                             {
                                 logger.warningf(
-                                  "Too many columns when deserializing mat4x4 '{}.{}' from JSON",
-                                  object.get_name(), p->get_name());
+                                  "Too many columns when deserializing mat4x4 '{}.{}' from JSON: {}",
+                                  object.get_name(),
+                                  object.get_class()->name,
+                                  p->get_name(),
+                                  simdjson::error_message(err));
 
                                 break;
                             }
@@ -153,8 +177,11 @@ void JsonPropertyDeserializer::visit(
                     if(col_idx != 4)
                     {
                         logger.warningf(
-                          "Too few columns when deserializing mat4x4 '{}.{}' from JSON",
-                          object.get_name(), p->get_name());
+                          "Too few columns when deserializing mat4x4 '{}.{}' from JSON: {}",
+                          object.get_name(),
+                          object.get_class()->name,
+                          p->get_name(),
+                          simdjson::error_message(err));
                     }
                 }
                 ++row_idx;
@@ -163,8 +190,11 @@ void JsonPropertyDeserializer::visit(
             if(row_idx != 4)
             {
                 logger.warningf(
-                  "Too few rows when deserializing mat4x4 '{}.{}' from JSON",
-                  object.get_name(), p->get_name());
+                  "Too few rows when deserializing mat4x4 '{}.{}' from JSON: {}",
+                  object.get_name(),
+                  object.get_class()->name,
+                  p->get_name(),
+                  simdjson::error_message(err));
             }
 
             p->set_value(m);
@@ -172,14 +202,17 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize mat4 '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize mat4 '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else if(auto* p = property.try_as<reflect::Vec4Property>())
     {
         // Deserialize JSON array [x, y, z, w]
-        simdjson::ondemand::array arr;
+        simdjson::dom::array arr;
         if(auto err = value.get_array().get(arr); !err)
         {
             ml::vec4 v{};
@@ -200,8 +233,11 @@ void JsonPropertyDeserializer::visit(
             if(idx != 4)
             {
                 logger.warningf(
-                  "'{}': Too few values when deserializing vec4 '{}.{}' from JSON",
-                  object.get_name(), object.get_class()->name, p->get_name());
+                  "'{}': Too few values when deserializing vec4 '{}.{}' from JSON: {}",
+                  object.get_name(),
+                  object.get_class()->name,
+                  p->get_name(),
+                  simdjson::error_message(err));
             }
 
             p->set_value(v);
@@ -209,15 +245,18 @@ void JsonPropertyDeserializer::visit(
         else
         {
             logger.warningf(
-              "'{}': Unable to deserialize vec4 '{}.{}' from JSON ",
-              object.get_name(), object.get_class()->name, p->get_name());
+              "'{}': Unable to deserialize vec4 '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
         }
     }
     else
     {
         throw serial::SerializationError{
           std::format(
-            "Unsupported property type for property '{}'",
+            "Unsupported property type for property '{}'.",
             property.get_name())};
     }
 }

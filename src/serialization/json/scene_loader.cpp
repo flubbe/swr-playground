@@ -11,6 +11,7 @@
 #include <simdjson.h>
 
 #include "assets/resolver.h"
+#include "containers/unordered_set.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
 #include "scene/properties.h"
@@ -31,48 +32,57 @@ const logging::Logger& get_logger()
     return logger;
 }
 
-/** Helper for out-of-order processing. */
-struct FieldEntry
-{
-    /** Key. */
-    std::string_view key;
-
-    /** Value. */
-    simdjson::ondemand::value value;
-};
-
 /**
  * Load fields into the object.
  *
  * Traverses the fields, and writes each one found in the object.
  *
  * @param object The object to load the values into.
- * @param fields The fields to load.
+ * @param obj The object to load.
  */
 void deserialize_properties(
   Object& object,
-  swr::vector<FieldEntry>& fields)
+  simdjson::dom::object obj)
 {
-    for(auto& entry: fields)
+    for(auto& property: object.get_properties())
     {
-        auto prop_it = std::ranges::find_if(
-          object.get_properties(),
-          [key = entry.key](const auto& p)
-          { return p->get_name() == key; });
-
-        if(prop_it != object.get_properties().end())
-        {
-            serial::json::JsonPropertyDeserializer visitor{
-              get_logger(),
-              object,
-              entry.value};
-            (*prop_it)->accept(visitor);
-        }
-        else
+        auto value = obj[property->get_name()];
+        if(value.error() == simdjson::NO_SUCH_FIELD)
         {
             get_logger().warningf(
-              "Unknown field '{}' found for class '{}'",
-              entry.key, object.get_class()->qualified_name);
+              "Cannot deserialize missing property '{}' for class '{}'.",
+              property->get_name(),
+              object.get_class()->qualified_name);
+            continue;
+        }
+
+        serial::json::JsonPropertyDeserializer visitor{
+          get_logger(),
+          object,
+          value.value()};
+
+        property->accept(visitor);
+    }
+
+    const auto is_property = [&object](std::string_view name)
+    {
+        return std::ranges::any_of(
+          object.get_properties(),
+          [name](const auto& property)
+          {
+              return property->get_name() == name;
+          });
+    };
+
+    for(auto& entry: obj)
+    {
+        if(entry.key != "class"
+           && !is_property(entry.key))
+        {
+            get_logger().warningf(
+              "Unknown field '{}' found for class '{}'.",
+              entry.key,
+              object.get_class()->qualified_name);
         }
     }
 }
@@ -87,61 +97,54 @@ void deserialize_properties(
  */
 void load_objects(
   Scene& scene,
-  simdjson::ondemand::array arr)
+  simdjson::dom::array arr)
 {
     for(auto item: arr)
     {
-        simdjson::ondemand::object obj = item.get_object();
-
-        swr::vector<FieldEntry> fields;
-        std::string_view qualified_class_name;
-
-        // Extract "class" and buffer other property entries
-        for(auto field: obj)
+        simdjson::dom::object obj;
+        if(auto err = item.get_object().get(obj))
         {
-            std::string_view key = field.unescaped_key();
-
-            simdjson::ondemand::value val;
-            if(auto err = field.value().get(val); err)
-            {
-                get_logger().warningf(
-                  "Failed to read JSON value for key '{}': {}",
-                  key, simdjson::error_message(err));
-                continue;
-            }
-
-            if(key == "class")
-            {
-                if(auto err = val.get_string().get(qualified_class_name); err)
-                {
-                    throw serial::SerializationError{
-                      "Object entry missing required string field 'class'."};
-                }
-            }
-            else
-            {
-                fields.push_back({key, val});
-            }
+            throw serial::SerializationError{
+              std::format(
+                "Expected JSON object: {}",
+                simdjson::error_message(err))};
         }
 
-        if(qualified_class_name.empty())
+        auto class_value = obj["class"];
+        if(class_value.error() == simdjson::NO_SUCH_FIELD)
         {
             throw serial::SerializationError{
               "Object entry missing required field 'class'."};
         }
+        else if(auto err = class_value.error())
+        {
+            throw serial::SerializationError{
+              std::format(
+                "Failed to access 'class': {}",
+                simdjson::error_message(err))};
+        }
+
+        auto qualified_class_name = class_value.get_string();
+        if(qualified_class_name.error())
+        {
+            throw serial::SerializationError{
+              std::format(
+                "Entry 'class' name is not a string: {}",
+                simdjson::error_message(qualified_class_name.error()))};
+        }
 
         // Construct via reflection
-        auto new_object = reflect::construct<Object>(qualified_class_name);
+        auto new_object = reflect::construct<Object>(qualified_class_name.value());
         if(!new_object)
         {
             throw serial::SerializationError{
               std::format(
                 "Object construction failed for class '{}'.",
-                qualified_class_name)};
+                qualified_class_name.value())};
         }
 
         // Deserialize properties using visitor
-        deserialize_properties(*new_object, fields);
+        deserialize_properties(*new_object, obj);
 
         scene.add_object(std::move(new_object));
     }
@@ -166,18 +169,19 @@ void JsonSceneLoader::load(
      * Set up JSON processing.
      */
 
-    simdjson::padded_string padded_json(source_text);
-    simdjson::ondemand::parser json_parser;
+    simdjson::dom::parser json_parser;
 
-    simdjson::ondemand::document doc;
-    if(auto err = json_parser.iterate(padded_json).get(doc); err)
+    auto doc = json_parser.parse(source_text);
+    if(doc.error())
     {
         throw std::runtime_error{
-          std::format("JSON parsing failed: {}", simdjson::error_message(err))};
+          std::format(
+            "JSON parsing failed: {}",
+            simdjson::error_message(doc.error()))};
     }
 
-    simdjson::ondemand::object root_obj;
-    if(auto err = doc.get_object().get(root_obj); err)
+    auto json_object = doc.get_object();
+    if(json_object.error())
     {
         throw std::runtime_error{"Root JSON value must be an object."};
     }
@@ -186,21 +190,21 @@ void JsonSceneLoader::load(
      * Load JSON into scene.
      */
 
-    for(auto field: root_obj)
+    for(auto field: json_object)
     {
-        std::string_view key = field.unescaped_key();
+        std::string_view key = field.key;
 
         if(key == "time")
         {
-            scene.set_time(field.value().get_double());
+            scene.set_time(field.value.get_double());
         }
         else if(key == "paused")
         {
-            scene.set_paused(field.value().get_bool());
+            scene.set_paused(field.value.get_bool());
         }
         else if(key == "objects")
         {
-            load_objects(scene, field.value().get_array());
+            load_objects(scene, field.value.get_array());
         }
         else
         {

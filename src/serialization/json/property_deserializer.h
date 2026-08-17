@@ -37,7 +37,7 @@ class JsonPropertyDeserializer final
     Object& object;
 
     /** Value to load. */
-    simdjson::ondemand::value& value;
+    simdjson::dom::element value;
 
 public:
     /**
@@ -50,7 +50,7 @@ public:
     explicit JsonPropertyDeserializer(
       const logging::Logger& logger,
       Object& object,
-      simdjson::ondemand::value& value)
+      simdjson::dom::element value)
     : logger{logger}
     , object{object}
     , value{value}
