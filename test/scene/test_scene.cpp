@@ -32,6 +32,19 @@ ResolvableMaterial make_test_material()
       nullptr};
 }
 
+MeshSection make_mesh_section(
+  std::string_view material_path,
+  std::uint32_t mesh_handle,
+  std::uint32_t triangle_count = 4)
+{
+    return {
+      .material_path = assets::AssetPath{material_path},
+      .color = {0.f, 1.f, 0.f, 1.f},
+      .mesh_handle = {.value = mesh_handle},
+      .material = make_test_material(),
+      .triangle_count = triangle_count};
+}
+
 }    // namespace
 
 TEST(SceneTests, AddObjectSynchronizesObjectIndex)
@@ -133,10 +146,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     StaticMesh* mesh = scene.add_object<StaticMesh>(
       "<mesh>",
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 12},
-          .material = make_test_material(),
-          .triangle_count = 4}},
+        make_mesh_section("test", 12)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
@@ -162,35 +172,18 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
       "<mesh>",
       swr::vector{
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 10},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {
+            make_mesh_section("test", 10)},
           .triangle_count = 100000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 11},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {make_mesh_section("test", 11)},
           .triangle_count = 10000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 12},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {make_mesh_section("test", 12)},
           .triangle_count = 1000,
           .bounds = {},
         },
@@ -227,11 +220,7 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
     mesh.init(
       "<mesh>",
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 10},
-          .material = make_test_material(),
-          .triangle_count = 4},
-      },
+        make_mesh_section("test", 10)},
       bounds);
 
     EXPECT_TRUE(mesh.get_bounds().valid);
@@ -252,10 +241,7 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     StaticMesh* mesh = scene.add_object<StaticMesh>(
       "<mesh>",
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 56},
-          .material = make_test_material(),
-          .triangle_count = 4}},
+        make_mesh_section("test", 56)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
