@@ -105,6 +105,23 @@ void JsonPropertyDeserializer::visit(
               simdjson::error_message(err));
         }
     }
+    else if(auto* p = property.try_as<reflect::PathProperty>())
+    {
+        std::string val;
+        if(auto err = value.get_string().get(val); !err)
+        {
+            p->set_value(val);
+        }
+        else
+        {
+            logger.warningf(
+              "'{}': Unable to deserialize path '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
+        }
+    }
 #if SWR_CUSTOM_STRING_TYPE
     else if(auto* p = property.try_as<reflect::SwrStringProperty>())
     {
