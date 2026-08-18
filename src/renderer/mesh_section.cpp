@@ -11,14 +11,14 @@
 #include <format>
 #include <stdexcept>
 
-#include "assets/resolver.h"
+#include "asset_resolver.h"
 #include "material_manager.h"
 #include "mesh_section.h"
 
 #include "logging.h"
 
 void MeshSection::resolve(
-  assets::Resolver& resolver)
+  AssetResolver& resolver)
 {
     // For materials not externally loaded.
     if(material_path.path.empty())

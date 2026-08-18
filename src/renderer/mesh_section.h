@@ -21,10 +21,7 @@
  * Forward declarations.
  */
 
-namespace assets
-{
-struct Resolver;
-}    // namespace assets
+struct AssetResolver;
 
 /** Part of a mesh using one material. */
 struct MeshSection
@@ -57,7 +54,7 @@ struct MeshSection
     std::size_t triangle_count{0};
 
     /** Dependency resolution. */
-    void resolve(assets::Resolver& resolver);
+    void resolve(AssetResolver& resolver);
 
     /** Process section after loading. */
     void post_load(

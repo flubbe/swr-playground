@@ -54,6 +54,7 @@ add_executable(scene_tests
     ${PROJECT_SOURCE_DIR}/src/serialization/json/property_deserializer.cpp
     ${PROJECT_SOURCE_DIR}/src/serialization/json/property_writer.cpp
     ${PROJECT_SOURCE_DIR}/src/serialization/json/scene_loader.cpp
+    ${PROJECT_SOURCE_DIR}/src/asset_resolver.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
 )
 
@@ -71,6 +72,7 @@ target_link_libraries(scene_tests PRIVATE
     GTest::gtest_main
     ml
     simdjson
+    xxhash
 )
 
 gtest_discover_tests(scene_tests)

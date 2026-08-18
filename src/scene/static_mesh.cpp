@@ -10,9 +10,9 @@
 
 #include <utility>
 
-#include "assets/resolver.h"
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
+#include "asset_resolver.h"
 #include "logging.h"
 #include "static_mesh.h"
 
@@ -41,7 +41,7 @@ void StaticMesh::register_properties(
 }
 
 void StaticMesh::resolve(
-  assets::Resolver& resolver)
+  AssetResolver& resolver)
 {
     mesh_lods.clear();
 
@@ -51,9 +51,8 @@ void StaticMesh::resolve(
         return;
     }
 
-    mesh_lods.emplace_back(
-      resolver.resolve<StaticMeshLod>(
-        path));
+    // TODO
+    resolver.resolve_static_mesh(path);
 }
 
 void StaticMesh::post_load()

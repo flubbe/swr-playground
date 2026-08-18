@@ -25,10 +25,7 @@
  * Forward declarations.
  */
 
-namespace assets
-{
-struct Resolver;
-}    // namespace assets
+struct AssetResolver;
 
 /** An object identifier. */
 struct ObjectId
@@ -154,7 +151,7 @@ public:
      * Resolves object dependencies (e.g. resources/assets).
      */
     virtual void resolve(
-      [[maybe_unused]] assets::Resolver& resolver)
+      [[maybe_unused]] AssetResolver& resolver)
     {
     }
 

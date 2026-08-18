@@ -22,10 +22,7 @@
  * Forward declarations.
  */
 
-namespace assets
-{
-struct Resolver;
-}    // namespace assets
+struct AssetResolver;
 
 /** One renderable level of detail for a static mesh. */
 struct StaticMeshLod
@@ -40,7 +37,7 @@ struct StaticMeshLod
     MeshBounds bounds;
 
     /** Resolve dependencies. */
-    void resolve(assets::Resolver& resolver)
+    void resolve(AssetResolver& resolver)
     {
         for(auto& section: mesh_sections)
         {
@@ -72,7 +69,7 @@ public:
 
     StaticMesh() = default;
 
-    void resolve(assets::Resolver& resolver) override;
+    void resolve(AssetResolver& resolver) override;
     void post_load() override;
 
     void init(

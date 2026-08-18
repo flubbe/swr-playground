@@ -10,7 +10,6 @@
 
 #include <simdjson.h>
 
-#include "assets/resolver.h"
 #include "containers/unordered_set.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
@@ -18,6 +17,7 @@
 #include "scene/scene.h"
 #include "serialization/except.h"
 #include "property_deserializer.h"
+#include "asset_resolver.h"
 #include "scene_loader.h"
 #include "logging.h"
 
@@ -218,7 +218,7 @@ void JsonSceneLoader::load(
      * Dependency resolution.
      */
 
-    assets::Resolver resolver;
+    AssetResolver resolver;
     scene.for_each_object<Object>(
       [&resolver](Object& obj)
       { obj.resolve(resolver); });

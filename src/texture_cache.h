@@ -65,6 +65,11 @@ class TextureRef
     /** Referenced texture entry. */
     swr::shared_ptr<TextureEntry> entry;
 
+public:
+    TextureRef() = delete;
+    TextureRef(const TextureRef&) = default;
+    TextureRef(TextureRef&&) = default;
+
     /**
      * Constructor.
      *
@@ -75,11 +80,6 @@ class TextureRef
     : entry{std::move(entry)}
     {
     }
-
-public:
-    TextureRef() = delete;
-    TextureRef(const TextureRef&) = default;
-    TextureRef(TextureRef&&) = default;
 
     TextureRef& operator=(const TextureRef&) = default;
     TextureRef& operator=(TextureRef&&) = default;
