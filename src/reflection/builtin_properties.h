@@ -366,15 +366,6 @@ class VectorProperty : public Property
     using ConstElementFn = const void* (*)(const void*, std::size_t);
     ConstElementFn const_element_fn;
 
-#if 0
-    using ElementPropertyFn = swr::unique_ptr<Property> (*)(
-      void* vector_ptr,
-      std::size_t index,
-      std::string_view name,
-      const PropertyInfo& info);
-    ElementPropertyFn element_property_fn{nullptr};
-#endif
-
     using MakeElementPropertyFn = swr::unique_ptr<Property> (*)(
       void* vector_ptr,
       std::size_t index,
@@ -434,43 +425,24 @@ public:
                        {
                            return &static_cast<const std::vector<T, Alloc>*>(p)->at(index);
                        }}
-#if 0
-    , element_property_fn{[](void* vec, std::size_t idx, std::string_view elem_name, const PropertyInfo& info) -> swr::unique_ptr<Property>
-                          {
-                              auto& vec_ref = *static_cast<std::vector<T, Alloc>*>(vec);
-                              T* elem_ptr = &vec_ref.at(idx);
-
-                              // Delegate property construction to existing infrastructure (e.g. PropertyFactory)
-                              // or construct an explicit element wrapper.
-                              return swr::make_unique<VectorElementProperty>(
-                                elem_name,
-                                elem_name,
-                                elem_ptr,
-                                0,    // Offset relative to vector element
-                                info.flags,
-                                info.constraint);
-                          }}
-#endif
-    , make_element_fn{[](void* vec, std::size_t idx, std::string_view elem_name, std::string_view elem_label, PropertyFlags elem_flags) -> swr::unique_ptr<Property>
+    , make_element_fn{[](void* p, std::size_t i, std::string_view elem_name, std::string_view elem_label, PropertyFlags elem_flags) -> swr::unique_ptr<Property>
                       {
                           using MemberTraits = UnwrapType<T>;
                           using UnwrappedType = typename MemberTraits::ValueType;
 
-                          auto& vec_ref = *static_cast<std::vector<T, Alloc>*>(vec);
-
-                          // Pointer to the actual memory of element at `idx`
-                          T* elem_ptr = &vec_ref.at(idx);
+                          T* elem_ptr = &static_cast<std::vector<T, Alloc>*>(p)->at(i);
                           UnwrappedType& unwrapped_value = MemberTraits::get(*elem_ptr);
 
-                          // Construct the actual concrete Property type (e.g. StringProperty, IntProperty)
+                          // Construct typed Property (e.g. StringProperty, IntProperty)
                           // bound directly to the element pointer.
                           return PropertyFactory<UnwrappedType>::construct(
                             elem_name,
                             elem_label,
                             unwrapped_value,
-                            0,
+                            0, /* offset */
                             elem_flags | PropertyFlags::ArrayElement,
-                            {});
+                            {} /* constraints */
+                          );
                       }}
     {
         if(value == nullptr)
@@ -519,24 +491,10 @@ public:
         return size_fn(value);
     }
 
-#if 0
-    /** Construct a temporary Property wrapper for an element. */
+    /** Construct typed `Property` (e.g., `StringProperty`) for element at `index`. */
     swr::unique_ptr<Property> get_element_property(
       std::size_t index) const
     {
-        return element_property_fn(
-          value,
-          index,
-          std::format("[{}]", index),
-          *inner);
-    }
-#endif
-
-    /** Construct a real, fully-typed Property (e.g., StringProperty) for element at index. */
-    swr::unique_ptr<Property> get_element_property(
-      std::size_t index) const
-    {
-        // Generates element names like "0", "1", etc. or custom UI labels
         const swr::string index_str = swr::format("[{}]", index);
         return make_element_fn(value, index, index_str, index_str, get_flags());
     }
