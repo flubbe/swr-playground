@@ -65,9 +65,9 @@ using task_system::TaskState;
 
 struct StartupMaterials
 {
-    ResolvableMaterial gear;
-    ResolvableMaterial floor;
-    ResolvableMaterial static_mesh;
+    MaterialRef gear;
+    MaterialRef floor;
+    MaterialRef static_mesh;
 
     [[nodiscard]]
     bool is_ready()
@@ -660,7 +660,7 @@ void imgui_draw_viewport_panel(
 
 GearParameters create_gear_resources(
   RenderDevice& device,
-  ResolvableMaterial material,
+  MaterialRef material,
   const StagedGearInstance& staged)
 {
     auto inner_mesh_data = MeshData{
@@ -709,7 +709,7 @@ GearParameters create_gear_resources(
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
-  ResolvableMaterial material,
+  MaterialRef material,
   const swr::vector<StagedGearInstance>& gears)
 {
     for(const StagedGearInstance& staged: gears)
@@ -733,7 +733,7 @@ constexpr std::string_view floor_object_name = "Stone Floor";
 
 swr::vector<StaticMeshLod> create_static_mesh_resources(
   RenderDevice& device,
-  ResolvableMaterial material,
+  MaterialRef material,
   const StagedStaticMeshAsset& staged_asset)
 {
     swr::vector<StaticMeshLod> result_lods;
@@ -786,7 +786,7 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
 void try_add_textured_floor(
   Scene& scene,
   RenderDevice& device,
-  ResolvableMaterial material,
+  MaterialRef material,
   const StagedFloorData& floor_data)
 {
     std::optional<MeshHandle> mesh_handle;
@@ -799,7 +799,8 @@ void try_add_textured_floor(
           floor_data.mesh);
 
         auto* floor = scene.create_object<StaticMesh>(
-          "",
+          assets::AssetPath{},
+          swr::vector<assets::AssetPath>{},
           swr::vector<MeshSection>{
             MeshSection{
               .material_path = {},
@@ -827,7 +828,8 @@ void try_add_textured_floor(
 }
 
 StaticMesh* create_static_mesh_instance(
-  std::string_view path,
+  const assets::AssetPath& path,
+  const assets::AssetPath& material_path,
   Scene& scene,
   const StagedStaticMeshAsset& resources,
   swr::vector<StaticMeshLod> lods,
@@ -835,8 +837,8 @@ StaticMesh* create_static_mesh_instance(
 {
     StaticMesh* mesh = scene.create_object<StaticMesh>(
       path,
+      swr::vector<assets::AssetPath>{material_path},
       std::move(lods));
-    mesh->set_name(resources.name);
     mesh->set_transform(transform * resources.fit_transform);
     mesh->capture_snapshot();
     return mesh;
@@ -883,6 +885,7 @@ void finalize_startup_scene(
         {
             StaticMesh* sample_mesh = create_static_mesh_instance(
               staged_sample_mesh.path,
+              startup_materials.static_mesh.get_path(),
               scene,
               staged_sample_mesh,
               std::move(lods),
@@ -1923,7 +1926,7 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
         }
     }();
 
-    const ResolvableMaterial material = [&]() -> ResolvableMaterial
+    const MaterialRef material = [&]() -> MaterialRef
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(material_path);
@@ -1978,7 +1981,7 @@ void Application::set_floor_material(FloorMaterial type)
         }
     }();
 
-    const ResolvableMaterial material = [&]() -> ResolvableMaterial
+    const MaterialRef material = [&]() -> MaterialRef
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(path);

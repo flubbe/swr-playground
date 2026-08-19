@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "assets/path_formatter.h"
 #include "reflection/builtin_properties.h"
 #include "scene/properties.h"
 #include "asset_resolver.h"
@@ -30,6 +31,10 @@ void StaticMesh::register_properties(
       "path",
       "Asset Path",
       reflect::PropertyFlags::ReadOnly);
+    reflect::register_property<&StaticMesh::materials>(
+      class_info,
+      "materials",
+      "Material Paths");
     reflect::register_property<&StaticMesh::casts_shadows>(
       class_info,
       "casts_shadows",
@@ -52,7 +57,28 @@ void StaticMesh::resolve(
     }
 
     // TODO
-    resolver.resolve_static_mesh(path);
+
+    if(materials.size() == 0)
+    {
+        logging::warningf(
+          "StaticMesh '{}' doesn't declare materials.",
+          path);
+
+        return;
+    }
+
+    swr::vector<MaterialRef> material_refs;
+    for(auto& material_path: materials)
+    {
+        material_refs.emplace_back(
+          resolver.resolve_material(
+            material_path));
+    }
+
+    // TODO pick first material.
+    resolver.resolve_static_mesh(
+      path,
+      material_refs[0]);
 }
 
 void StaticMesh::post_load()
@@ -64,11 +90,13 @@ void StaticMesh::post_load()
 }
 
 void StaticMesh::init(
-  std::string_view path,
+  const assets::AssetPath& path,
+  const swr::vector<assets::AssetPath>& materials,
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
     this->path = path;
+    this->materials = materials;
     set_lods(
       {StaticMeshLod{
         .mesh_sections = std::move(sections),
@@ -76,10 +104,12 @@ void StaticMesh::init(
 }
 
 void StaticMesh::init(
-  std::string_view path,
+  const assets::AssetPath& path,
+  const swr::vector<assets::AssetPath>& materials,
   swr::vector<StaticMeshLod> lods)
 {
     this->path = path;
+    this->materials = materials;
     set_lods(std::move(lods));
 }
 

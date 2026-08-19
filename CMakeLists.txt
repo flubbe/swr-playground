@@ -319,7 +319,7 @@ add_executable(swr_playground
     src/renderer/mesh_manager.cpp
     src/renderer/render_device.cpp
     src/renderer/renderer.cpp
-    src/renderer/resolvable_material.cpp
+    src/renderer/material.cpp
     src/scene/camera.cpp
     src/scene/directional_light.cpp
     src/scene/gear.cpp

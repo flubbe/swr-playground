@@ -141,7 +141,7 @@ TEST(MaterialManagerTests, Load)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> result;
+    std::optional<MaterialRef> result;
     ASSERT_NO_THROW(result.emplace(
       manager.load(
         assets::AssetPath{"FirstMaterial"}, json)));
@@ -191,7 +191,7 @@ TEST(MaterialManagerTests, LoadWithKey)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> handle;
+    std::optional<MaterialRef> handle;
     ASSERT_NO_THROW(handle.emplace(
       manager.load(
         assets::AssetPath{"FirstMaterial"}, json)));
@@ -201,7 +201,7 @@ TEST(MaterialManagerTests, LoadWithKey)
     ASSERT_NO_THROW((*handle).get_entry().finalize());
     EXPECT_EQ((*handle).try_get(), 1);    // material ids start at 1
 
-    std::optional<ResolvableMaterial> result;
+    std::optional<MaterialRef> result;
     ASSERT_NO_THROW(result = manager.get(
                       assets::AssetPath{"FirstMaterial"}));
 
@@ -245,7 +245,7 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> result;
+    std::optional<MaterialRef> result;
     ASSERT_NO_THROW(result.emplace(
       manager.load(
         assets::AssetPath{"FirstMaterial"}, json)));
@@ -312,7 +312,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "        }\n"
       "    }\n"
       "}";
-    std::optional<ResolvableMaterial> result;
+    std::optional<MaterialRef> result;
     ASSERT_NO_THROW(result.emplace(
       manager.load(
         assets::AssetPath{"FirstMaterial"}, json)));

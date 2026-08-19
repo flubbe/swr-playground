@@ -46,11 +46,12 @@ public:
     {
     }
 
-    ResolvableMaterial resolve_material(
+    MaterialRef resolve_material(
       const assets::AssetPath& path) override;
 
     MeshRef resolve_static_mesh(
-      const assets::AssetPath& path) override;
+      const assets::AssetPath& path,
+      MaterialRef& material) override;
 
     TextureRef resolve_texture(
       const assets::AssetPath& path) override;

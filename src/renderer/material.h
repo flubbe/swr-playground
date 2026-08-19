@@ -1,7 +1,7 @@
 /**
  * Software Rasterizer Playground.
  *
- * Material definition.
+ * A material that is potentially asynchronously resolved.
  *
  * \author Felix Lubbe
  * \copyright Copyright (c) 2026
@@ -10,17 +10,111 @@
 
 #pragma once
 
+#include "assets/path.h"
+#include "containers/memory.h"
+#include "containers/string.h"
 #include "types.h"
 
-/** A render device material state used to create a render material. */
-struct Material
+/*
+ * Forward declarations.
+ */
+class MaterialEntry;
+
+/** A material reference. */
+class MaterialRef
 {
-    /** Shader handle. */
-    ShaderHandle shader_handle{0};
+    /** Asset path identifying the material. */
+    assets::AssetPath path;
 
-    /** Texture bound to sampler unit 0. */
-    TextureHandle base_color_handle{};
+    /** Async or directly loaded material. */
+    std::variant<
+      swr::shared_ptr<MaterialEntry>,
+      MaterialHandle>
+      material;
 
-    /** Texture bound to sampler unit 1. */
-    TextureHandle normal_map_handle{};
+public:
+    /** Deleted default constructor. */
+    MaterialRef() = delete;
+
+    /** Defaulted copy/moves. */
+    MaterialRef(const MaterialRef&) = default;
+    MaterialRef(MaterialRef&&) = default;
+
+    /**
+     * Constructor for async material loading.
+     *
+     * @param path Path identifying the material.
+     * @param entry The material entry.
+     */
+    explicit MaterialRef(
+      const assets::AssetPath& path,
+      swr::shared_ptr<MaterialEntry> entry)
+    : path{path}
+    , material{std::move(entry)}
+    {
+    }
+
+    /**
+     * Direct material construction.
+     *
+     * @param path Path identifying the material.
+     * @param handle The material handle.
+     */
+    explicit MaterialRef(
+      const assets::AssetPath& path,
+      MaterialHandle handle)
+    : path{path}
+    , material{handle}
+    {
+    }
+
+    MaterialRef& operator=(const MaterialRef&) = default;
+    MaterialRef& operator=(MaterialRef&&) = default;
+
+    explicit operator bool() const noexcept
+    {
+        if(auto* result =
+             std::get_if<swr::shared_ptr<MaterialEntry>>(&material))
+        {
+            return static_cast<bool>(*result);
+        }
+
+        return std::get<MaterialHandle>(material) != 0;
+    }
+
+    /** Whether the material is resolved. */
+    bool is_resolved() const;
+
+    /** Get the material handle. */
+    std::optional<MaterialHandle> try_get() const;
+
+    /** Get the path identifying this material. */
+    const assets::AssetPath& get_path() const
+    {
+        return path;
+    }
+
+    /**
+     * Get the `MaterialEntry`.
+     *
+     * @throws Throws `std::bad_variant_access` if the resolvable materials
+     *     holds a material handle.
+     */
+    [[nodiscard]]
+    MaterialEntry& get_entry()
+    {
+        return *std::get<swr::shared_ptr<MaterialEntry>>(material);
+    }
+
+    /**
+     * Get the `MaterialEntry`.
+     *
+     * @throws Throws `std::bad_variant_access` if the resolvable materials
+     *     holds a material handle.
+     */
+    [[nodiscard]]
+    const MaterialEntry& get_entry() const
+    {
+        return *std::get<swr::shared_ptr<MaterialEntry>>(material);
+    }
 };

@@ -11,6 +11,8 @@
 #pragma once
 
 #include "reflection/property.h"
+#include "serialization/archive.h"
+#include "serialization/containers.h"
 
 #include <filesystem>
 #include <string_view>
@@ -54,6 +56,21 @@ struct AssetPath
 };
 
 }    // namespace assets
+
+/**
+ * Serialize an asset path.
+ *
+ * @param ar The archive to use.
+ * @param path The asset path.
+ * @returns The input archive.
+ */
+inline serial::Archive& operator&(
+  serial::Archive& ar,
+  assets::AssetPath& path)
+{
+    ar & path.path;
+    return ar;
+}
 
 /*
  * Reflection support.

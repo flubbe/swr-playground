@@ -12,7 +12,7 @@
 
 #include "assets/path.h"
 #include "renderer/mesh.h"
-#include "renderer/resolvable_material.h"
+#include "renderer/material.h"
 #include "texture_cache.h"
 
 /** Asset resolver. */
@@ -20,11 +20,12 @@ struct AssetResolver
 {
     virtual ~AssetResolver() = default;
 
-    virtual ResolvableMaterial resolve_material(
+    virtual MaterialRef resolve_material(
       const assets::AssetPath& path);
 
     virtual MeshRef resolve_static_mesh(
-      const assets::AssetPath& path);
+      const assets::AssetPath& path,
+      MaterialRef& material);
 
     virtual TextureRef resolve_texture(
       const assets::AssetPath& path);

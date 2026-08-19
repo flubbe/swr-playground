@@ -16,6 +16,10 @@
 namespace reflect
 {
 
+/*
+ * IntProperty.
+ */
+
 IntProperty::IntProperty(
   std::string_view name,
   std::string_view label,
@@ -85,6 +89,10 @@ const void* IntProperty::get_type_tag() const noexcept
     return detail::type_tag<IntProperty>();
 }
 
+/*
+ * UIntProperty.
+ */
+
 UIntProperty::UIntProperty(
   std::string_view name,
   std::string_view label,
@@ -151,6 +159,10 @@ const void* UIntProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<UIntProperty>();
 }
+
+/*
+ * FloatProperty.
+ */
 
 FloatProperty::FloatProperty(
   std::string_view name,
@@ -226,6 +238,10 @@ const void* FloatProperty::get_type_tag() const noexcept
     return detail::type_tag<FloatProperty>();
 }
 
+/*
+ * BoolProperty.
+ */
+
 BoolProperty::BoolProperty(
   std::string_view name,
   std::string_view label,
@@ -264,6 +280,10 @@ const void* BoolProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<BoolProperty>();
 }
+
+/*
+ * StringProperty.
+ */
 
 StringProperty::StringProperty(
   std::string_view name,
@@ -311,6 +331,19 @@ const void* StringProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<StringProperty>();
 }
+
+/*
+ * VectorProperty.
+ */
+
+const void* VectorProperty::get_type_tag() const noexcept
+{
+    return detail::type_tag<VectorProperty>();
+}
+
+/*
+ * PathProperty.
+ */
 
 PathProperty::PathProperty(
   std::string_view name,

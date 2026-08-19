@@ -53,6 +53,8 @@ class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
     assets::AssetPath path;
+    swr::vector<assets::AssetPath> materials;
+
     swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
 
@@ -73,11 +75,13 @@ public:
     void post_load() override;
 
     void init(
-      std::string_view path,
+      const assets::AssetPath& path,
+      const swr::vector<assets::AssetPath>& materials,
       swr::vector<MeshSection> sections,
       MeshBounds bounds);
     void init(
-      std::string_view path,
+      const assets::AssetPath& path,
+      const swr::vector<assets::AssetPath>& materials,
       swr::vector<StaticMeshLod> lods);
 
     void set_lods(swr::vector<StaticMeshLod> lods);

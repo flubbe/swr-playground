@@ -78,7 +78,8 @@ Vec4Property::Vec4Property(
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    nullptr}
 , value{value}
 {
     if(value == nullptr)
@@ -115,7 +116,8 @@ Mat4Property::Mat4Property(
     sizeof(Type),
     offset,
     alignof(Type),
-    flags}
+    flags,
+    nullptr}
 , value{value}
 {
     if(value == nullptr)

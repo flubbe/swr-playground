@@ -25,6 +25,7 @@ enum class PropertyFlags : std::uint32_t
 {
     None = 0,
     ReadOnly = 1,
+    ArrayElement = 2
 };
 
 inline PropertyFlags operator|(

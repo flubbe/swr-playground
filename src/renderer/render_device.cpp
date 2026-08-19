@@ -409,7 +409,7 @@ void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
 }
 
 MaterialHandle RenderDevice::create_material(
-  const Material& material)
+  const RenderMaterial& material)
 {
     MaterialHandle material_id{1};
     while(materials.contains(material_id))

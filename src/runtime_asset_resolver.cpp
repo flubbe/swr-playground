@@ -16,7 +16,7 @@
 
 // TODO Async file loading.
 
-ResolvableMaterial RuntimeAssetResolver::resolve_material(
+MaterialRef RuntimeAssetResolver::resolve_material(
   const assets::AssetPath& path)
 {
     return material_manager.load(
@@ -25,9 +25,10 @@ ResolvableMaterial RuntimeAssetResolver::resolve_material(
 }
 
 MeshRef RuntimeAssetResolver::resolve_static_mesh(
-  const assets::AssetPath& path)
+  const assets::AssetPath& path,
+  MaterialRef& material)
 {
-    return mesh_manager.load(path);
+    return mesh_manager.load(path, material);
 }
 
 TextureRef RuntimeAssetResolver::resolve_texture(

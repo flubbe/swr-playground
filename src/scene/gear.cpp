@@ -328,7 +328,8 @@ void Gear::init(
   const GearParameters& params)
 {
     Reflected<Gear, StaticMesh>::init(
-      "",
+      assets::AssetPath{},
+      {},
       swr::vector{params.inner, params.outer},
       params.bounds);
 

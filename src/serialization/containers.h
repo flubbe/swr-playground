@@ -11,6 +11,7 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
 
 #include "serialization/archive.h"
 
@@ -216,6 +217,24 @@ Archive& operator&(
   std::tuple<Args...>& t)
 {
     serialize_tuple(ar, t, std::index_sequence_for<Args...>{});
+    return ar;
+}
+
+/**
+ * Serialize a path.
+ *
+ * @param ar The archive to use.
+ * @param p The path to serialize.
+ * @returns The input archive.
+ */
+inline Archive& operator&(
+  Archive& ar,
+  std::filesystem::path& p)
+{
+    auto value = swr::string_from(p.generic_string());
+    ar & value;
+    p = std::filesystem::path{value};
+
     return ar;
 }
 

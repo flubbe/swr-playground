@@ -22,8 +22,8 @@
 #include "containers/unordered_map.h"
 #include "containers/memory.h"
 #include "tasks/task_system.h"
+#include "render_material.h"
 #include "material.h"
-#include "resolvable_material.h"
 #include "texture_cache.h"
 #include "queue.h"
 
@@ -57,8 +57,10 @@ struct MaterialResources
 };
 
 /** A material entry for a resolvable material. */
-struct MaterialEntry
+class MaterialEntry
 {
+    friend class MaterialManager;
+
     /** Backing render device. */
     RenderDevice& device;
 
@@ -83,6 +85,7 @@ struct MaterialEntry
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;
 
+public:
     /** Deleted default constructor. */
     MaterialEntry() = delete;
 
@@ -92,7 +95,7 @@ struct MaterialEntry
      * @param device Backing render device.
      * @param shader_cache Backing shader cache.
      * @param texture_cache Backing texture cache.
-     * @param resources The resources future.
+     * @param resources The resources task submission.
      */
     MaterialEntry(
       RenderDevice& device,
@@ -136,14 +139,14 @@ struct MaterialEntry
     /**
      * Finalize material loading.
      *
-     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
      */
     void finalize();
 
     /**
      * Destroy the material handle.
      *
-     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
      */
     void release();
 
@@ -199,7 +202,7 @@ class MaterialManager
     /** Render device reference. */
     RenderDevice& device;
 
-    /** Pending material upload queue with entries (key, material_entry). */
+    /** Pending material upload queue with entries `(key, material_entry)`. */
     ThreadSafeQueue<
       std::pair<
         assets::AssetPath,
@@ -239,7 +242,11 @@ public:
     /**
      * Constructor.
      *
+     * @param task_system The task system to use for async loading.
      * @param device The render device for this material manager.
+     * @param shader_cache The shader cache.
+     * @param shader_factory The shader factory.
+     * @param texture_cache The texture cache.
      */
     MaterialManager(
       task_system::TaskSystem& task_system,
@@ -282,7 +289,7 @@ public:
      * @param json The JSON string.
      * @returns Returns a resolvable material.
      */
-    ResolvableMaterial load(
+    MaterialRef load(
       const assets::AssetPath& path,
       std::string_view json);
 
@@ -293,7 +300,7 @@ public:
      * @returns Returns a resolvable material, or `std::nullopt` if the key wasn't found.
      */
     [[nodiscard]]
-    std::optional<ResolvableMaterial> get(
+    std::optional<MaterialRef> get(
       const assets::AssetPath& path)
     {
         if(auto it = material_cache.find(path);
@@ -301,7 +308,7 @@ public:
         {
             if(auto texture = it->second.lock())
             {
-                return ResolvableMaterial{
+                return MaterialRef{
                   path,
                   texture};
             }

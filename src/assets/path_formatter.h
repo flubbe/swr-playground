@@ -30,7 +30,7 @@ struct formatter<assets::AssetPath> : formatter<std::string_view>
       format_context& ctx) const
     {
         return formatter<string_view>::format(
-          asset_path.path.generic_string(),
+          asset_path.path.string(),
           ctx);
     }
 };

@@ -147,7 +147,8 @@ int main(int argc, char* argv[])
           renderer.get_shader_factory(),
           texture_cache};
         MeshManager mesh_manager{
-          task_system};
+          task_system,
+          render_device};
 
         Scene scene;
         Viewport viewport;

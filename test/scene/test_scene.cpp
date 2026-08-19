@@ -25,9 +25,9 @@ void ensure_scene_reflection_ready()
     initialized = true;
 }
 
-ResolvableMaterial make_test_material()
+MaterialRef make_test_material()
 {
-    return ResolvableMaterial{
+    return MaterialRef{
       assets::AssetPath{"Test"},
       nullptr};
 }
@@ -149,7 +149,8 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
 
     Scene scene;
     StaticMesh* mesh = scene.create_object<StaticMesh>(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      swr::vector<assets::AssetPath>{},
       swr::vector{
         make_mesh_section("test", 12)},
       MeshBounds{});
@@ -174,7 +175,8 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 
     StaticMesh mesh;
     mesh.init(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      {},
       swr::vector{
         StaticMeshLod{
           .mesh_sections = {
@@ -223,7 +225,8 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
 
     StaticMesh mesh;
     mesh.init(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      {},
       swr::vector{
         make_mesh_section("test", 10)},
       bounds);
@@ -244,7 +247,8 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     Scene scene;
     [[maybe_unused]] Camera* camera = scene.create_object<Camera>();
     StaticMesh* mesh = scene.create_object<StaticMesh>(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      swr::vector<assets::AssetPath>{},
       swr::vector{
         make_mesh_section("test", 56)},
       MeshBounds{});
@@ -323,6 +327,7 @@ TEST(SceneTests, SaveLoad)
       "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
       "\"visible\":true,"
       "\"path\":\"assets/models/car.obj\","
+      "\"materials\":[\"assets/materials/mesh/flat.json\"],"
       "\"casts_shadows\":true,"
       "\"receives_shadows\":false"
       "}"
@@ -331,7 +336,10 @@ TEST(SceneTests, SaveLoad)
     {
         Scene scene;
         auto* mesh = scene.create_object<StaticMesh>();
-        ASSERT_NO_THROW(mesh->init("assets/models/car.obj", {}));
+        ASSERT_NO_THROW(mesh->init(
+          assets::AssetPath{"assets/models/car.obj"},
+          {assets::AssetPath{"assets/materials/mesh/flat.json"}},
+          {}));
         ASSERT_NE(mesh, nullptr);
 
         mesh->casts_shadows = true;

@@ -54,6 +54,22 @@ public:
       std::size_t max_length = 256,
       swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
 
+    /**
+     * Construct a string property descriptor.
+     *
+     * @param name Internal property name.
+     * @param label Display name.
+     * @param flags Property flags.
+     * @param max_length Maximum accepted string length.
+     * @throws `std::invalid_argument` if `value` is `nullptr`.
+     */
+    SwrStringProperty(
+      std::string_view name,
+      std::string_view label,
+      PropertyFlags flags = PropertyFlags::None,
+      std::size_t max_length = 256,
+      swr::shared_ptr<const PropertyConstraint> constraint = nullptr);
+
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
@@ -63,7 +79,7 @@ public:
      * Set the current value.
      *
      * @param in_value New value.
-     * @returns `true` if written, `false` if read-only.
+     * @returns `true` if the new value was set.
      */
     bool set_value(std::string_view in_value);
 
@@ -74,10 +90,12 @@ public:
 template<>
 struct PropertyFactory<swr::string>
 {
+    using Type = swr::string;
+
     static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
-      SwrStringProperty::Type& value,
+      Type& value,
       std::size_t offset,
       PropertyFlags flags,
       const swr::shared_ptr<const PropertyConstraint>&)
@@ -88,6 +106,17 @@ struct PropertyFactory<swr::string>
           &value,
           offset,
           flags);
+    }
+
+    static swr::unique_ptr<PropertyInfo> construct_info(
+      PropertyFlags flags,
+      const swr::shared_ptr<const PropertyConstraint>& constraint = nullptr)
+    {
+        return swr::make_unique<PropertyInfo>(
+          sizeof(Type),
+          alignof(Type),
+          flags,
+          constraint);
     }
 };
 
@@ -120,6 +149,19 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None);
 
+    /**
+     * Construct a 4D vector property.
+     *
+     * @param name Internal property name.
+     * @param label Display name.
+     * @param flags Property flags.
+     * @throws `std::invalid_argument` if `value` is `nullptr`.
+     */
+    Vec4Property(
+      std::string_view name,
+      std::string_view label,
+      PropertyFlags flags = PropertyFlags::None);
+
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
@@ -129,7 +171,7 @@ public:
      * Set the current value.
      *
      * @param in_value New value.
-     * @returns `true` if written, `false` if read-only.
+     * @returns `true` if the new value was set.
      */
     bool set_value(const Type& in_value) noexcept;
 };
@@ -137,10 +179,12 @@ public:
 template<>
 struct PropertyFactory<ml::vec4>
 {
+    using Type = ml::vec4;
+
     static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
-      Vec4Property::Type& value,
+      Type& value,
       std::size_t offset,
       PropertyFlags flags,
       const swr::shared_ptr<const PropertyConstraint>&)
@@ -151,6 +195,17 @@ struct PropertyFactory<ml::vec4>
           &value,
           offset,
           flags);
+    }
+
+    static swr::unique_ptr<PropertyInfo> construct_info(
+      PropertyFlags flags,
+      const swr::shared_ptr<const PropertyConstraint>& constraint = nullptr)
+    {
+        return swr::make_unique<PropertyInfo>(
+          sizeof(Type),
+          alignof(Type),
+          flags,
+          constraint);
     }
 };
 
@@ -181,6 +236,19 @@ public:
       std::size_t offset,
       PropertyFlags flags = PropertyFlags::None);
 
+    /**
+     * Construct a 4x4 matrix property descriptor.
+     *
+     * @param name Internal property name.
+     * @param label Display name.
+     * @param flags Property flags.
+     * @throws `std::invalid_argument` if `value` is `nullptr`.
+     */
+    Mat4Property(
+      std::string_view name,
+      std::string_view label,
+      PropertyFlags flags = PropertyFlags::None);
+
     const void* get_type_tag() const noexcept override;
 
     /** Return the current value. */
@@ -190,7 +258,7 @@ public:
      * Set the current value.
      *
      * @param in_value New value.
-     * @returns `true` if written, `false` if read-only.
+     * @returns `true` if the new value was set.
      */
     bool set_value(const Type& in_value) noexcept;
 };
@@ -198,10 +266,12 @@ public:
 template<>
 struct PropertyFactory<ml::mat4x4>
 {
+    using Type = ml::mat4x4;
+
     static swr::unique_ptr<Property> construct(
       std::string_view name,
       std::string_view label,
-      Mat4Property::Type& value,
+      Type& value,
       std::size_t offset,
       PropertyFlags flags,
       const swr::shared_ptr<const PropertyConstraint>&)
@@ -212,6 +282,17 @@ struct PropertyFactory<ml::mat4x4>
           &value,
           offset,
           flags);
+    }
+
+    static swr::unique_ptr<PropertyInfo> construct_info(
+      PropertyFlags flags,
+      const swr::shared_ptr<const PropertyConstraint>& constraint = nullptr)
+    {
+        return swr::make_unique<PropertyInfo>(
+          sizeof(Type),
+          alignof(Type),
+          flags,
+          constraint);
     }
 };
 

@@ -14,6 +14,7 @@
 #include <optional>
 #include <string>
 
+#include "assets/path.h"
 #include "containers/string.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
@@ -76,8 +77,7 @@ inline serial::Archive& operator&(
 
 struct StagedStaticMeshAsset
 {
-    swr::string path;
-    swr::string name;
+    assets::AssetPath path;
     ml::mat4x4 fit_transform{ml::mat4x4::identity()};
     swr::vector<StagedStaticMeshSection> sections;
 };
@@ -94,7 +94,6 @@ inline serial::Archive& operator&(
   StagedStaticMeshAsset& mesh)
 {
     ar & mesh.path;
-    ar & mesh.name;
     ar & mesh.fit_transform;
     ar & mesh.sections;
     return ar;

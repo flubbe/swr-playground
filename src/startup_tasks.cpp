@@ -144,6 +144,7 @@ std::optional<StagedFloorData> try_prepare_floor_data()
     };
 }
 
+// FIXME duplicated in mesh_manager.cpp, should likely be removed here.
 swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
 {
@@ -290,8 +291,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
     }
 
     auto mesh_asset = StagedStaticMeshAsset{
-      .path = swr::string_from(static_mesh_path.string()),
-      .name = swr::string_from(static_mesh_path.filename().string()),
+      .path = assets::AssetPath{static_mesh_path},
       .fit_transform = make_static_mesh_fit_transform(
         mesh_bounds,
         sample_half_extent),
@@ -455,7 +455,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
                 0.f);
               get_logger().logf(
                 "importing sample mesh '{}'",
-                path.generic_string());
+                path.string());
               auto sample_mesh = try_prepare_sample_mesh(path);
               if(!sample_mesh.has_value())
               {
@@ -463,7 +463,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
                     scene,
                     std::format(
                       "sample static mesh was not found or had no renderable data: {}",
-                      path.generic_string()));
+                      path.string()));
               }
               else
               {

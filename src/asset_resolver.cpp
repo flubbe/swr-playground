@@ -12,26 +12,29 @@
 #include "asset_resolver.h"
 #include "logging.h"
 
-ResolvableMaterial AssetResolver::resolve_material(
+MaterialRef AssetResolver::resolve_material(
   const assets::AssetPath& path)
 {
     logging::warningf(
       "AssetResolver::resolve_material called for '{}'",
       path);
 
-    return ResolvableMaterial{
+    return MaterialRef{
       path,
       nullptr};
 }
 
 MeshRef AssetResolver::resolve_static_mesh(
-  const assets::AssetPath& path)
+  const assets::AssetPath& path,
+  MaterialRef& material)
 {
     logging::warningf(
       "AssetResolver::resolve_static_mesh called for '{}'",
       path);
 
-    return {};
+    return MeshRef{
+      path,
+      nullptr};
 }
 
 TextureRef AssetResolver::resolve_texture(

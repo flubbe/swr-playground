@@ -13,6 +13,7 @@
 #include "assets/path.h"
 #include "meshes/mesh.h"
 #include "tasks/task_system.h"
+#include "staged_data.h"
 #include "types.h"
 
 /*
@@ -21,24 +22,57 @@
 
 class RenderDevice;
 
-class MeshLodEntry
+class MeshEntry
 {
-    task_system::TaskSubmission<MeshData> resources;    // CPU mesh data. deleted after driver upload.
-    std::optional<MeshHandle> resolved_handle;          // mesh section handle
+    friend class MeshManager;
+
+    /** Backing render device. */
+    RenderDevice& device;
+
+    /** Mesh material. */
+    MaterialRef material;
+
+    /** CPU mesh data. deleted after driver upload. */
+    task_system::TaskSubmission<StagedStaticMeshAsset> resources;
+
+    /** Mesh LOD handles. */
+    std::optional<
+      std::vector<MeshHandle>>
+      resolved_handles;
 
 public:
-    MeshLodEntry() = delete;
+    /** Deleted default constructor. */
+    MeshEntry() = delete;
 
-    // TODO constructors.
+    /**
+     * Constructor.
+     *
+     * @param device Backing render device.
+     * @param material Mesh material reference.
+     * @param resources The resources task submission.
+     */
+    MeshEntry(
+      RenderDevice& device,
+      MaterialRef& material,
+      task_system::TaskSubmission<StagedStaticMeshAsset> resources)
+    : device{device}
+    , material{material}
+    , resources{std::move(resources)}
+    , resolved_handles{std::nullopt}
+    {
+    }
 
-    MeshLodEntry& operator=(const MeshLodEntry&) = delete;
-    MeshLodEntry& operator=(MeshLodEntry&&) = delete;
+    /** Destructor. */
+    ~MeshEntry();
 
-    /** Checks if the mesh has finished uploading to the `RenderDevice`. */
+    MeshEntry& operator=(const MeshEntry&) = delete;
+    MeshEntry& operator=(MeshEntry&&) = delete;
+
+    /** Checks if the mesh has finished uploading to the `RenderDevice`, including LODs. */
     [[nodiscard]]
     bool is_resolved() const noexcept
     {
-        return resolved_handle.has_value();
+        return resolved_handles.has_value();
     }
 
     /**
@@ -46,19 +80,26 @@ public:
      *
      * @returns Returns the mesh handle if available, or `std::nullopt`.
      */
-    std::optional<MeshHandle> try_get() const noexcept
+    const std::optional<
+      std::vector<MeshHandle>>&
+      try_get() const noexcept
     {
-        return resolved_handle;
+        return resolved_handles;
     }
 
     /**
      * Finalize mesh loading.
      *
-     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
-     * @param render_device The device use for upload.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
      */
-    void finalize(
-      RenderDevice& render_device);
+    void finalize();
+
+    /**
+     * Destroy the mesh handle.
+     *
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
+     */
+    void release();
 
     /** Checks if the underlying future is valid. */
     [[nodiscard]]
@@ -103,70 +144,68 @@ public:
     }
 };
 
-/** A reference to a mesh LOD. */
-struct MeshLodRef
+/** A mesh that is asynchronously loaded. */
+class MeshRef
 {
-    /** Referenced mesh lod entry. */
-    swr::shared_ptr<MeshLodEntry> entry;
+    /** Mesh asset path. */
+    assets::AssetPath path;
+
+    /** Mesh. */
+    swr::shared_ptr<MeshEntry> mesh;
 
 public:
-    MeshLodRef() = delete;
-    MeshLodRef(const MeshLodRef&) = default;
-    MeshLodRef(MeshLodRef&&) = default;
+    /** Deleted default constructor. */
+    MeshRef() = delete;
+
+    /** Defaulted copy/moves. */
+    MeshRef(const MeshRef&) = default;
+    MeshRef(MeshRef&&) = default;
 
     /**
      * Constructor.
      *
+     * @param path Path identifying the mesh.
      * @param entry The mesh entry.
      */
-    explicit MeshLodRef(
-      swr::shared_ptr<MeshLodEntry> entry)
-    : entry{std::move(entry)}
+    explicit MeshRef(
+      const assets::AssetPath& path,
+      swr::shared_ptr<MeshEntry> entry)
+    : path{path}
+    , mesh{std::move(entry)}
     {
     }
 
-    MeshLodRef& operator=(const MeshLodRef&) = default;
-    MeshLodRef& operator=(MeshLodRef&&) = default;
+    MeshRef& operator=(const MeshRef&) = default;
+    MeshRef& operator=(MeshRef&&) = default;
 
     [[nodiscard]]
     explicit operator bool() const noexcept
     {
-        return static_cast<bool>(entry);
+        return static_cast<bool>(mesh);
     }
 
-    /** Get the mesh handle. */
+    /** Get the mesh LOD handles. */
     [[nodiscard]]
-    std::optional<MeshHandle> try_get() const noexcept;
+    const std::vector<MeshHandle>&
+      try_get() const noexcept;
 
-    /** Get the `MeshLodEntry`. */
+    /** Get the path identifying this mesh. */
+    const assets::AssetPath& get_path() const
+    {
+        return path;
+    }
+
+    /** Get the `MeshEntry`. */
     [[nodiscard]]
-    MeshLodEntry& get_entry() noexcept
+    MeshEntry& get_entry()
     {
-        return *entry.get();
+        return *mesh;
     }
 
-    /** Get the `MeshLodEntry`. */
+    /** Get the `MeshEntry`. */
     [[nodiscard]]
-    const MeshLodEntry& get_entry() const noexcept
+    const MeshEntry& get_entry() const
     {
-        return *entry.get();
-    }
-};
-
-// TODO Create lazily resolved mesh reference.
-class MeshRef
-{
-    assets::AssetPath path;
-    swr::vector<MeshLodRef> lods;
-
-public:
-    std::size_t lod_count() const
-    {
-        return lods.size();
-    }
-
-    MeshLodRef lod(std::size_t index) const
-    {
-        return lods.at(index);    // FIXME Should this throw?
+        return *mesh;
     }
 };

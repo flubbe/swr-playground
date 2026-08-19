@@ -84,6 +84,10 @@ public:
         {
             render_path(*p, object);
         }
+        else if(auto* p = property.try_as<reflect::VectorProperty>())
+        {
+            render_vector(*p, object);
+        }
 #if SWR_CUSTOM_STRING_TYPE
         else if(auto* p = property.try_as<reflect::SwrStringProperty>())
         {
@@ -105,7 +109,9 @@ public:
     }
 
 private:
-    static void render_int(reflect::IntProperty& property, Object& object)
+    static void render_int(
+      reflect::IntProperty& property,
+      Object& object)
     {
         if(property.is_read_only())
         {
@@ -162,7 +168,9 @@ private:
         }
     }
 
-    static void render_uint(reflect::UIntProperty& property, Object& object)
+    static void render_uint(
+      reflect::UIntProperty& property,
+      Object& object)
     {
         if(property.is_read_only())
         {
@@ -210,7 +218,9 @@ private:
         }
     }
 
-    static void render_float(reflect::FloatProperty& property, Object& object)
+    static void render_float(
+      reflect::FloatProperty& property,
+      Object& object)
     {
         if(property.is_read_only())
         {
@@ -265,7 +275,9 @@ private:
         }
     }
 
-    static void render_bool(reflect::BoolProperty& property, Object& object)
+    static void render_bool(
+      reflect::BoolProperty& property,
+      Object& object)
     {
         if(property.is_read_only())
         {
@@ -338,7 +350,21 @@ private:
         }
     }
 
-    static void render_mat4(reflect::Mat4Property& property, Object& object)
+    void render_vector(
+      reflect::VectorProperty& property,
+      Object& object)
+    {
+        // TODO
+
+        for(std::size_t i = 0; i < property.get_length(); ++i)
+        {
+            property.accept_element(i, *this);
+        }
+    }
+
+    static void render_mat4(
+      reflect::Mat4Property& property,
+      Object& object)
     {
         if(ImGui::SmallButton("Edit..."))
         {
@@ -392,7 +418,9 @@ private:
         }
     }
 
-    static void render_vec4(reflect::Vec4Property& property, Object& object)
+    static void render_vec4(
+      reflect::Vec4Property& property,
+      Object& object)
     {
         ml::vec4 value = property.get_value();
         float components[4] = {value.x, value.y, value.z, value.w};

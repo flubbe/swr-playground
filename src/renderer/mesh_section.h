@@ -14,7 +14,7 @@
 #include <ml/all.h>
 
 #include "assets/path.h"
-#include "resolvable_material.h"
+#include "material.h"
 #include "types.h"
 
 /*
@@ -44,7 +44,7 @@ struct MeshSection
     MeshHandle mesh_handle{};
 
     /** Material. */
-    ResolvableMaterial material;
+    MaterialRef material;
 
     /*
      * Metadata.

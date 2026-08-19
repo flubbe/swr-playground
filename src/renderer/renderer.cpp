@@ -585,7 +585,7 @@ void Renderer::create_grid_mesh()
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
     auto* gray_shader = shader_factory.get_or_create<shader::ColorOnly>();
     auto gray_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = device.create_shader(*gray_shader),
         .base_color_handle = {},
         .normal_map_handle = {}});
@@ -643,7 +643,7 @@ void Renderer::create_grid_mesh()
             .vertices = std::move(vb),
             .normals = std::move(nb),
             .texcoords = {}}),
-        .material = ResolvableMaterial{
+        .material = MaterialRef{
           assets::AssetPath{"GrayMaterial"},
           gray_material}});
 }
@@ -679,7 +679,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
     auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
     shadow_debug_overlay_shader = device.create_shader(*debug_shadow_shader);
     shadow_debug_overlay_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = shadow_debug_overlay_shader,
         .base_color_handle = {},
         .normal_map_handle = {}});
@@ -728,7 +728,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
             .normals = std::move(qnb),
             .texcoords = std::move(qtb),
           }),
-        .material = ResolvableMaterial{
+        .material = MaterialRef{
           assets::AssetPath{"SpotlightDepthDebug"},
           shadow_debug_overlay_material},
       });
@@ -787,7 +787,7 @@ void Renderer::ensure_shadow_map_resources()
 
     auto* shadow_shader = shader_factory.get_or_create<shader::ShadowDepth>();
     shadow_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = device.create_shader(*shadow_shader),
         .base_color_handle = {},
         .normal_map_handle = {}});

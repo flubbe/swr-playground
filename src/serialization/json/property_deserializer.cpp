@@ -122,6 +122,27 @@ void JsonPropertyDeserializer::visit(
               simdjson::error_message(err));
         }
     }
+    else if(auto* p = property.try_as<reflect::VectorProperty>())
+    {
+        simdjson::dom::array arr;
+        if(auto err = value.get_array().get(arr); !err)
+        {
+            for(std::size_t i = 0; i < p->get_length(); ++i)
+            {
+                auto element = p->get_element_property(i);
+                visit(*element);
+            }
+        }
+        else
+        {
+            logger.warningf(
+              "'{}': Unable to deserialize path '{}.{}' from JSON: {}",
+              object.get_name(),
+              object.get_class()->name,
+              p->get_name(),
+              simdjson::error_message(err));
+        }
+    }
 #if SWR_CUSTOM_STRING_TYPE
     else if(auto* p = property.try_as<reflect::SwrStringProperty>())
     {

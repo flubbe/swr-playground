@@ -204,20 +204,11 @@ public:
     virtual void visit(Property& property) = 0;
 };
 
-/** Base class for all properties. */
-class Property
+/** Immutable property information. */
+struct PropertyInfo
 {
-    /** Property name. */
-    swr::string name;
-
-    /** Display name. */
-    swr::string label;
-
     /** Byte size of the reflected value type. */
     std::size_t size{0};
-
-    /** Byte offset of the reflected value from the owning object base. */
-    std::size_t offset{0};
 
     /** Alignment of the reflected value type in bytes. */
     std::size_t alignment{0};
@@ -227,6 +218,51 @@ class Property
 
     /** Optional typed constraint metadata. */
     swr::shared_ptr<const PropertyConstraint> constraint{nullptr};
+
+    /** Default constructors. */
+    PropertyInfo() = default;
+    PropertyInfo(const PropertyInfo&) = default;
+    PropertyInfo(PropertyInfo&&) = default;
+
+    /** Default assignments. */
+    PropertyInfo& operator=(const PropertyInfo&) = default;
+    PropertyInfo& operator=(PropertyInfo&&) = default;
+
+    /**
+     * Constructor.
+     *
+     * @param size The property size.
+     * @param alignment The property alignment.
+     * @param flags Property flags.
+     * @param constraint Property constraint.
+     */
+    PropertyInfo(
+      std::size_t size,
+      std::size_t alignment,
+      PropertyFlags flags,
+      swr::shared_ptr<const PropertyConstraint> constraint)
+    : size{size}
+    , alignment{alignment}
+    , flags{flags}
+    , constraint{constraint}
+    {
+    }
+};
+
+/** Base class for all properties. */
+class Property
+{
+    /** Property info. */
+    PropertyInfo info;
+
+    /** Property name. */
+    swr::string name;
+
+    /** Display name. */
+    swr::string label;
+
+    /** Byte offset of the reflected value from the owning object base. */
+    std::size_t offset{0};
 
 public:
     /**
@@ -239,6 +275,7 @@ public:
      * @param alignment Property alignment.
      * @param flags Static property flags.
      * @param constraint Property constraint.
+     * @param is_array_element Whether the property is an array element.
      */
     Property(
       std::string_view name,
@@ -246,15 +283,12 @@ public:
       std::size_t size,
       std::size_t offset,
       std::size_t alignment,
-      PropertyFlags flags = PropertyFlags::None,
-      swr::shared_ptr<const PropertyConstraint> constraint = nullptr)
-    : name{name.data(), name.size()}
+      PropertyFlags flags,
+      swr::shared_ptr<const PropertyConstraint> constraint)
+    : info{size, alignment, flags, std::move(constraint)}
+    , name{name.data(), name.size()}
     , label{label.data(), label.size()}
-    , size{size}
     , offset{offset}
-    , alignment{alignment}
-    , flags{flags}
-    , constraint{std::move(constraint)}
     {
     }
 
@@ -276,31 +310,37 @@ public:
     /** Byte size of the reflected value type. */
     std::size_t get_size() const noexcept
     {
-        return size;
+        return info.size;
+    }
+
+    /** Alignment of the reflected value type in bytes. */
+    std::size_t get_alignment() const noexcept
+    {
+        return info.alignment;
+    }
+
+    /** Property flags. */
+    PropertyFlags get_flags() const noexcept
+    {
+        return info.flags;
+    }
+
+    /** Optional typed constraint metadata. */
+    const swr::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
+    {
+        return info.constraint;
+    }
+
+    /** Whether the property is an array element. */
+    bool is_array_element() const
+    {
+        return (get_flags() & PropertyFlags::ArrayElement) != PropertyFlags::None;
     }
 
     /** Byte offset of the reflected value from the owning object base. */
     std::size_t get_offset() const noexcept
     {
         return offset;
-    }
-
-    /** Alignment of the reflected value type in bytes. */
-    std::size_t get_alignment() const noexcept
-    {
-        return alignment;
-    }
-
-    /** Property flags. */
-    PropertyFlags get_flags() const noexcept
-    {
-        return flags;
-    }
-
-    /** Optional typed constraint metadata. */
-    const swr::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
-    {
-        return constraint;
     }
 
     /**
@@ -315,15 +355,15 @@ public:
         static_assert(
           std::is_base_of_v<PropertyConstraint, T>,
           "T must derive from PropertyConstraint.");
-        if(constraint == nullptr)
+        if(info.constraint == nullptr)
         {
             return nullptr;
         }
-        if(constraint->get_type_tag() != detail::type_tag<T>())
+        if(info.constraint->get_type_tag() != detail::type_tag<T>())
         {
             return nullptr;
         }
-        return static_cast<const T*>(constraint.get());
+        return static_cast<const T*>(info.constraint.get());
     }
 
     /**

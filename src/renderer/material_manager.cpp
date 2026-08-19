@@ -56,7 +56,7 @@ void MaterialEntry::finalize()
 
     MaterialResources loaded = resources.future.get();
 
-    Material material;
+    RenderMaterial material;
 
     bool success = false;
     auto rollback = gsl::finally(
@@ -129,7 +129,7 @@ void MaterialEntry::release()
  * MaterialManager.
  */
 
-ResolvableMaterial MaterialManager::load(
+MaterialRef MaterialManager::load(
   const assets::AssetPath& path,
   std::string_view json)
 {
@@ -142,7 +142,7 @@ ResolvableMaterial MaterialManager::load(
               "Using cached material '{}'.",
               path);
 
-            return ResolvableMaterial{
+            return MaterialRef{
               path,
               material};
         }
@@ -239,7 +239,7 @@ ResolvableMaterial MaterialManager::load(
     pending_upload.emplace_back(
       std::make_pair(path, material));
 
-    return ResolvableMaterial{path, material};
+    return MaterialRef{path, material};
 }
 
 bool MaterialManager::delete_material(
@@ -257,10 +257,6 @@ void MaterialManager::process_pending()
     // TODO Could make this subject to a time budget.
 
     using namespace std::chrono_literals;
-
-    /*
-     * Uploads.
-     */
 
     auto material_queue = pending_upload.drain();
     for(auto& [key, entry]: material_queue)

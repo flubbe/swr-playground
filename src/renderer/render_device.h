@@ -25,8 +25,8 @@
 #include "containers/unordered_map.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "material.h"
 #include "queue.h"
+#include "render_material.h"
 #include "shader_constants.h"
 #include "types.h"
 
@@ -167,7 +167,7 @@ class RenderDevice
     swr::unordered_map<ShaderHandle, const swr::program_base*> shaders;
 
     /** Materials. */
-    swr::unordered_map<MaterialHandle, Material> materials;
+    swr::unordered_map<MaterialHandle, RenderMaterial> materials;
 
     /** shadow-map render targets. */
     swr::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
@@ -299,7 +299,7 @@ public:
     void delete_shadow_map(ShadowMapHandle handle);
 
     MaterialHandle create_material(
-      const Material& material);
+      const RenderMaterial& material);
 
     void delete_material(
       MaterialHandle handle);
