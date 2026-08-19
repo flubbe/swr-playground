@@ -218,9 +218,8 @@ void JsonSceneLoader::load(
      * Dependency resolution.
      */
 
-    AssetResolver resolver;
     scene.for_each_object<Object>(
-      [&resolver](Object& obj)
+      [this](Object& obj)
       { obj.resolve(resolver); });
 
     /*

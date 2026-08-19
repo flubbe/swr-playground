@@ -42,8 +42,7 @@ MaterialEntry::~MaterialEntry()
 {
     if(resolved_handle.has_value())
     {
-        device.delete_material(
-          resolved_handle.value());
+        device.defer_delete(resolved_handle.value());
     }
 }
 
@@ -114,6 +113,17 @@ void MaterialEntry::finalize()
     success = true;
 }
 
+void MaterialEntry::release()
+{
+    if(!resolved_handle.has_value())
+    {
+        return;
+    }
+
+    device.delete_material(resolved_handle.value());
+    resolved_handle.reset();
+}
+
 /*
  * MaterialManager.
  */
@@ -138,17 +148,15 @@ ResolvableMaterial MaterialManager::load(
 
         // Expired entry.
         get_logger().logf(
-          "Cached material '{}' no longer exists; recreating.",
-          path);
+          "Cache entry expired: '{}'",
+          it->first);
 
         material_cache.erase(it);
     }
-    else
-    {
-        get_logger().logf(
-          "Creating material '{}'.",
-          path);
-    }
+
+    get_logger().logf(
+      "Creating material '{}'.",
+      path);
 
     // The material needs to be loaded. We delegate everything
     // to a task.
@@ -227,7 +235,7 @@ ResolvableMaterial MaterialManager::load(
       material);
 
     // Push to pending material queue which is processed on render/main thread.
-    pending_materials.emplace_back(
+    pending_upload.emplace_back(
       std::make_pair(swr::string{path}, material));
 
     return ResolvableMaterial{path, material};
@@ -245,27 +253,49 @@ bool MaterialManager::delete_material(
 
 void MaterialManager::process_pending()
 {
+    // TODO Could make this subject to a time budget.
+
     using namespace std::chrono_literals;
 
-    // TODO Could make this subject to a time budget.
-    auto material_queue = pending_materials.drain();
+    /*
+     * Uploads.
+     */
+
+    auto material_queue = pending_upload.drain();
     for(auto& [key, entry]: material_queue)
     {
+        if(entry->is_resolved())
+        {
+            // The entry was resolved externally.
+            continue;
+        }
+
+        if(!entry->resources.future.valid())
+        {
+            // Inconsistent state:
+            // Not resolved, but no future from which to obtain resources.
+            get_logger().errorf(
+              "Material '{}' has no valid loading future.",
+              key);
+            continue;
+        }
+
         if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
         {
             entry->finalize();
             get_logger().logf(
               "Finalized material '{}'.",
               key);
+
+            continue;
         }
-        else
-        {
-            // TODO We could place them into a temporary buffer and add them all at once.
-            pending_materials.emplace_back(
-              std::make_pair(
-                std::move(key),
-                std::move(entry)));
-        }
+
+        // Material is still pending.
+        // TODO We could place them into a temporary buffer and add them all at once.
+        pending_upload.emplace_back(
+          std::make_pair(
+            std::move(key),
+            std::move(entry)));
     }
 }
 

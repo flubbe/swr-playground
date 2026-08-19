@@ -21,6 +21,8 @@
 #include "scene/scene.h"
 #include "render_device.h"
 
+#include "logging.h"
+
 void RenderDevice::apply_rasterizer_state(const RasterizerState& state)
 {
     if(state.wireframe)
@@ -429,6 +431,37 @@ void RenderDevice::delete_material(
     }
 
     materials.erase(it);
+}
+
+void RenderDevice::process_deferred_deletions()
+{
+    auto queue = deletion_queue.drain();
+    for(const auto& request: queue)
+    {
+        std::visit(
+          [this](const auto& handle)
+          {
+              using Handle = std::remove_cvref_t<decltype(handle)>;
+
+              if constexpr(std::same_as<Handle, MaterialHandle>)
+              {
+                  delete_material(handle);
+              }
+              else if constexpr(std::same_as<Handle, MeshHandle>)
+              {
+                  delete_mesh(handle);
+              }
+              else if constexpr(std::same_as<Handle, ShaderHandle>)
+              {
+                  delete_shader(handle);
+              }
+              else if constexpr(std::same_as<Handle, TextureHandle>)
+              {
+                  delete_texture(handle);
+              }
+          },
+          request.handle);
+    }
 }
 
 void RenderDevice::bind_rasterizer_state(

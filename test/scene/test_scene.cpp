@@ -45,6 +45,11 @@ MeshSection make_mesh_section(
       .triangle_count = triangle_count};
 }
 
+struct MockAssetResolver final
+: public AssetResolver
+{
+};
+
 }    // namespace
 
 TEST(SceneTests, AddObjectSynchronizesObjectIndex)
@@ -286,7 +291,8 @@ TEST(SceneTests, EmptySaveLoad)
 
     {
         Scene scene;
-        serial::json::JsonSceneLoader loader;
+        MockAssetResolver resolver;
+        serial::json::JsonSceneLoader loader{resolver};
 
         EXPECT_NO_THROW(loader.load(scene, "{}"));
 
@@ -341,7 +347,8 @@ TEST(SceneTests, SaveLoad)
 
     {
         Scene scene;
-        serial::json::JsonSceneLoader loader;
+        MockAssetResolver resolver;
+        serial::json::JsonSceneLoader loader{resolver};
 
         EXPECT_NO_THROW(loader.load(scene, expected));
 

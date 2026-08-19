@@ -17,6 +17,7 @@
 
 #include "containers/memory.h"
 #include "renderer/material_manager.h"
+#include "renderer/mesh_manager.h"
 #include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "scene/scene.h"
@@ -145,6 +146,7 @@ int main(int argc, char* argv[])
           shader_cache,
           renderer.get_shader_factory(),
           texture_cache};
+        MeshManager mesh_manager;
 
         Scene scene;
         Viewport viewport;
@@ -157,6 +159,7 @@ int main(int argc, char* argv[])
           render_device,
           renderer,
           material_manager,
+          mesh_manager,
           scene,
           viewport};
 

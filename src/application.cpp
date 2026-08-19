@@ -36,6 +36,7 @@
 #include "containers/format.h"
 #include "meshes/lod.h"
 #include "renderer/material_manager.h"
+#include "renderer/mesh_manager.h"
 #include "renderer/render_device.h"
 #include "renderer/renderer.h"
 #include "scene/gear.h"
@@ -48,6 +49,7 @@
 #include "application.h"
 #include "file_manager.h"
 #include "logging.h"
+#include "runtime_asset_resolver.h"
 #include "shader_factory.h"
 #include "startup_tasks.h"
 #include "staged_data.h"
@@ -1257,7 +1259,9 @@ void Application::prepare_frame()
     memory::frame_bump()->reset();
     memory::frame_arena()->reset();
 
+    mesh_manager.process_pending();
     material_manager.process_pending();
+    render_device.process_deferred_deletions();
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -1354,6 +1358,7 @@ Application::Application(
   RenderDevice& render_device,
   Renderer& renderer,
   MaterialManager& material_manager,
+  MeshManager& mesh_manager,
   Scene& scene,
   Viewport& viewport)
 : title{title}
@@ -1363,6 +1368,7 @@ Application::Application(
 , render_device{render_device}
 , renderer{renderer}
 , material_manager{material_manager}
+, mesh_manager{mesh_manager}
 , scene{scene}
 , viewport{viewport}
 {
@@ -2010,7 +2016,11 @@ bool Application::load_scene(
 
     try
     {
-        serial::json::JsonSceneLoader loader;
+        RuntimeAssetResolver resolver{
+          file_manager,
+          material_manager,
+          mesh_manager};
+        serial::json::JsonSceneLoader loader{resolver};
         loader.load(scene, contents);
     }
     catch(const std::runtime_error& e)

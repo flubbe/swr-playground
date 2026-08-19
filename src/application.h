@@ -31,6 +31,7 @@
 class FileManager;
 class MainLoop;
 class MaterialManager;
+class MeshManager;
 class RenderDevice;
 class Renderer;
 class Scene;
@@ -100,6 +101,7 @@ class Application
     RenderDevice& render_device;
     Renderer& renderer;
     MaterialManager& material_manager;
+    MeshManager& mesh_manager;
 
     Scene& scene;
     Viewport& viewport;
@@ -242,6 +244,7 @@ public:
       RenderDevice& render_device,
       Renderer& renderer,
       MaterialManager& material_manager,
+      MeshManager& mesh_manager,
       Scene& scene,
       Viewport& viewport);
 

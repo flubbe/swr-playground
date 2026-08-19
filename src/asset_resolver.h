@@ -11,20 +11,9 @@
 #pragma once
 
 #include "assets/path.h"
-#include "logging.h"
-
-/*
- * Forward declarations.
- */
-
-class ImportedStaticMesh;
-class ResolvableMaterial;
-class TextureRef;
-
-// TODO Create lazily resolved mesh reference.
-struct MeshRef
-{
-};
+#include "renderer/mesh.h"
+#include "renderer/resolvable_material.h"
+#include "texture_cache.h"
 
 /** Asset resolver. */
 struct AssetResolver

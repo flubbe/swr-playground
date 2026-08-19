@@ -69,6 +69,7 @@ target_compile_definitions(scene_tests PRIVATE
 target_link_libraries(scene_tests PRIVATE
     swr_playground_warnings
     scene_test_common
+    concurrency_utils
     GTest::gtest_main
     ml
     simdjson

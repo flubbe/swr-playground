@@ -26,6 +26,7 @@
 #include "containers/vector.h"
 #include "meshes/mesh.h"
 #include "material.h"
+#include "queue.h"
 #include "shader_constants.h"
 #include "types.h"
 
@@ -132,6 +133,18 @@ struct ShadowMapTargetGpuData
     int height{0};
 };
 
+/** A deletion request for a render resource. */
+struct RenderResourceDeletionRequest
+{
+    /** The render resource handle */
+    std::variant<
+      MaterialHandle,
+      MeshHandle,
+      ShaderHandle,
+      TextureHandle>
+      handle;
+};
+
 /** Render device. */
 class RenderDevice
 {
@@ -153,11 +166,14 @@ class RenderDevice
     /** Shaders. */
     swr::unordered_map<ShaderHandle, const swr::program_base*> shaders;
 
-    /** materials. */
+    /** Materials. */
     swr::unordered_map<MaterialHandle, Material> materials;
 
     /** shadow-map render targets. */
     swr::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
+
+    /** Render resource to be deleted. */
+    ThreadSafeQueue<RenderResourceDeletionRequest> deletion_queue;
 
     /** state cache. */
     RasterizerState current_rasterizer_state;
@@ -287,6 +303,27 @@ public:
 
     void delete_material(
       MaterialHandle handle);
+
+    /**
+     * Thread safe render resource deletion. Defers deletion to the next
+     * time `process_deferred_deletions` is called on the main thread.
+     *
+     * @tparam T Handle type.
+     * @param handle The resource handle.
+     */
+    template<typename T>
+    void defer_delete(T handle)
+    {
+        deletion_queue.push_back(
+          RenderResourceDeletionRequest{std::move(handle)});
+    }
+
+    /**
+     * Process all deferred deletions.
+     *
+     * @note Needs to be called from the main thread.
+     */
+    void process_deferred_deletions();
 
     /*
      * begin/end frame.

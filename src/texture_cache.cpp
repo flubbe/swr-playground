@@ -30,7 +30,7 @@ const logging::Logger& get_logger()
 
 TextureEntry::~TextureEntry()
 {
-    device.delete_texture(handle);
+    device.defer_delete(handle);
 }
 
 /*

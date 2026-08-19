@@ -57,12 +57,12 @@ struct TextureEntry
     ~TextureEntry();
 };
 
-/** A reference to a cached texture. */
+/** A reference to a texture. */
 class TextureRef
 {
     friend class TextureCache;
 
-    /** Referenced texture entry. */
+    /** Texture entry. */
     swr::shared_ptr<TextureEntry> entry;
 
 public:

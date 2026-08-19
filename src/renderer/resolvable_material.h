@@ -104,4 +104,16 @@ public:
     {
         return *std::get<swr::shared_ptr<MaterialEntry>>(material);
     }
+
+    /**
+     * Get the `MaterialEntry`.
+     *
+     * @throws Throws `std::bad_variant_access` if the resolvable materials
+     *     holds a material handle.
+     */
+    [[nodiscard]]
+    const MaterialEntry& get_entry() const
+    {
+        return *std::get<swr::shared_ptr<MaterialEntry>>(material);
+    }
 };

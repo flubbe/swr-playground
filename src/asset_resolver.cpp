@@ -8,9 +8,8 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "renderer/resolvable_material.h"
 #include "asset_resolver.h"
-#include "texture_cache.h"
+#include "logging.h"
 
 ResolvableMaterial AssetResolver::resolve_material(
   const assets::AssetPath& path)

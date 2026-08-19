@@ -139,6 +139,13 @@ struct MaterialEntry
      */
     void finalize();
 
+    /**
+     * Destroy the material handle.
+     *
+     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
+     */
+    void release();
+
     /** Checks if the underlying future is valid. */
     [[nodiscard]]
     bool valid() const
@@ -191,13 +198,13 @@ class MaterialManager
     /** Render device reference. */
     RenderDevice& device;
 
-    /** Pending material queue with entries (key, material_entry). */
+    /** Pending material upload queue with entries (key, material_entry). */
     ThreadSafeQueue<
       std::pair<
         swr::string,
         swr::shared_ptr<
           MaterialEntry>>>
-      pending_materials;
+      pending_upload;
 
     /** Shader cache. */
     ShaderCache& shader_cache;
@@ -254,6 +261,8 @@ public:
      */
     ~MaterialManager()
     {
+        process_pending();
+
         while(!material_cache.empty())
         {
             delete_material(material_cache.begin()->first);
