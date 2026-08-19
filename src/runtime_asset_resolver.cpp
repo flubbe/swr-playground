@@ -8,11 +8,11 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include "runtime_asset_resolver.h"
 #include "renderer/material_manager.h"
 #include "renderer/mesh_manager.h"
 #include "file_manager.h"
 #include "logging.h"
+#include "runtime_asset_resolver.h"
 
 // TODO Async file loading.
 
@@ -20,8 +20,8 @@ ResolvableMaterial RuntimeAssetResolver::resolve_material(
   const assets::AssetPath& path)
 {
     return material_manager.load(
-      path.path.string(),
-      read_text_file(file_manager, path.path.string()));
+      path,
+      read_text_file(file_manager, path.path));
 }
 
 MeshRef RuntimeAssetResolver::resolve_static_mesh(

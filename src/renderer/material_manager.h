@@ -16,6 +16,7 @@
 #include <xxhash.h>
 
 #include "assets/material.h"
+#include "assets/path.h"
 #include "assets/texture.h"
 #include "containers/format.h"
 #include "containers/unordered_map.h"
@@ -201,7 +202,7 @@ class MaterialManager
     /** Pending material upload queue with entries (key, material_entry). */
     ThreadSafeQueue<
       std::pair<
-        swr::string,
+        assets::AssetPath,
         swr::shared_ptr<
           MaterialEntry>>>
       pending_upload;
@@ -217,7 +218,7 @@ class MaterialManager
 
     /** Material cache. */
     swr::unordered_map<
-      swr::string,
+      assets::AssetPath,
       std::weak_ptr<MaterialEntry>>
       material_cache;
 
@@ -282,7 +283,7 @@ public:
      * @returns Returns a resolvable material.
      */
     ResolvableMaterial load(
-      std::string_view path,
+      const assets::AssetPath& path,
       std::string_view json);
 
     /**
@@ -293,7 +294,7 @@ public:
      */
     [[nodiscard]]
     std::optional<ResolvableMaterial> get(
-      std::string_view path)
+      const assets::AssetPath& path)
     {
         if(auto it = material_cache.find(path);
            it != material_cache.end())
@@ -313,11 +314,11 @@ public:
      * Delete a material from the cache.
      *
      * @note This only affects the cache. Material handles that are still in use remain valid.
-     * @param key Material key.
+     * @param path Material path.
      * @returns Returns `true` if the material was deleted, and `false` if the key was not found.
      */
     bool delete_material(
-      std::string_view key);
+      const assets::AssetPath& path);
 
     /**
      * Process pending materials.

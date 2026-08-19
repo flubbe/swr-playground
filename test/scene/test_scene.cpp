@@ -28,7 +28,7 @@ void ensure_scene_reflection_ready()
 ResolvableMaterial make_test_material()
 {
     return ResolvableMaterial{
-      "Test",
+      assets::AssetPath{"Test"},
       nullptr};
 }
 

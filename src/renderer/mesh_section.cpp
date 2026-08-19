@@ -11,6 +11,7 @@
 #include <format>
 #include <stdexcept>
 
+#include "assets/path_formatter.h"
 #include "asset_resolver.h"
 #include "material_manager.h"
 #include "mesh_section.h"
@@ -41,13 +42,13 @@ void MeshSection::post_load(
     }
 
     auto result = material_manager.get(
-      material_path.path.string());
+      material_path);
 
     if(!result.has_value())
     {
         throw std::runtime_error{
           std::format(
             "Could not resolve material '{}' for mesh section.",
-            material_path.path.string())};
+            material_path)};
     }
 }

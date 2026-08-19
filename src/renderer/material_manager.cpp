@@ -14,6 +14,7 @@
 
 #include <gsl/gsl>
 
+#include "assets/path_formatter.h"
 #include "material_manager.h"
 #include "render_device.h"
 #include "shader_cache.h"
@@ -129,7 +130,7 @@ void MaterialEntry::release()
  */
 
 ResolvableMaterial MaterialManager::load(
-  std::string_view path,
+  const assets::AssetPath& path,
   std::string_view json)
 {
     if(auto it = material_cache.find(path);
@@ -164,7 +165,7 @@ ResolvableMaterial MaterialManager::load(
     auto submission = task_system.submit(
       [shader_factory = &shader_factory,
        json = swr::string{json},
-       path = swr::string{path}](
+       path = assets::AssetPath{path}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -231,24 +232,24 @@ ResolvableMaterial MaterialManager::load(
       std::move(submission));
 
     material_cache.emplace(
-      swr::string{path},
+      path,
       material);
 
     // Push to pending material queue which is processed on render/main thread.
     pending_upload.emplace_back(
-      std::make_pair(swr::string{path}, material));
+      std::make_pair(path, material));
 
     return ResolvableMaterial{path, material};
 }
 
 bool MaterialManager::delete_material(
-  std::string_view path)
+  const assets::AssetPath& path)
 {
     get_logger().logf(
       "Deleting material '{}'.",
       path);
 
-    return material_cache.erase(swr::string{path}) != 0;
+    return material_cache.erase(path) != 0;
 }
 
 void MaterialManager::process_pending()

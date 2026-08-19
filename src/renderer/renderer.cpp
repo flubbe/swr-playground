@@ -644,7 +644,7 @@ void Renderer::create_grid_mesh()
             .normals = std::move(nb),
             .texcoords = {}}),
         .material = ResolvableMaterial{
-          "GrayMaterial",
+          assets::AssetPath{"GrayMaterial"},
           gray_material}});
 }
 
@@ -729,7 +729,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
             .texcoords = std::move(qtb),
           }),
         .material = ResolvableMaterial{
-          "SpotlightDepthDebug",
+          assets::AssetPath{"SpotlightDepthDebug"},
           shadow_debug_overlay_material},
       });
 }

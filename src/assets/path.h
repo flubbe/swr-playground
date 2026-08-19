@@ -74,3 +74,22 @@ struct UnwrapType<assets::AssetPath>
 };
 
 }    // namespace reflect
+
+/*
+ * Hashing.
+ */
+
+namespace std
+{
+
+template<>
+struct hash<assets::AssetPath>
+{
+    [[nodiscard]]
+    std::size_t operator()(const assets::AssetPath& path) const noexcept
+    {
+        return std::hash<std::filesystem::path>{}(path.path);
+    }
+};
+
+}    // namespace std

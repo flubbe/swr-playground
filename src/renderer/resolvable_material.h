@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "assets/path.h"
 #include "containers/memory.h"
 #include "containers/string.h"
 #include "types.h"
@@ -23,7 +24,7 @@ struct MaterialEntry;
 class ResolvableMaterial
 {
     /** Asset path identifying the material. */
-    swr::string path;
+    assets::AssetPath path;
 
     /** Async or directly loaded material. */
     std::variant<
@@ -46,7 +47,7 @@ public:
      * @param entry The material entry.
      */
     explicit ResolvableMaterial(
-      std::string_view path,
+      const assets::AssetPath& path,
       swr::shared_ptr<MaterialEntry> entry)
     : path{path}
     , material{std::move(entry)}
@@ -60,7 +61,7 @@ public:
      * @param handle The material handle.
      */
     explicit ResolvableMaterial(
-      std::string_view path,
+      const assets::AssetPath& path,
       MaterialHandle handle)
     : path{path}
     , material{handle}
@@ -88,7 +89,7 @@ public:
     std::optional<MaterialHandle> try_get() const;
 
     /** Get the path identifying this material. */
-    const swr::string& get_path() const
+    const assets::AssetPath& get_path() const
     {
         return path;
     }

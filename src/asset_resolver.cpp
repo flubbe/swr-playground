@@ -8,6 +8,7 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
+#include "assets/path_formatter.h"
 #include "asset_resolver.h"
 #include "logging.h"
 
@@ -16,10 +17,10 @@ ResolvableMaterial AssetResolver::resolve_material(
 {
     logging::warningf(
       "AssetResolver::resolve_material called for '{}'",
-      path.path.string());
+      path);
 
     return ResolvableMaterial{
-      path.path.string(),
+      path,
       nullptr};
 }
 
@@ -28,7 +29,7 @@ MeshRef AssetResolver::resolve_static_mesh(
 {
     logging::warningf(
       "AssetResolver::resolve_static_mesh called for '{}'",
-      path.path.string());
+      path);
 
     return {};
 }
@@ -38,7 +39,7 @@ TextureRef AssetResolver::resolve_texture(
 {
     logging::warningf(
       "AssetResolver::resolve_texture called for '{}'",
-      path.path.string());
+      path);
 
     return TextureRef{nullptr};
 }

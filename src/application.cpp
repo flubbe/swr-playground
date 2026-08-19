@@ -1532,15 +1532,15 @@ void Application::begin_startup()
     startup_error.reset();
 
     // Load materials.
-    const std::string_view floor_material_path = "assets/materials/floor/floor.json";
-    const std::string_view shadowed_material_path = "assets/materials/mesh/lit.json";
+    const auto floor_material_path = assets::AssetPath{"assets/materials/floor/floor.json"};
+    const auto shadowed_material_path = assets::AssetPath{"assets/materials/mesh/lit.json"};
 
     auto floor_material = material_manager.load(
       floor_material_path,
-      read_text_file(file_manager, floor_material_path));
+      read_text_file(file_manager, floor_material_path.path));
     auto shadowed_material = material_manager.load(
       shadowed_material_path,
-      read_text_file(file_manager, shadowed_material_path));
+      read_text_file(file_manager, shadowed_material_path.path));
 
     startup_materials = swr::make_unique<StartupMaterials>(
       StartupMaterials{
@@ -1899,23 +1899,23 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
 {
     active_static_mesh_material = type;
 
-    const swr::string material_path = [&]() -> swr::string
+    const auto material_path = [&]() -> assets::AssetPath
     {
         if(type == StaticMeshMaterial::ColorFlat)
         {
-            return "assets/materials/mesh/flat.json";
+            return assets::AssetPath{"assets/materials/mesh/flat.json"};
         }
         else if(type == StaticMeshMaterial::ColorSmooth)
         {
-            return "assets/materials/mesh/smooth.json";
+            return assets::AssetPath{"assets/materials/mesh/smooth.json"};
         }
         else if(type == StaticMeshMaterial::PhongSmooth)
         {
-            return "assets/materials/mesh/phong.json";
+            return assets::AssetPath{"assets/materials/mesh/phong.json"};
         }
         else if(type == StaticMeshMaterial::LitSmooth)
         {
-            return "assets/materials/mesh/lit.json";
+            return assets::AssetPath{"assets/materials/mesh/lit.json"};
         }
         else
         {
@@ -1932,7 +1932,7 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
             return cached_material.value();
         }
 
-        auto json = read_text_file(file_manager, material_path);
+        auto json = read_text_file(file_manager, material_path.path);
         return material_manager.load(material_path, json);
     }();
 
@@ -1962,15 +1962,15 @@ void Application::set_floor_material(FloorMaterial type)
 {
     active_floor_material = type;
 
-    const swr::string path = [&]() -> swr::string
+    const auto path = [&]() -> assets::AssetPath
     {
         if(type == FloorMaterial::TexturedFloor)
         {
-            return "assets/materials/floor/floor.json";
+            return assets::AssetPath{"assets/materials/floor/floor.json"};
         }
         else if(type == FloorMaterial::TexturedShinyFloor)
         {
-            return "assets/materials/floor/shiny_floor.json";
+            return assets::AssetPath{"assets/materials/floor/shiny_floor.json"};
         }
         else
         {
@@ -1989,7 +1989,7 @@ void Application::set_floor_material(FloorMaterial type)
 
         return material_manager.load(
           path,
-          read_text_file(file_manager, path));
+          read_text_file(file_manager, path.path));
     }();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
