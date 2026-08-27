@@ -388,12 +388,14 @@ private:
       const reflect::VectorProperty& property,
       void* storage)
     {
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2{0.0f, 0.0f});
+
         if(ImGui::BeginTable(
              "##vector",
              2,
              ImGuiTableFlags_SizingStretchProp))
         {
-            ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+            ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
 
             for(std::size_t i = 0; i < property.get_element_count(storage); ++i)
@@ -414,6 +416,8 @@ private:
 
             ImGui::EndTable();
         }
+
+        ImGui::PopStyleVar();
     }
 
     template<typename F>
