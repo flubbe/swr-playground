@@ -78,6 +78,8 @@ Camera::Camera()
 
 void Camera::on_properties_changed()
 {
+    Super::on_properties_changed();
+
     update_projection_matrix(cached_aspect_ratio);
 }
 

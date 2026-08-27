@@ -74,7 +74,7 @@ bool IntProperty::set_value(
     return true;
 }
 
-float IntProperty::get_speed() const noexcept
+IntProperty::Type IntProperty::get_speed() const noexcept
 {
     return speed;
 }
@@ -161,7 +161,7 @@ bool UIntProperty::set_value(
     return true;
 }
 
-float UIntProperty::get_speed() const noexcept
+UIntProperty::Type UIntProperty::get_speed() const noexcept
 {
     return speed;
 }
@@ -250,7 +250,7 @@ bool FloatProperty::set_value(
     return true;
 }
 
-float FloatProperty::get_speed() const noexcept
+FloatProperty::Type FloatProperty::get_speed() const noexcept
 {
     return speed;
 }

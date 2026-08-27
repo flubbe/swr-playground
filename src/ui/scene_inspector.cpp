@@ -101,9 +101,7 @@ public:
         }
         else if(auto* p = property.try_as<reflect::VectorProperty>())
         {
-            render_vector(*p, storage,
-                          [this]()
-                          { object.on_properties_changed(); });
+            render_vector(*p, storage);
         }
 #if SWR_CUSTOM_STRING_TYPE
         else if(auto* p = property.try_as<reflect::SwrStringProperty>())
@@ -386,19 +384,35 @@ private:
         }
     }
 
-    template<typename F>
     void render_vector(
       const reflect::VectorProperty& property,
-      void* storage,
-      F&& change_callback)
+      void* storage)
     {
-        // TODO
-
-        for(std::size_t i = 0; i < property.get_element_count(storage); ++i)
+        if(ImGui::BeginTable(
+             "##vector",
+             2,
+             ImGuiTableFlags_SizingStretchProp))
         {
-            property.get_inner().accept(
-              *this,
-              property.get_element(storage, i));
+            ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+            ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+
+            for(std::size_t i = 0; i < property.get_element_count(storage); ++i)
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("[%zu]", i);
+
+                ImGui::TableNextColumn();
+
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                property.get_inner().accept(
+                  *this,
+                  property.get_element(storage, i));
+            }
+
+            ImGui::EndTable();
         }
     }
 
@@ -513,7 +527,7 @@ void draw_static_mesh_sections(
       | ImGuiTableFlags_RowBg
       | ImGuiTableFlags_SizingFixedFit;
 
-    if(ImGui::BeginTable("MeshSections", 4, table_flags))
+    if(ImGui::BeginTable("MeshSections", 3, table_flags))
     {
         ImGui::TableSetupColumn("LOD", ImGuiTableColumnFlags_WidthFixed, 32.0f);
         ImGui::TableSetupColumn("Section", ImGuiTableColumnFlags_WidthFixed, 32.0f);
@@ -622,6 +636,7 @@ void draw_scene_inspector_panel(
 
                     auto& properties = object->get_properties();
                     ImGuiPropertyRenderer property_renderer{*object};
+
                     for(std::size_t i = 0; i < properties.size(); ++i)
                     {
                         auto* property = properties[i].get();
@@ -642,6 +657,7 @@ void draw_scene_inspector_panel(
                           !property->is_read_only()
                           && object->has_property_snapshot(property->get_name());
                         ImGui::TableSetColumnIndex(1);
+                        ImGui::SetNextItemWidth(-FLT_MIN);
                         void* property_address = reinterpret_cast<std::byte*>(object.get())
                                                  + property->get_offset();
                         property->accept(

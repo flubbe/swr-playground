@@ -59,7 +59,7 @@ public:
       const Type& value) const override;
 
     /** Return the UI drag speed. */
-    float get_speed() const noexcept;
+    Type get_speed() const noexcept;
 
     /**
      * Construct an integer property.
@@ -120,7 +120,7 @@ public:
     const void* get_type_tag() const noexcept override;
 
     /** Return the UI drag speed. */
-    float get_speed() const noexcept;
+    Type get_speed() const noexcept;
 
     /**
      * Construct an unsigned integer property.
@@ -186,7 +186,7 @@ public:
     const void* get_type_tag() const noexcept override;
 
     /** Return the UI drag speed. */
-    float get_speed() const noexcept;
+    Type get_speed() const noexcept;
 
     /** Return the UI display format. */
     const char* get_format() const noexcept;
