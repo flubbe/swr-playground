@@ -339,6 +339,12 @@ class VectorProperty
     /** Assignment function. */
     AssignFn assign_fn;
 
+    /** Resize function type. */
+    using ResizeFn = void (*)(void*, std::size_t);
+
+    /** Resize function. */
+    ResizeFn resize_fn;
+
     /** Element count function type. */
     using ElementCountFn = std::size_t (*)(const void*);
 
@@ -364,6 +370,7 @@ public:
      * @param size Size of the vector container.
      * @param alignment Alignment of the vector container.
      * @param assign_fn Assignment function between vectors.
+     * @param resize_fn Resize function for the vector.
      * @param element_count_fn Function returning the element count of the container.
      * @param element_fn Function returning a writable element reference.
      * @param const_element_fn Function returning a read-only element reference.
@@ -379,6 +386,7 @@ public:
       std::size_t size,
       std::size_t alignment,
       AssignFn assign_fn,
+      ResizeFn resize_fn,
       ElementCountFn element_count_fn,
       ElementFn element_fn,
       ConstElementFn const_element_fn,
@@ -400,6 +408,7 @@ public:
         std::move(constraint)}
     , inner{std::move(inner)}
     , assign_fn{assign_fn}
+    , resize_fn{resize_fn}
     , element_count_fn{element_count_fn}
     , element_fn{element_fn}
     , const_element_fn{const_element_fn}
@@ -441,6 +450,14 @@ public:
       const void* storage) const noexcept override
     {
         return element_count_fn(storage);
+    }
+
+    /** Resize the vector. */
+    void resize(
+      void* storage,
+      std::size_t element_count) const
+    {
+        resize_fn(storage, element_count);
     }
 
     /** Get the inner property describing the elements. */
@@ -519,6 +536,10 @@ public:
               const auto& source =
                 *static_cast<const std::vector<T, Alloc>*>(src);
               destination = source;
+          },
+          [](void* p, std::size_t new_element_count) -> void
+          {
+              static_cast<std::vector<T, Alloc>*>(p)->resize(new_element_count);
           },
           [](const void* p) -> std::size_t
           {

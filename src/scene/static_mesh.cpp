@@ -58,7 +58,7 @@ void StaticMesh::resolve(
 
     // TODO
 
-    if(materials.size() == 0)
+    if(materials.empty())
     {
         logging::warningf(
           "StaticMesh '{}' doesn't declare materials.",

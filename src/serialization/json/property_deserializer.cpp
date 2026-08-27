@@ -134,10 +134,18 @@ void JsonPropertyDeserializer::visit(
         simdjson::dom::array arr;
         if(auto err = value.get_array().get(arr); !err)
         {
-            for(std::size_t i = 0; i < p->get_element_count(storage); ++i)
+            const std::size_t array_size = arr.size();
+            p->resize(storage, array_size);
+
+            for(std::size_t i = 0; i < array_size; ++i)
             {
+                JsonPropertyDeserializer inner_deserializer{
+                  logger,
+                  object,
+                  arr.at(i)};
+
                 p->get_inner().accept(
-                  *this,
+                  inner_deserializer,
                   p->get_element(storage, i));
             }
         }
