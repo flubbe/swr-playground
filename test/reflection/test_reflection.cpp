@@ -849,8 +849,8 @@ TEST(ReflectionSystemTests, ConstructsPropertyFromDescriptor)
         reinterpret_cast<std::uintptr_t>(std::addressof(child.enabled))
         - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
     reflect::BoolProperty& bool_property = property->as<reflect::BoolProperty>();
-    EXPECT_TRUE(bool_property.get_value());
-    EXPECT_TRUE(bool_property.set_value(false));
+    EXPECT_TRUE(bool_property.get_value(&child.enabled));
+    EXPECT_TRUE(bool_property.set_value(&child.enabled, false));
     EXPECT_FALSE(child.enabled);
 }
 
@@ -944,7 +944,10 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsDerived)
         - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
 
     auto& string_property = property->as<reflect::StringProperty>();
-    EXPECT_EQ(string_property.get_value(), "root");
+    auto root_name_address = reinterpret_cast<std::uintptr_t>(&child) + property->get_offset();
+    EXPECT_EQ(string_property.get_value(
+                reinterpret_cast<const void*>(root_name_address)),
+              "root");
 }
 
 TEST(ReflectionSystemTests, InheritedDescriptorConstructsGrandChild)
@@ -995,8 +998,12 @@ TEST(ReflectionSystemTests, ErasedConstructAdjustsMultiInheritance)
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
 
     auto& bool_property = property->as<reflect::BoolProperty>();
-    EXPECT_FALSE(bool_property.get_value());
-    EXPECT_TRUE(bool_property.set_value(true));
+    auto bool_property_address = reinterpret_cast<std::uintptr_t>(&obj)
+                                 + property->get_offset();
+    EXPECT_FALSE(bool_property.get_value(
+      reinterpret_cast<const void*>(bool_property_address)));
+    EXPECT_TRUE(bool_property.set_value(
+      reinterpret_cast<void*>(bool_property_address), true));
     EXPECT_TRUE(obj.local_flag);
     EXPECT_EQ(obj.sentinel, 0xA5A5A5A5u);
 }
@@ -1202,13 +1209,16 @@ TEST(ReflectionSystemTests, ConstructedIntPropertyClampsToRange)
       descriptor->flags,
       descriptor->constraint);
     ASSERT_NE(property, nullptr);
+    auto property_address = reinterpret_cast<void*>(
+      reinterpret_cast<std::uintptr_t>(&instance) + property->get_offset());
+
     auto* int_property = property->try_as<reflect::IntProperty>();
     ASSERT_NE(int_property, nullptr);
 
-    EXPECT_TRUE(int_property->set_value(1));
+    EXPECT_TRUE(int_property->set_value(property_address, 1));
     EXPECT_EQ(instance.constrained_teeth, 5);
 
-    EXPECT_TRUE(int_property->set_value(100));
+    EXPECT_TRUE(int_property->set_value(property_address, 100));
     EXPECT_EQ(instance.constrained_teeth, 50);
 }
 

@@ -18,14 +18,17 @@ namespace serial::json
 {
 
 void JsonPropertyDeserializer::visit(
-  reflect::Property& property)
+  const reflect::Property& property,
+  void* storage)
 {
     if(auto* p = property.try_as<reflect::IntProperty>())
     {
         std::int64_t val{0};
         if(auto err = value.get_int64().get(val); !err)
         {
-            p->set_value(static_cast<reflect::IntProperty::Type>(val));
+            p->set_value(
+              storage,
+              static_cast<reflect::IntProperty::Type>(val));
         }
         else
         {
@@ -42,7 +45,9 @@ void JsonPropertyDeserializer::visit(
         std::uint64_t val{0};
         if(auto err = value.get_uint64().get(val); !err)
         {
-            p->set_value(static_cast<reflect::UIntProperty::Type>(val));
+            p->set_value(
+              storage,
+              static_cast<reflect::UIntProperty::Type>(val));
         }
         else
         {
@@ -59,7 +64,9 @@ void JsonPropertyDeserializer::visit(
         double val{0.0};
         if(auto err = value.get_double().get(val); !err)
         {
-            p->set_value(static_cast<reflect::FloatProperty::Type>(val));
+            p->set_value(
+              storage,
+              static_cast<reflect::FloatProperty::Type>(val));
         }
         else
         {
@@ -76,7 +83,7 @@ void JsonPropertyDeserializer::visit(
         bool val{false};
         if(auto err = value.get_bool().get(val); !err)
         {
-            p->set_value(val);
+            p->set_value(storage, val);
         }
         else
         {
@@ -93,7 +100,7 @@ void JsonPropertyDeserializer::visit(
         std::string val;
         if(auto err = value.get_string().get(val); !err)
         {
-            p->set_value(val);
+            p->set_value(storage, val);
         }
         else
         {
@@ -110,7 +117,7 @@ void JsonPropertyDeserializer::visit(
         std::string val;
         if(auto err = value.get_string().get(val); !err)
         {
-            p->set_value(val);
+            p->set_value(storage, val);
         }
         else
         {
@@ -127,10 +134,11 @@ void JsonPropertyDeserializer::visit(
         simdjson::dom::array arr;
         if(auto err = value.get_array().get(arr); !err)
         {
-            for(std::size_t i = 0; i < p->get_length(); ++i)
+            for(std::size_t i = 0; i < p->get_element_count(storage); ++i)
             {
-                auto element = p->get_element_property(i);
-                visit(*element);
+                p->get_inner().accept(
+                  *this,
+                  p->get_element(storage, i));
             }
         }
         else
@@ -149,7 +157,7 @@ void JsonPropertyDeserializer::visit(
         std::string val;
         if(auto err = value.get_string().get(val); !err)
         {
-            p->set_value(val);
+            p->set_value(storage, val);
         }
         else
         {
@@ -235,7 +243,7 @@ void JsonPropertyDeserializer::visit(
                   simdjson::error_message(err));
             }
 
-            p->set_value(m);
+            p->set_value(storage, m);
         }
         else
         {
@@ -278,7 +286,7 @@ void JsonPropertyDeserializer::visit(
                   simdjson::error_message(err));
             }
 
-            p->set_value(v);
+            p->set_value(storage, v);
         }
         else
         {

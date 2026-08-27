@@ -42,11 +42,11 @@ const logging::Logger& get_logger()
  */
 void deserialize_properties(
   Object& object,
-  simdjson::dom::object obj)
+  simdjson::dom::object json_obj)
 {
     for(auto& property: object.get_properties())
     {
-        auto value = obj[property->get_name()];
+        auto value = json_obj[property->get_name()];
         if(value.error() == simdjson::NO_SUCH_FIELD)
         {
             get_logger().warningf(
@@ -61,7 +61,11 @@ void deserialize_properties(
           object,
           value.value()};
 
-        property->accept(visitor);
+        auto property_address = reinterpret_cast<std::uintptr_t>(&object)
+                                + property->get_offset();
+        property->accept(
+          visitor,
+          reinterpret_cast<void*>(property_address));
     }
 
     const auto is_property = [&object](std::string_view name)
@@ -74,7 +78,7 @@ void deserialize_properties(
           });
     };
 
-    for(auto& entry: obj)
+    for(auto& entry: json_obj)
     {
         if(entry.key != "class"
            && !is_property(entry.key))

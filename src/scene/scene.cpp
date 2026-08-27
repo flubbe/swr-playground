@@ -135,7 +135,9 @@ swr::string Scene::save(
                 continue;
             }
 
-            property->accept(property_writer);
+            property->accept(
+              property_writer,
+              reinterpret_cast<const std::byte*>(obj.get()) + property->get_offset());
         }
 
         writer.end_object();

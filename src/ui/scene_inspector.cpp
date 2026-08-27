@@ -48,7 +48,8 @@ void validate_selected_object(
     }
 }
 
-class ImGuiPropertyRenderer : public reflect::PropertyVisitor
+class ImGuiPropertyRenderer
+: public reflect::PropertyVisitor
 {
     Object& object;
 
@@ -58,49 +59,71 @@ public:
     {
     }
 
-    void visit(reflect::Property& property) override
+    void visit(
+      const reflect::Property& property,
+      void* storage) override
     {
         if(auto* p = property.try_as<reflect::IntProperty>())
         {
-            render_int(*p, object);
+            render_int(*p, storage,
+                       [this]()
+                       { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::UIntProperty>())
         {
-            render_uint(*p, object);
+            render_uint(*p, storage,
+                        [this]()
+                        { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::FloatProperty>())
         {
-            render_float(*p, object);
+            render_float(*p, storage,
+                         [this]()
+                         { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::BoolProperty>())
         {
-            render_bool(*p, object);
+            render_bool(*p, storage,
+                        [this]()
+                        { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::StringProperty>())
         {
-            render_string(*p, object);
+            render_string(*p, storage,
+                          [this]()
+                          { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::PathProperty>())
         {
-            render_path(*p, object);
+            render_path(*p, storage,
+                        [this]()
+                        { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::VectorProperty>())
         {
-            render_vector(*p, object);
+            render_vector(*p, storage,
+                          [this]()
+                          { object.on_properties_changed(); });
         }
 #if SWR_CUSTOM_STRING_TYPE
         else if(auto* p = property.try_as<reflect::SwrStringProperty>())
         {
-            render_string(*p, object);
+            render_string(*p, storage,
+                          [this]()
+                          { object.on_properties_changed(); });
         }
 #endif /* SWR_CUSTOM_STRING_TYPE */
         else if(auto* p = property.try_as<reflect::Mat4Property>())
         {
-            render_mat4(*p, object);
+            render_mat4(*p, storage,
+                        [this]()
+                        { object.on_properties_changed(); });
         }
         else if(auto* p = property.try_as<reflect::Vec4Property>())
         {
-            render_vec4(*p, object);
+            render_vec4(*p, storage,
+                        [this]()
+                        { object.on_properties_changed(); });
         }
         else
         {
@@ -109,17 +132,19 @@ public:
     }
 
 private:
+    template<typename F>
     static void render_int(
-      reflect::IntProperty& property,
-      Object& object)
+      const reflect::IntProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::Text("%d", property.get_value());
+            ImGui::Text("%d", property.get_value(storage));
             return;
         }
 
-        int value = property.get_value();
+        int value = property.get_value(storage);
         const auto* range = property.try_get_range_constraint<int>();
         int min_value = 0;
         int max_value = 0;
@@ -160,25 +185,27 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
-            value = property.get_value();
+            value = property.get_value(storage);
         }
     }
 
+    template<typename F>
     static void render_uint(
-      reflect::UIntProperty& property,
-      Object& object)
+      const reflect::UIntProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::Text("%u", property.get_value());
+            ImGui::Text("%u", property.get_value(storage));
             return;
         }
 
-        unsigned int value = property.get_value();
+        unsigned int value = property.get_value(storage);
         const auto* range = property.try_get_range_constraint<unsigned int>();
         unsigned int min_value = 0;
         unsigned int max_value = 0;
@@ -210,25 +237,27 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed)
         {
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
-            value = property.get_value();
+            value = property.get_value(storage);
         }
     }
 
+    template<typename F>
     static void render_float(
-      reflect::FloatProperty& property,
-      Object& object)
+      const reflect::FloatProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::Text(property.get_format(), property.get_value());
+            ImGui::Text(property.get_format(), property.get_value(storage));
             return;
         }
 
-        float value = property.get_value();
+        float value = property.get_value(storage);
         const auto* range = property.try_get_range_constraint<float>();
         float min_value = 0.0f;
         float max_value = 0.0f;
@@ -267,50 +296,55 @@ private:
           ImGuiSliderFlags_AlwaysClamp);
         if(changed || ImGui::IsItemDeactivatedAfterEdit())
         {
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
-            value = property.get_value();
+            value = property.get_value(storage);
         }
     }
 
+    template<typename F>
     static void render_bool(
-      reflect::BoolProperty& property,
-      Object& object)
+      const reflect::BoolProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::TextUnformatted(property.get_value() ? "true" : "false");
+            ImGui::TextUnformatted(property.get_value(storage) ? "true" : "false");
             return;
         }
 
-        bool value = property.get_value();
+        bool value = property.get_value(storage);
         if(ImGui::Checkbox("##value", &value))
         {
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
         }
     }
 
-    template<typename T>
+    template<
+      typename T,
+      typename F>
         requires std::is_same_v<T, reflect::StringProperty>
 #if SWR_CUSTOM_STRING_TYPE
                  || std::is_same_v<T, reflect::SwrStringProperty>
 #endif /* SWR_CUSTOM_STRING_TYPE */
     static void render_string(
-      T& property,
-      Object& object)
+      const T& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::TextUnformatted(property.get_value().c_str());
+            ImGui::TextUnformatted(property.get_value(storage).c_str());
             return;
         }
 
-        std::string value = swr::std_string_from(property.get_value());
+        std::string value = swr::std_string_from(property.get_value(storage));
 
         if(value.size() > property.get_max_length())
         {
@@ -323,48 +357,56 @@ private:
             {
                 value.resize(property.get_max_length());
             }
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
         }
     }
 
+    template<typename F>
     static void render_path(
-      reflect::PathProperty& property,
-      Object& object)
+      const reflect::PathProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         if(property.is_read_only())
         {
-            ImGui::TextUnformatted(property.get_value().c_str());
+            ImGui::TextUnformatted(property.get_value(storage).c_str());
             return;
         }
 
-        std::string value = swr::std_string_from(property.get_value().string());
+        std::string value = swr::std_string_from(property.get_value(storage).string());
         if(ImGui::InputText("##value", &value))
         {
-            if(property.set_value(value))
+            if(property.set_value(storage, value))
             {
-                object.on_properties_changed();
+                change_callback();
             }
         }
     }
 
+    template<typename F>
     void render_vector(
-      reflect::VectorProperty& property,
-      Object& object)
+      const reflect::VectorProperty& property,
+      void* storage,
+      F&& change_callback)
     {
         // TODO
 
-        for(std::size_t i = 0; i < property.get_length(); ++i)
+        for(std::size_t i = 0; i < property.get_element_count(storage); ++i)
         {
-            property.accept_element(i, *this);
+            property.get_inner().accept(
+              *this,
+              property.get_element(storage, i));
         }
     }
 
+    template<typename F>
     static void render_mat4(
-      reflect::Mat4Property& property,
-      Object& object)
+      const reflect::Mat4Property& property,
+      void* storage,
+      F&& change_callback)
     {
         if(ImGui::SmallButton("Edit..."))
         {
@@ -377,7 +419,7 @@ private:
 
             if(ImGui::IsWindowAppearing())
             {
-                edit_value = property.get_value();
+                edit_value = property.get_value(storage);
             }
 
             bool changed = false;
@@ -408,9 +450,9 @@ private:
 
             if(changed)
             {
-                if(property.set_value(edit_value))
+                if(property.set_value(storage, edit_value))
                 {
-                    object.on_properties_changed();
+                    change_callback();
                 }
             }
 
@@ -418,11 +460,13 @@ private:
         }
     }
 
+    template<typename F>
     static void render_vec4(
-      reflect::Vec4Property& property,
-      Object& object)
+      const reflect::Vec4Property& property,
+      void* storage,
+      F&& change_callback)
     {
-        ml::vec4 value = property.get_value();
+        ml::vec4 value = property.get_value(storage);
         float components[4] = {value.x, value.y, value.z, value.w};
 
         if(property.is_read_only())
@@ -439,13 +483,14 @@ private:
         if(ImGui::DragFloat4("##value", components, 0.01f, 0.0f, 0.0f, "%.3f"))
         {
             if(property.set_value(
+                 storage,
                  ml::vec4{
                    components[0],
                    components[1],
                    components[2],
                    components[3]}))
             {
-                object.on_properties_changed();
+                change_callback();
             }
         }
     }
@@ -597,7 +642,11 @@ void draw_scene_inspector_panel(
                           !property->is_read_only()
                           && object->has_property_snapshot(property->get_name());
                         ImGui::TableSetColumnIndex(1);
-                        property->accept(property_renderer);
+                        auto property_address = reinterpret_cast<std::uintptr_t>(object.get())
+                                                + property->get_offset();
+                        property->accept(
+                          property_renderer,
+                          reinterpret_cast<void*>(property_address));
                         ImGui::TableSetColumnIndex(2);
                         ImGui::BeginDisabled(!can_reset);
                         if(ImGui::SmallButton("Reset"))

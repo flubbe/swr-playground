@@ -23,59 +23,54 @@ namespace reflect
 IntProperty::IntProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
-  float speed,
+  Type speed,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     constraint}
-, value{value}
 , speed{speed}
 , range_constraint{range_constraint_from_metadata<Type>()}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"IntProperty requires non-null value pointer"};
-    }
 }
 
-IntProperty::Type IntProperty::get_value() const noexcept
+bool IntProperty::set_value(
+  void* storage,
+  const Type& value) const
 {
-    return *value;
-}
+    Type clamped_value = value;
 
-bool IntProperty::set_value(Type in_value) noexcept
-{
     if(range_constraint.has_value())
     {
         if(range_constraint->min.has_value()
-           && in_value < *range_constraint->min)
+           && clamped_value < *range_constraint->min)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->min;
+            clamped_value = *range_constraint->min;
         }
         if(range_constraint->max.has_value()
-           && in_value > *range_constraint->max)
+           && clamped_value > *range_constraint->max)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->max;
+            clamped_value = *range_constraint->max;
         }
     }
 
-    *value = in_value;
+    *static_cast<Type*>(storage) = clamped_value;
     return true;
 }
 
@@ -89,6 +84,25 @@ const void* IntProperty::get_type_tag() const noexcept
     return detail::type_tag<IntProperty>();
 }
 
+swr::unique_ptr<IntProperty> IntProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  Type speed,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<IntProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      speed,
+      std::move(constraint));
+}
+
 /*
  * UIntProperty.
  */
@@ -96,57 +110,54 @@ const void* IntProperty::get_type_tag() const noexcept
 UIntProperty::UIntProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
-  float speed,
+  Type speed,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     constraint}
-, value{value}
 , speed{speed}
 , range_constraint{range_constraint_from_metadata<Type>()}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"UIntProperty requires non-null value pointer"};
-    }
 }
 
-UIntProperty::Type UIntProperty::get_value() const noexcept
+bool UIntProperty::set_value(
+  void* storage,
+  const Type& value) const
 {
-    return *value;
-}
+    Type clamped_value = value;
 
-bool UIntProperty::set_value(Type in_value) noexcept
-{
     if(range_constraint.has_value())
     {
-        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        if(range_constraint->min.has_value()
+           && clamped_value < *range_constraint->min)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->min;
+            clamped_value = *range_constraint->min;
         }
-        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        if(range_constraint->max.has_value()
+           && clamped_value > *range_constraint->max)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->max;
+            clamped_value = *range_constraint->max;
         }
     }
 
-    *value = in_value;
+    *static_cast<Type*>(storage) = clamped_value;
     return true;
 }
 
@@ -160,6 +171,25 @@ const void* UIntProperty::get_type_tag() const noexcept
     return detail::type_tag<UIntProperty>();
 }
 
+swr::unique_ptr<UIntProperty> UIntProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  Type speed,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<UIntProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      speed,
+      std::move(constraint));
+}
+
 /*
  * FloatProperty.
  */
@@ -167,59 +197,56 @@ const void* UIntProperty::get_type_tag() const noexcept
 FloatProperty::FloatProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
-  float speed,
+  Type speed,
   const char* format,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     constraint}
-, value{value}
 , speed{speed}
 , format{format}
 , range_constraint{range_constraint_from_metadata<Type>()}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"FloatProperty requires non-null value pointer"};
-    }
 }
 
-FloatProperty::Type FloatProperty::get_value() const noexcept
+bool FloatProperty::set_value(
+  void* storage,
+  const Type& value) const
 {
-    return *value;
-}
+    Type clamped_value = value;
 
-bool FloatProperty::set_value(Type in_value) noexcept
-{
     if(range_constraint.has_value())
     {
-        if(range_constraint->min.has_value() && in_value < *range_constraint->min)
+        if(range_constraint->min.has_value()
+           && clamped_value < *range_constraint->min)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->min;
+            clamped_value = *range_constraint->min;
         }
-        if(range_constraint->max.has_value() && in_value > *range_constraint->max)
+        if(range_constraint->max.has_value()
+           && clamped_value > *range_constraint->max)
         {
             if(!range_constraint->clamp)
             {
                 return false;
             }
-            in_value = *range_constraint->max;
+            clamped_value = *range_constraint->max;
         }
     }
 
-    *value = in_value;
+    *static_cast<Type*>(storage) = clamped_value;
     return true;
 }
 
@@ -238,6 +265,27 @@ const void* FloatProperty::get_type_tag() const noexcept
     return detail::type_tag<FloatProperty>();
 }
 
+swr::unique_ptr<FloatProperty> FloatProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  Type speed,
+  const char* format,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<FloatProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      speed,
+      format,
+      std::move(constraint));
+}
+
 /*
  * BoolProperty.
  */
@@ -245,40 +293,42 @@ const void* FloatProperty::get_type_tag() const noexcept
 BoolProperty::BoolProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     std::move(constraint)}
-, value{value}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"BoolProperty requires non-null value pointer"};
-    }
-}
-
-BoolProperty::Type BoolProperty::get_value() const noexcept
-{
-    return *value;
-}
-
-bool BoolProperty::set_value(Type in_value) noexcept
-{
-    *value = in_value;
-    return true;
 }
 
 const void* BoolProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<BoolProperty>();
+}
+
+swr::unique_ptr<BoolProperty> BoolProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<BoolProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      std::move(constraint));
 }
 
 /*
@@ -288,37 +338,39 @@ const void* BoolProperty::get_type_tag() const noexcept
 StringProperty::StringProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
   std::size_t max_length,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     std::move(constraint)}
-, value{value}
 , max_length{max_length}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"StringProperty requires non-null value pointer"};
-    }
 }
 
-const StringProperty::Type& StringProperty::get_value() const noexcept
+bool StringProperty::set_value(
+  void* storage,
+  const swr::string& value) const
 {
-    return *value;
+    return set_value(
+      storage,
+      std::string_view{value});
 }
 
-bool StringProperty::set_value(std::string_view in_value)
+bool StringProperty::set_value(
+  void* storage,
+  std::string_view value) const
 {
-    const std::size_t count = std::min(in_value.size(), max_length);
-    value->assign(in_value.data(), count);
+    const std::size_t count = std::min(value.size(), max_length);
+    static_cast<Type*>(storage)->assign(value.data(), count);
     return true;
 }
 
@@ -332,9 +384,35 @@ const void* StringProperty::get_type_tag() const noexcept
     return detail::type_tag<StringProperty>();
 }
 
+swr::unique_ptr<StringProperty> StringProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  std::size_t max_length,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<StringProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      max_length,
+      std::move(constraint));
+}
+
 /*
  * VectorProperty.
  */
+
+void VectorProperty::copy_value(
+  void* dst,
+  const void* src) const
+{
+    assign_fn(dst, src);
+}
 
 const void* VectorProperty::get_type_tag() const noexcept
 {
@@ -348,40 +426,50 @@ const void* VectorProperty::get_type_tag() const noexcept
 PathProperty::PathProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
   swr::shared_ptr<const PropertyConstraint> constraint)
-: Property{
+: TypedProperty{
     name,
     label,
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     std::move(constraint)}
-, value{value}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"PathProperty requires non-null value pointer"};
-    }
 }
 
-const PathProperty::Type& PathProperty::get_value() const noexcept
+bool PathProperty::set_value(
+  void* storage,
+  const std::filesystem::path& value) const
 {
-    return *value;
-}
-
-bool PathProperty::set_value(const std::filesystem::path& in_value)
-{
-    value->assign(in_value);
+    static_cast<std::filesystem::path*>(storage)->assign(value);
     return true;
 }
 
 const void* PathProperty::get_type_tag() const noexcept
 {
     return detail::type_tag<PathProperty>();
+}
+
+swr::unique_ptr<PathProperty> PathProperty::construct(
+  std::string_view name,
+  std::string_view label,
+  std::size_t offset,
+  std::size_t element_count,
+  PropertyFlags flags,
+  swr::shared_ptr<const PropertyConstraint> constraint)
+{
+    return swr::make_unique<PathProperty>(
+      name,
+      label,
+      offset,
+      element_count,
+      flags,
+      std::move(constraint));
 }
 
 }    // namespace reflect

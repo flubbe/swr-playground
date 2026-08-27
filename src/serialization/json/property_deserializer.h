@@ -58,7 +58,8 @@ public:
     }
 
     void visit(
-      reflect::Property& property) override;
+      const reflect::Property& property,
+      void* storage) override;
 };
 
 }    // namespace serial::json

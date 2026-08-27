@@ -21,29 +21,9 @@ struct CustomIntConstraint : reflect::PropertyConstraint
 
 }    // namespace
 
-TEST(BuiltinPropertyTests, ConstructorsRejectNullValuePointers)
-{
-    EXPECT_THROW(
-      reflect::IntProperty("int_value", "Int Value", nullptr, 0),
-      std::invalid_argument);
-    EXPECT_THROW(
-      reflect::UIntProperty("uint_value", "UInt Value", nullptr, 0),
-      std::invalid_argument);
-    EXPECT_THROW(
-      reflect::FloatProperty("float_value", "Float Value", nullptr, 0),
-      std::invalid_argument);
-    EXPECT_THROW(
-      reflect::BoolProperty("bool_value", "Bool Value", nullptr, 0),
-      std::invalid_argument);
-    EXPECT_THROW(
-      reflect::StringProperty("string_value", "String Value", nullptr, 0),
-      std::invalid_argument);
-}
-
 TEST(BuiltinPropertyTests, TypeTagCastsWorkForPropertyBase)
 {
-    int value = 3;
-    reflect::IntProperty int_property("value", "Value", &value, 0);
+    reflect::IntProperty int_property("value", "Value", 0, 0);
     reflect::Property& property = int_property;
 
     EXPECT_TRUE(property.is_type<reflect::IntProperty>());
@@ -53,7 +33,6 @@ TEST(BuiltinPropertyTests, TypeTagCastsWorkForPropertyBase)
 
 TEST(BuiltinPropertyTests, IntPropertyClampsWhenRangeConstraintRequestsIt)
 {
-    int value = 5;
     reflect::RangeConstraint<int> constraint{};
     constraint.min = 0;
     constraint.max = 10;
@@ -62,21 +41,21 @@ TEST(BuiltinPropertyTests, IntPropertyClampsWhenRangeConstraintRequestsIt)
     reflect::IntProperty property(
       "value",
       "Value",
-      &value,
+      0,
       0,
       reflect::PropertyFlags::None,
-      1.0f,
+      1,
       std::make_shared<reflect::RangeConstraint<int>>(constraint));
 
-    EXPECT_TRUE(property.set_value(42));
+    int value = 5;
+    EXPECT_TRUE(property.set_value(&value, 42));
     EXPECT_EQ(value, 10);
-    EXPECT_TRUE(property.set_value(-7));
+    EXPECT_TRUE(property.set_value(&value, -7));
     EXPECT_EQ(value, 0);
 }
 
 TEST(BuiltinPropertyTests, FloatPropertyExposesRangeConstraintMetadata)
 {
-    float value = 0.25f;
     reflect::RangeConstraint<float> constraint{};
     constraint.min = 0.0f;
     constraint.max = 1.0f;
@@ -85,7 +64,7 @@ TEST(BuiltinPropertyTests, FloatPropertyExposesRangeConstraintMetadata)
     reflect::FloatProperty property(
       "value",
       "Value",
-      &value,
+      0,
       0,
       reflect::PropertyFlags::None,
       0.01f,
@@ -105,14 +84,13 @@ TEST(BuiltinPropertyTests, FloatPropertyExposesRangeConstraintMetadata)
 
 TEST(BuiltinPropertyTests, ConstraintTypeLookupReturnsExactTypeOnly)
 {
-    int value = 10;
     auto constraint = std::make_shared<CustomIntConstraint>();
     constraint->marker = 123;
 
     reflect::IntProperty property(
       "value",
       "Value",
-      &value,
+      0,
       0,
       reflect::PropertyFlags::None,
       1.0f,
@@ -144,40 +122,40 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
       reflect::PropertyFactory<int>::construct(
         "i",
         "I",
-        probe.i,
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.i) - base),
+        0,
         reflect::PropertyFlags::None,
         {});
     swr::unique_ptr<reflect::Property> uint_property =
       reflect::PropertyFactory<unsigned int>::construct(
         "u",
         "U",
-        probe.u,
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.u) - base),
+        0,
         reflect::PropertyFlags::None,
         {});
     swr::unique_ptr<reflect::Property> float_property =
       reflect::PropertyFactory<float>::construct(
         "f",
         "F",
-        probe.f,
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.f) - base),
+        0,
         reflect::PropertyFlags::None,
         {});
     swr::unique_ptr<reflect::Property> bool_property =
       reflect::PropertyFactory<bool>::construct(
         "b",
         "B",
-        probe.b,
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.b) - base),
+        0,
         reflect::PropertyFlags::None,
         {});
     swr::unique_ptr<reflect::Property> string_property =
       reflect::PropertyFactory<std::string>::construct(
         "s",
         "S",
-        probe.s,
         static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.s) - base),
+        0,
         reflect::PropertyFlags::None,
         {});
 

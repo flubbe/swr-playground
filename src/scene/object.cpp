@@ -27,58 +27,21 @@ namespace
 /**
  * Copy a reflected property value between same-typed property wrappers.
  *
- * @param dst Destination property wrapper.
- * @param src Source property wrapper.
- * @returns `true` if both wrappers have the same supported type and the value was written.
+ * @param dst Destination object.
+ * @param src Source object.
+ * @param prop Property to copy.
  */
-bool copy_property_value(
-  reflect::Property& dst,
-  const reflect::Property& src)
+void copy_property_value(
+  Object& dst,
+  const Object& src,
+  const reflect::Property& prop)
 {
-    if(auto* p = dst.try_as<reflect::IntProperty>())
-    {
-        const auto* s = src.try_as<reflect::IntProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-    if(auto* p = dst.try_as<reflect::UIntProperty>())
-    {
-        const auto* s = src.try_as<reflect::UIntProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-    if(auto* p = dst.try_as<reflect::FloatProperty>())
-    {
-        const auto* s = src.try_as<reflect::FloatProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-    if(auto* p = dst.try_as<reflect::BoolProperty>())
-    {
-        const auto* s = src.try_as<reflect::BoolProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-    if(auto* p = dst.try_as<reflect::StringProperty>())
-    {
-        const auto* s = src.try_as<reflect::StringProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-#if SWR_CUSTOM_STRING_TYPE
-    if(auto* p = dst.try_as<reflect::SwrStringProperty>())
-    {
-        const auto* s = src.try_as<reflect::SwrStringProperty>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-#endif /* SWR_CUSTOM_STRING_TYPE */
-    if(auto* p = dst.try_as<reflect::Vec4Property>())
-    {
-        const auto* s = src.try_as<reflect::Vec4Property>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
-    if(auto* p = dst.try_as<reflect::Mat4Property>())
-    {
-        const auto* s = src.try_as<reflect::Mat4Property>();
-        return s != nullptr && p->set_value(s->get_value());
-    }
+    auto dst_address = reinterpret_cast<void*>(
+      reinterpret_cast<std::uintptr_t>(&dst) + prop.get_offset());
+    auto src_address = reinterpret_cast<void*>(
+      reinterpret_cast<const std::uintptr_t>(&src) + prop.get_offset());
 
-    return false;
+    prop.copy_value(dst_address, src_address);
 }
 
 /**
@@ -97,7 +60,7 @@ bool copy_property_by_name(
     auto& dst_props = dst_obj.get_properties();
     const auto& src_props = src_obj.get_properties();
 
-    const auto dst_it = std::ranges::find_if(
+    const auto prop_it = std::ranges::find_if(
       dst_props,
       [property_name](const swr::unique_ptr<reflect::Property>& property)
       {
@@ -110,13 +73,34 @@ bool copy_property_by_name(
           return property != nullptr && property->get_name() == property_name;
       });
 
-    if(dst_it == dst_props.end() || *dst_it == nullptr
+    if(prop_it == dst_props.end() || *prop_it == nullptr
        || src_it == src_props.end() || *src_it == nullptr)
     {
         return false;
     }
 
-    return copy_property_value(*(*dst_it), *(*src_it));
+    if((*prop_it)->get_offset() != (*src_it)->get_offset())
+    {
+        throw std::runtime_error{
+          std::format(
+            "Trying to copy property '{}' between incompatible objects '{} {}', '{} {}'.",
+            property_name,
+            dst_obj.get_class()
+              ? dst_obj.get_class()->name
+              : swr::string{"<none>"},
+            dst_obj.get_name(),
+            src_obj.get_class()
+              ? src_obj.get_class()->name
+              : swr::string{"<none>"},
+            src_obj.get_name())};
+    }
+
+    copy_property_value(
+      dst_obj,
+      src_obj,
+      *(*prop_it));
+
+    return true;
 }
 
 }    // namespace
@@ -145,7 +129,8 @@ void Object::register_properties(reflect::ClassInfo& class_info)
 void Object::capture_snapshot()
 {
     const reflect::ClassInfo* cls = get_class();
-    if(cls == nullptr || cls->factory == nullptr)
+    if(cls == nullptr
+       || cls->factory == nullptr)
     {
         snapshot.reset();
         return;
@@ -157,26 +142,21 @@ void Object::capture_snapshot()
         return;
     }
 
-    auto& snap_props = snapshot->get_properties();
-    const auto& cur_props = get_properties();
-    for(const auto& src_property: cur_props)
+    for(const auto& prop: get_properties())
     {
-        if(src_property == nullptr)
+        if(prop == nullptr)
         {
-            continue;
+            throw std::runtime_error{
+              std::format(
+                "Null property in object '{} {}'.",
+                get_class()->name,
+                get_name())};
         }
-        const auto snap_it = std::ranges::find_if(
-          snap_props,
-          [&src_property](const swr::unique_ptr<reflect::Property>& property)
-          {
-              return property != nullptr
-                     && property->get_name() == src_property->get_name();
-          });
-        if(snap_it == snap_props.end() || *snap_it == nullptr)
-        {
-            continue;
-        }
-        copy_property_value(*(*snap_it), *src_property);
+
+        copy_property_value(
+          *snapshot,
+          *this,
+          *prop);
     }
 }
 

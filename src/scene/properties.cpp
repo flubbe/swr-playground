@@ -20,8 +20,8 @@ namespace reflect
 SwrStringProperty::SwrStringProperty(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags,
   std::size_t max_length,
   swr::shared_ptr<const PropertyConstraint> constraint)
@@ -31,26 +31,32 @@ SwrStringProperty::SwrStringProperty(
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     std::move(constraint)}
-, value{value}
 , max_length{max_length}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"SwrStringProperty requires non-null value pointer"};
-    }
 }
 
-const SwrStringProperty::Type& SwrStringProperty::get_value() const noexcept
+void SwrStringProperty::copy_value(
+  void* dst,
+  const void* src) const
 {
-    return *value;
+    *static_cast<Type*>(dst) = *static_cast<const Type*>(src);
 }
 
-bool SwrStringProperty::set_value(std::string_view in_value)
+const SwrStringProperty::Type& SwrStringProperty::get_value(
+  const void* storage) const noexcept
+{
+    return *static_cast<const Type*>(storage);
+}
+
+bool SwrStringProperty::set_value(
+  void* storage,
+  std::string_view in_value) const
 {
     const std::size_t count = std::min(in_value.size(), max_length);
-    value->assign(in_value.data(), count);
+    static_cast<Type*>(storage)->assign(in_value.data(), count);
     return true;
 }
 
@@ -69,8 +75,8 @@ const void* SwrStringProperty::get_type_tag() const noexcept
 Vec4Property::Vec4Property(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags)
 : Property{
     name,
@@ -78,24 +84,30 @@ Vec4Property::Vec4Property(
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     nullptr}
-, value{value}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"Vec4Property requires non-null value pointer"};
-    }
 }
 
-const Vec4Property::Type& Vec4Property::get_value() const noexcept
+void Vec4Property::copy_value(
+  void* dst,
+  const void* src) const
 {
-    return *value;
+    *static_cast<Type*>(dst) = *static_cast<const Type*>(src);
 }
 
-bool Vec4Property::set_value(const Type& in_value) noexcept
+const Vec4Property::Type& Vec4Property::get_value(
+  const void* storage) const noexcept
 {
-    *value = in_value;
+    return *static_cast<const Type*>(storage);
+}
+
+bool Vec4Property::set_value(
+  void* storage,
+  const Type& value) const noexcept
+{
+    *static_cast<Type*>(storage) = value;
     return true;
 }
 
@@ -107,8 +119,8 @@ const void* Vec4Property::get_type_tag() const noexcept
 Mat4Property::Mat4Property(
   std::string_view name,
   std::string_view label,
-  Type* value,
   std::size_t offset,
+  std::size_t element_count,
   PropertyFlags flags)
 : Property{
     name,
@@ -116,24 +128,30 @@ Mat4Property::Mat4Property(
     sizeof(Type),
     offset,
     alignof(Type),
+    element_count,
     flags,
     nullptr}
-, value{value}
 {
-    if(value == nullptr)
-    {
-        throw std::invalid_argument{"Mat4Property requires non-null value pointer"};
-    }
 }
 
-const Mat4Property::Type& Mat4Property::get_value() const noexcept
+void Mat4Property::copy_value(
+  void* dst,
+  const void* src) const
 {
-    return *value;
+    *static_cast<Type*>(dst) = *static_cast<const Type*>(src);
 }
 
-bool Mat4Property::set_value(const Type& in_value) noexcept
+const Mat4Property::Type& Mat4Property::get_value(
+  const void* storage) const noexcept
 {
-    *value = in_value;
+    return *static_cast<const Type*>(storage);
+}
+
+bool Mat4Property::set_value(
+  void* storage,
+  const Type& value) const noexcept
+{
+    *static_cast<Type*>(storage) = value;
     return true;
 }
 

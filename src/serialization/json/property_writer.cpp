@@ -23,45 +23,43 @@ JsonPropertyWriter::JsonPropertyWriter(
 {
 }
 
-void JsonPropertyWriter::visit(
-  reflect::Property& property)
+void JsonPropertyWriter::write_value(
+  const reflect::Property& property,
+  const void* storage)
 {
-    if(!property.is_array_element())
-    {
-        writer.write_key(property.get_name());
-    }
-
     if(auto* p = property.try_as<reflect::IntProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
     else if(auto* p = property.try_as<reflect::UIntProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
     else if(auto* p = property.try_as<reflect::FloatProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
     else if(auto* p = property.try_as<reflect::BoolProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
     else if(auto* p = property.try_as<reflect::StringProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
     else if(auto* p = property.try_as<reflect::PathProperty>())
     {
-        writer.write_val(p->get_value().string());
+        writer.write_val(p->get_value(storage).string());
     }
     else if(auto* p = property.try_as<reflect::VectorProperty>())
     {
         writer.begin_array();
 
-        for(std::size_t i = 0; i < p->get_length(); ++i)
+        for(std::size_t i = 0; i < p->get_element_count(storage); ++i)
         {
-            p->accept_element(i, *this);
+            write_value(
+              p->get_inner(),
+              p->get_element(storage, i));
         }
 
         writer.end_array();
@@ -69,14 +67,14 @@ void JsonPropertyWriter::visit(
 #if SWR_CUSTOM_STRING_TYPE
     else if(auto* p = property.try_as<reflect::SwrStringProperty>())
     {
-        writer.write_val(p->get_value());
+        writer.write_val(p->get_value(storage));
     }
 #endif /* SWR_CUSTOM_STRING_TYPE */
     else if(auto* p = property.try_as<reflect::Mat4Property>())
     {
         writer.begin_array();
 
-        for(const auto& row: p->get_value().rows)
+        for(const auto& row: p->get_value(storage).rows)
         {
             writer.begin_array();
             writer.write_val(row.x);
@@ -90,7 +88,7 @@ void JsonPropertyWriter::visit(
     }
     else if(auto* p = property.try_as<reflect::Vec4Property>())
     {
-        const auto& v = p->get_value();
+        const auto& v = p->get_value(storage);
 
         writer.begin_array();
         writer.write_val(v.x);
@@ -106,6 +104,14 @@ void JsonPropertyWriter::visit(
             "Unable to serialize property '{}' of unsupported type to JSON.",
             property.get_name())};
     }
+}
+
+void JsonPropertyWriter::visit(
+  const reflect::Property& property,
+  const void* storage)
+{
+    writer.write_key(property.get_name());
+    write_value(property, storage);
 }
 
 }    // namespace serial::json

@@ -30,10 +30,10 @@ namespace reflect
  * Forward declarations.
  */
 
+class BoolProperty;
 class IntProperty;
 class UIntProperty;
 class FloatProperty;
-class BoolProperty;
 class StringProperty;
 class Property;
 
@@ -194,14 +194,27 @@ const void* TypedDefault<T>::get_type_tag() const noexcept
 }
 
 /** Visitor interface for properties. */
-class PropertyVisitor
+struct PropertyVisitor
 {
-public:
     /** Virtual destructor. */
     virtual ~PropertyVisitor() = default;
 
     /** Visit a property. */
-    virtual void visit(Property& property) = 0;
+    virtual void visit(
+      const Property& property,
+      void* storage) = 0;
+};
+
+/** Visitor interface for properties. */
+struct ConstPropertyVisitor
+{
+    /** Virtual destructor. */
+    virtual ~ConstPropertyVisitor() = default;
+
+    /** Visit a property. */
+    virtual void visit(
+      const Property& property,
+      const void* value) = 0;
 };
 
 /** Immutable property information. */
@@ -212,6 +225,9 @@ struct PropertyInfo
 
     /** Alignment of the reflected value type in bytes. */
     std::size_t alignment{0};
+
+    /** Element count. If greater than `0`, the property is an array. */
+    std::size_t element_count{0};
 
     /** Property flags. */
     PropertyFlags flags{PropertyFlags::None};
@@ -233,16 +249,19 @@ struct PropertyInfo
      *
      * @param size The property size.
      * @param alignment The property alignment.
+     * @param element_count The element count. If greater than zero, the proeprty is an array.
      * @param flags Property flags.
      * @param constraint Property constraint.
      */
     PropertyInfo(
       std::size_t size,
       std::size_t alignment,
+      std::size_t element_count,
       PropertyFlags flags,
       swr::shared_ptr<const PropertyConstraint> constraint)
     : size{size}
     , alignment{alignment}
+    , element_count{element_count}
     , flags{flags}
     , constraint{constraint}
     {
@@ -273,6 +292,7 @@ public:
      * @param size Property size.
      * @param offset Property offset.
      * @param alignment Property alignment.
+     * @param element_count Element count for arrays, or `0`.
      * @param flags Static property flags.
      * @param constraint Property constraint.
      * @param is_array_element Whether the property is an array element.
@@ -283,9 +303,10 @@ public:
       std::size_t size,
       std::size_t offset,
       std::size_t alignment,
+      std::size_t element_count,
       PropertyFlags flags,
       swr::shared_ptr<const PropertyConstraint> constraint)
-    : info{size, alignment, flags, std::move(constraint)}
+    : info{size, alignment, element_count, flags, std::move(constraint)}
     , name{name.data(), name.size()}
     , label{label.data(), label.size()}
     , offset{offset}
@@ -319,6 +340,28 @@ public:
         return info.alignment;
     }
 
+    /**
+     * Copy a value.
+     *
+     * @param dst The destination.
+     * @param src The source.
+     */
+    virtual void copy_value(
+      void* dst,
+      const void* src) const = 0;
+
+    /**
+     * Get the element count for arrays, and `0` otherwise.
+     *
+     * @param storage Property storage, for dynamic element counts.
+     * @returns Returns the element count.
+     */
+    virtual std::size_t get_element_count(
+      [[maybe_unused]] const void* storage) const noexcept
+    {
+        return info.element_count;
+    }
+
     /** Property flags. */
     PropertyFlags get_flags() const noexcept
     {
@@ -329,12 +372,6 @@ public:
     const swr::shared_ptr<const PropertyConstraint>& get_constraint() const noexcept
     {
         return info.constraint;
-    }
-
-    /** Whether the property is an array element. */
-    bool is_array_element() const
-    {
-        return (get_flags() & PropertyFlags::ArrayElement) != PropertyFlags::None;
     }
 
     /** Byte offset of the reflected value from the owning object base. */
@@ -467,9 +504,61 @@ public:
     }
 
     /** Visitor acceptor. */
-    void accept(PropertyVisitor& visitor)
+    void accept(
+      PropertyVisitor& visitor,
+      void* storage) const
     {
-        visitor.visit(*this);
+        visitor.visit(*this, storage);
+    }
+
+    /** Visitor acceptor. */
+    void accept(
+      ConstPropertyVisitor& visitor,
+      const void* storage) const
+    {
+        visitor.visit(*this, storage);
+    }
+};
+
+/** A typed property, implementing copy, set, get. */
+template<typename T>
+struct TypedProperty
+: public Property
+{
+    using Type = T;
+    using Property::Property;
+
+    void copy_value(
+      void* dst,
+      const void* src) const override
+    {
+        *static_cast<Type*>(dst) = *static_cast<const Type*>(src);
+    }
+
+    /**
+     * Return the current value.
+     *
+     * @param storage Value storage.
+     * @returns The current value.
+     */
+    virtual const Type get_value(
+      const void* storage) const noexcept
+    {
+        return *static_cast<const Type*>(storage);
+    }
+
+    /**
+     * Set the current value.
+     *
+     * @param value New value.
+     * @returns `true` if the new value was set.
+     */
+    virtual bool set_value(
+      void* storage,
+      const Type& value) const
+    {
+        *static_cast<Type*>(storage) = value;
+        return true;
     }
 };
 
@@ -617,7 +706,7 @@ struct PropertyFactory;
  * Type adapter used before property construction.
  *
  * By default, keeps `T` unchanged and returns the input reference.
- * Specialize to expose an underlying reflected type (e.g. wrappers/IDs) via `ValueType` and `get`.
+ * Specialize to expose an underlying reflected type (e.g. wrappers/IDs) via `ValueType`.
  */
 template<typename T>
 struct UnwrapType
@@ -669,6 +758,8 @@ swr::unique_ptr<Property> construct_member(
     using MemberPtrTraits = MemberPointerTraits<decltype(MemberPtr)>;
     using MemberType = typename MemberPtrTraits::MemberType;
 
+    constexpr std::size_t element_count = std::extent_v<MemberType>;
+
     MemberType& value = obj.*MemberPtr;
 
     using MemberTraits = UnwrapType<MemberType>;
@@ -681,8 +772,8 @@ swr::unique_ptr<Property> construct_member(
     return PropertyFactory<UnwrappedType>::construct(
       name,
       label,
-      unwrapped_value,
       property_offset,
+      element_count,
       flags,
       constraint);
 }
