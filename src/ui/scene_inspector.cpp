@@ -642,8 +642,8 @@ void draw_scene_inspector_panel(
                           !property->is_read_only()
                           && object->has_property_snapshot(property->get_name());
                         ImGui::TableSetColumnIndex(1);
-                        auto property_address = reinterpret_cast<std::uintptr_t>(object.get())
-                                                + property->get_offset();
+                        void* property_address = reinterpret_cast<std::byte*>(object.get())
+                                                 + property->get_offset();
                         property->accept(
                           property_renderer,
                           reinterpret_cast<void*>(property_address));

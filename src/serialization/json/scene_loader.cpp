@@ -61,11 +61,11 @@ void deserialize_properties(
           object,
           value.value()};
 
-        auto property_address = reinterpret_cast<std::uintptr_t>(&object)
-                                + property->get_offset();
+        void* property_address = reinterpret_cast<std::byte*>(&object)
+                                 + property->get_offset();
         property->accept(
           visitor,
-          reinterpret_cast<void*>(property_address));
+          property_address);
     }
 
     const auto is_property = [&object](std::string_view name)

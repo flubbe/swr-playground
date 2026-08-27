@@ -116,13 +116,13 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
     };
 
     LayoutProbe probe{};
-    const auto base = reinterpret_cast<std::uintptr_t>(&probe);
+    const auto base = reinterpret_cast<const std::byte*>(&probe);
 
     swr::unique_ptr<reflect::Property> int_property =
       reflect::PropertyFactory<int>::construct(
         "i",
         "I",
-        static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.i) - base),
+        static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.i) - base),
         0,
         reflect::PropertyFlags::None,
         {});
@@ -130,7 +130,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
       reflect::PropertyFactory<unsigned int>::construct(
         "u",
         "U",
-        static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.u) - base),
+        static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.u) - base),
         0,
         reflect::PropertyFlags::None,
         {});
@@ -138,7 +138,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
       reflect::PropertyFactory<float>::construct(
         "f",
         "F",
-        static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.f) - base),
+        static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.f) - base),
         0,
         reflect::PropertyFlags::None,
         {});
@@ -146,7 +146,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
       reflect::PropertyFactory<bool>::construct(
         "b",
         "B",
-        static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.b) - base),
+        static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.b) - base),
         0,
         reflect::PropertyFlags::None,
         {});
@@ -154,7 +154,7 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
       reflect::PropertyFactory<std::string>::construct(
         "s",
         "S",
-        static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.s) - base),
+        static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.s) - base),
         0,
         reflect::PropertyFlags::None,
         {});
@@ -169,29 +169,29 @@ TEST(BuiltinPropertyTests, ExposesSizeAlignmentAndOffsetMetadata)
     EXPECT_EQ(int_property->get_alignment(), alignof(int));
     EXPECT_EQ(
       int_property->get_offset(),
-      static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.i) - base));
+      static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.i) - base));
 
     EXPECT_EQ(uint_property->get_size(), sizeof(unsigned int));
     EXPECT_EQ(uint_property->get_alignment(), alignof(unsigned int));
     EXPECT_EQ(
       uint_property->get_offset(),
-      static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.u) - base));
+      static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.u) - base));
 
     EXPECT_EQ(float_property->get_size(), sizeof(float));
     EXPECT_EQ(float_property->get_alignment(), alignof(float));
     EXPECT_EQ(
       float_property->get_offset(),
-      static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.f) - base));
+      static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.f) - base));
 
     EXPECT_EQ(bool_property->get_size(), sizeof(bool));
     EXPECT_EQ(bool_property->get_alignment(), alignof(bool));
     EXPECT_EQ(
       bool_property->get_offset(),
-      static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.b) - base));
+      static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.b) - base));
 
     EXPECT_EQ(string_property->get_size(), sizeof(std::string));
     EXPECT_EQ(string_property->get_alignment(), alignof(std::string));
     EXPECT_EQ(
       string_property->get_offset(),
-      static_cast<std::size_t>(reinterpret_cast<std::uintptr_t>(&probe.s) - base));
+      static_cast<std::size_t>(reinterpret_cast<const std::byte*>(&probe.s) - base));
 }

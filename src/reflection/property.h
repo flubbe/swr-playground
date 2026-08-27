@@ -766,8 +766,8 @@ swr::unique_ptr<Property> construct_member(
     using UnwrappedType = typename MemberTraits::ValueType;
     UnwrappedType& unwrapped_value = MemberTraits::get(value);
     const std::size_t property_offset = static_cast<std::size_t>(
-      reinterpret_cast<std::uintptr_t>(std::addressof(unwrapped_value))
-      - reinterpret_cast<std::uintptr_t>(std::addressof(obj)));
+      reinterpret_cast<const std::byte*>(std::addressof(unwrapped_value))
+      - reinterpret_cast<const std::byte*>(std::addressof(obj)));
 
     return PropertyFactory<UnwrappedType>::construct(
       name,

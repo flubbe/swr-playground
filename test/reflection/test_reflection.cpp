@@ -843,11 +843,14 @@ TEST(ReflectionSystemTests, ConstructsPropertyFromDescriptor)
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
     EXPECT_EQ(property->get_size(), sizeof(bool));
     EXPECT_EQ(property->get_alignment(), alignof(bool));
+
+    const auto expected_offset =
+      reinterpret_cast<const std::byte*>(std::addressof(child.enabled))
+      - reinterpret_cast<const std::byte*>(std::addressof(child));
     EXPECT_EQ(
       property->get_offset(),
-      static_cast<std::size_t>(
-        reinterpret_cast<std::uintptr_t>(std::addressof(child.enabled))
-        - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
+      static_cast<std::size_t>(expected_offset));
+
     reflect::BoolProperty& bool_property = property->as<reflect::BoolProperty>();
     EXPECT_TRUE(bool_property.get_value(&child.enabled));
     EXPECT_TRUE(bool_property.set_value(&child.enabled, false));
@@ -937,16 +940,17 @@ TEST(ReflectionSystemTests, InheritedDescriptorConstructsDerived)
     ASSERT_TRUE(property->is_type<reflect::StringProperty>());
     EXPECT_EQ(property->get_size(), sizeof(std::string));
     EXPECT_EQ(property->get_alignment(), alignof(std::string));
+
+    const auto expected_offset =
+      reinterpret_cast<const std::byte*>(std::addressof(child.root_name))
+      - reinterpret_cast<const std::byte*>(std::addressof(child));
     EXPECT_EQ(
       property->get_offset(),
-      static_cast<std::size_t>(
-        reinterpret_cast<std::uintptr_t>(std::addressof(child.root_name))
-        - reinterpret_cast<std::uintptr_t>(std::addressof(child))));
+      static_cast<std::size_t>(expected_offset));
 
     auto& string_property = property->as<reflect::StringProperty>();
-    auto root_name_address = reinterpret_cast<std::uintptr_t>(&child) + property->get_offset();
-    EXPECT_EQ(string_property.get_value(
-                reinterpret_cast<const void*>(root_name_address)),
+    auto root_name_address = reinterpret_cast<const std::byte*>(&child) + property->get_offset();
+    EXPECT_EQ(string_property.get_value(root_name_address),
               "root");
 }
 
@@ -998,12 +1002,11 @@ TEST(ReflectionSystemTests, ErasedConstructAdjustsMultiInheritance)
     ASSERT_TRUE(property->is_type<reflect::BoolProperty>());
 
     auto& bool_property = property->as<reflect::BoolProperty>();
-    auto bool_property_address = reinterpret_cast<std::uintptr_t>(&obj)
+    auto bool_property_address = reinterpret_cast<std::byte*>(&obj)
                                  + property->get_offset();
-    EXPECT_FALSE(bool_property.get_value(
-      reinterpret_cast<const void*>(bool_property_address)));
+    EXPECT_FALSE(bool_property.get_value(bool_property_address));
     EXPECT_TRUE(bool_property.set_value(
-      reinterpret_cast<void*>(bool_property_address), true));
+      bool_property_address, true));
     EXPECT_TRUE(obj.local_flag);
     EXPECT_EQ(obj.sentinel, 0xA5A5A5A5u);
 }
@@ -1209,8 +1212,8 @@ TEST(ReflectionSystemTests, ConstructedIntPropertyClampsToRange)
       descriptor->flags,
       descriptor->constraint);
     ASSERT_NE(property, nullptr);
-    auto property_address = reinterpret_cast<void*>(
-      reinterpret_cast<std::uintptr_t>(&instance) + property->get_offset());
+    auto property_address =
+      reinterpret_cast<std::byte*>(&instance) + property->get_offset();
 
     auto* int_property = property->try_as<reflect::IntProperty>();
     ASSERT_NE(int_property, nullptr);

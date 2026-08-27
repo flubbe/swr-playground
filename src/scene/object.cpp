@@ -36,10 +36,10 @@ void copy_property_value(
   const Object& src,
   const reflect::Property& prop)
 {
-    auto dst_address = reinterpret_cast<void*>(
-      reinterpret_cast<std::uintptr_t>(&dst) + prop.get_offset());
-    auto src_address = reinterpret_cast<void*>(
-      reinterpret_cast<const std::uintptr_t>(&src) + prop.get_offset());
+    auto* dst_address =
+      reinterpret_cast<std::byte*>(&dst) + prop.get_offset();
+    auto* src_address =
+      reinterpret_cast<const std::byte*>(&src) + prop.get_offset();
 
     prop.copy_value(dst_address, src_address);
 }
