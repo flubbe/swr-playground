@@ -16,18 +16,13 @@
 #include <ml/all.h>
 
 #include "object.h"
-
-enum class CameraProjectionMode : std::uint8_t
-{
-    Perspective,
-    Orthographic,
-};
+#include "projection_type.h"
 
 class Camera
 : public reflect::Reflected<Camera, Object>
 {
     /** Projection mode. */
-    CameraProjectionMode projection_mode{CameraProjectionMode::Perspective};
+    ProjectionType projection_type{ProjectionType::Perspective};
 
     /** Vertical field-of-view in radians. */
     float fov_y{std::numbers::pi_v<float> / 8.f};
@@ -43,7 +38,7 @@ class Camera
 
     // FIXME clean up.
     float cached_aspect_ratio{1.f};
-    CameraProjectionMode cached_projection_mode{CameraProjectionMode::Perspective};
+    ProjectionType cached_projection_type{ProjectionType::Perspective};
     float cached_fov_y{0.f};
     float cached_orthographic_height{0.f};
     float cached_near_plane{0.f};
@@ -61,8 +56,8 @@ public:
     void update_projection_matrix(float aspect_ratio);
     ml::mat4x4 get_projection_matrix() const;
 
-    void set_projection_mode(CameraProjectionMode mode);
-    CameraProjectionMode get_projection_mode() const noexcept;
+    void set_projection_type(ProjectionType mode);
+    ProjectionType get_projection_type() const noexcept;
     void set_orthographic_height(float height);
     float get_orthographic_height() const noexcept;
 };

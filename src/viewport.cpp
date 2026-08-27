@@ -21,14 +21,14 @@ namespace
 constexpr float editor_camera_default_orbit_distance = 40.f;
 constexpr float editor_camera_default_orthographic_height = 40.f;
 
-CameraProjectionMode get_projection_mode_for_view(EditorCameraView view)
+ProjectionType get_projection_type_for_view(EditorCameraView view)
 {
     if(view == EditorCameraView::Perspective)
     {
-        return CameraProjectionMode::Perspective;
+        return ProjectionType::Perspective;
     }
 
-    return CameraProjectionMode::Orthographic;
+    return ProjectionType::Orthographic;
 }
 
 ml::vec3 make_forward_direction(
@@ -194,7 +194,7 @@ Viewport::Viewport()
 
 void Viewport::sync_local_camera()
 {
-    local_camera.set_projection_mode(get_projection_mode_for_view(editor_camera_view));
+    local_camera.set_projection_type(get_projection_type_for_view(editor_camera_view));
     local_camera.set_orthographic_height(editor_camera_controller.orthographic_height);
     local_camera.set_transform(
       make_view_matrix(
@@ -259,9 +259,9 @@ void Viewport::update_editor_camera(
       ml::to_radians(-90.f),
       ml::to_radians(90.f));
 
-    const CameraProjectionMode projection_mode =
-      get_projection_mode_for_view(editor_camera_view);
-    if(projection_mode == CameraProjectionMode::Orthographic
+    const ProjectionType projection_type =
+      get_projection_type_for_view(editor_camera_view);
+    if(projection_type == ProjectionType::Orthographic
        && input.zoom_delta != 0.f)
     {
         const float zoom_step = std::max(
@@ -274,7 +274,7 @@ void Viewport::update_editor_camera(
 
     if(mode == ViewportNavigationMode::Orbit)
     {
-        if(projection_mode == CameraProjectionMode::Perspective
+        if(projection_type == ProjectionType::Perspective
            && input.zoom_delta != 0.f)
         {
             const float zoom_step = std::max(

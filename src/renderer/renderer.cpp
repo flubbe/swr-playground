@@ -374,8 +374,24 @@ void Renderer::build_render_queue(
                     obj_transform.rows[2].xyz().length()});
         const float world_radius =
           obj_bounds.radius * scale;
-        const float projected_radius_pixels =
-          world_radius * projection.rows[1].y * device.get_height() * 0.5f / distance;
+
+        const float projected_radius_pixels = [&]()
+        {
+            if(projection_type == ProjectionType::Perspective)
+            {
+                return world_radius
+                       * projection.rows[1].y
+                       * device.get_height()
+                       * 0.5f
+                       / distance;
+            }
+
+            return world_radius
+                   * projection.rows[1].y
+                   * device.get_height()
+                   * 0.5f;
+        }();
+
         const float projected_pixel_area =
           std::numbers::pi_v<float> * projected_radius_pixels * projected_radius_pixels;
 
@@ -474,6 +490,7 @@ void Renderer::begin_scene_pass(
      */
     view = camera.get_transform();
     projection = camera.get_projection_matrix();
+    projection_type = camera.get_projection_type();
 
     shadow_linear_filter =
       shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3

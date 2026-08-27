@@ -91,7 +91,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
     }
 
     if(cached_aspect_ratio == aspect_ratio
-       && cached_projection_mode == projection_mode
+       && cached_projection_type == projection_type
        && cached_fov_y == fov_y
        && cached_orthographic_height == orthographic_height
        && cached_near_plane == near_plane
@@ -100,7 +100,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
         return;
     }
 
-    if(projection_mode == CameraProjectionMode::Orthographic)
+    if(projection_type == ProjectionType::Orthographic)
     {
         const float half_height = orthographic_height * 0.5f;
         const float half_width = half_height * aspect_ratio;
@@ -122,7 +122,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
     }
 
     cached_aspect_ratio = aspect_ratio;
-    cached_projection_mode = projection_mode;
+    cached_projection_type = projection_type;
     cached_fov_y = fov_y;
     cached_orthographic_height = orthographic_height;
     cached_near_plane = near_plane;
@@ -134,14 +134,14 @@ ml::mat4x4 Camera::get_projection_matrix() const
     return cached_projection;
 }
 
-void Camera::set_projection_mode(CameraProjectionMode mode)
+void Camera::set_projection_type(ProjectionType mode)
 {
-    projection_mode = mode;
+    projection_type = mode;
 }
 
-CameraProjectionMode Camera::get_projection_mode() const noexcept
+ProjectionType Camera::get_projection_type() const noexcept
 {
-    return projection_mode;
+    return projection_type;
 }
 
 void Camera::set_orthographic_height(float height)

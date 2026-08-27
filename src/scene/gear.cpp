@@ -320,8 +320,9 @@ DEFINE_REFLECTION(Gear);
 
 void Gear::post_load()
 {
-    // TODO construct gear from parameters.
-    logging::warningf("Gear::post_load");
+    clamp_runtime_parameters();
+    built_teeth = teeth;
+    built_tooth_depth = tooth_depth;
 }
 
 void Gear::init(
