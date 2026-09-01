@@ -23,6 +23,10 @@
  */
 
 struct AssetResolver;
+class MaterialManager;
+class MeshManager;
+class RenderDevice;
+class Scene;
 
 /** One renderable level of detail for a static mesh. */
 struct StaticMeshLod
@@ -52,11 +56,14 @@ struct StaticMeshLod
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
 {
+protected:
     assets::AssetPath path;
     swr::vector<assets::AssetPath> materials;
 
     swr::vector<StaticMeshLod> mesh_lods;
     MeshBounds mesh_bounds;
+
+    bool mesh_dirty{false};
 
     void update_bounds() noexcept;
 
@@ -73,6 +80,7 @@ public:
 
     void resolve(AssetResolver& resolver) override;
     void post_load() override;
+    void on_properties_changed() override;
 
     void init(
       const assets::AssetPath& path,
@@ -88,10 +96,32 @@ public:
 
     void clear_mesh_sections() noexcept;
 
+    /**
+     * Marks the mesh as dirty. If the mesh is part of a `Scene`,
+     * the mesh is added to the `Scene`'s dirty list.
+     */
+    void mark_mesh_dirty();
+
+    /** Clear the mesh dirty flag. Does not modify the `Scene`'s dirty list. */
+    void clear_mesh_dirty();
+
+    /** Return whether this mesh is marked as dirty. */
+    [[nodiscard]]
+    bool is_mesh_dirty() const noexcept
+    {
+        return mesh_dirty;
+    }
+
     [[nodiscard]]
     const assets::AssetPath& get_path() const
     {
         return path;
+    }
+
+    [[nodiscard]]
+    const swr::vector<assets::AssetPath>& get_material_paths() const
+    {
+        return materials;
     }
 
     [[nodiscard]]

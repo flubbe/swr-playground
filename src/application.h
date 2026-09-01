@@ -235,6 +235,9 @@ private:
     /** Render modal loading popup for runtime test tasks. */
     void draw_runtime_test_modal();
 
+    /** Process dirty meshes. */
+    void process_dirty_meshes();
+
 public:
     Application(
       std::string_view title,

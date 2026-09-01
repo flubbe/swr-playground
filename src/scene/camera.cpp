@@ -26,8 +26,17 @@ void Camera::post_load()
 {
     Super::post_load();
 
-    // TODO constuct e.g. perspective matrix
-    logging::warningf("Camera::post_load");
+    // set the caches to the loaded values.
+    // the aspect ratio is potentially updated by the viewport.
+    // FIXME This should be cleaned up.
+
+    cached_aspect_ratio = 0.f;    // 0.f forces an update below.
+    cached_fov_y = fov_y;
+    cached_orthographic_height = orthographic_height;
+    cached_near_plane = near_plane;
+    cached_far_plane = far_plane;
+
+    update_projection_matrix(1.f);
 }
 
 void Camera::register_properties(reflect::ClassInfo& class_info)

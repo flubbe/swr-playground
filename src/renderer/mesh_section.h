@@ -41,9 +41,9 @@ struct MeshSection
      */
 
     /** Mesh handle. */
-    MeshHandle mesh_handle{};
+    MeshHandle mesh_handle;
 
-    /** Material. */
+    /** Material reference. */
     MaterialRef material;
 
     /*

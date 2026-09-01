@@ -337,7 +337,7 @@ TaskSpec make_gear_task(StagedStartupScene& scene)
       .run = [&scene](TaskExecutionContext& context)
       {
           context.update("Generating procedural scene data...", 0.f);
-          get_logger().logf("generating procedural scene data");
+          get_logger().logf("Generating procedural scene data...");
 
           const std::array<GearInit, 3> gears = {{
             {

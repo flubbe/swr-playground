@@ -26,6 +26,8 @@ namespace task_system
 class TaskSystem;
 }    // namespace task_system
 
+class MaterialRef;
+class MeshEntry;
 class RenderDevice;
 
 class MeshManager
@@ -73,7 +75,7 @@ public:
       MaterialRef& material);
 
     [[nodiscard]]
-    std::optional<MeshRef> get(
+    std::optional<MeshRef> try_get(
       const assets::AssetPath& path);
 
     bool delete_mesh(

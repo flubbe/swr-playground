@@ -658,54 +658,6 @@ void imgui_draw_viewport_panel(
  * Startup scene finalization.
  */
 
-GearParameters create_gear_resources(
-  RenderDevice& device,
-  MaterialRef material,
-  const StagedGearInstance& staged)
-{
-    auto inner_mesh_data = MeshData{
-      .primitive_type = PrimitiveType::Triangles,
-      .indices = staged.geometry.inner_indices,
-      .vertices = staged.geometry.inner_vertices,
-      .normals = staged.geometry.inner_normals,
-      .texcoords = {}};
-    auto inner_mesh = device.create_mesh(inner_mesh_data);
-
-    auto outer_mesh_data = MeshData{
-      .primitive_type = PrimitiveType::Triangles,
-      .indices = staged.geometry.outer_indices,
-      .vertices = staged.geometry.outer_vertices,
-      .normals = staged.geometry.outer_normals,
-      .texcoords = {}};
-    auto outer_mesh = device.create_mesh(outer_mesh_data);
-
-    MeshBounds bounds = calculate_mesh_bounds(inner_mesh_data);
-    expand_bounds(bounds, calculate_mesh_bounds(outer_mesh_data));
-
-    return GearParameters{
-      .inner = MeshSection{
-        .material_path = {},
-        .color = staged.color,
-        .mesh_handle = inner_mesh,
-        .material = material,
-        .triangle_count = inner_mesh_data.indices.size() / 3,
-      },
-      .outer = MeshSection{
-        .material_path = {},
-        .color = staged.color,
-        .mesh_handle = outer_mesh,
-        .material = material,
-        .triangle_count = outer_mesh_data.indices.size() / 3,
-      },
-      .bounds = bounds,
-      .inner_radius = staged.inner_radius,
-      .outer_radius = staged.outer_radius,
-      .width = staged.width,
-      .teeth = staged.teeth,
-      .tooth_depth = staged.tooth_depth,
-    };
-}
-
 void add_staged_gears(
   Scene& scene,
   RenderDevice& device,
@@ -714,10 +666,16 @@ void add_staged_gears(
 {
     for(const StagedGearInstance& staged: gears)
     {
-        auto params = create_gear_resources(
+        auto params = Gear::create_gear_resources(
           device,
           material,
-          staged);
+          staged.inner_radius,
+          staged.outer_radius,
+          staged.width,
+          staged.teeth,
+          staged.tooth_depth,
+          staged.color,
+          staged.geometry);
         auto* gear = scene.create_object<Gear>(params);
         gear->casts_shadows = true;
         gear->set_transform(staged.transform);
@@ -937,92 +895,6 @@ TaskSpec make_wait_task(
           }
       },
     };
-}
-
-void rebuild_gear_mesh_if_needed(
-  RenderDevice& device,
-  Gear* gear)
-{
-    if(gear == nullptr)
-    {
-        return;
-    }
-
-    gear->clamp_runtime_parameters();
-    if(!gear->needs_rebuild())
-    {
-        return;
-    }
-
-    const int teeth = std::clamp(
-      gear->get_teeth(),
-      gear_limits::min_teeth,
-      gear_limits::max_teeth);
-
-    // FIXME The copy is here only to update the triangle count below.
-    auto mesh_lods = gear->get_lods();
-
-    // validate assumptions since we'd like to reuse the mesh handle.
-    if(mesh_lods.size() != 1
-       || mesh_lods[0].mesh_sections.size() != 2)
-    {
-        static bool has_warned = false;
-        if(!has_warned)
-        {
-            logging::errorf("Cannot rebuild gear mesh: LOD parameters do not match.");
-            has_warned = true;
-        }
-        return;
-    }
-
-    auto geom = make_gear(
-      gear->get_inner_radius(),
-      gear->get_outer_radius(),
-      gear->get_width(),
-      teeth,
-      gear->get_tooth_depth());
-
-    const MeshHandle old_inner_mesh = mesh_lods[0].mesh_sections[0].mesh_handle;
-    const MeshHandle old_outer_mesh = mesh_lods[0].mesh_sections[1].mesh_handle;
-
-    const bool inner_updated = device.update_mesh(
-      old_inner_mesh,
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = geom.inner_indices,
-        .vertices = geom.inner_vertices,
-        .normals = geom.inner_normals,
-        .texcoords = {}});
-
-    std::uint32_t inner_triangle_count = geom.inner_indices.size() / 3;
-    if(!inner_updated)
-    {
-        // mesh was not updated.
-        inner_triangle_count = mesh_lods[0].mesh_sections[0].triangle_count;
-    }
-
-    const bool outer_updated = device.update_mesh(
-      old_outer_mesh,
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = geom.outer_indices,
-        .vertices = geom.outer_vertices,
-        .normals = geom.outer_normals,
-        .texcoords = {}});
-
-    std::uint32_t outer_triangle_count = geom.outer_indices.size() / 3;
-    if(!outer_updated)
-    {
-        // mesh was not updated.
-        outer_triangle_count = mesh_lods[0].mesh_sections[1].triangle_count;
-    }
-
-    // update triangle count.
-    mesh_lods[0].mesh_sections[0].triangle_count = inner_triangle_count;
-    mesh_lods[0].mesh_sections[1].triangle_count = outer_triangle_count;
-    gear->set_lods(mesh_lods);
-
-    gear->mark_rebuilt();
 }
 
 void configure_default_directional_lights(Scene& scene)
@@ -1259,13 +1131,6 @@ bool Application::pump_messages()
 
 void Application::prepare_frame()
 {
-    memory::frame_bump()->reset();
-    memory::frame_arena()->reset();
-
-    mesh_manager.process_pending();
-    material_manager.process_pending();
-    render_device.process_deferred_deletions();
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -1273,8 +1138,6 @@ void Application::prepare_frame()
 
 void Application::render_frame()
 {
-    update_runtime_test_task();
-
     imgui::draw_main_dockspace(*this);
     imgui_draw_viewport_panel(
       render_device,
@@ -1863,8 +1726,126 @@ void Application::draw_runtime_test_modal()
     ImGui::EndPopup();
 }
 
+void Application::process_dirty_meshes()
+{
+    auto& objects_by_id = scene.get_objects_by_id();
+    for(auto& object_id: scene.get_dirty_meshes())
+    {
+        auto it = objects_by_id.find(object_id);
+        if(it == objects_by_id.end())
+        {
+            logging::warningf(
+              "Deleted object with id '{}' requested reload. Skipping.",
+              object_id.value);
+            continue;
+        }
+
+        auto* mesh = reflect::try_cast<StaticMesh>(it->second);
+        if(mesh == nullptr)
+        {
+            logging::warningf(
+              "Object with id '{}' requested reload, but is not a StaticMesh.",
+              object_id.value);
+            continue;
+        }
+
+        // clear flag here already to never process a mesh twice.
+        mesh->clear_mesh_dirty();
+
+        if(auto* gear = reflect::try_cast<Gear>(mesh))
+        {
+            // TODO Reuse mesh handles if possible.
+
+            // Release mesh handles.
+            for(auto& lod: gear->get_lods())
+            {
+                for(auto& section: lod.mesh_sections)
+                {
+                    render_device.delete_mesh(
+                      section.mesh_handle);
+                }
+            }
+            gear->get_lods().clear();
+
+            auto& material_paths = gear->get_material_paths();
+            if(material_paths.empty())
+            {
+                logging::warningf(
+                  "Cannot create gear mesh '{}': No material set.",
+                  gear->get_name());
+                continue;
+            }
+            if(material_paths.size() > 1)
+            {
+                logging::warningf(
+                  "Too many materials set for gear mesh '{}' (got {}, expected 1). Picking first one.",
+                  gear->get_name(),
+                  material_paths.size());
+            }
+
+            auto material = material_manager.get(material_paths[0]);
+            if(!material.has_value())
+            {
+                logging::errorf(
+                  "Cannot get material '{}' for gear mesh '{}'.",
+                  material_paths[0].path.string(),
+                  gear->get_name());
+                continue;
+            }
+
+            // Generate and upload new mesh.
+            auto geom = gear->generate_mesh();
+
+            auto params = Gear::create_gear_resources(
+              render_device,
+              material.value(),
+              gear->get_inner_radius(),
+              gear->get_outer_radius(),
+              gear->get_width(),
+              gear->get_teeth(),
+              gear->get_tooth_depth(),
+              gear->get_color(),
+              geom);
+
+            gear->init(params);
+        }
+        else
+        {
+            // TODO StaticMesh.
+        }
+    }
+    scene.clear_dirty_meshes();
+}
+
 void Application::tick(float delta_time)
 {
+    /*
+     * Reset per-frame memory.
+     */
+
+    memory::frame_bump()->reset();
+    memory::frame_arena()->reset();
+
+    /*
+     * Process pending tasks from other systems.
+     */
+
+    mesh_manager.process_pending();
+    material_manager.process_pending();
+    render_device.process_deferred_deletions();
+
+    process_dirty_meshes();
+
+    /*
+     * Update background (test) tasks.
+     */
+
+    update_runtime_test_task();
+
+    /*
+     * Input.
+     */
+
     update_viewport_mouse_capture();
     const ViewportNavigationMode navigation_mode = viewport.get_navigation_mode();
     const ViewportEditorCameraInput controller_input =
@@ -1888,12 +1869,9 @@ void Application::tick(float delta_time)
     }
     prev_space_pressed = space_pressed;
 
-    // FIXME temporary until a better update mechanism is in place
-    scene.for_each_object<Gear>(
-      [&](Gear& gear)
-      {
-          rebuild_gear_mesh_if_needed(render_device, &gear);
-      });
+    /*
+     * Scene.
+     */
 
     scene.tick(delta_time);
 }
@@ -2025,6 +2003,8 @@ bool Application::load_scene(
           mesh_manager};
         serial::json::JsonSceneLoader loader{resolver};
         loader.load(scene, contents);
+
+        scene.add_default_systems();
     }
     catch(const std::runtime_error& e)
     {

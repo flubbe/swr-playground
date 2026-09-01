@@ -233,6 +233,14 @@ void JsonSceneLoader::load(
     scene.for_each_object<Object>(
       [](Object& obj)
       { obj.post_load(); });
+
+    /*
+     * Capture snapshots.
+     */
+
+    scene.for_each_object<Object>(
+      [](Object& obj)
+      { obj.capture_snapshot(); });
 }
 
 }    // namespace serial::json

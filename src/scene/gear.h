@@ -12,6 +12,12 @@
 
 #include "static_mesh.h"
 
+/*
+ * Forward declarations.
+ */
+
+class RenderDevice;
+
 struct GearGeometry
 {
     std::vector<ml::vec4> inner_vertices;
@@ -48,6 +54,7 @@ GearGeometry make_gear(
 
 struct GearParameters
 {
+    swr::vector<assets::AssetPath> materials;
     MeshSection inner;
     MeshSection outer;
     MeshBounds bounds;
@@ -56,6 +63,7 @@ struct GearParameters
     float width{1.0f};
     int teeth{10};
     float tooth_depth{0.7f};
+    ml::vec4 color{0.5f, 0.5f, 0.5f, 1.0f};
 };
 
 /** A gear object. */
@@ -67,11 +75,9 @@ class Gear
     float width{1.0f};
     int teeth{10};
     float tooth_depth{0.7f};
-    float built_inner_radius{1.0f};
-    float built_outer_radius{2.0f};
-    float built_width{1.0f};
-    int built_teeth{10};
-    float built_tooth_depth{0.7f};
+
+    /** Gear color, gray by default. */
+    ml::vec4 color{0.5f, 0.5f, 0.5f, 1.0f};
 
 public:
     static void register_properties(reflect::ClassInfo& class_info);
@@ -84,10 +90,7 @@ public:
 
     void clamp_runtime_parameters() noexcept;
 
-    [[nodiscard]]
-    bool needs_rebuild() const noexcept;
-
-    void mark_rebuilt() noexcept;
+    GearGeometry generate_mesh() const;
 
     [[nodiscard]]
     float get_inner_radius() const noexcept
@@ -118,6 +121,23 @@ public:
     {
         return tooth_depth;
     }
+
+    [[nodiscard]]
+    ml::vec4 get_color() const noexcept
+    {
+        return color;
+    }
+
+    static GearParameters create_gear_resources(
+      RenderDevice& device,    // FIXME should be MeshManager ?
+      MaterialRef material,
+      float inner_radius,
+      float outer_radius,
+      float width,
+      int teeth,
+      float tooth_depth,
+      const ml::vec4& color,
+      const GearGeometry& geom);
 };
 
 DECLARE_REFLECTION(Scene, Gear);

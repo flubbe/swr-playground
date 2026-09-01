@@ -50,7 +50,7 @@ struct MaterialResources
     const swr::program_base* shader;
 
     /** Optional base-color texture data. */
-    std::optional<assets::ImageRGBA8> base_color;
+    std::optional<assets::ImageRGBA8> base_color_texture;
 
     /** Optional normal-map texture data. */
     std::optional<assets::ImageRGBA8> normal_map;
@@ -77,10 +77,10 @@ class MaterialEntry
     swr::string name;
 
     /** Optional base-color texture referenced by this material. */
-    std::optional<TextureRef> base_color;
+    std::optional<TextureRef> base_color_texture;
 
     /** Optional normal-map texture referenced by this material. */
-    std::optional<TextureRef> normal;
+    std::optional<TextureRef> normal_texture;
 
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;

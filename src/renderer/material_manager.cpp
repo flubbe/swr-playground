@@ -74,8 +74,8 @@ void MaterialEntry::finalize()
 
               // TODO Shader release is handled by the cache.
 
-              base_color.reset();
-              normal.reset();
+              base_color_texture.reset();
+              normal_texture.reset();
           }
       });
 
@@ -86,16 +86,16 @@ void MaterialEntry::finalize()
       loaded.description.shader,
       loaded.shader);
 
-    if(loaded.base_color.has_value())
+    if(loaded.base_color_texture.has_value())
     {
-        const std::uint64_t hash = TextureCache::compute_hash(*loaded.base_color);
+        const std::uint64_t hash = TextureCache::compute_hash(*loaded.base_color_texture);
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        base_color = texture_cache.load(
+        base_color_texture = texture_cache.load(
           generated_key,
-          *loaded.base_color);
-        material.base_color_handle = base_color->get();
+          *loaded.base_color_texture);
+        material.base_color_handle = base_color_texture->get();
     }
 
     if(loaded.normal_map.has_value())
@@ -104,10 +104,10 @@ void MaterialEntry::finalize()
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        normal = texture_cache.load(
+        normal_texture = texture_cache.load(
           generated_key,
           *loaded.normal_map);
-        material.normal_map_handle = normal->get();
+        material.normal_map_handle = normal_texture->get();
     }
 
     resolved_handle = device.create_material(material);
@@ -197,7 +197,7 @@ MaterialRef MaterialManager::load(
                   throw task_system::TaskCancelledError{};
               }
 
-              resources.base_color = assets::load_texture_rgba8(
+              resources.base_color_texture = assets::load_texture_rgba8(
                 resources.description.base_color.value().path);
           }
 

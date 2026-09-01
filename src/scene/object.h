@@ -26,6 +26,7 @@
  */
 
 struct AssetResolver;
+class Scene;
 
 /** An object identifier. */
 struct ObjectId
@@ -82,19 +83,22 @@ class Object
 public:
     static void register_properties(reflect::ClassInfo& class_info);
 
-    /** object id. */
+    /** Object id. */
     ObjectId object_id{0};
 
-    /** object name. */
+    /** Object name. */
     swr::string name;
 
-    /** object transformation matrix. */
+    /** Object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** Whether the object should be rendered when supported by the renderer. */
     bool visible{true};
 
 protected:
+    /** Containing scene. */
+    Scene* scene{nullptr};
+
     /** per-instance baseline snapshot object. */
     swr::unique_ptr<Object> snapshot;
 
@@ -192,6 +196,17 @@ public:
       std::string_view object_name)
     {
         name = object_name;
+    }
+
+    /**
+     * Set the containing scene.
+     *
+     * @param scene The containing scene.
+     */
+    void set_scene(
+      Scene* scene) noexcept
+    {
+        this->scene = scene;
     }
 
     /** Release all data. */

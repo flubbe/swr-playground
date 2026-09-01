@@ -25,14 +25,24 @@ Scene::Scene()
 
 void Scene::clear()
 {
+    systems.clear();
+
     for(auto& obj: objects)
     {
         obj->release();
     }
-
     objects.clear();
-    objects_by_id.clear();
+    object_name_counters.clear();
+
+    next_id = 0;
+
     spin_animations.clear();
+    objects_by_id.clear();
+
+    time = 0.f;
+    paused = false;
+
+    dirty_meshes.clear();
 }
 
 void Scene::tick(float delta_time)

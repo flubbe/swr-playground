@@ -12,9 +12,11 @@
 
 #include "assets/path_formatter.h"
 #include "reflection/builtin_properties.h"
+#include "renderer/mesh_manager.h"
 #include "scene/properties.h"
 #include "asset_resolver.h"
 #include "logging.h"
+#include "scene.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -50,12 +52,6 @@ void StaticMesh::resolve(
 {
     mesh_lods.clear();
 
-    if(path.path.empty())
-    {
-        // Parametric asset.
-        return;
-    }
-
     // TODO
 
     if(materials.empty())
@@ -64,6 +60,12 @@ void StaticMesh::resolve(
           "StaticMesh '{}' doesn't declare materials.",
           path);
 
+        return;
+    }
+
+    if(path.path.empty())
+    {
+        // Parametric asset.
         return;
     }
 
@@ -83,10 +85,12 @@ void StaticMesh::resolve(
 
 void StaticMesh::post_load()
 {
-    // TODO Construct mesh/LODs from path.
-    //      Likely should be conditional for meshes defined inline?
+    mark_mesh_dirty();
+}
 
-    logging::warningf("StaticMesh::post_load");
+void StaticMesh::on_properties_changed()
+{
+    mark_mesh_dirty();
 }
 
 void StaticMesh::init(
@@ -124,6 +128,21 @@ void StaticMesh::clear_mesh_sections() noexcept
 {
     mesh_lods.clear();
     update_bounds();
+}
+
+void StaticMesh::mark_mesh_dirty()
+{
+    mesh_dirty = true;
+
+    if(scene != nullptr)
+    {
+        scene->mark_mesh_dirty(object_id);
+    }
+}
+
+void StaticMesh::clear_mesh_dirty()
+{
+    mesh_dirty = false;
 }
 
 void StaticMesh::update_bounds() noexcept

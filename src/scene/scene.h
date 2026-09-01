@@ -18,6 +18,7 @@
 
 #include "containers/memory.h"
 #include "containers/unordered_map.h"
+#include "containers/unordered_set.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
 #include "reflection/construct.h"
@@ -62,6 +63,9 @@ class Scene
 
     /** whether to update. */
     bool paused{false};
+
+    /** Dirty meshes, as object id's. */
+    swr::unordered_set<ObjectId> dirty_meshes;
 
 public:
     Scene();
@@ -314,6 +318,8 @@ public:
 
         objects.emplace_back(std::move(obj));
         objects_by_id.emplace(object_id, object_ptr);
+
+        object_ptr->set_scene(this);
     }
 
     template<typename T, typename... Args>
@@ -325,6 +331,28 @@ public:
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;
+    }
+
+    /** Clear dirty mesh list. */
+    void clear_dirty_meshes()
+    {
+        dirty_meshes.clear();
+    }
+
+    /** Return the dirty meshes, via object id. */
+    const swr::unordered_set<ObjectId>& get_dirty_meshes() const
+    {
+        return dirty_meshes;
+    }
+
+    /**
+     * Mark a mesh as dirty.
+     *
+     * @param object_id The mesh object id.
+     */
+    void mark_mesh_dirty(ObjectId object_id)
+    {
+        dirty_meshes.insert(object_id);
     }
 
     /*
