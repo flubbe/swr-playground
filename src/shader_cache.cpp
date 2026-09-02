@@ -27,16 +27,13 @@ ShaderHandle ShaderCache::load(
     return shader_handle;
 }
 
-bool ShaderCache::delete_shader(
+void ShaderCache::delete_shader(
   std::string_view key)
 {
     if(auto it = shader_map.find(key);
        it != shader_map.end())
     {
-        device.delete_shader(it->second);
         shader_map.erase(it);
-        return true;
+        device.defer_delete(it->second);
     }
-
-    return false;
 }

@@ -5,7 +5,7 @@
 #include "serialization/archive.h"
 #include "serialization/containers.h"
 #include "serialization/file.h"
-#include "serialization/json/json_writer.h"
+#include "serialization/json/writer.h"
 #include "serialization/memory.h"
 
 #include "../utils.h"

@@ -13,7 +13,12 @@
 #include <algorithm>
 
 #include "reflection/builtin_properties.h"
+#include "renderer/material_manager.h"
+#include "renderer/mesh_manager.h"
+#include "renderer/render_device.h"
 #include "gear.h"
+#include "logging.h"
+#include "properties.h"
 
 /** create the gear geometry. the code here is adapted from glxgears.c. */
 GearGeometry make_gear(
@@ -317,11 +322,17 @@ DEFINE_REFLECTION(Gear);
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+void Gear::post_load()
+{
+    Super::post_load();
+}
+
 void Gear::init(
   const GearParameters& params)
 {
     Reflected<Gear, StaticMesh>::init(
-      "",
+      assets::AssetPath{},
+      params.materials,
       swr::vector{params.inner, params.outer},
       params.bounds);
 
@@ -330,15 +341,19 @@ void Gear::init(
     width = params.width;
     teeth = params.teeth;
     tooth_depth = params.tooth_depth;
-    built_inner_radius = params.inner_radius;
-    built_outer_radius = params.outer_radius;
-    built_width = params.width;
-    built_teeth = params.teeth;
-    built_tooth_depth = params.tooth_depth;
+    color = params.color;
 
-    clamp_runtime_parameters();
-    built_teeth = teeth;
-    built_tooth_depth = tooth_depth;
+    mark_mesh_dirty();
+}
+
+GearGeometry Gear::generate_mesh() const
+{
+    return make_gear(
+      get_inner_radius(),
+      get_outer_radius(),
+      get_width(),
+      get_teeth(),
+      get_tooth_depth());
 }
 
 void Gear::clamp_runtime_parameters() noexcept
@@ -373,29 +388,6 @@ void Gear::clamp_runtime_parameters() noexcept
       tooth_depth,
       gear_limits::min_tooth_depth,
       max_allowed_depth);
-}
-
-bool Gear::needs_rebuild() const noexcept
-{
-    const auto changed_float = [](float a, float b) noexcept
-    {
-        return std::fabs(a - b) > 1e-6f;
-    };
-
-    return changed_float(inner_radius, built_inner_radius)
-           || changed_float(outer_radius, built_outer_radius)
-           || changed_float(width, built_width)
-           || teeth != built_teeth
-           || changed_float(tooth_depth, built_tooth_depth);
-}
-
-void Gear::mark_rebuilt() noexcept
-{
-    built_inner_radius = inner_radius;
-    built_outer_radius = outer_radius;
-    built_width = width;
-    built_teeth = teeth;
-    built_tooth_depth = tooth_depth;
 }
 
 void Gear::register_properties(
@@ -461,4 +453,61 @@ void Gear::register_properties(
       "Tooth Depth",
       reflect::PropertyFlags::None,
       tooth_depth_constraint);
+    reflect::register_property<&Gear::color>(
+      class_info,
+      "color",
+      "Color");
+}
+
+GearParameters Gear::create_gear_resources(
+  RenderDevice& device,
+  MaterialRef material,
+  float inner_radius,
+  float outer_radius,
+  float width,
+  int teeth,
+  float tooth_depth,
+  const ml::vec4& color,
+  const GearGeometry& geom)
+{
+    auto inner_mesh_data = MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = geom.inner_indices,
+      .vertices = geom.inner_vertices,
+      .normals = geom.inner_normals,
+      .texcoords = {}};
+    auto inner_mesh = device.create_mesh(inner_mesh_data);
+
+    auto outer_mesh_data = MeshData{
+      .primitive_type = PrimitiveType::Triangles,
+      .indices = geom.outer_indices,
+      .vertices = geom.outer_vertices,
+      .normals = geom.outer_normals,
+      .texcoords = {}};
+    auto outer_mesh = device.create_mesh(outer_mesh_data);
+
+    MeshBounds bounds = calculate_mesh_bounds(inner_mesh_data);
+    expand_bounds(bounds, calculate_mesh_bounds(outer_mesh_data));
+
+    return GearParameters{
+      .materials = {material.get_path()},
+      .inner = MeshSection{
+        .color = color,
+        .mesh_handle = inner_mesh,
+        .material = material,
+        .triangle_count = inner_mesh_data.indices.size() / 3,
+      },
+      .outer = MeshSection{
+        .color = color,
+        .mesh_handle = outer_mesh,
+        .material = material,
+        .triangle_count = outer_mesh_data.indices.size() / 3,
+      },
+      .bounds = bounds,
+      .inner_radius = inner_radius,
+      .outer_radius = outer_radius,
+      .width = width,
+      .teeth = teeth,
+      .tooth_depth = tooth_depth,
+      .color = color};
 }

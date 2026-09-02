@@ -13,7 +13,8 @@
 #include "scene/scene.h"
 #include "system.h"
 
-class ObjectTickSystem final : public SceneSystem
+class ObjectTickSystem final
+: public SceneSystem
 {
 public:
     void tick(

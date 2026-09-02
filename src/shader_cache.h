@@ -140,8 +140,7 @@ public:
      * Delete a shader by key.
      *
      * @param key Shader key.
-     * @returns Returns `true` if the shader was deleted, and `false` if the key was not found.
      */
-    bool delete_shader(
+    void delete_shader(
       std::string_view key);
 };

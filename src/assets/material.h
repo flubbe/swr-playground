@@ -15,6 +15,7 @@
 
 #include "containers/string.h"
 #include "containers/vector.h"
+#include "path.h"
 #include "texture.h"
 
 namespace assets
@@ -24,7 +25,7 @@ namespace assets
 struct NormalMapDesc
 {
     /** Path. */
-    std::filesystem::path path;
+    AssetPath path;
 
     /** Normal map convention. Either `OpenGL` or `DirectX`. */
     NormalMapConvention convention{NormalMapConvention::OpenGL};
@@ -43,7 +44,7 @@ struct MaterialDesc
     swr::string shader;
 
     /** Optional sRGB base-color texture. */
-    std::optional<std::filesystem::path> base_color;
+    std::optional<AssetPath> base_color;
 
     /** Optional tangent-space normal map. */
     std::optional<NormalMapDesc> normal;

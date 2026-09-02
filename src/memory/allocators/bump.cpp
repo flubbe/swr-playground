@@ -32,8 +32,7 @@ void* BumpAllocator::allocate(
         void* current = base.load(std::memory_order_relaxed);
 
         void* start = align(current, alignment);
-        void* next = reinterpret_cast<void*>(
-          reinterpret_cast<std::uintptr_t>(start) + safe_bytes);
+        void* next = reinterpret_cast<std::byte*>(start) + safe_bytes;
 
         if(next > end)
         {

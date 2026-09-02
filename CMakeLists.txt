@@ -315,9 +315,11 @@ add_executable(swr_playground
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/renderer/material_manager.cpp
+    src/renderer/mesh_section.cpp
+    src/renderer/mesh_manager.cpp
     src/renderer/render_device.cpp
     src/renderer/renderer.cpp
-    src/renderer/resolvable_material.cpp
+    src/renderer/material.cpp
     src/scene/camera.cpp
     src/scene/directional_light.cpp
     src/scene/gear.cpp
@@ -326,8 +328,9 @@ add_executable(swr_playground
     src/scene/properties.cpp
     src/scene/scene.cpp
     src/serialization/file.cpp
-    src/serialization/json/json_property_writer.cpp
-    src/serialization/json/json_scene_loader.cpp
+    src/serialization/json/property_deserializer.cpp
+    src/serialization/json/property_writer.cpp
+    src/serialization/json/scene_loader.cpp
     src/scene/spotlight.cpp
     src/scene/static_mesh.cpp
     src/tasks/dag.cpp
@@ -342,11 +345,13 @@ add_executable(swr_playground
     src/ui/scene_inspector.cpp
     src/ui/tools.cpp
     src/application.cpp
+    src/asset_resolver.cpp
     src/file_manager.cpp
     src/logging.cpp
     src/main.cpp
     src/main_loop.cpp
     src/platform.cpp
+    src/runtime_asset_resolver.cpp
     src/shader_cache.cpp
     src/startup_tasks.cpp
     src/texture_cache.cpp

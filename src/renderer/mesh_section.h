@@ -13,20 +13,36 @@
 #include <cstddef>
 #include <ml/all.h>
 
-#include "resolvable_material.h"
+#include "assets/path.h"
+#include "material.h"
 #include "types.h"
+
+/*
+ * Forward declarations.
+ */
+
+struct AssetResolver;
 
 /** Part of a mesh using one material. */
 struct MeshSection
 {
-    /** Mesh handle. */
-    MeshHandle mesh_handle{};
-
-    /** Material. */
-    ResolvableMaterial material;
+    /*
+     * Serialized.
+     */
 
     /** Base color used by the lighting shader. */
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
+
+    /*
+     * Runtime.
+     */
+
+    /** Mesh handle. */
+    // TODO Make this a MeshRef.
+    MeshHandle mesh_handle;
+
+    /** Material reference. */
+    MaterialRef material;
 
     /*
      * Metadata.
@@ -34,4 +50,11 @@ struct MeshSection
 
     /** Triangle count in this level of detail. */
     std::size_t triangle_count{0};
+
+    /** Dependency resolution. */
+    void resolve(AssetResolver& resolver);
+
+    /** Process section after loading. */
+    void post_load(
+      class MaterialManager& material_manager);
 };

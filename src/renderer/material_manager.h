@@ -16,13 +16,14 @@
 #include <xxhash.h>
 
 #include "assets/material.h"
+#include "assets/path.h"
 #include "assets/texture.h"
 #include "containers/format.h"
 #include "containers/unordered_map.h"
 #include "containers/memory.h"
 #include "tasks/task_system.h"
+#include "render_material.h"
 #include "material.h"
-#include "resolvable_material.h"
 #include "texture_cache.h"
 #include "queue.h"
 
@@ -49,15 +50,17 @@ struct MaterialResources
     const swr::program_base* shader;
 
     /** Optional base-color texture data. */
-    std::optional<assets::ImageRGBA8> base_color;
+    std::optional<assets::ImageRGBA8> base_color_texture;
 
     /** Optional normal-map texture data. */
     std::optional<assets::ImageRGBA8> normal_map;
 };
 
 /** A material entry for a resolvable material. */
-struct MaterialEntry
+class MaterialEntry
 {
+    friend class MaterialManager;
+
     /** Backing render device. */
     RenderDevice& device;
 
@@ -74,14 +77,15 @@ struct MaterialEntry
     swr::string name;
 
     /** Optional base-color texture referenced by this material. */
-    std::optional<TextureRef> base_color;
+    std::optional<TextureRef> base_color_texture;
 
     /** Optional normal-map texture referenced by this material. */
-    std::optional<TextureRef> normal;
+    std::optional<TextureRef> normal_texture;
 
     /** The handle returned once uploaded to the device. */
     std::optional<MaterialHandle> resolved_handle;
 
+public:
     /** Deleted default constructor. */
     MaterialEntry() = delete;
 
@@ -91,7 +95,7 @@ struct MaterialEntry
      * @param device Backing render device.
      * @param shader_cache Backing shader cache.
      * @param texture_cache Backing texture cache.
-     * @param resources The resources future.
+     * @param resources The resources task submission.
      */
     MaterialEntry(
       RenderDevice& device,
@@ -135,9 +139,16 @@ struct MaterialEntry
     /**
      * Finalize material loading.
      *
-     * @note Performs `RenderDevice` upload and needs to be called from the render thread.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
      */
     void finalize();
+
+    /**
+     * Destroy the material handle.
+     *
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
+     */
+    void release();
 
     /** Checks if the underlying future is valid. */
     [[nodiscard]]
@@ -191,13 +202,13 @@ class MaterialManager
     /** Render device reference. */
     RenderDevice& device;
 
-    /** Pending material queue with entries (key, material_entry). */
+    /** Pending material upload queue with entries `(key, material_entry)`. */
     ThreadSafeQueue<
       std::pair<
-        swr::string,
+        assets::AssetPath,
         swr::shared_ptr<
           MaterialEntry>>>
-      pending_materials;
+      pending_upload;
 
     /** Shader cache. */
     ShaderCache& shader_cache;
@@ -210,7 +221,7 @@ class MaterialManager
 
     /** Material cache. */
     swr::unordered_map<
-      swr::string,
+      assets::AssetPath,
       std::weak_ptr<MaterialEntry>>
       material_cache;
 
@@ -231,7 +242,11 @@ public:
     /**
      * Constructor.
      *
+     * @param task_system The task system to use for async loading.
      * @param device The render device for this material manager.
+     * @param shader_cache The shader cache.
+     * @param shader_factory The shader factory.
+     * @param texture_cache The texture cache.
      */
     MaterialManager(
       task_system::TaskSystem& task_system,
@@ -254,6 +269,8 @@ public:
      */
     ~MaterialManager()
     {
+        process_pending();
+
         while(!material_cache.empty())
         {
             delete_material(material_cache.begin()->first);
@@ -272,8 +289,8 @@ public:
      * @param json The JSON string.
      * @returns Returns a resolvable material.
      */
-    ResolvableMaterial load(
-      std::string_view path,
+    MaterialRef load(
+      const assets::AssetPath& path,
       std::string_view json);
 
     /**
@@ -283,15 +300,15 @@ public:
      * @returns Returns a resolvable material, or `std::nullopt` if the key wasn't found.
      */
     [[nodiscard]]
-    std::optional<ResolvableMaterial> get(
-      std::string_view path)
+    std::optional<MaterialRef> get(
+      const assets::AssetPath& path)
     {
         if(auto it = material_cache.find(path);
            it != material_cache.end())
         {
             if(auto texture = it->second.lock())
             {
-                return ResolvableMaterial{
+                return MaterialRef{
                   path,
                   texture};
             }
@@ -304,11 +321,11 @@ public:
      * Delete a material from the cache.
      *
      * @note This only affects the cache. Material handles that are still in use remain valid.
-     * @param key Material key.
+     * @param path Material path.
      * @returns Returns `true` if the material was deleted, and `false` if the key was not found.
      */
     bool delete_material(
-      std::string_view key);
+      const assets::AssetPath& path);
 
     /**
      * Process pending materials.

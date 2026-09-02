@@ -9,14 +9,25 @@
  */
 
 #include "serialization/scene_loader.h"
+#include "asset_resolver.h"
 
 namespace serial::json
 {
 
 /** Load a scene from a JSON description. */
-struct JsonSceneLoader final
+class JsonSceneLoader final
 : public SceneLoader
 {
+    /** Asset resolver reference. */
+    AssetResolver& resolver;
+
+public:
+    explicit JsonSceneLoader(
+      AssetResolver& resolver)
+    : resolver{resolver}
+    {
+    }
+
     void load(
       Scene& scene,
       std::string_view source_text) override;

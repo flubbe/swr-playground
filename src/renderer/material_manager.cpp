@@ -14,6 +14,7 @@
 
 #include <gsl/gsl>
 
+#include "assets/path_formatter.h"
 #include "material_manager.h"
 #include "render_device.h"
 #include "shader_cache.h"
@@ -42,8 +43,7 @@ MaterialEntry::~MaterialEntry()
 {
     if(resolved_handle.has_value())
     {
-        device.delete_material(
-          resolved_handle.value());
+        device.defer_delete(resolved_handle.value());
     }
 }
 
@@ -56,7 +56,7 @@ void MaterialEntry::finalize()
 
     MaterialResources loaded = resources.future.get();
 
-    Material material;
+    RenderMaterial material;
 
     bool success = false;
     auto rollback = gsl::finally(
@@ -74,8 +74,8 @@ void MaterialEntry::finalize()
 
               // TODO Shader release is handled by the cache.
 
-              base_color.reset();
-              normal.reset();
+              base_color_texture.reset();
+              normal_texture.reset();
           }
       });
 
@@ -86,16 +86,16 @@ void MaterialEntry::finalize()
       loaded.description.shader,
       loaded.shader);
 
-    if(loaded.base_color.has_value())
+    if(loaded.base_color_texture.has_value())
     {
-        const std::uint64_t hash = TextureCache::compute_hash(*loaded.base_color);
+        const std::uint64_t hash = TextureCache::compute_hash(*loaded.base_color_texture);
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        base_color = texture_cache.load(
+        base_color_texture = texture_cache.load(
           generated_key,
-          *loaded.base_color);
-        material.base_color_handle = base_color->get();
+          *loaded.base_color_texture);
+        material.base_color_handle = base_color_texture->get();
     }
 
     if(loaded.normal_map.has_value())
@@ -104,22 +104,33 @@ void MaterialEntry::finalize()
         const swr::string generated_key =
           swr::format("hash://{:016x}", hash);
 
-        normal = texture_cache.load(
+        normal_texture = texture_cache.load(
           generated_key,
           *loaded.normal_map);
-        material.normal_map_handle = normal->get();
+        material.normal_map_handle = normal_texture->get();
     }
 
     resolved_handle = device.create_material(material);
     success = true;
 }
 
+void MaterialEntry::release()
+{
+    if(!resolved_handle.has_value())
+    {
+        return;
+    }
+
+    device.delete_material(resolved_handle.value());
+    resolved_handle.reset();
+}
+
 /*
  * MaterialManager.
  */
 
-ResolvableMaterial MaterialManager::load(
-  std::string_view path,
+MaterialRef MaterialManager::load(
+  const assets::AssetPath& path,
   std::string_view json)
 {
     if(auto it = material_cache.find(path);
@@ -131,24 +142,22 @@ ResolvableMaterial MaterialManager::load(
               "Using cached material '{}'.",
               path);
 
-            return ResolvableMaterial{
+            return MaterialRef{
               path,
               material};
         }
 
         // Expired entry.
         get_logger().logf(
-          "Cached material '{}' no longer exists; recreating.",
-          path);
+          "Cache entry expired: '{}'",
+          it->first);
 
         material_cache.erase(it);
     }
-    else
-    {
-        get_logger().logf(
-          "Creating material '{}'.",
-          path);
-    }
+
+    get_logger().logf(
+      "Creating material '{}'.",
+      path);
 
     // The material needs to be loaded. We delegate everything
     // to a task.
@@ -156,7 +165,7 @@ ResolvableMaterial MaterialManager::load(
     auto submission = task_system.submit(
       [shader_factory = &shader_factory,
        json = swr::string{json},
-       path = swr::string{path}](
+       path = assets::AssetPath{path}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
@@ -188,8 +197,8 @@ ResolvableMaterial MaterialManager::load(
                   throw task_system::TaskCancelledError{};
               }
 
-              resources.base_color = assets::load_texture_rgba8(
-                *resources.description.base_color);
+              resources.base_color_texture = assets::load_texture_rgba8(
+                resources.description.base_color.value().path);
           }
 
           if(resources.description.normal.has_value())
@@ -202,7 +211,7 @@ ResolvableMaterial MaterialManager::load(
               const assets::NormalMapDesc& normal_map =
                 *resources.description.normal;
               resources.normal_map = assets::load_normal_map_rgba8(
-                normal_map.path,
+                normal_map.path.path,
                 normal_map.convention);
           }
 
@@ -223,49 +232,67 @@ ResolvableMaterial MaterialManager::load(
       std::move(submission));
 
     material_cache.emplace(
-      swr::string{path},
+      path,
       material);
 
     // Push to pending material queue which is processed on render/main thread.
-    pending_materials.emplace_back(
-      std::make_pair(swr::string{path}, material));
+    pending_upload.emplace_back(
+      std::make_pair(path, material));
 
-    return ResolvableMaterial{path, material};
+    return MaterialRef{path, material};
 }
 
 bool MaterialManager::delete_material(
-  std::string_view path)
+  const assets::AssetPath& path)
 {
     get_logger().logf(
       "Deleting material '{}'.",
       path);
 
-    return material_cache.erase(swr::string{path}) != 0;
+    return material_cache.erase(path) != 0;
 }
 
 void MaterialManager::process_pending()
 {
+    // TODO Could make this subject to a time budget.
+
     using namespace std::chrono_literals;
 
-    // TODO Could make this subject to a time budget.
-    auto material_queue = pending_materials.drain();
+    auto material_queue = pending_upload.drain();
     for(auto& [key, entry]: material_queue)
     {
+        if(entry->is_resolved())
+        {
+            // The entry was resolved externally.
+            continue;
+        }
+
+        if(!entry->resources.future.valid())
+        {
+            // Inconsistent state:
+            // Not resolved, but no future from which to obtain resources.
+            get_logger().errorf(
+              "Material '{}' has no valid loading future.",
+              key);
+            continue;
+        }
+
         if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
         {
             entry->finalize();
             get_logger().logf(
               "Finalized material '{}'.",
               key);
+
+            continue;
         }
-        else
-        {
-            // TODO We could place them into a temporary buffer and add them all at once.
-            pending_materials.emplace_back(
-              std::make_pair(
-                std::move(key),
-                std::move(entry)));
-        }
+
+        // Material is still pending.
+        // TODO We could place them into a temporary buffer and add them all at once.
+        pending_upload.emplace_back(
+          std::make_pair(
+            std::move(key),
+            std::move(entry)));
     }
 }
 

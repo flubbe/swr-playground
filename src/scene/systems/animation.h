@@ -15,7 +15,8 @@
 #include "scene/scene.h"
 #include "system.h"
 
-class AnimationSystem final : public SceneSystem
+class AnimationSystem final
+: public SceneSystem
 {
 public:
     void tick(

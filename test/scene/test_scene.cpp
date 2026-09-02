@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "reflection/class_registry.h"
+#include "serialization/json/scene_loader.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 
@@ -24,12 +25,28 @@ void ensure_scene_reflection_ready()
     initialized = true;
 }
 
-ResolvableMaterial make_test_material()
+MaterialRef make_test_material()
 {
-    return ResolvableMaterial{
-      "Test",
+    return MaterialRef{
+      assets::AssetPath{"Test"},
       nullptr};
 }
+
+MeshSection make_mesh_section(
+  std::uint32_t mesh_handle,
+  std::uint32_t triangle_count = 4)
+{
+    return {
+      .color = {0.f, 1.f, 0.f, 1.f},
+      .mesh_handle = {.value = mesh_handle},
+      .material = make_test_material(),
+      .triangle_count = triangle_count};
+}
+
+struct MockAssetResolver final
+: public AssetResolver
+{
+};
 
 }    // namespace
 
@@ -38,7 +55,7 @@ TEST(SceneTests, AddObjectSynchronizesObjectIndex)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
+    Camera* camera = scene.create_object<Camera>();
     ASSERT_NE(camera, nullptr);
 
     const ObjectId id = camera->get_object_id();
@@ -52,8 +69,8 @@ TEST(SceneTests, TypedFindObjectFiltersByRequestedType)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
-    StaticMesh* mesh = scene.add_object<StaticMesh>();
+    Camera* camera = scene.create_object<Camera>();
+    StaticMesh* mesh = scene.create_object<StaticMesh>();
     ASSERT_NE(camera, nullptr);
     ASSERT_NE(mesh, nullptr);
 
@@ -69,9 +86,9 @@ TEST(SceneTests, ObjectOfFiltersCameras)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* first_camera = scene.add_object<Camera>();
-    [[maybe_unused]] StaticMesh* mesh = scene.add_object<StaticMesh>();
-    Camera* second_camera = scene.add_object<Camera>();
+    Camera* first_camera = scene.create_object<Camera>();
+    [[maybe_unused]] StaticMesh* mesh = scene.create_object<StaticMesh>();
+    Camera* second_camera = scene.create_object<Camera>();
     ASSERT_NE(first_camera, nullptr);
     ASSERT_NE(second_camera, nullptr);
 
@@ -103,7 +120,7 @@ TEST(SceneTests, ClearRemovesObjectIndexAndSpinAnimations)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    Camera* camera = scene.add_object<Camera>();
+    Camera* camera = scene.create_object<Camera>();
     ASSERT_NE(camera, nullptr);
     const ObjectId id = camera->get_object_id();
 
@@ -129,13 +146,11 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
-      "<mesh>",
+    StaticMesh* mesh = scene.create_object<StaticMesh>(
+      assets::AssetPath{"<mesh>"},
+      swr::vector<assets::AssetPath>{},
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 12},
-          .material = make_test_material(),
-          .triangle_count = 4}},
+        make_mesh_section(12)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
@@ -158,38 +173,22 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
 
     StaticMesh mesh;
     mesh.init(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      {},
       swr::vector{
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 10},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {
+            make_mesh_section(10)},
           .triangle_count = 100000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 11},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {make_mesh_section(11)},
           .triangle_count = 10000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections =
-            {
-              MeshSection{
-                .mesh_handle = {.value = 12},
-                .material = make_test_material(),
-                .triangle_count = 4},
-            },
+          .mesh_sections = {make_mesh_section(12)},
           .triangle_count = 1000,
           .bounds = {},
         },
@@ -224,13 +223,10 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
 
     StaticMesh mesh;
     mesh.init(
-      "<mesh>",
+      assets::AssetPath{"<mesh>"},
+      {},
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 10},
-          .material = make_test_material(),
-          .triangle_count = 4},
-      },
+        make_mesh_section(10)},
       bounds);
 
     EXPECT_TRUE(mesh.get_bounds().valid);
@@ -247,14 +243,12 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     ensure_scene_reflection_ready();
 
     Scene scene;
-    [[maybe_unused]] Camera* camera = scene.add_object<Camera>();
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
-      "<mesh>",
+    [[maybe_unused]] Camera* camera = scene.create_object<Camera>();
+    StaticMesh* mesh = scene.create_object<StaticMesh>(
+      assets::AssetPath{"<mesh>"},
+      swr::vector<assets::AssetPath>{},
       swr::vector{
-        MeshSection{
-          .mesh_handle = {.value = 56},
-          .material = make_test_material(),
-          .triangle_count = 4}},
+        make_mesh_section(56)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
@@ -299,7 +293,10 @@ TEST(SceneTests, EmptySaveLoad)
 
     {
         Scene scene;
-        EXPECT_NO_THROW(scene.load("{}"));
+        MockAssetResolver resolver;
+        serial::json::JsonSceneLoader loader{resolver};
+
+        EXPECT_NO_THROW(loader.load(scene, "{}"));
 
         std::size_t object_count{0};
         scene.for_each_object<Object>(
@@ -327,7 +324,8 @@ TEST(SceneTests, SaveLoad)
       "\"name\":\"StaticMesh_1\","
       "\"transform\":[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],"
       "\"visible\":true,"
-      "\"path\":\"\","
+      "\"path\":\"assets/models/car.obj\","
+      "\"materials\":[\"assets/materials/mesh/flat.json\"],"
       "\"casts_shadows\":true,"
       "\"receives_shadows\":false"
       "}"
@@ -335,7 +333,11 @@ TEST(SceneTests, SaveLoad)
 
     {
         Scene scene;
-        auto* mesh = scene.add_object<StaticMesh>();
+        auto* mesh = scene.create_object<StaticMesh>();
+        ASSERT_NO_THROW(mesh->init(
+          assets::AssetPath{"assets/models/car.obj"},
+          {assets::AssetPath{"assets/materials/mesh/flat.json"}},
+          {}));
         ASSERT_NE(mesh, nullptr);
 
         mesh->casts_shadows = true;
@@ -351,7 +353,10 @@ TEST(SceneTests, SaveLoad)
 
     {
         Scene scene;
-        EXPECT_NO_THROW(scene.load(expected));
+        MockAssetResolver resolver;
+        serial::json::JsonSceneLoader loader{resolver};
+
+        EXPECT_NO_THROW(loader.load(scene, expected));
 
         std::size_t object_count{0};
         scene.for_each_object<Object>(
@@ -367,6 +372,17 @@ TEST(SceneTests, SaveLoad)
           {
               ++mesh_count;
           });
-        EXPECT_EQ(mesh_count, 1);
+        ASSERT_EQ(mesh_count, 1);
+
+        auto& objects = scene.get_objects();
+        ASSERT_EQ(objects.size(), 1);
+        ASSERT_NE(objects[0], nullptr);
+        ASSERT_TRUE(objects[0]->is_a(StaticMesh::static_class()));
+
+        auto& mesh = reflect::cast<StaticMesh>(*objects[0]);
+        EXPECT_EQ(mesh.get_name(), "StaticMesh_1");
+        EXPECT_EQ(mesh.casts_shadows, true);
+        EXPECT_EQ(mesh.receives_shadows, false);
+        EXPECT_EQ(mesh.get_path(), assets::AssetPath{"assets/models/car.obj"});
     }
 }

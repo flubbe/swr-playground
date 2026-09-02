@@ -31,6 +31,7 @@
 class FileManager;
 class MainLoop;
 class MaterialManager;
+class MeshManager;
 class RenderDevice;
 class Renderer;
 class Scene;
@@ -100,6 +101,7 @@ class Application
     RenderDevice& render_device;
     Renderer& renderer;
     MaterialManager& material_manager;
+    MeshManager& mesh_manager;
 
     Scene& scene;
     Viewport& viewport;
@@ -233,6 +235,9 @@ private:
     /** Render modal loading popup for runtime test tasks. */
     void draw_runtime_test_modal();
 
+    /** Process dirty meshes. */
+    void process_dirty_meshes();
+
 public:
     Application(
       std::string_view title,
@@ -242,6 +247,7 @@ public:
       RenderDevice& render_device,
       Renderer& renderer,
       MaterialManager& material_manager,
+      MeshManager& mesh_manager,
       Scene& scene,
       Viewport& viewport);
 

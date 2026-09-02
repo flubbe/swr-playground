@@ -18,6 +18,7 @@
 
 #include "containers/memory.h"
 #include "containers/unordered_map.h"
+#include "containers/unordered_set.h"
 #include "containers/vector.h"
 #include "reflection/cast.h"
 #include "reflection/construct.h"
@@ -62,6 +63,9 @@ class Scene
 
     /** whether to update. */
     bool paused{false};
+
+    /** Dirty meshes, as object id's. */
+    swr::unordered_set<ObjectId> dirty_meshes;
 
 public:
     Scene();
@@ -265,9 +269,9 @@ public:
     template<typename T, typename... Args>
         requires(
           std::is_base_of_v<Object, T>)
-    T* add_object(Args&&... args)
+    T* create_object(Args&&... args)
     {
-        return add_object<T>(
+        return create_object<T>(
           reflect::construct_and_init<Object, T>(
             std::forward<Args>(args)...));
     }
@@ -275,10 +279,9 @@ public:
     template<typename T>
         requires(
           std::is_base_of_v<Object, T>)
-    T* add_object(reflect::unique_ptr<T> obj)
+    T* create_object(reflect::unique_ptr<T> obj)
     {
         T* ptr = obj.get();
-        objects.emplace_back(std::move(obj));
 
         // set object id and name,
         std::uint32_t object_id = ++next_id;
@@ -293,9 +296,30 @@ public:
             class_info->name,
             name_counter));
         ptr->capture_snapshot();
-        objects_by_id.emplace(ptr->get_object_id(), ptr);
+
+        add_object(std::move(obj));
 
         return ptr;
+    }
+
+    void add_object(
+      reflect::unique_ptr<Object> obj)
+    {
+        auto object_ptr = obj.get();
+        auto object_id = obj->get_object_id();
+
+        if(objects_by_id.contains(object_id))
+        {
+            throw std::runtime_error{
+              std::format(
+                "Object with id '{}' already exists in scene.",
+                object_id.value)};
+        }
+
+        objects.emplace_back(std::move(obj));
+        objects_by_id.emplace(object_id, object_ptr);
+
+        object_ptr->set_scene(this);
     }
 
     template<typename T, typename... Args>
@@ -307,6 +331,28 @@ public:
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;
+    }
+
+    /** Clear dirty mesh list. */
+    void clear_dirty_meshes()
+    {
+        dirty_meshes.clear();
+    }
+
+    /** Return the dirty meshes, via object id. */
+    const swr::unordered_set<ObjectId>& get_dirty_meshes() const
+    {
+        return dirty_meshes;
+    }
+
+    /**
+     * Mark a mesh as dirty.
+     *
+     * @param object_id The mesh object id.
+     */
+    void mark_mesh_dirty(ObjectId object_id)
+    {
+        dirty_meshes.insert(object_id);
     }
 
     /*
@@ -325,14 +371,6 @@ public:
     swr::string save(
       std::size_t indentation_size = 4,
       bool use_compacted_format = false) const;
-
-    /**
-     * Load the scene from JSON.
-     *
-     * @param text The JSON text.
-     * @throws `std::runtime_error` if loading fails.
-     */
-    void load(const std::string_view& text);
 
     /*
      * Accessors.

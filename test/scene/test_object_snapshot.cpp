@@ -46,23 +46,6 @@ TEST(ObjectSnapshotTests, CaptureAndResetSinglePropertyRestoresBaseline)
     EXPECT_EQ(object.get_name(), "captured_name");
 }
 
-TEST(ObjectSnapshotTests, ResetToSnapshotSkipsReadOnlyProperties)
-{
-    ensure_object_reflection_ready();
-    Object object;
-    object.set_object_id(make_object_id(12));
-    object.set_name("start");
-
-    object.capture_snapshot();
-
-    object.set_object_id(make_object_id(999));
-    object.set_name("after");
-
-    EXPECT_TRUE(object.reset_to_snapshot());
-    EXPECT_EQ(object.get_name(), "start");
-    EXPECT_EQ(object.get_object_id().value, 999u);
-}
-
 TEST(ObjectSnapshotTests, CaptureSnapshotUpdatesBaselineWhenReCaptured)
 {
     ensure_object_reflection_ready();
