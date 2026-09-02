@@ -722,7 +722,6 @@ swr::vector<StaticMeshLod> create_static_mesh_resources(
               staged_lod.bounds);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
-                .material_path = {},
                 .color = section.diffuse_color,
                 .mesh_handle = mesh_handle,
                 .material = material,
@@ -761,7 +760,6 @@ void try_add_textured_floor(
           swr::vector<assets::AssetPath>{},
           swr::vector<MeshSection>{
             MeshSection{
-              .material_path = {},
               .color = {1.f, 1.f, 1.f, 1.f},
               .mesh_handle = *mesh_handle,
               .material = material,
@@ -1397,6 +1395,8 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
+#if 0    // DEBUG
+
     // Load materials.
     const auto floor_material_path = assets::AssetPath{"assets/materials/floor/floor.json"};
     const auto shadowed_material_path = assets::AssetPath{"assets/materials/mesh/lit.json"};
@@ -1461,10 +1461,14 @@ void Application::begin_startup()
         startup_task_handles.push_back(startup_submission.handle);
         startup_task_futures.push_back(std::move(startup_submission.future));
     }
+#endif
 }
 
 bool Application::is_startup_ready() const
 {
+    return true;
+
+#if 0    // DEBUG
     using namespace std::literals;
 
     if(startup_task_futures.empty() || startup_materials == nullptr)
@@ -1483,6 +1487,7 @@ bool Application::is_startup_ready() const
     }
 
     return startup_materials->is_ready();
+#endif
 }
 
 bool Application::finish_startup_if_ready()
@@ -1504,11 +1509,19 @@ bool Application::finish_startup_if_ready()
 
         if(startup_scene == nullptr)
         {
-            throw std::runtime_error{"startup scene state is missing"};
+            // Print an error message.
+            // FIXME Decide if we want to continue (and return true) or fail.
+            logging::errorf(
+              "Startup scene state is missing.");
+            return true;
         }
         if(startup_materials == nullptr)
         {
-            throw std::runtime_error{"startup material state is missing"};
+            // Print an error message.
+            // FIXME Decide if we want to continue (and return true) or fail.
+            logging::errorf(
+              "Startup material state is missing.");
+            return true;
         }
 
         startup_materials->wait();
@@ -1752,6 +1765,35 @@ void Application::process_dirty_meshes()
         // clear flag here already to never process a mesh twice.
         mesh->clear_mesh_dirty();
 
+        auto& material_paths = mesh->get_material_paths();
+        if(material_paths.empty())
+        {
+            logging::warningf(
+              "Cannot create {} {}: No material set.",
+              mesh->get_class()->name,
+              mesh->get_name());
+            continue;
+        }
+        if(material_paths.size() > 1)
+        {
+            logging::warningf(
+              "Too many materials set for {} {} (got {}, expected 1). Picking first one.",
+              mesh->get_class()->name,
+              mesh->get_name(),
+              material_paths.size());
+        }
+
+        auto material = material_manager.get(material_paths[0]);
+        if(!material.has_value())
+        {
+            logging::errorf(
+              "Cannot get material '{}' for {} {}.",
+              material_paths[0].path.string(),
+              mesh->get_class()->name,
+              mesh->get_name());
+            continue;
+        }
+
         if(auto* gear = reflect::try_cast<Gear>(mesh))
         {
             // TODO Reuse mesh handles if possible.
@@ -1766,32 +1808,6 @@ void Application::process_dirty_meshes()
                 }
             }
             gear->get_lods().clear();
-
-            auto& material_paths = gear->get_material_paths();
-            if(material_paths.empty())
-            {
-                logging::warningf(
-                  "Cannot create gear mesh '{}': No material set.",
-                  gear->get_name());
-                continue;
-            }
-            if(material_paths.size() > 1)
-            {
-                logging::warningf(
-                  "Too many materials set for gear mesh '{}' (got {}, expected 1). Picking first one.",
-                  gear->get_name(),
-                  material_paths.size());
-            }
-
-            auto material = material_manager.get(material_paths[0]);
-            if(!material.has_value())
-            {
-                logging::errorf(
-                  "Cannot get material '{}' for gear mesh '{}'.",
-                  material_paths[0].path.string(),
-                  gear->get_name());
-                continue;
-            }
 
             // Generate and upload new mesh.
             auto geom = gear->generate_mesh();
@@ -1811,7 +1827,38 @@ void Application::process_dirty_meshes()
         }
         else
         {
+            auto& path = mesh->get_path();
+            if(path.path.empty())
+            {
+                logging::warningf(
+                  "No asset path for {} {}.",
+                  mesh->get_class()->name,
+                  mesh->get_name());
+                continue;
+            }
+
+            auto mesh_ref = mesh_manager.try_get(path);
+            if(!mesh_ref.has_value())
+            {
+                logging::errorf(
+                  "Asset '{}' not found for {} {}.",
+                  mesh->get_class()->name,
+                  mesh->get_name());
+                continue;
+            }
+
+            // TODO 1. We likely want to forward the MeshRef here, since it might not be resolved yet.
+            //         - MeshSection has MeshHandle's right now, we likely want to change that.
+            //      2. try_get is not correct: It might return nullptr, which then binds to mesh_handles.
+            //      3. The StaticMesh needs LOD's, which seem to be provided by MeshRef, though not directly.
+            const auto& mesh_handles = mesh_ref.value().try_get();
+
             // TODO StaticMesh.
+            logging::warningf(
+              "Application::process_dirty_meshes: {} {} for asset {}",
+              mesh->get_class()->name,
+              mesh->get_name(),
+              mesh->get_path().path.string());
         }
     }
     scene.clear_dirty_meshes();

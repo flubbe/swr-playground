@@ -651,7 +651,6 @@ void Renderer::create_grid_mesh()
 
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
-        .material_path = {},
         .color = color_gray,
         .mesh_handle = device.create_mesh(
           MeshData{
@@ -735,7 +734,6 @@ void Renderer::create_spotlight_depth_debug_mesh()
 
     overlay_spotlight_depth = swr::make_unique<MeshSection>(
       MeshSection{
-        .material_path = {},
         .color = {1.f, 1.f, 1.f, 1.f},
         .mesh_handle = device.create_mesh(
           MeshData{

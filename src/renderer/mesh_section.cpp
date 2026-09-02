@@ -21,12 +21,6 @@
 void MeshSection::resolve(
   AssetResolver& resolver)
 {
-    // For materials not externally loaded.
-    if(material_path.path.empty())
-    {
-        return;
-    }
-
     // TODO
 
     logging::warningf("MeshSection::resolve");
@@ -35,20 +29,4 @@ void MeshSection::resolve(
 void MeshSection::post_load(
   MaterialManager& material_manager)
 {
-    // For materials not externally loaded.
-    if(material_path.path.empty())
-    {
-        return;
-    }
-
-    auto result = material_manager.get(
-      material_path);
-
-    if(!result.has_value())
-    {
-        throw std::runtime_error{
-          std::format(
-            "Could not resolve material '{}' for mesh section.",
-            material_path)};
-    }
 }

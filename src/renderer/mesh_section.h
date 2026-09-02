@@ -30,9 +30,6 @@ struct MeshSection
      * Serialized.
      */
 
-    /** Material path. */
-    assets::AssetPath material_path;
-
     /** Base color used by the lighting shader. */
     ml::vec4 color{1.f, 1.f, 1.f, 1.f};
 
@@ -41,6 +38,7 @@ struct MeshSection
      */
 
     /** Mesh handle. */
+    // TODO Make this a MeshRef.
     MeshHandle mesh_handle;
 
     /** Material reference. */

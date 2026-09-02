@@ -258,7 +258,6 @@ void MeshEntry::finalize()
               staged_lod.bounds);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
-                .material_path = {},
                 .color = section.diffuse_color,
                 .mesh_handle = mesh_handle,
                 .material = material,
@@ -283,6 +282,24 @@ void MeshEntry::release()
     }
 
     resolved_handles.reset();
+}
+
+/*
+ * MeshRef.
+ */
+
+const std::vector<MeshHandle>*
+  MeshRef::try_get() const noexcept
+{
+    if(!mesh)
+    {
+        return nullptr;
+    }
+
+    const auto& handles = mesh->try_get();
+    return handles.has_value()
+             ? &handles.value()
+             : nullptr;
 }
 
 /*

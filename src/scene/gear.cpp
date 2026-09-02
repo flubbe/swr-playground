@@ -492,14 +492,12 @@ GearParameters Gear::create_gear_resources(
     return GearParameters{
       .materials = {material.get_path()},
       .inner = MeshSection{
-        .material_path = {},
         .color = color,
         .mesh_handle = inner_mesh,
         .material = material,
         .triangle_count = inner_mesh_data.indices.size() / 3,
       },
       .outer = MeshSection{
-        .material_path = {},
         .color = color,
         .mesh_handle = outer_mesh,
         .material = material,

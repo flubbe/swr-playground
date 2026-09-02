@@ -33,12 +33,10 @@ MaterialRef make_test_material()
 }
 
 MeshSection make_mesh_section(
-  std::string_view material_path,
   std::uint32_t mesh_handle,
   std::uint32_t triangle_count = 4)
 {
     return {
-      .material_path = assets::AssetPath{material_path},
       .color = {0.f, 1.f, 0.f, 1.f},
       .mesh_handle = {.value = mesh_handle},
       .material = make_test_material(),
@@ -152,7 +150,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
       swr::vector{
-        make_mesh_section("test", 12)},
+        make_mesh_section(12)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 
@@ -180,17 +178,17 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
       swr::vector{
         StaticMeshLod{
           .mesh_sections = {
-            make_mesh_section("test", 10)},
+            make_mesh_section(10)},
           .triangle_count = 100000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections = {make_mesh_section("test", 11)},
+          .mesh_sections = {make_mesh_section(11)},
           .triangle_count = 10000,
           .bounds = {},
         },
         StaticMeshLod{
-          .mesh_sections = {make_mesh_section("test", 12)},
+          .mesh_sections = {make_mesh_section(12)},
           .triangle_count = 1000,
           .bounds = {},
         },
@@ -228,7 +226,7 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
       assets::AssetPath{"<mesh>"},
       {},
       swr::vector{
-        make_mesh_section("test", 10)},
+        make_mesh_section(10)},
       bounds);
 
     EXPECT_TRUE(mesh.get_bounds().valid);
@@ -250,7 +248,7 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
       swr::vector{
-        make_mesh_section("test", 56)},
+        make_mesh_section(56)},
       MeshBounds{});
     ASSERT_NE(mesh, nullptr);
 

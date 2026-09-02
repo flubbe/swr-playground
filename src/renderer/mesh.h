@@ -64,26 +64,12 @@ public:
 
     /** Get the mesh LOD handles. */
     [[nodiscard]]
-    const std::vector<MeshHandle>&
+    const std::vector<MeshHandle>*
       try_get() const noexcept;
 
     /** Get the path identifying this mesh. */
     const assets::AssetPath& get_path() const
     {
         return path;
-    }
-
-    /** Get the `MeshEntry`. */
-    [[nodiscard]]
-    MeshEntry& get_entry()
-    {
-        return *mesh;
-    }
-
-    /** Get the `MeshEntry`. */
-    [[nodiscard]]
-    const MeshEntry& get_entry() const
-    {
-        return *mesh;
     }
 };
