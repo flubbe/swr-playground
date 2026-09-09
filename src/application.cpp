@@ -39,6 +39,7 @@
 #include "renderer/mesh_manager.h"
 #include "renderer/render_device.h"
 #include "renderer/renderer.h"
+#include "scene/floor.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
@@ -787,7 +788,6 @@ StaticMesh* create_static_mesh_instance(
   const assets::AssetPath& path,
   const assets::AssetPath& material_path,
   Scene& scene,
-  const StagedStaticMeshAsset& resources,
   swr::vector<StaticMeshLod> lods,
   const ml::mat4x4& transform)
 {
@@ -795,7 +795,7 @@ StaticMesh* create_static_mesh_instance(
       path,
       swr::vector<assets::AssetPath>{material_path},
       std::move(lods));
-    mesh->set_transform(transform * resources.fit_transform);
+    mesh->set_transform(transform);
     mesh->capture_snapshot();
     return mesh;
 }
@@ -843,7 +843,6 @@ void finalize_startup_scene(
               staged_sample_mesh.path,
               startup_materials.static_mesh.get_path(),
               scene,
-              staged_sample_mesh,
               std::move(lods),
               ml::matrices::translation(mesh_x, 0.f, 5.f));
             sample_mesh->casts_shadows = true;
@@ -1395,8 +1394,6 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
-#if 0    // DEBUG
-
     // Load materials.
     const auto floor_material_path = assets::AssetPath{"assets/materials/floor/floor.json"};
     const auto shadowed_material_path = assets::AssetPath{"assets/materials/mesh/lit.json"};
@@ -1461,14 +1458,10 @@ void Application::begin_startup()
         startup_task_handles.push_back(startup_submission.handle);
         startup_task_futures.push_back(std::move(startup_submission.future));
     }
-#endif
 }
 
 bool Application::is_startup_ready() const
 {
-    return true;
-
-#if 0    // DEBUG
     using namespace std::literals;
 
     if(startup_task_futures.empty() || startup_materials == nullptr)
@@ -1487,7 +1480,6 @@ bool Application::is_startup_ready() const
     }
 
     return startup_materials->is_ready();
-#endif
 }
 
 bool Application::finish_startup_if_ready()
@@ -1762,9 +1754,6 @@ void Application::process_dirty_meshes()
             continue;
         }
 
-        // clear flag here already to never process a mesh twice.
-        mesh->clear_mesh_dirty();
-
         auto& material_paths = mesh->get_material_paths();
         if(material_paths.empty())
         {
@@ -1825,8 +1814,34 @@ void Application::process_dirty_meshes()
 
             gear->init(params);
         }
+        else if(auto* floor = reflect::try_cast<Floor>(mesh))
+        {
+            for(auto& lod: floor->get_lods())
+            {
+                for(auto& section: lod.mesh_sections)
+                {
+                    render_device.delete_mesh(section.mesh_handle);
+                }
+            }
+
+            const MeshData floor_mesh = floor->generate_mesh();
+            const MeshHandle mesh_handle = render_device.create_mesh(floor_mesh);
+            floor->set_lods(
+              {StaticMeshLod{
+                .mesh_sections = {MeshSection{
+                  .color = {1.f, 1.f, 1.f, 1.f},
+                  .mesh_handle = mesh_handle,
+                  .material = material.value(),
+                  .triangle_count = floor_mesh.indices.size() / 3}},
+                .triangle_count = floor_mesh.indices.size() / 3,
+                .bounds = calculate_mesh_bounds(floor_mesh)}});
+            floor->clear_mesh_dirty();
+            continue;
+        }
         else
         {
+            /* StaticMesh. */
+
             auto& path = mesh->get_path();
             if(path.path.empty())
             {
@@ -1842,26 +1857,37 @@ void Application::process_dirty_meshes()
             {
                 logging::errorf(
                   "Asset '{}' not found for {} {}.",
+                  mesh->get_path().path.string(),
                   mesh->get_class()->name,
                   mesh->get_name());
                 continue;
             }
 
-            // TODO 1. We likely want to forward the MeshRef here, since it might not be resolved yet.
-            //         - MeshSection has MeshHandle's right now, we likely want to change that.
-            //      2. try_get is not correct: It might return nullptr, which then binds to mesh_handles.
-            //      3. The StaticMesh needs LOD's, which seem to be provided by MeshRef, though not directly.
-            const auto& mesh_handles = mesh_ref.value().try_get();
+            const auto* lods = mesh_ref.value().try_get_lods();
+            if(lods == nullptr)
+            {
+                continue;
+            }
 
-            // TODO StaticMesh.
-            logging::warningf(
-              "Application::process_dirty_meshes: {} {} for asset {}",
-              mesh->get_class()->name,
-              mesh->get_name(),
-              mesh->get_path().path.string());
+            mesh->set_lods(*lods);
+            mesh->set_mesh_ref(
+              std::move(mesh_ref.value()));
         }
+
+        mesh->clear_mesh_dirty();
     }
+
+    // FIXME The code doesn't clear the still-dirty meshes (on purpose),
+    //       but it's done by clear-all & re-insert.
     scene.clear_dirty_meshes();
+    scene.for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          if(mesh.is_mesh_dirty())
+          {
+              scene.mark_mesh_dirty(mesh.get_object_id());
+          }
+      });
 }
 
 void Application::tick(float delta_time)
@@ -1877,9 +1903,15 @@ void Application::tick(float delta_time)
      * Process pending tasks from other systems.
      */
 
+    // Release resources from a previous scene before creating replacement resources.
+    // FIXME We don't really want to do this, since we could/should keep assets.
+    //       But we cannot simply re-order the logic here, since processing first
+    //       doesn't update deferred deletions, so we could end up in an inconsistent
+    //       state with deleted-but-used assets.
+    render_device.process_deferred_deletions();
+
     mesh_manager.process_pending();
     material_manager.process_pending();
-    render_device.process_deferred_deletions();
 
     process_dirty_meshes();
 
@@ -2040,6 +2072,10 @@ void Application::set_floor_material(FloorMaterial type)
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
+    logging::logf(
+      "Loading scene '{}'...",
+      path.string());
+
     auto contents = read_text_file(file_manager, path);
 
     try

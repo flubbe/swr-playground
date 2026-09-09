@@ -78,7 +78,7 @@ void StaticMesh::resolve(
     }
 
     // TODO pick first material.
-    resolver.resolve_static_mesh(
+    mesh_ref = resolver.resolve_static_mesh(
       path,
       material_refs[0]);
 }

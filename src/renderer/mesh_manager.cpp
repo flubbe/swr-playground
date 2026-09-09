@@ -88,10 +88,10 @@ class MeshEntry
     /** CPU mesh data. deleted after driver upload. */
     task_system::TaskSubmission<StagedStaticMeshAsset> resources;
 
-    /** Mesh LOD handles. */
+    /** Resolved mesh LODs and their GPU handles. */
     std::optional<
-      std::vector<MeshHandle>>
-      resolved_handles;
+      swr::vector<StaticMeshLod>>
+      resolved_lods;
 
 public:
     /** Deleted default constructor. */
@@ -111,7 +111,7 @@ public:
     : device{device}
     , material{material}
     , resources{std::move(resources)}
-    , resolved_handles{std::nullopt}
+    , resolved_lods{std::nullopt}
     {
     }
 
@@ -125,19 +125,19 @@ public:
     [[nodiscard]]
     bool is_resolved() const noexcept
     {
-        return resolved_handles.has_value();
+        return resolved_lods.has_value();
     }
 
     /**
-     * Get the mesh handle if the mesh is resolved.
+     * Get the mesh LODs if the mesh is resolved.
      *
-     * @returns Returns the mesh handle if available, or `std::nullopt`.
+     * @returns Returns the mesh LODs if available, or `std::nullopt`.
      */
     const std::optional<
-      std::vector<MeshHandle>>&
-      try_get() const noexcept
+      swr::vector<StaticMeshLod>>&
+      try_get_lods() const noexcept
     {
-        return resolved_handles;
+        return resolved_lods;
     }
 
     /**
@@ -199,23 +199,32 @@ public:
 
 MeshEntry::~MeshEntry()
 {
-    if(resolved_handles.has_value())
+    if(resolved_lods.has_value())
     {
-        for(auto handle: resolved_handles.value())
+        for(const auto& lod: resolved_lods.value())
         {
-            device.defer_delete(handle);
+            for(const auto& section: lod.mesh_sections)
+            {
+                device.defer_delete(section.mesh_handle);
+            }
         }
     }
 }
 
 void MeshEntry::finalize()
 {
-    if(resolved_handles.has_value())
+    if(resolved_lods.has_value())
     {
         return;
     }
 
     StagedStaticMeshAsset loaded = resources.future.get();
+    if(loaded.sections.empty())
+    {
+        throw std::runtime_error{
+          "Mesh asset contains no renderable sections."};
+    }
+
     swr::vector<StaticMeshLod> result_lods;
 
     bool success = false;
@@ -252,10 +261,12 @@ void MeshEntry::finalize()
         {
             const StagedStaticMeshSectionLod& staged_lod =
               section.lods[lod_index];
-            const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
+
             expand_bounds(
               result_lods[lod_index].bounds,
               staged_lod.bounds);
+
+            const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .color = section.diffuse_color,
@@ -266,39 +277,43 @@ void MeshEntry::finalize()
         }
     }
 
+    resolved_lods = std::move(result_lods);
     success = true;
 }
 
 void MeshEntry::release()
 {
-    if(!resolved_handles.has_value())
+    if(!resolved_lods.has_value())
     {
         return;
     }
 
-    for(auto& handle: resolved_handles.value())
+    for(auto& lod: resolved_lods.value())
     {
-        device.delete_mesh(handle);
+        for(auto& section: lod.mesh_sections)
+        {
+            device.delete_mesh(section.mesh_handle);
+        }
     }
 
-    resolved_handles.reset();
+    resolved_lods.reset();
 }
 
 /*
  * MeshRef.
  */
 
-const std::vector<MeshHandle>*
-  MeshRef::try_get() const noexcept
+const swr::vector<StaticMeshLod>*
+  MeshRef::try_get_lods() const noexcept
 {
     if(!mesh)
     {
         return nullptr;
     }
 
-    const auto& handles = mesh->try_get();
-    return handles.has_value()
-             ? &handles.value()
+    const auto& lods = mesh->try_get_lods();
+    return lods.has_value()
+             ? &lods.value()
              : nullptr;
 }
 
@@ -367,7 +382,6 @@ MeshRef MeshManager::load(
 
           return StagedStaticMeshAsset{
             .path = path,
-            .fit_transform = ml::mat4x4::identity(),    // FIXME remove at some point?
             .sections = std::move(sections),
           };
       });
@@ -446,10 +460,20 @@ void MeshManager::process_pending()
 
         if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
         {
-            entry->finalize();
-            get_logger().logf(
-              "Finalized mesh '{}'.",
-              key);
+            try
+            {
+                entry->finalize();
+                get_logger().logf(
+                  "Finalized mesh '{}'.",
+                  key);
+            }
+            catch(const std::exception& error)
+            {
+                get_logger().errorf(
+                  "Failed to finalize mesh '{}': {}",
+                  key,
+                  error.what());
+            }
 
             continue;
         }

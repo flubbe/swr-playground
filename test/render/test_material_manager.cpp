@@ -1,8 +1,5 @@
 #include <ranges>
 
-#include <swr/swr.h>
-#include <swr/shaders.h>
-
 #include <gtest/gtest.h>
 
 #include "tasks/task_system.h"

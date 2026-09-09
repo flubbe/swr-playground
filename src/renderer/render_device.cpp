@@ -254,6 +254,9 @@ TextureHandle RenderDevice::create_texture(
           }
       });
 
+    // FIXME Reset the error state, since on reload, some call produces an error.
+    swr::GetLastError();
+
     swr::ActiveTexture(swr::texture_0);
     swr::BindTexture(swr::texture_target::texture_2d, texture_id);
     swr::SetImage(
@@ -263,9 +266,12 @@ TextureHandle RenderDevice::create_texture(
       static_cast<std::size_t>(image.height),
       swr::pixel_format::rgba8888,
       {image.pixels.begin(), image.pixels.end()});    // FIXME Copies. SetImage should take a span.
-    if(swr::GetLastError() != swr::error::none)
+    if(auto err = swr::GetLastError(); err != swr::error::none)
     {
-        throw std::runtime_error{"Unable to upload texture image"};
+        throw std::runtime_error{
+          std::format(
+            "Unable to upload texture image, got error {}",
+            static_cast<int>(err))};
     }
 
     swr::SetTextureWrapMode(

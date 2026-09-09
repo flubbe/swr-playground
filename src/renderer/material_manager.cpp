@@ -279,10 +279,20 @@ void MaterialManager::process_pending()
 
         if(entry->resources.future.wait_for(0ms) == std::future_status::ready)
         {
-            entry->finalize();
-            get_logger().logf(
-              "Finalized material '{}'.",
-              key);
+            try
+            {
+                entry->finalize();
+                get_logger().logf(
+                  "Finalized material '{}'.",
+                  key);
+            }
+            catch(const std::exception& error)
+            {
+                get_logger().errorf(
+                  "Failed to finalize material '{}': {}",
+                  key,
+                  error.what());
+            }
 
             continue;
         }

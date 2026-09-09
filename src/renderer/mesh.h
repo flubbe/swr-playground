@@ -21,6 +21,7 @@
 
 class MeshEntry;
 class RenderDevice;
+struct StaticMeshLod;
 
 /** A mesh that is asynchronously loaded. */
 class MeshRef
@@ -62,10 +63,10 @@ public:
         return static_cast<bool>(mesh);
     }
 
-    /** Get the mesh LOD handles. */
+    /** Get the resolved mesh LODs. */
     [[nodiscard]]
-    const std::vector<MeshHandle>*
-      try_get() const noexcept;
+    const swr::vector<StaticMeshLod>*
+      try_get_lods() const noexcept;
 
     /** Get the path identifying this mesh. */
     const assets::AssetPath& get_path() const

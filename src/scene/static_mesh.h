@@ -12,9 +12,11 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 
 #include "containers/vector.h"
 #include "meshes/mesh.h"
+#include "renderer/mesh.h"
 #include "renderer/mesh_section.h"
 #include "object.h"
 
@@ -61,6 +63,8 @@ protected:
     swr::vector<assets::AssetPath> materials;
 
     swr::vector<StaticMeshLod> mesh_lods;
+    std::optional<MeshRef> mesh_ref;
+
     MeshBounds mesh_bounds;
 
     bool mesh_dirty{false};
@@ -93,6 +97,11 @@ public:
       swr::vector<StaticMeshLod> lods);
 
     void set_lods(swr::vector<StaticMeshLod> lods);
+
+    void set_mesh_ref(MeshRef ref)
+    {
+        mesh_ref = std::move(ref);
+    }
 
     void clear_mesh_sections() noexcept;
 

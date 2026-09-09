@@ -56,55 +56,6 @@ struct GearInit
     float phase_offset;
 };
 
-MeshBounds calculate_imported_mesh_bounds(
-  ImportedStaticMesh& imported_mesh)
-{
-    MeshBounds bounds;
-
-    for(auto& mesh: imported_mesh.meshes)
-    {
-        expand_bounds(bounds, mesh.bounds);
-    }
-
-    bounds.center = (bounds.min + bounds.max) * 0.5f;
-    bounds.radius = (bounds.center - bounds.max).length();
-
-    return bounds;
-}
-
-float calculate_max_half_extent(const MeshBounds& bounds)
-{
-    if(!bounds.valid)
-    {
-        return 0.f;
-    }
-
-    const ml::vec3 extents = bounds.max - bounds.min;
-    return 0.5f * std::max({extents.x, extents.y, extents.z});
-}
-
-ml::vec3 calculate_center(const MeshBounds& bounds)
-{
-    return (bounds.min + bounds.max) * 0.5f;
-}
-
-ml::mat4x4 make_static_mesh_fit_transform(
-  const MeshBounds& bounds,
-  float target_half_extent)
-{
-    const float max_half_extent = calculate_max_half_extent(bounds);
-    if(max_half_extent <= std::numeric_limits<float>::epsilon())
-    {
-        return ml::mat4x4::identity();
-    }
-
-    const ml::vec3 center = calculate_center(bounds);
-    const float scale = target_half_extent / max_half_extent;
-
-    return ml::matrices::scaling(scale)
-           * ml::matrices::translation(-center);
-}
-
 MeshData make_floor_mesh(
   float half_extent,
   float uv_repeat)
@@ -265,11 +216,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
       static_mesh_path.string(),
       cache_key);
 
-    constexpr float sample_half_extent = 2.f;
-
     ImportedStaticMesh imported_mesh = import_static_mesh(static_mesh_path);
-    const MeshBounds mesh_bounds =
-      calculate_imported_mesh_bounds(imported_mesh);
 
     // TODO Fix color space. This works for some models.
     for(auto& mesh: imported_mesh.meshes)
@@ -292,9 +239,6 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
 
     auto mesh_asset = StagedStaticMeshAsset{
       .path = assets::AssetPath{static_mesh_path},
-      .fit_transform = make_static_mesh_fit_transform(
-        mesh_bounds,
-        sample_half_extent),
       .sections = std::move(sections),
     };
 
@@ -436,7 +380,7 @@ TaskSpec make_sample_mesh_task(StagedStartupScene& scene)
 {
     const std::array<std::filesystem::path, 3> sample_mesh_paths = {
       "assets/models/bunny.obj",
-      "assets/models/cars/COP.obj",
+      "assets/models/cars/Cop.obj",
       "assets/models/bunny.obj"};
 
     return TaskSpec{

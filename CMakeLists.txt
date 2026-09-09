@@ -322,6 +322,7 @@ add_executable(swr_playground
     src/renderer/material.cpp
     src/scene/camera.cpp
     src/scene/directional_light.cpp
+    src/scene/floor.cpp
     src/scene/gear.cpp
     src/scene/light.cpp
     src/scene/object.cpp
