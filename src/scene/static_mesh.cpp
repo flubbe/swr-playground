@@ -51,6 +51,7 @@ void StaticMesh::resolve(
   AssetResolver& resolver)
 {
     mesh_lods.clear();
+    material_ref.reset();
 
     // TODO
 
@@ -63,18 +64,20 @@ void StaticMesh::resolve(
         return;
     }
 
-    if(path.path.empty())
-    {
-        // Parametric asset.
-        return;
-    }
-
     swr::vector<MaterialRef> material_refs;
     for(auto& material_path: materials)
     {
         material_refs.emplace_back(
           resolver.resolve_material(
             material_path));
+    }
+
+    material_ref = material_refs[0];
+
+    if(path.path.empty())
+    {
+        // Parametric asset.
+        return;
     }
 
     // TODO pick first material.
@@ -120,6 +123,23 @@ void StaticMesh::init(
 void StaticMesh::set_lods(
   swr::vector<StaticMeshLod> lods)
 {
+    for(const auto& lod: lods)
+    {
+        for(const auto& section: lod.mesh_sections)
+        {
+            if(section.material)
+            {
+                material_ref = section.material;
+                break;
+            }
+        }
+
+        if(material_ref.has_value())
+        {
+            break;
+        }
+    }
+
     mesh_lods = std::move(lods);
     update_bounds();
 }

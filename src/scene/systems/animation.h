@@ -15,10 +15,14 @@
 #include "scene/scene.h"
 #include "system.h"
 
-class AnimationSystem final
+struct AnimationSystem final
 : public SceneSystem
 {
-public:
+    std::string_view get_name() const override
+    {
+        return "Animation";
+    }
+
     void tick(
       Scene& scene,
       [[maybe_unused]] float delta_time) override

@@ -756,7 +756,7 @@ void try_add_textured_floor(
         mesh_handle = device.create_mesh(
           floor_data.mesh);
 
-        auto* floor = scene.create_object<StaticMesh>(
+        auto* floor = scene.create_object<Floor>(
           assets::AssetPath{},
           swr::vector<assets::AssetPath>{material.get_path()},
           swr::vector<MeshSection>{
@@ -1773,7 +1773,7 @@ void Application::process_dirty_meshes()
               material_paths.size());
         }
 
-        auto material = material_manager.get(material_paths[0]);
+        const auto& material = mesh->get_material_ref();
         if(!material.has_value())
         {
             logging::errorf(
@@ -1781,6 +1781,9 @@ void Application::process_dirty_meshes()
               material_paths[0].path.string(),
               mesh->get_class()->name,
               mesh->get_name());
+
+            // TODO Currently this retries, but will spam the log if the material is not loaded.
+
             continue;
         }
 
@@ -2087,8 +2090,6 @@ bool Application::load_scene(
           mesh_manager};
         serial::json::JsonSceneLoader loader{resolver};
         loader.load(scene, contents);
-
-        scene.add_default_systems();
     }
     catch(const std::runtime_error& e)
     {

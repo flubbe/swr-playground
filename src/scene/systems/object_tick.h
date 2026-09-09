@@ -13,10 +13,14 @@
 #include "scene/scene.h"
 #include "system.h"
 
-class ObjectTickSystem final
+struct ObjectTickSystem final
 : public SceneSystem
 {
-public:
+    std::string_view get_name() const override
+    {
+        return "Tick";
+    }
+
     void tick(
       Scene& scene,
       float delta_time) override

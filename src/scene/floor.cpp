@@ -21,10 +21,7 @@ DEFINE_REFLECTION(Floor);
 void Floor::resolve(
   AssetResolver& resolver)
 {
-    for(const auto& material_path: get_material_paths())
-    {
-        resolver.resolve_material(material_path);
-    }
+    StaticMesh::resolve(resolver);
 }
 
 void Floor::post_load()

@@ -59,6 +59,11 @@ class LightSystem final
     }
 
 public:
+    std::string_view get_name() const override
+    {
+        return "Light";
+    }
+
     void tick(
       Scene& scene,
       [[maybe_unused]] float delta_time) override

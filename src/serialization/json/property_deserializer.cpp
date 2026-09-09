@@ -231,7 +231,7 @@ void JsonPropertyDeserializer::visit(
                     if(col_idx != 4)
                     {
                         logger.warningf(
-                          "Too few columns when deserializing mat4x4 '{}.{}' from JSON: {}",
+                          "Unexpected column count when deserializing mat4x4 '{}.{}' from JSON: {}",
                           object.get_name(),
                           object.get_class()->name,
                           p->get_name(),
@@ -244,7 +244,7 @@ void JsonPropertyDeserializer::visit(
             if(row_idx != 4)
             {
                 logger.warningf(
-                  "Too few rows when deserializing mat4x4 '{}.{}' from JSON: {}",
+                  "Unexpected row count when deserializing mat4x4 '{}.{}' from JSON: {}",
                   object.get_name(),
                   object.get_class()->name,
                   p->get_name(),
@@ -287,7 +287,7 @@ void JsonPropertyDeserializer::visit(
             if(idx != 4)
             {
                 logger.warningf(
-                  "'{}': Too few values when deserializing vec4 '{}.{}' from JSON: {}",
+                  "'{}': Unexpected value count when deserializing vec4 '{}.{}' from JSON: {}",
                   object.get_name(),
                   object.get_class()->name,
                   p->get_name(),

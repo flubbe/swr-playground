@@ -154,6 +154,48 @@ swr::string Scene::save(
     }
 
     writer.end_array();
+
+    if(!spin_animations.empty())
+    {
+        writer.write_key("spin_animations");
+        writer.begin_array();
+
+        for(const auto& s: spin_animations)
+        {
+            writer.begin_object();
+            writer.write_key_value("object_id", s.first.value);
+
+            writer.write_key("spin_animation");
+            writer.begin_object();
+
+            writer.write_key_value("angular_speed", s.second.angular_speed);
+            writer.write_key_value("phase_offset", s.second.phase_offset);
+
+            writer.write_key("translation");
+            writer.begin_array();
+            writer.write_val(s.second.translation.x);
+            writer.write_val(s.second.translation.y);
+            writer.write_val(s.second.translation.z);
+            writer.end_array();
+
+            writer.end_object();
+
+            writer.end_object();
+        }
+
+        writer.end_array();
+    }
+
+    writer.write_key("systems");
+    writer.begin_array();
+
+    for(const auto& s: systems)
+    {
+        writer.write_val(s->get_name());
+    }
+
+    writer.end_array();
+
     writer.end_object();
 
     return writer.get();

@@ -50,6 +50,7 @@ class StaticMesh
 protected:
     assets::AssetPath path;
     swr::vector<assets::AssetPath> materials;
+    std::optional<MaterialRef> material_ref;
 
     swr::vector<StaticMeshLod> mesh_lods;
     std::optional<MeshRef> mesh_ref;
@@ -120,6 +121,12 @@ public:
     const swr::vector<assets::AssetPath>& get_material_paths() const
     {
         return materials;
+    }
+
+    [[nodiscard]]
+    const std::optional<MaterialRef>& get_material_ref() const
+    {
+        return material_ref;
     }
 
     [[nodiscard]]

@@ -10,13 +10,18 @@
 
 #pragma once
 
+#include <string_view>
+
 class Scene;
 
 /** Scene update system interface. */
-class SceneSystem
+struct SceneSystem
 {
-public:
+    /** Virtual destructor. */
     virtual ~SceneSystem() = default;
+
+    /** Return the system's name. */
+    virtual std::string_view get_name() const = 0;
 
     /** Run one update tick for the scene. */
     virtual void tick(
