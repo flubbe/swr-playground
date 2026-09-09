@@ -24,7 +24,6 @@ public:
 
     Floor() = default;
 
-    void resolve(AssetResolver& resolver) override;
     void post_load() override;
 
     [[nodiscard]]

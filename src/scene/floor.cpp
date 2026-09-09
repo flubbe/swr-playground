@@ -18,12 +18,6 @@ DEFINE_REFLECTION(Floor);
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-void Floor::resolve(
-  AssetResolver& resolver)
-{
-    StaticMesh::resolve(resolver);
-}
-
 void Floor::post_load()
 {
     mark_mesh_dirty();
