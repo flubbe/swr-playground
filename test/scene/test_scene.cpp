@@ -288,7 +288,7 @@ TEST(SceneTests, EmptySaveLoad)
                           true    // compacted
                           ));
         EXPECT_EQ(json,
-                  "{\"time\":0,\"paused\":false,\"objects\":[]}");
+                  "{\"time\":0,\"paused\":false,\"objects\":[],\"systems\":[]}");
     }
 
     {
@@ -329,7 +329,9 @@ TEST(SceneTests, SaveLoad)
       "\"casts_shadows\":true,"
       "\"receives_shadows\":false"
       "}"
-      "]}";
+      "],"
+      "\"systems\":[]"
+      "}";
 
     {
         Scene scene;
