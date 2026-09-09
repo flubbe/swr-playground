@@ -758,7 +758,7 @@ void try_add_textured_floor(
 
         auto* floor = scene.create_object<StaticMesh>(
           assets::AssetPath{},
-          swr::vector<assets::AssetPath>{},
+          swr::vector<assets::AssetPath>{material.get_path()},
           swr::vector<MeshSection>{
             MeshSection{
               .color = {1.f, 1.f, 1.f, 1.f},
@@ -844,7 +844,8 @@ void finalize_startup_scene(
               startup_materials.static_mesh.get_path(),
               scene,
               std::move(lods),
-              ml::matrices::translation(mesh_x, 0.f, 5.f));
+              ml::matrices::translation(mesh_x, 0.f, 5.f)
+                * staged_sample_mesh.fit_transform);
             sample_mesh->casts_shadows = true;
         }
     }

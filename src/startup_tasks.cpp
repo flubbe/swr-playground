@@ -95,6 +95,49 @@ std::optional<StagedFloorData> try_prepare_floor_data()
     };
 }
 
+float calculate_max_half_extent(const MeshBounds& bounds)
+{
+    if(!bounds.valid)
+    {
+        return 0.f;
+    }
+
+    const ml::vec3 extents = bounds.max - bounds.min;
+    return 0.5f * std::max({extents.x, extents.y, extents.z});
+}
+
+ml::mat4x4 make_static_mesh_fit_transform(
+  const MeshBounds& bounds,
+  float target_half_extent)
+{
+    const float max_half_extent = calculate_max_half_extent(bounds);
+    if(max_half_extent <= std::numeric_limits<float>::epsilon())
+    {
+        return ml::mat4x4::identity();
+    }
+
+    const ml::vec3 center = (bounds.min + bounds.max) * 0.5f;
+    const float scale = target_half_extent / max_half_extent;
+
+    return ml::matrices::scaling(scale)
+           * ml::matrices::translation(-center);
+}
+
+ml::mat4x4 calculate_static_mesh_fit_transform(
+  const swr::vector<StagedStaticMeshSection>& sections)
+{
+    MeshBounds bounds;
+    for(const auto& section: sections)
+    {
+        if(!section.lods.empty())
+        {
+            expand_bounds(bounds, section.lods.front().bounds);
+        }
+    }
+
+    return make_static_mesh_fit_transform(bounds, 2.f);
+}
+
 // FIXME duplicated in mesh_manager.cpp, should likely be removed here.
 swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
@@ -183,6 +226,7 @@ std::optional<StagedStaticMeshAsset> try_load_cached_mesh(
         return std::nullopt;
     }
 
+    mesh.fit_transform = calculate_static_mesh_fit_transform(mesh.sections);
     return mesh;
 }
 
@@ -239,6 +283,7 @@ std::optional<StagedStaticMeshAsset> try_prepare_sample_mesh(
 
     auto mesh_asset = StagedStaticMeshAsset{
       .path = assets::AssetPath{static_mesh_path},
+      .fit_transform = calculate_static_mesh_fit_transform(sections),
       .sections = std::move(sections),
     };
 
