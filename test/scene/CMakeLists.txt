@@ -1,7 +1,6 @@
 add_library(scene_test_common STATIC
     ${PROJECT_SOURCE_DIR}/src/reflection/builtin_properties.cpp
     ${PROJECT_SOURCE_DIR}/src/reflection/class_registry.cpp
-    ${PROJECT_SOURCE_DIR}/src/renderer/mesh_section.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/properties.cpp
     ${PROJECT_SOURCE_DIR}/src/scene/object.cpp
 )

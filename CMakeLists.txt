@@ -315,7 +315,6 @@ add_executable(swr_playground
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
     src/renderer/material_manager.cpp
-    src/renderer/mesh_section.cpp
     src/renderer/mesh_manager.cpp
     src/renderer/render_device.cpp
     src/renderer/renderer.cpp

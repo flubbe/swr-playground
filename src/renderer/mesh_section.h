@@ -38,7 +38,6 @@ struct MeshSection
      */
 
     /** Mesh handle. */
-    // TODO Make this a MeshRef.
     MeshHandle mesh_handle;
 
     /** Material reference. */
@@ -50,11 +49,4 @@ struct MeshSection
 
     /** Triangle count in this level of detail. */
     std::size_t triangle_count{0};
-
-    /** Dependency resolution. */
-    void resolve(AssetResolver& resolver);
-
-    /** Process section after loading. */
-    void post_load(
-      class MaterialManager& material_manager);
 };

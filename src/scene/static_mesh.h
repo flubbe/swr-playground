@@ -41,17 +41,6 @@ struct StaticMeshLod
 
     /** Combined local-space bounds for all sections in this LOD. */
     MeshBounds bounds;
-
-    /** Resolve dependencies. */
-    void resolve(AssetResolver& resolver)
-    {
-        for(auto& section: mesh_sections)
-        {
-            section.resolve(resolver);
-        }
-
-        // TODO triangle count and bounds are available here and need to be set up.
-    }
 };
 
 /** A static mesh. */
