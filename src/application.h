@@ -36,7 +36,6 @@ class RenderDevice;
 class Renderer;
 class Scene;
 struct StagedStartupScene;
-struct StartupMaterials;
 class Viewport;
 
 struct ViewportInputState
@@ -134,8 +133,6 @@ class Application
     std::size_t benchmark_iterations{100};
 
     // Startup task state (parallel submissions aggregated by the main thread).
-    swr::shared_ptr<StagedStartupScene> startup_scene;
-    swr::unique_ptr<StartupMaterials> startup_materials;
     swr::vector<task_system::TaskHandle> startup_task_handles;
     swr::vector<std::future<void>> startup_task_futures;
     swr::vector<float> startup_task_weights;
@@ -277,6 +274,9 @@ public:
      * @returns Returns `true` on success and `false` on failure.
      */
     bool save_scene(const std::filesystem::path& path);
+
+    /** Clear the scene. */
+    void clear_scene();
 
     /*
      * Accessors.

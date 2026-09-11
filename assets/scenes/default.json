@@ -197,5 +197,32 @@
       "near_plane": 1,
       "far_plane": 200
     }
-  ]
+  ],
+  "spin_animations": [
+    {
+      "object_id": 6,
+      "spin_animation": {
+        "angular_speed": -2,
+        "phase_offset": -25,
+        "translation": [-3.1, 4.2, 0]
+      }
+    },
+    {
+      "object_id": 5,
+      "spin_animation": {
+        "angular_speed": -2,
+        "phase_offset": -9,
+        "translation": [3.1, -2, 0]
+      }
+    },
+    {
+      "object_id": 4,
+      "spin_animation": {
+        "angular_speed": 1,
+        "phase_offset": 0,
+        "translation": [-3, -2, 0]
+      }
+    }
+  ],
+  "systems": ["Tick", "Animation", "Light"]
 }

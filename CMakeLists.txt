@@ -353,7 +353,6 @@ add_executable(swr_playground
     src/platform.cpp
     src/runtime_asset_resolver.cpp
     src/shader_cache.cpp
-    src/startup_tasks.cpp
     src/texture_cache.cpp
     src/viewport.cpp
 )

@@ -165,6 +165,9 @@ int main(int argc, char* argv[])
           scene,
           viewport};
 
+        // Load default scene.
+        app.load_scene("assets/scenes/default.json");
+
         // Set up the main loop and exit the splash screen just before entering.
         MainLoop main_loop{*splash_screen, app};
         if(!main_loop.run_startup())

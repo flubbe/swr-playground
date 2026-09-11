@@ -52,7 +52,6 @@
 #include "logging.h"
 #include "runtime_asset_resolver.h"
 #include "shader_factory.h"
-#include "startup_tasks.h"
 #include "staged_data.h"
 #include "viewport.h"
 
@@ -64,32 +63,10 @@ using task_system::TaskSnapshot;
 using task_system::TaskSpec;
 using task_system::TaskState;
 
-struct StartupMaterials
-{
-    MaterialRef gear;
-    MaterialRef floor;
-    MaterialRef static_mesh;
-
-    [[nodiscard]]
-    bool is_ready()
-    {
-        using namespace std::chrono_literals;
-
-        return gear.get_entry().wait_for(0ms) == std::future_status::ready
-               && floor.get_entry().wait_for(0ms) == std::future_status::ready
-               && static_mesh.get_entry().wait_for(0ms) == std::future_status::ready;
-    }
-
-    void wait()
-    {
-        gear.get_entry().wait();
-        floor.get_entry().wait();
-        static_mesh.get_entry().wait();
-    }
-};
-
 namespace
 {
+
+constexpr std::string_view floor_object_name = "Stone Floor";
 
 struct DisplayProgress
 {
@@ -210,10 +187,9 @@ DisplayProgress summarize_task_display(
     };
 }
 
-class SDLError final
+struct SDLError final
 : public std::runtime_error
 {
-public:
     explicit SDLError(
       std::string_view message)
     : std::runtime_error{
@@ -377,9 +353,6 @@ bool viewport_contains_mouse_position(
            && y >= viewport_input.viewport_min_y
            && y < viewport_input.viewport_max_y;
 }
-
-void configure_default_directional_lights(Scene& scene);
-void configure_default_spot_lights(Scene& scene);
 
 void imgui_draw_viewport_panel(
   RenderDevice& render_device,
@@ -656,207 +629,8 @@ void imgui_draw_viewport_panel(
 }
 
 /*
- * Startup scene finalization.
+ * Startup finalization.
  */
-
-void add_staged_gears(
-  Scene& scene,
-  RenderDevice& device,
-  MaterialRef material,
-  const swr::vector<StagedGearInstance>& gears)
-{
-    for(const StagedGearInstance& staged: gears)
-    {
-        auto params = Gear::create_gear_resources(
-          device,
-          material,
-          staged.inner_radius,
-          staged.outer_radius,
-          staged.width,
-          staged.teeth,
-          staged.tooth_depth,
-          staged.color,
-          staged.geometry);
-        auto* gear = scene.create_object<Gear>(params);
-        gear->casts_shadows = true;
-        gear->set_transform(staged.transform);
-        scene.set_spin_animation(
-          gear->get_object_id(),
-          {.translation = staged.translation,
-           .angular_speed = staged.angular_speed,
-           .phase_offset = staged.phase_offset});
-    }
-}
-
-constexpr std::string_view floor_object_name = "Stone Floor";
-
-swr::vector<StaticMeshLod> create_static_mesh_resources(
-  RenderDevice& device,
-  MaterialRef material,
-  const StagedStaticMeshAsset& staged_asset)
-{
-    swr::vector<StaticMeshLod> result_lods;
-    if(staged_asset.sections.empty())
-    {
-        return result_lods;
-    }
-
-    result_lods.resize(staged_asset.sections.front().lods.size());
-
-    for(std::size_t i = 0; i < result_lods.size(); ++i)
-    {
-        result_lods[i].triangle_count =
-          staged_asset.sections.front().lods[i].mesh.indices.size() / 3;
-    }
-
-    for(const StagedStaticMeshSection& section: staged_asset.sections)
-    {
-        for(std::size_t lod_index = 0;
-            lod_index < section.lods.size() && lod_index < result_lods.size();
-            ++lod_index)
-        {
-            const StagedStaticMeshSectionLod& staged_lod =
-              section.lods[lod_index];
-            const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
-            expand_bounds(
-              result_lods[lod_index].bounds,
-              staged_lod.bounds);
-            result_lods[lod_index].mesh_sections.push_back(
-              MeshSection{
-                .color = section.diffuse_color,
-                .mesh_handle = mesh_handle,
-                .material = material,
-                .triangle_count = staged_lod.mesh.indices.size() / 3,
-              });
-        }
-    }
-
-    std::erase_if(
-      result_lods,
-      [](const StaticMeshLod& lod)
-      {
-          return lod.mesh_sections.empty();
-      });
-
-    return result_lods;
-}
-
-void try_add_textured_floor(
-  Scene& scene,
-  RenderDevice& device,
-  MaterialRef material,
-  const StagedFloorData& floor_data)
-{
-    std::optional<MeshHandle> mesh_handle;
-
-    try
-    {
-        constexpr float floor_height = -6.25f;
-
-        mesh_handle = device.create_mesh(
-          floor_data.mesh);
-
-        auto* floor = scene.create_object<Floor>(
-          assets::AssetPath{},
-          swr::vector<assets::AssetPath>{material.get_path()},
-          swr::vector<MeshSection>{
-            MeshSection{
-              .color = {1.f, 1.f, 1.f, 1.f},
-              .mesh_handle = *mesh_handle,
-              .material = material,
-              .triangle_count = floor_data.mesh.indices.size() / 3,
-            }},
-          calculate_mesh_bounds(floor_data.mesh));
-        floor->set_name(floor_object_name);
-        floor->casts_shadows = false;
-        floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
-        floor->capture_snapshot();
-    }
-    catch(const std::exception& e)
-    {
-        if(mesh_handle.has_value())
-        {
-            device.delete_mesh(*mesh_handle);
-        }
-        logging::warningf(
-          "failed to create textured floor: {}",
-          e.what());
-    }
-}
-
-StaticMesh* create_static_mesh_instance(
-  const assets::AssetPath& path,
-  const assets::AssetPath& material_path,
-  Scene& scene,
-  swr::vector<StaticMeshLod> lods,
-  const ml::mat4x4& transform)
-{
-    StaticMesh* mesh = scene.create_object<StaticMesh>(
-      path,
-      swr::vector<assets::AssetPath>{material_path},
-      std::move(lods));
-    mesh->set_transform(transform);
-    mesh->capture_snapshot();
-    return mesh;
-}
-
-void finalize_startup_scene(
-  Scene& scene,
-  Viewport& viewport,
-  RenderDevice& render_device,
-  StartupMaterials& startup_materials,
-  const StagedStartupScene& staged_scene)
-{
-    configure_default_directional_lights(scene);
-    configure_default_spot_lights(scene);
-
-    add_staged_gears(
-      scene,
-      render_device,
-      startup_materials.gear,
-      staged_scene.gears);
-
-    if(staged_scene.floor.has_value())
-    {
-        try_add_textured_floor(
-          scene,
-          render_device,
-          startup_materials.floor,
-          *staged_scene.floor);
-    }
-
-    // place sample meshes in a line.
-    for(std::size_t i = 0; i < staged_scene.sample_meshes.size(); ++i)
-    {
-        auto& staged_sample_mesh = staged_scene.sample_meshes[i];
-        auto lods = create_static_mesh_resources(
-          render_device,
-          startup_materials.static_mesh,
-          staged_sample_mesh);
-
-        const float mesh_x =
-          (static_cast<float>(i) - static_cast<float>(staged_scene.sample_meshes.size() - 1) * 0.5f) * 5.f;
-
-        if(!lods.empty())
-        {
-            StaticMesh* sample_mesh = create_static_mesh_instance(
-              staged_sample_mesh.path,
-              startup_materials.static_mesh.get_path(),
-              scene,
-              std::move(lods),
-              ml::matrices::translation(mesh_x, 0.f, 5.f)
-                * staged_sample_mesh.fit_transform);
-            sample_mesh->casts_shadows = true;
-        }
-    }
-
-    Camera* camera = scene.create_object<Camera>();
-    camera->set_transform(viewport.get_local_camera().get_transform());
-    camera->set_name("Editor Camera");
-    camera->capture_snapshot();
-
-    viewport.use_local_camera();
-}
 
 template<
   typename Rep,
@@ -893,55 +667,6 @@ TaskSpec make_wait_task(
           }
       },
     };
-}
-
-void configure_default_directional_lights(Scene& scene)
-{
-    auto* key_light = scene.create_object<DirectionalLight>();
-    key_light->set_name("Key Light");
-    key_light->behavior = DirectionalLightBehavior::Rotating;
-    key_light->brightness = 0.55f;
-    key_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(210.f))
-      * ml::matrices::rotation_x(ml::to_radians(-35.f)));
-    key_light->set_position({5.f, 8.f, 10.f});
-    key_light->capture_snapshot();
-
-    auto* fill_light = scene.create_object<DirectionalLight>();
-    fill_light->set_name("Fill Light");
-    fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.6f;
-    fill_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(35.f))
-      * ml::matrices::rotation_x(ml::to_radians(-55.f)));
-    fill_light->set_position({-10.f, 12.f, -6.f});
-    fill_light->capture_snapshot();
-}
-
-void configure_default_spot_lights(Scene& scene)
-{
-    auto* spotlight = scene.create_object<SpotLight>();
-    spotlight->set_name("Spot Light");
-    spotlight->casts_shadows = true;
-    spotlight->color = {1.f, 1.f, 1.f, 1.f};
-    spotlight->brightness = 2.4f;
-    spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
-    spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
-    spotlight->range = 45.f;
-
-    const ml::vec3 spotlight_position{0.f, 11.f, 12.f};
-    const ml::vec3 direction_to_origin =
-      (-spotlight_position).normalized();
-    const float spotlight_pitch =
-      std::asin(direction_to_origin.y);
-    const float spotlight_yaw =
-      std::atan2(-direction_to_origin.x, -direction_to_origin.z);
-
-    spotlight->set_transform(
-      ml::matrices::rotation_y(spotlight_yaw)
-      * ml::matrices::rotation_x(spotlight_pitch));
-    spotlight->set_position(spotlight_position);
-    spotlight->capture_snapshot();
 }
 
 DisplayProgress aggregate_startup_progress(
@@ -1191,13 +916,11 @@ void Application::on_startup_complete(const StagedStartupScene& staged_scene)
     {
         startup_logger.warningf("{}", notice);
     }
-    finalize_startup_scene(
-      scene,
-      viewport,
-      render_device,
-      *startup_materials,
-      staged_scene);
-    scene.add_default_systems();
+
+    /*
+     * TODO Add code for startup finalization here.
+     */
+
     setup_viewport();
 }
 
@@ -1395,79 +1118,20 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
-    // Load materials.
-    const auto floor_material_path = assets::AssetPath{"assets/materials/floor/floor.json"};
-    const auto shadowed_material_path = assets::AssetPath{"assets/materials/mesh/lit.json"};
-
-    auto floor_material = material_manager.load(
-      floor_material_path,
-      read_text_file(file_manager, floor_material_path.path));
-    auto shadowed_material = material_manager.load(
-      shadowed_material_path,
-      read_text_file(file_manager, shadowed_material_path.path));
-
-    startup_materials = swr::make_unique<StartupMaterials>(
-      StartupMaterials{
-        .gear = shadowed_material,
-        .floor = floor_material,
-        .static_mesh = shadowed_material,
-      });
-
-    startup_scene = std::make_shared<StagedStartupScene>();
-    auto tasks = startup_tasks::create_startup_tasks(*startup_scene);
-
-    startup_task_handles.clear();
-    startup_task_futures.clear();
-    startup_task_weights.clear();
-    startup_task_handles.reserve(tasks.size());
-    startup_task_futures.reserve(tasks.size());
-    startup_task_weights.reserve(tasks.size());
-
-    for(TaskSpec& task: tasks)
-    {
-        startup_task_weights.push_back(std::max(task.weight, 1.f));
-
-        auto startup_submission = task_system.submit(
-          [task = std::move(task)](TaskExecutionContext& context) mutable
-          {
-              if(context.is_cancel_requested())
-              {
-                  throw TaskCancelledError{};
-              }
-
-              if(!task.name.empty())
-              {
-                  context.update(task.name, 0.f);
-              }
-
-              if(task.run)
-              {
-                  task.run(context);
-              }
-
-              if(context.is_cancel_requested())
-              {
-                  throw TaskCancelledError{};
-              }
-
-              if(!task.name.empty())
-              {
-                  context.update(task.name, 1.f);
-              }
-          });
-
-        startup_task_handles.push_back(startup_submission.handle);
-        startup_task_futures.push_back(std::move(startup_submission.future));
-    }
+    /*
+     * TODO Startup tasks can be added here.
+     */
 }
 
 bool Application::is_startup_ready() const
 {
     using namespace std::literals;
 
-    if(startup_task_futures.empty() || startup_materials == nullptr)
+    // Check all futures for readiness.
+
+    if(startup_task_futures.empty())
     {
-        return false;
+        return true;
     }
 
     for(const auto& startup_task_future: startup_task_futures)
@@ -1480,7 +1144,7 @@ bool Application::is_startup_ready() const
         }
     }
 
-    return startup_materials->is_ready();
+    return true;
 }
 
 bool Application::finish_startup_if_ready()
@@ -1500,30 +1164,9 @@ bool Application::finish_startup_if_ready()
             }
         }
 
-        if(startup_scene == nullptr)
-        {
-            // Print an error message.
-            // FIXME Decide if we want to continue (and return true) or fail.
-            logging::errorf(
-              "Startup scene state is missing.");
-            return true;
-        }
-        if(startup_materials == nullptr)
-        {
-            // Print an error message.
-            // FIXME Decide if we want to continue (and return true) or fail.
-            logging::errorf(
-              "Startup material state is missing.");
-            return true;
-        }
-
-        startup_materials->wait();
-        on_startup_complete(*startup_scene);
-        startup_task_handles.clear();
-        startup_task_futures.clear();
-        startup_task_weights.clear();
-        startup_scene.reset();
-        startup_materials.reset();
+        /*
+         * TODO Add code to finish startup here.
+         */
     }
     catch(const std::exception& e)
     {
@@ -1531,8 +1174,6 @@ bool Application::finish_startup_if_ready()
         startup_task_handles.clear();
         startup_task_futures.clear();
         startup_task_weights.clear();
-        startup_scene.reset();
-        startup_materials.reset();
 
         throw;
     }
@@ -1555,8 +1196,6 @@ void Application::cancel_startup()
     startup_task_handles.clear();
     startup_task_futures.clear();
     startup_task_weights.clear();
-    startup_scene.reset();
-    startup_materials.reset();
 }
 
 void Application::start_debug_test_tasks()
@@ -2131,4 +1770,9 @@ bool Application::save_scene(
       abs_path.string());
 
     return true;
+}
+
+void Application::clear_scene()
+{
+    scene.clear();
 }
