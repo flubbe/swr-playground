@@ -19,10 +19,6 @@
 #include "scene.h"
 #include "logging.h"
 
-Scene::Scene()
-{
-}
-
 void Scene::clear()
 {
     systems.clear();
