@@ -516,11 +516,9 @@ public:
     /**
      * Returns the reflection metadata for this instance.
      *
-     * This is the virtual, instance-level counterpart to `static_class()`,
-     * allowing access to the concrete type's `ClassInfo` through a base
-     * class pointer or reference.
+     * This is the instance-level counterpart to `static_class()`.
      */
-    virtual const ClassInfo* get_class() const
+    const ClassInfo* get_class() const
     {
         assert(class_info != nullptr);
         return class_info;
@@ -650,18 +648,6 @@ public:
           "static void register_properties(ClassInfo&).");
 
         return &class_registration<Root, Derived>().storage;
-    }
-
-    /**
-     * Returns the reflection metadata for this instance.
-     *
-     * This is the virtual, instance-level counterpart to `static_class()`,
-     * allowing access to the concrete type's `ClassInfo` through a base
-     * class pointer or reference.
-     */
-    const ClassInfo* get_class() const override
-    {
-        return Derived::static_class();
     }
 };
 

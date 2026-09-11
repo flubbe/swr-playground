@@ -66,8 +66,6 @@ using task_system::TaskState;
 namespace
 {
 
-constexpr std::string_view floor_object_name = "Stone Floor";
-
 struct DisplayProgress
 {
     swr::string status_text;
@@ -1641,12 +1639,7 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
-        // skip gears for now.
-        if(mesh.is_a<Gear>())
-        {
-            continue;
-        }
-        if(mesh.get_name() == floor_object_name)
+        if(mesh.get_class() != StaticMesh::static_class())
         {
             continue;
         }
@@ -1695,13 +1688,8 @@ void Application::set_floor_material(FloorMaterial type)
           read_text_file(file_manager, path.path));
     }();
 
-    for(auto& mesh: scene.objects_of<StaticMesh>())
+    for(auto& mesh: scene.objects_of<Floor>())
     {
-        if(mesh.get_name() != floor_object_name)
-        {
-            continue;
-        }
-
         for(auto& lod: mesh.get_lods())
         {
             for(auto& section: lod.mesh_sections)
