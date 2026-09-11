@@ -62,6 +62,7 @@ protected:
     void update_bounds() noexcept;
 
 public:
+    /** Property registration hook. */
     static void register_properties(reflect::ClassInfo& class_info);
 
     /** Whether this mesh contributes to shadow maps when supported by the renderer. */

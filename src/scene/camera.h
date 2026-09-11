@@ -46,6 +46,7 @@ class Camera
     ml::mat4x4 cached_projection{};
 
 public:
+    /** Property registration hook. */
     static void register_properties(reflect::ClassInfo& class_info);
 
     Camera();

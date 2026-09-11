@@ -80,6 +80,7 @@ class Gear
     ml::vec4 color{0.5f, 0.5f, 0.5f, 1.0f};
 
 public:
+    /** Property registration hook. */
     static void register_properties(reflect::ClassInfo& class_info);
 
     Gear() = default;
