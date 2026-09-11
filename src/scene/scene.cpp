@@ -57,13 +57,6 @@ void Scene::tick(float delta_time)
     }
 }
 
-void Scene::add_default_systems()
-{
-    add_system<ObjectTickSystem>();
-    add_system<AnimationSystem>();
-    add_system<LightSystem>();
-}
-
 void Scene::set_spin_animation(
   ObjectId object_id,
   SpinAnimation animation)

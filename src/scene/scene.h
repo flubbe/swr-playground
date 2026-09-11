@@ -144,13 +144,6 @@ public:
      */
 
     /**
-     * Add default systems.
-     *
-     * TODO Remove.
-     */
-    void add_default_systems();
-
-    /**
      * Set up a spin animation for an object.
      *
      * @param object_id The object to spin.
