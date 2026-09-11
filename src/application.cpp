@@ -1719,8 +1719,15 @@ bool Application::load_scene(
       "Loading scene '{}'...",
       path.string());
 
-    auto contents = read_text_file(file_manager, path);
+    // Reset the state. The scene is cleared by the loader.
+    // FIXME Duplicated in clear_scene.
+    viewport.reset_editor_camera();
+    viewport.use_local_camera();
+    viewport.set_editor_camera_view(EditorCameraView::Perspective);
+    viewport.set_display_settings(ViewportDisplaySettings{});
+    viewport.set_overlay_settings(ViewportOverlaySettings{});
 
+    auto contents = read_text_file(file_manager, path);
     try
     {
         RuntimeAssetResolver resolver{
@@ -1774,5 +1781,11 @@ bool Application::save_scene(
 
 void Application::clear_scene()
 {
+    viewport.reset_editor_camera();
+    viewport.use_local_camera();
+    viewport.set_editor_camera_view(EditorCameraView::Perspective);
+    viewport.set_display_settings(ViewportDisplaySettings{});
+    viewport.set_overlay_settings(ViewportOverlaySettings{});
+
     scene.clear();
 }
