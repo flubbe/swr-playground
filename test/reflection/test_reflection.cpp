@@ -40,13 +40,11 @@ DEFINE_REFLECTION(TestRoot);
 
 void TestRoot::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&TestRoot::root_value>(
-      class_info,
+    class_info.register_property<&TestRoot::root_value>(
       "root_value",
       "Root Value",
       reflect::PropertyFlags::ReadOnly);
-    reflect::register_property<&TestRoot::root_name>(
-      class_info,
+    class_info.register_property<&TestRoot::root_name>(
       "root_name",
       "Root Name");
 }
@@ -73,8 +71,7 @@ DEFINE_REFLECTION(TestChild);
 
 void TestChild::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&TestChild::enabled>(
-      class_info,
+    class_info.register_property<&TestChild::enabled>(
       "enabled",
       "Enabled");
 }
@@ -113,8 +110,7 @@ DEFINE_REFLECTION(OffsetChild);
 
 void OffsetChild::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&OffsetChild::local_flag>(
-      class_info,
+    class_info.register_property<&OffsetChild::local_flag>(
       "local_flag",
       "Local Flag");
 }
@@ -144,8 +140,7 @@ void ConstrainedChild::register_properties(reflect::ClassInfo& class_info)
 {
     auto custom = std::make_shared<CustomConstraint>();
     custom->marker = 77;
-    reflect::register_property<&ConstrainedChild::constrained_value>(
-      class_info,
+    class_info.register_property<&ConstrainedChild::constrained_value>(
       "constrained_value",
       "Constrained Value",
       reflect::PropertyFlags::None,
@@ -171,8 +166,7 @@ void RangeConstrainedChild::register_properties(reflect::ClassInfo& class_info)
     range.step = 1;
     range.clamp = true;
 
-    reflect::register_property<&RangeConstrainedChild::constrained_teeth>(
-      class_info,
+    class_info.register_property<&RangeConstrainedChild::constrained_teeth>(
       "constrained_teeth",
       "Constrained Teeth",
       reflect::PropertyFlags::None,
@@ -193,8 +187,7 @@ DEFINE_REFLECTION(DefaultedChild);
 
 void DefaultedChild::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&DefaultedChild::defaulted_value>(
-      class_info,
+    class_info.register_property<&DefaultedChild::defaulted_value>(
       "defaulted_value",
       "Defaulted Value",
       reflect::PropertyFlags::None,
@@ -206,8 +199,7 @@ void DefaultedChild::register_properties(reflect::ClassInfo& class_info)
     range.step = 0.05f;
     range.clamp = true;
 
-    reflect::register_property<&DefaultedChild::ranged_defaulted_value>(
-      class_info,
+    class_info.register_property<&DefaultedChild::ranged_defaulted_value>(
       "ranged_defaulted_value",
       "Ranged Defaulted Value",
       reflect::PropertyFlags::None,
@@ -1292,8 +1284,7 @@ DEFINE_REFLECTION(ShadowChild);
 
 void ShadowChild::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&ShadowChild::root_value>(
-      class_info,
+    class_info.register_property<&ShadowChild::root_value>(
       "root_value",
       "Shadowed Root Value");
 }

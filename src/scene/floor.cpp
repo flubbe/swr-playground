@@ -61,14 +61,12 @@ void Floor::register_properties(
     uv_repeat_constraint.step = 0.01f;
     uv_repeat_constraint.clamp = true;
 
-    reflect::register_property<&Floor::half_extent>(
-      class_info,
+    class_info.register_property<&Floor::half_extent>(
       "half_extent",
       "Half Extent",
       reflect::PropertyFlags::None,
       extent_constraint);
-    reflect::register_property<&Floor::uv_repeat>(
-      class_info,
+    class_info.register_property<&Floor::uv_repeat>(
       "uv_repeat",
       "UV Repeat",
       reflect::PropertyFlags::None,

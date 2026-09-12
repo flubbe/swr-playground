@@ -54,26 +54,22 @@ void Camera::register_properties(reflect::ClassInfo& class_info)
     plane_constraints.min = 0.1;
     plane_constraints.clamp = true;
 
-    reflect::register_property<&Camera::fov_y>(
-      class_info,
+    class_info.register_property<&Camera::fov_y>(
       "fov_y",
       "FOV Y (rad)",
       reflect::PropertyFlags::None,
       fov_constraints);
-    reflect::register_property<&Camera::orthographic_height>(
-      class_info,
+    class_info.register_property<&Camera::orthographic_height>(
       "orthographic_height",
       "Orthographic Height",
       reflect::PropertyFlags::None,
       orthographic_height_constraints);
-    reflect::register_property<&Camera::near_plane>(
-      class_info,
+    class_info.register_property<&Camera::near_plane>(
       "near_plane",
       "Near Plane",
       reflect::PropertyFlags::None,
       plane_constraints);
-    reflect::register_property<&Camera::far_plane>(
-      class_info,
+    class_info.register_property<&Camera::far_plane>(
       "far_plane",
       "Far Plane",
       reflect::PropertyFlags::None,

@@ -423,38 +423,32 @@ void Gear::register_properties(
     width_constraint.step = 0.01f;
     width_constraint.clamp = true;
 
-    reflect::register_property<&Gear::inner_radius>(
-      class_info,
+    class_info.register_property<&Gear::inner_radius>(
       "inner_radius",
       "Inner Radius",
       reflect::PropertyFlags::None,
       inner_radius_constraint);
-    reflect::register_property<&Gear::outer_radius>(
-      class_info,
+    class_info.register_property<&Gear::outer_radius>(
       "outer_radius",
       "Outer Radius",
       reflect::PropertyFlags::None,
       outer_radius_constraint);
-    reflect::register_property<&Gear::width>(
-      class_info,
+    class_info.register_property<&Gear::width>(
       "width",
       "Width",
       reflect::PropertyFlags::None,
       width_constraint);
-    reflect::register_property<&Gear::teeth>(
-      class_info,
+    class_info.register_property<&Gear::teeth>(
       "teeth",
       "Teeth",
       reflect::PropertyFlags::None,
       teeth_constraint);
-    reflect::register_property<&Gear::tooth_depth>(
-      class_info,
+    class_info.register_property<&Gear::tooth_depth>(
       "tooth_depth",
       "Tooth Depth",
       reflect::PropertyFlags::None,
       tooth_depth_constraint);
-    reflect::register_property<&Gear::color>(
-      class_info,
+    class_info.register_property<&Gear::color>(
       "color",
       "Color");
 }

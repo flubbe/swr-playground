@@ -35,12 +35,12 @@ Each registration contributes a `PendingClassRegistration`. `ReflectionSystem::p
 
 Properties are registered by member pointer:
 
-- `register_property<&Type::member>(class_info, "name", "Label", flags)`.
-- `register_property<&Type::member>(class_info, "name", "Label", flags, constraint)`.
-- `register_property<&Type::member>(class_info, "name", "Label", flags, default_value)`.
-- `register_property<&Type::member>(class_info, "name", "Label", flags, constraint, default_value)`.
-- `register_property<&Type::member>(class_info, "name", "Label", flags, shared_default)`.
-- `register_property<&Type::member>(class_info, "name", "Label", flags, shared_constraint, shared_default)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags, constraint)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags, default_value)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags, constraint, default_value)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags, shared_default)`.
+- `class_info.register_property<&Type::member>("name", "Label", flags, shared_constraint, shared_default)`.
 
 This appends a `PropertyDescriptor` containing a construction function. At object initialization, descriptors are materialized into concrete `Property` objects.
 Descriptors are registered in declaration order (the registration list is reversed once during finalization).
@@ -70,7 +70,7 @@ Built-in property classes compute static `size`/`alignment` from their `Type` al
 
 - `RangeConstraint<T>` supports optional inclusive `min`/`max`, optional `step`, and `clamp`.
 - `Property::try_get_constraint<T>()` / `try_get_range_constraint<T>()` provide exact-type retrieval at runtime.
-- `register_property` validates typed constraints at compile time (`Constraint::ValueType` must match the reflected member type when present).
+- `ClassInfo::register_property` validates typed constraints at compile time (`Constraint::ValueType` must match the reflected member type when present).
 
 For built-in numeric properties (`int`, `unsigned int`, `float`), range constraints are enforced in `set_value(...)`:
 
@@ -83,7 +83,7 @@ For built-in numeric properties (`int`, `unsigned int`, `float`), range constrai
 
 - `TypedDefault<T>` stores a typed default value.
 - `DescriptorBase::try_get_default<T>()` provides exact-type retrieval at runtime.
-- `register_property` validates typed defaults at compile time (default type must match the reflected member type).
+- `ClassInfo::register_property` validates typed defaults at compile time (default type must match the reflected member type).
 - `default_of(value)` builds shared default metadata (`swr::shared_ptr<const PropertyDefault>`).
 
 ## Minimal Usage
@@ -94,9 +94,9 @@ class Object : public reflect::ReflectRoot<Object>
 public:
     int id{0};
 
-    static void register_properties(reflect::ClassInfo& ci)
+    static void register_properties(reflect::ClassInfo& class_info)
     {
-        reflect::register_property<&Object::id>(ci, "id", "Object ID");
+        class_info.register_property<&Object::id>("id", "Object ID");
     }
 
     // called when using construct_and_init.
