@@ -153,7 +153,8 @@ bool RenderDevice::update_mesh(
     return true;
 }
 
-void RenderDevice::delete_mesh(MeshHandle handle)
+void RenderDevice::delete_mesh(
+  MeshHandle handle)
 {
     auto mesh_it = meshes.find(handle);
     if(mesh_it != meshes.end())
@@ -167,8 +168,6 @@ void RenderDevice::delete_mesh(MeshHandle handle)
 
         meshes.erase(mesh_it);
     }
-
-    meshes.erase(handle);
 }
 
 ShaderHandle RenderDevice::create_shader(
@@ -254,9 +253,6 @@ TextureHandle RenderDevice::create_texture(
           }
       });
 
-    // FIXME Reset the error state, since on reload, some call produces an error.
-    swr::GetLastError();
-
     swr::ActiveTexture(swr::texture_0);
     swr::BindTexture(swr::texture_target::texture_2d, texture_id);
     swr::SetImage(
@@ -286,7 +282,8 @@ TextureHandle RenderDevice::create_texture(
     return {texture_id};
 }
 
-void RenderDevice::delete_texture(TextureHandle handle)
+void RenderDevice::delete_texture(
+  TextureHandle handle)
 {
     if(handle != 0)
     {
@@ -383,7 +380,8 @@ ShadowMapHandle RenderDevice::create_shadow_map(
     return handle;
 }
 
-void RenderDevice::delete_shadow_map(ShadowMapHandle handle)
+void RenderDevice::delete_shadow_map(
+  ShadowMapHandle handle)
 {
     const auto it = shadow_map_targets.find(handle);
     if(it == shadow_map_targets.end())
@@ -481,7 +479,8 @@ void RenderDevice::bind_rasterizer_state(
     apply_rasterizer_state(current_rasterizer_state);
 }
 
-void RenderDevice::bind_material(MaterialHandle handle)
+void RenderDevice::bind_material(
+  MaterialHandle handle)
 {
     auto it = materials.find(handle);
     if(it == materials.end())
@@ -536,7 +535,8 @@ void RenderDevice::bind_material(MaterialHandle handle)
                                   + (has_shadow_texture ? 1 : 0);
 }
 
-void RenderDevice::bind_camera_uniforms(const CameraUniforms& uniforms)
+void RenderDevice::bind_camera_uniforms(
+  const CameraUniforms& uniforms)
 {
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::camera_projection_uniform_index),
@@ -546,7 +546,8 @@ void RenderDevice::bind_camera_uniforms(const CameraUniforms& uniforms)
       uniforms.view);
 }
 
-void RenderDevice::bind_lighting_uniforms(const LightingUniforms& uniforms)
+void RenderDevice::bind_lighting_uniforms(
+  const LightingUniforms& uniforms)
 {
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::directional_light_count_uniform_index),
@@ -590,14 +591,16 @@ void RenderDevice::bind_lighting_uniforms(const LightingUniforms& uniforms)
     }
 }
 
-void RenderDevice::bind_material_uniforms(const MaterialUniforms& uniforms)
+void RenderDevice::bind_material_uniforms(
+  const MaterialUniforms& uniforms)
 {
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::material_color_uniform_index),
       uniforms.base_color);
 }
 
-void RenderDevice::bind_shadow_map(const ShadowMapBinding& binding)
+void RenderDevice::bind_shadow_map(
+  const ShadowMapBinding& binding)
 {
     if(binding.enabled
        && binding.handle
@@ -615,7 +618,8 @@ void RenderDevice::clear_shadow_map()
     current_shadow_map_binding.reset();
 }
 
-void RenderDevice::bind_shadow_uniforms(const ShadowUniforms& uniforms)
+void RenderDevice::bind_shadow_uniforms(
+  const ShadowUniforms& uniforms)
 {
     swr::BindUniform(
       static_cast<std::uint32_t>(shader::shadow_map_enabled_uniform_index),
@@ -628,7 +632,8 @@ void RenderDevice::bind_shadow_uniforms(const ShadowUniforms& uniforms)
       uniforms.params);
 }
 
-void RenderDevice::begin_shadow_map_pass(ShadowMapHandle handle)
+void RenderDevice::begin_shadow_map_pass(
+  ShadowMapHandle handle)
 {
     const ShadowMapTargetGpuData* target = find_shadow_map_target(handle);
     if(target == nullptr)
@@ -667,7 +672,8 @@ void RenderDevice::end_shadow_map_pass()
     active_shadow_map_pass = {};
 }
 
-void RenderDevice::draw_mesh(MeshHandle handle)
+void RenderDevice::draw_mesh(
+  MeshHandle handle)
 {
     auto it = meshes.find(handle);
     if(it == meshes.end())
