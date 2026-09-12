@@ -99,7 +99,7 @@ std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
 std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 
 TrackingAllocator::TrackingAllocator(
-  Allocator* allocator)
+  Allocator& allocator)
 : allocator{allocator}
 {
     assert(allocator != nullptr);
@@ -109,7 +109,7 @@ void* TrackingAllocator::allocate(
   std::size_t bytes,
   std::size_t alignment)
 {
-    void* allocation = allocator->allocate(bytes, alignment);
+    void* allocation = allocator.allocate(bytes, alignment);
 
     allocations.fetch_add(1, std::memory_order_relaxed);
     bytes_total.fetch_add(bytes, std::memory_order_relaxed);
@@ -143,7 +143,7 @@ void TrackingAllocator::deallocate(
 {
     deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
-    allocator->deallocate(p, bytes, alignment);
+    allocator.deallocate(p, bytes, alignment);
 }
 
 MemoryStats TrackingAllocator::stats() const
@@ -182,7 +182,7 @@ void TrackingAllocator::print_histogram() const
 MemoryManager::MemoryManager(
   std::size_t bump_size)
 : system_malloc_allocator{}
-, global_allocator{&system_malloc_allocator}
+, global_allocator{system_malloc_allocator}
 , frame_bump_allocator{bump_size, global_allocator}
 , frame_arena_allocator{global_allocator}
 , tracking_allocator{global_allocator}
@@ -230,19 +230,19 @@ bool MemoryManager::is_initialized() const
     return initialized;
 }
 
-Allocator* MemoryManager::heap()
+Allocator& MemoryManager::heap()
 {
-    return &tracking_allocator;
+    return tracking_allocator;
 }
 
-BumpAllocator* MemoryManager::frame_bump()
+BumpAllocator& MemoryManager::frame_bump()
 {
-    return &frame_bump_allocator;
+    return frame_bump_allocator;
 }
 
-ArenaAllocator* MemoryManager::frame_arena()
+ArenaAllocator& MemoryManager::frame_arena()
 {
-    return &frame_arena_allocator;
+    return frame_arena_allocator;
 }
 
 MemoryStats MemoryManager::stats() const
@@ -274,17 +274,17 @@ bool is_initialized()
     return MemoryManager::instance().is_initialized();
 }
 
-Allocator* heap()
+Allocator& heap()
 {
     return MemoryManager::instance().heap();
 }
 
-BumpAllocator* frame_bump()
+BumpAllocator& frame_bump()
 {
     return MemoryManager::instance().frame_bump();
 }
 
-ArenaAllocator* frame_arena()
+ArenaAllocator& frame_arena()
 {
     return MemoryManager::instance().frame_arena();
 }

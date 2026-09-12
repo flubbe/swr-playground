@@ -40,7 +40,7 @@ struct DefaultDeleter
         }
 
         p->~T();
-        memory::heap()->deallocate(
+        memory::heap().deallocate(
           p,
           sizeof(T),
           alignof(T));
@@ -56,7 +56,7 @@ auto make_unique(
     constexpr std::size_t size = sizeof(T);
     constexpr std::size_t alignment = alignof(T);
 
-    void* mem = memory::heap()->allocate(
+    void* mem = memory::heap().allocate(
       size,
       alignment);
 
@@ -67,7 +67,7 @@ auto make_unique(
     }
     catch(...)
     {
-        memory::heap()->deallocate(
+        memory::heap().deallocate(
           mem,
           size,
           alignment);

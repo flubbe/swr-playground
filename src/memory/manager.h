@@ -57,7 +57,7 @@ class TrackingAllocator final
 : public Allocator
 {
     /** Upsteam allocator. */
-    Allocator* allocator;
+    Allocator& allocator;
 
     std::atomic_size_t bytes_live{0};
     std::atomic_size_t bytes_peak{0};
@@ -71,7 +71,7 @@ class TrackingAllocator final
 
 public:
     explicit TrackingAllocator(
-      Allocator* allocator);
+      Allocator& allocator);
 
     [[nodiscard]]
     void* allocate(
@@ -86,7 +86,7 @@ public:
     [[nodiscard]]
     const char* name() const noexcept override
     {
-        return allocator->name();
+        return allocator.name();
     }
 
     MemoryStats stats() const;
@@ -99,7 +99,7 @@ inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory to be a
 class MemoryManager final
 {
     MallocAllocator system_malloc_allocator;
-    Allocator* global_allocator;
+    Allocator& global_allocator;
     BumpAllocator frame_bump_allocator;
     ArenaAllocator frame_arena_allocator;
     TrackingAllocator tracking_allocator;
@@ -123,13 +123,13 @@ public:
     bool is_initialized() const;
 
     [[nodiscard]]
-    Allocator* heap();
+    Allocator& heap();
 
     [[nodiscard]]
-    BumpAllocator* frame_bump();
+    BumpAllocator& frame_bump();
 
     [[nodiscard]]
-    ArenaAllocator* frame_arena();
+    ArenaAllocator& frame_arena();
 
     [[nodiscard]]
     MemoryStats stats() const;
@@ -153,15 +153,15 @@ bool is_initialized();
 
 /** Get the global heap allocator. */
 [[nodiscard]]
-Allocator* heap();
+Allocator& heap();
 
 /** Get the frame bump allocator. */
 [[nodiscard]]
-BumpAllocator* frame_bump();
+BumpAllocator& frame_bump();
 
 /** Get the frame arena allocator. */
 [[nodiscard]]
-ArenaAllocator* frame_arena();
+ArenaAllocator& frame_arena();
 
 /** Get tracked memory statistics. */
 [[nodiscard]]
