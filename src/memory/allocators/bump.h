@@ -37,7 +37,7 @@ class BumpAllocator final
 {
     const std::size_t alignment{alignof(std::max_align_t)};
 
-    Allocator* allocator{nullptr};
+    Allocator& allocator;
 
     void* memory{nullptr};
     void* end{nullptr};
@@ -51,7 +51,7 @@ class BumpAllocator final
 public:
     BumpAllocator(
       std::size_t bytes,
-      Allocator* allocator)
+      Allocator& allocator)
     : allocator{allocator}
     {
         if(bytes == 0)
@@ -60,13 +60,7 @@ public:
               "BumpAllocator size must be greater than zero"};
         }
 
-        if(allocator == nullptr)
-        {
-            throw std::invalid_argument{
-              "allocator must not be null"};
-        }
-
-        memory = allocator->allocate(
+        memory = allocator.allocate(
           bytes,
           alignment);
         if(memory == nullptr)
@@ -79,7 +73,7 @@ public:
     }
     ~BumpAllocator()
     {
-        allocator->deallocate(
+        allocator.deallocate(
           memory,
           capacity(),
           alignment);

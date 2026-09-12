@@ -1537,8 +1537,8 @@ void Application::tick(float delta_time)
      * Reset per-frame memory.
      */
 
-    memory::frame_bump()->reset();
-    memory::frame_arena()->reset();
+    memory::frame_bump().reset();
+    memory::frame_arena().reset();
 
     /*
      * Process pending tasks from other systems.

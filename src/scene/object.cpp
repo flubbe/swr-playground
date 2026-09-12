@@ -107,21 +107,17 @@ bool copy_property_by_name(
 
 void Object::register_properties(reflect::ClassInfo& class_info)
 {
-    register_property<&Object::object_id>(
-      class_info,
+    class_info.register_property<&Object::object_id>(
       "object_id",
       "Object ID",
       reflect::PropertyFlags::ReadOnly);
-    register_property<&Object::name>(
-      class_info,
+    class_info.register_property<&Object::name>(
       "name",
       "Name");
-    register_property<&Object::transform>(
-      class_info,
+    class_info.register_property<&Object::transform>(
       "transform",
       "Transform");
-    register_property<&Object::visible>(
-      class_info,
+    class_info.register_property<&Object::visible>(
       "visible",
       "Visible");
 }

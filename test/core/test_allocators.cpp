@@ -132,7 +132,7 @@ TEST(MallocAllocatorTests, Stress)
 TEST(BumpAllocatorTests, Name)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{1024, &upstream};
+    memory::BumpAllocator allocator{1024, upstream};
     std::string name = allocator.name();
 
     EXPECT_EQ(name, "Bump");
@@ -142,21 +142,14 @@ TEST(BumpAllocatorTests, InvalidBackingMemorySize)
 {
     memory::MallocAllocator upstream;
     ASSERT_THROW(
-      memory::BumpAllocator(0, &upstream),
-      std::invalid_argument);
-}
-
-TEST(BumpAllocatorTests, InvalidUpstreamAllocator)
-{
-    ASSERT_THROW(
-      memory::BumpAllocator(128, nullptr),
+      memory::BumpAllocator(0, upstream),
       std::invalid_argument);
 }
 
 TEST(BumpAllocatorTests, SequentialAllocations)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{1024, &upstream};
+    memory::BumpAllocator allocator{1024, upstream};
 
     auto* a = allocator.allocate(16, 8);
     auto* b = allocator.allocate(16, 8);
@@ -167,7 +160,7 @@ TEST(BumpAllocatorTests, SequentialAllocations)
 TEST(BumpAllocatorTests, OutOfMemory)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{64, &upstream};
+    memory::BumpAllocator allocator{64, upstream};
 
     EXPECT_NE(allocator.allocate(64, 1), nullptr);
 
@@ -179,7 +172,7 @@ TEST(BumpAllocatorTests, OutOfMemory)
 TEST(BumpAllocatorTests, ResetReusesMemory)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{128, &upstream};
+    memory::BumpAllocator allocator{128, upstream};
 
     void* first = allocator.allocate(32, 8);
 
@@ -193,7 +186,7 @@ TEST(BumpAllocatorTests, ResetReusesMemory)
 TEST(BumpAllocatorTests, DeallocateNull)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{128, &upstream};
+    memory::BumpAllocator allocator{128, upstream};
 
     EXPECT_NO_THROW(
       allocator.deallocate(
@@ -205,7 +198,7 @@ TEST(BumpAllocatorTests, DeallocateNull)
 TEST(BumpAllocatorTests, Alignment)
 {
     memory::MallocAllocator upstream;
-    memory::BumpAllocator allocator{256, &upstream};
+    memory::BumpAllocator allocator{256, upstream};
 
     constexpr std::size_t alignments[] = {
       1, 2, 4, 8, 16, 32, 64, 128};
@@ -227,7 +220,7 @@ TEST(BumpAllocatorTests, Alignment)
 TEST(ArenaAllocatorTests, Name)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{upstream};
 
     std::string name = allocator.name();
 
@@ -237,7 +230,7 @@ TEST(ArenaAllocatorTests, Name)
 TEST(ArenaAllocatorTests, AllocateZeroBytes)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{upstream};
 
     void* p = allocator.allocate(0, alignof(std::max_align_t));
     ASSERT_NE(p, nullptr);
@@ -247,7 +240,7 @@ TEST(ArenaAllocatorTests, AllocateZeroBytes)
 TEST(ArenaAllocatorTests, AllocateOneByte)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{upstream};
 
     void* p = allocator.allocate(1, alignof(std::max_align_t));
     ASSERT_NE(p, nullptr);
@@ -257,7 +250,7 @@ TEST(ArenaAllocatorTests, AllocateOneByte)
 TEST(ArenaAllocatorTests, AllocateOneByteReset)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream};
+    auto allocator = memory::ArenaAllocator{upstream};
 
     void* p = allocator.allocate(1, alignof(std::max_align_t));
     ASSERT_NE(p, nullptr);
@@ -274,7 +267,7 @@ TEST(ArenaAllocatorTests, AllocateOneByteReset)
 TEST(ArenaAllocatorTests, AllocateTwoPages)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream, 1};
+    auto allocator = memory::ArenaAllocator{upstream, 1};
 
     void* p1 = allocator.allocate(1, alignof(std::max_align_t));
     ASSERT_NE(p1, nullptr);
@@ -298,7 +291,7 @@ TEST(ArenaAllocatorTests, AllocateTwoPages)
 TEST(ArenaAllocatorTests, ReusePages)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream, 1};
+    auto allocator = memory::ArenaAllocator{upstream, 1};
 
     // allocate two pages
     void* p1 = allocator.allocate(1, alignof(std::max_align_t));
@@ -337,7 +330,7 @@ TEST(ArenaAllocatorTests, ReusePages)
 TEST(ArenaAllocatorTests, Alignment)
 {
     memory::MallocAllocator upstream;
-    auto allocator = memory::ArenaAllocator{&upstream, 64};
+    auto allocator = memory::ArenaAllocator{upstream, 64};
 
     constexpr std::size_t alignments[] = {
       1, 2, 4, 8, 16, 32, 64, 128};

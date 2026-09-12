@@ -28,21 +28,17 @@ DEFINE_REFLECTION(StaticMesh);
 void StaticMesh::register_properties(
   reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&StaticMesh::path>(
-      class_info,
+    class_info.register_property<&StaticMesh::path>(
       "path",
       "Asset Path",
       reflect::PropertyFlags::ReadOnly);
-    reflect::register_property<&StaticMesh::materials>(
-      class_info,
+    class_info.register_property<&StaticMesh::materials>(
       "materials",
       "Material Paths");
-    reflect::register_property<&StaticMesh::casts_shadows>(
-      class_info,
+    class_info.register_property<&StaticMesh::casts_shadows>(
       "casts_shadows",
       "Casts Shadows");
-    reflect::register_property<&StaticMesh::receives_shadows>(
-      class_info,
+    class_info.register_property<&StaticMesh::receives_shadows>(
       "receives_shadows",
       "Receives Shadows");
 }

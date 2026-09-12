@@ -21,16 +21,13 @@ DEFINE_REFLECTION(SpotLight);
 
 void SpotLight::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&SpotLight::enabled>(
-      class_info,
+    class_info.register_property<&SpotLight::enabled>(
       "enabled",
       "Enabled");
-    reflect::register_property<&SpotLight::casts_shadows>(
-      class_info,
+    class_info.register_property<&SpotLight::casts_shadows>(
       "casts_shadows",
       "Casts Shadows");
-    reflect::register_property<&SpotLight::color>(
-      class_info,
+    class_info.register_property<&SpotLight::color>(
       "color",
       "Color");
 
@@ -39,8 +36,7 @@ void SpotLight::register_properties(reflect::ClassInfo& class_info)
     brightness_constraints.max = 32.f;
     brightness_constraints.clamp = true;
 
-    reflect::register_property<&SpotLight::brightness>(
-      class_info,
+    class_info.register_property<&SpotLight::brightness>(
       "brightness",
       "Brightness",
       reflect::PropertyFlags::None,
@@ -60,20 +56,17 @@ void SpotLight::register_properties(reflect::ClassInfo& class_info)
     range_constraints.min = 0.1f;
     range_constraints.clamp = true;
 
-    reflect::register_property<&SpotLight::inner_cone_angle_radians>(
-      class_info,
+    class_info.register_property<&SpotLight::inner_cone_angle_radians>(
       "inner_cone_angle_radians",
       "Inner Cone Angle (rad)",
       reflect::PropertyFlags::None,
       inner_angle_constraints);
-    reflect::register_property<&SpotLight::outer_cone_angle_radians>(
-      class_info,
+    class_info.register_property<&SpotLight::outer_cone_angle_radians>(
       "outer_cone_angle_radians",
       "Outer Cone Angle (rad)",
       reflect::PropertyFlags::None,
       outer_angle_constraints);
-    reflect::register_property<&SpotLight::range>(
-      class_info,
+    class_info.register_property<&SpotLight::range>(
       "range",
       "Range",
       reflect::PropertyFlags::None,

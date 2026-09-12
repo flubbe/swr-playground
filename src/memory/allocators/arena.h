@@ -49,7 +49,7 @@ class ArenaAllocator final
 {
     const std::size_t alignment{alignof(std::max_align_t)};
 
-    Allocator* allocator{nullptr};
+    Allocator& allocator;
 
     std::size_t default_page_size{64 * 1024};
     ArenaPage* head{nullptr};
@@ -73,7 +73,7 @@ class ArenaAllocator final
           std::max(default_page_size,
                    header + padding + size);
 
-        void* memory = allocator->allocate(
+        void* memory = allocator.allocate(
           page_size,
           alignment);
         if(memory == nullptr)
@@ -104,24 +104,20 @@ class ArenaAllocator final
 
 public:
     ArenaAllocator(
-      Allocator* allocator,
+      Allocator& allocator,
       std::size_t default_page_size = 64 * 1024)
     : allocator{allocator}
     , default_page_size{default_page_size}
     {
-        if(allocator == nullptr)
-        {
-            throw std::invalid_argument{
-              "allocator must not be null"};
-        }
     }
+
     ~ArenaAllocator()
     {
         while(head)
         {
             auto* next = head->next;
 
-            allocator->deallocate(
+            allocator.deallocate(
               head,
               head->page_size,
               alignment);

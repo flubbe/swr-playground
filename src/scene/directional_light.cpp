@@ -21,8 +21,7 @@ DEFINE_REFLECTION(DirectionalLight);
 
 void DirectionalLight::register_properties(reflect::ClassInfo& class_info)
 {
-    reflect::register_property<&DirectionalLight::enabled>(
-      class_info,
+    class_info.register_property<&DirectionalLight::enabled>(
       "enabled",
       "Enabled");
 
@@ -31,8 +30,7 @@ void DirectionalLight::register_properties(reflect::ClassInfo& class_info)
     brightness_constraints.max = 4.f;
     brightness_constraints.clamp = true;
 
-    reflect::register_property<&DirectionalLight::brightness>(
-      class_info,
+    class_info.register_property<&DirectionalLight::brightness>(
       "brightness",
       "Brightness",
       reflect::PropertyFlags::None,

@@ -42,8 +42,8 @@ void draw_memory_profiler_panel()
     static std::size_t previous_allocate_calls = 0;
 
     const memory::MemoryStats memory_stats = memory::stats();
-    const memory::BumpAllocatorStats bump_stats = memory::frame_bump()->get_stats();
-    const memory::ArenaAllocatorStats arena_stats = memory::frame_arena()->get_stats();
+    const memory::BumpAllocatorStats bump_stats = memory::frame_bump().get_stats();
+    const memory::ArenaAllocatorStats arena_stats = memory::frame_arena().get_stats();
 
     const float live_mb =
       to_megabytes(memory_stats.bytes_live)

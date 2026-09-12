@@ -65,14 +65,14 @@ struct StdAllocator
         if constexpr(Domain == memory::MemoryDomain::Heap)
         {
             return static_cast<T*>(
-              memory::heap()->allocate(
+              memory::heap().allocate(
                 n * sizeof(T),
                 alignof(T)));
         }
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
             return static_cast<T*>(
-              memory::frame_arena()->allocate(
+              memory::frame_arena().allocate(
                 n * sizeof(T),
                 alignof(T)));
         }
@@ -93,14 +93,14 @@ struct StdAllocator
     {
         if constexpr(Domain == memory::MemoryDomain::Heap)
         {
-            memory::heap()->deallocate(
+            memory::heap().deallocate(
               p,
               n * sizeof(T),
               alignof(T));
         }
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
-            memory::frame_arena()->deallocate(
+            memory::frame_arena().deallocate(
               p,
               n * sizeof(T),
               alignof(T));
