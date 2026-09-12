@@ -21,8 +21,6 @@
 #include "scene/scene.h"
 #include "render_device.h"
 
-#include "logging.h"
-
 void RenderDevice::apply_rasterizer_state(const RasterizerState& state)
 {
     if(state.wireframe)

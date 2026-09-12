@@ -523,7 +523,7 @@ void draw_static_mesh_sections(
     }
 
     ImGui::Separator();
-    ImGui::TextUnformatted("Mesh sections");
+    ImGui::TextUnformatted("Mesh Sections");
 
     const ImGuiTableFlags table_flags =
       ImGuiTableFlags_BordersInnerV
