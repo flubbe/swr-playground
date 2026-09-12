@@ -356,12 +356,6 @@ void JsonSceneLoader::load(
   std::string_view source_text)
 {
     /*
-     * Clear scene.
-     */
-
-    scene.clear();
-
-    /*
      * Set up JSON processing.
      */
 

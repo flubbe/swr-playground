@@ -1700,6 +1700,11 @@ void Application::set_floor_material(FloorMaterial type)
     }
 }
 
+void Application::new_scene()
+{
+    scene.clear();
+}
+
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
@@ -1707,13 +1712,7 @@ bool Application::load_scene(
       "Loading scene '{}'...",
       path.string());
 
-    // Reset the state. The scene is cleared by the loader.
-    // FIXME Duplicated in clear_scene.
-    viewport.reset_editor_camera();
-    viewport.use_local_camera();
-    viewport.set_editor_camera_view(EditorCameraView::Perspective);
-    viewport.set_display_settings(ViewportDisplaySettings{});
-    viewport.set_overlay_settings(ViewportOverlaySettings{});
+    new_scene();
 
     auto contents = read_text_file(file_manager, path);
     try
@@ -1767,7 +1766,7 @@ bool Application::save_scene(
     return true;
 }
 
-void Application::clear_scene()
+void Application::reset()
 {
     viewport.reset_editor_camera();
     viewport.use_local_camera();
@@ -1775,5 +1774,5 @@ void Application::clear_scene()
     viewport.set_display_settings(ViewportDisplaySettings{});
     viewport.set_overlay_settings(ViewportOverlaySettings{});
 
-    scene.clear();
+    new_scene();
 }

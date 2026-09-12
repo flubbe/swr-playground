@@ -331,6 +331,7 @@ void draw_main_dockspace(Application& app)
         {
             if(ImGui::MenuItem("Load Scene", nullptr, false, true))
             {
+                app.reset();    // resets e.g. the viewport state
                 app.load_scene("scene.json");
             }
             if(ImGui::MenuItem("Save Scene", nullptr, false, true))
@@ -339,7 +340,7 @@ void draw_main_dockspace(Application& app)
             }
             if(ImGui::MenuItem("Clear Scene", nullptr, false, true))
             {
-                app.clear_scene();
+                app.reset();
             }
             if(ImGui::MenuItem("Quit", nullptr, false, true))
             {

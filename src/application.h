@@ -28,6 +28,10 @@
 #include "logging.h"
 #include "splash.h"
 
+/*
+ * Forward declarations.
+ */
+
 class FileManager;
 class MainLoop;
 class MaterialManager;
@@ -37,6 +41,11 @@ class Renderer;
 class Scene;
 struct StagedStartupScene;
 class Viewport;
+
+namespace logging
+{
+class BufferedLogDevice;
+}    // namespace logging
 
 struct ViewportInputState
 {
@@ -64,11 +73,6 @@ enum class FloorMaterial
     TexturedFloor,
     TexturedShinyFloor
 };
-
-namespace logging
-{
-class BufferedLogDevice;
-}    // namespace logging
 
 class ApplicationTaskSystemLogger final
 : public task_system::TaskLogger
@@ -259,6 +263,9 @@ public:
     [[nodiscard]]
     bool is_debug_test_tasks_running() const noexcept;
 
+    /** Create a new, empty scene. */
+    void new_scene();
+
     /**
      * Load a scene from JSON.
      *
@@ -275,8 +282,8 @@ public:
      */
     bool save_scene(const std::filesystem::path& path);
 
-    /** Clear the scene. */
-    void clear_scene();
+    /** Reset the state (e.g. viewports, cameras, scene). */
+    void reset();
 
     /*
      * Accessors.
