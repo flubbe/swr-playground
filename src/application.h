@@ -74,20 +74,41 @@ enum class FloorMaterial
     TexturedShinyFloor
 };
 
+/** Logging adapter for the task system. */
 class ApplicationTaskSystemLogger final
 : public task_system::TaskLogger
 {
+    /** Logger. */
     const logging::Logger logger;
 
 public:
+    /** Deleted constructors. */
+    ApplicationTaskSystemLogger() = delete;
+    ApplicationTaskSystemLogger(const ApplicationTaskSystemLogger&) = delete;
+    ApplicationTaskSystemLogger(ApplicationTaskSystemLogger&&) = delete;
+
+    /** Deleted assignments. */
+    ApplicationTaskSystemLogger& operator=(const ApplicationTaskSystemLogger&) = delete;
+    ApplicationTaskSystemLogger& operator=(ApplicationTaskSystemLogger&&) = delete;
+
+    /**
+     * Construct the logging adapter.
+     *
+     * @param log_device The log device to use.
+     */
     explicit ApplicationTaskSystemLogger(
       logging::LogDevice& log_device);
 
+    /*
+     * TaskLogger interface.
+     */
+
     void log(std::string_view message) const override;
-    void warn(std::string_view message) const override;
+    void warning(std::string_view message) const override;
     void error(std::string_view message) const override;
 };
 
+/** Main application. */
 class Application
 {
     swr::string title;
@@ -200,14 +221,16 @@ private:
      *
      * @param staged_scene The staged startup scene.
      */
-    void on_startup_complete(const StagedStartupScene& staged_scene);
+    void on_startup_complete(
+      const StagedStartupScene& staged_scene);
 
     /**
      * Called when startup encounters an error.
      *
      * @param error_message The error message.
      */
-    void on_startup_complete_error(const std::string& error_message);
+    void on_startup_complete_error(
+      const std::string& error_message);
 
     /**
      * Starts the async startup task.
@@ -240,6 +263,31 @@ private:
     void process_dirty_meshes();
 
 public:
+    /** Deleted constructors. */
+    Application() = delete;
+    Application(const Application&) = delete;
+    Application(Application&&) = delete;
+
+    /** Deleted assignments. */
+    Application& operator=(const Application&) = delete;
+    Application& operator=(Application&&) = delete;
+
+    /**
+     * Set up the application.
+     *
+     * @note Most dependencies are injected here.
+     *
+     * @param title Application title.
+     * @param log_device Log device to use.
+     * @param file_manager File manager.
+     * @param task_system The task system.
+     * @param render_device The render device.
+     * @param renderer The renderer.
+     * @param material_manager Material manager.
+     * @param mesh_manager Mesh manager.
+     * @param scene The scene. Managed by the application.
+     * @param viewport The viewport.
+     */
     Application(
       std::string_view title,
       logging::BufferedLogDevice& log_device,
@@ -252,9 +300,16 @@ public:
       Scene& scene,
       Viewport& viewport);
 
+    /** Destructor. */
     ~Application();
 
-    void tick(float delta_time);
+    /**
+     * Tick/update the application.
+     *
+     * @param delta_time Time since the last tick, in seconds.
+     */
+    void tick(
+      float delta_time);
 
     /** Start async runtime test tasks from Debug menu. */
     void start_debug_test_tasks();
@@ -272,7 +327,8 @@ public:
      * @param path The scene path.
      * @returns Returns `true` on success and `false` on failure.
      */
-    bool load_scene(const std::filesystem::path& path);
+    bool load_scene(
+      const std::filesystem::path& path);
 
     /**
      * Save the scene as JSON.
@@ -280,7 +336,8 @@ public:
      * @param path Output path.
      * @returns Returns `true` on success and `false` on failure.
      */
-    bool save_scene(const std::filesystem::path& path);
+    bool save_scene(
+      const std::filesystem::path& path);
 
     /** Reset the state (e.g. viewports, cameras, scene). */
     void reset();
@@ -290,10 +347,12 @@ public:
      */
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_static_mesh_material(StaticMeshMaterial type);
+    void set_static_mesh_material(
+      StaticMeshMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
-    void set_floor_material(FloorMaterial type);
+    void set_floor_material(
+      FloorMaterial type);
 
     // FIXME Likely not the correct place, but convenient for experimenting.
     StaticMeshMaterial get_static_mesh_shader() const noexcept

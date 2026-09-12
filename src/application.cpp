@@ -729,7 +729,7 @@ void ApplicationTaskSystemLogger::log(std::string_view message) const
     logger.logf("{}", message);
 }
 
-void ApplicationTaskSystemLogger::warn(std::string_view message) const
+void ApplicationTaskSystemLogger::warning(std::string_view message) const
 {
     logger.warningf("{}", message);
 }

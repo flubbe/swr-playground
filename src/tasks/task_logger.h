@@ -19,20 +19,26 @@ namespace task_system
 {
 
 /** Logging sink used by the task system library. */
-class TaskLogger
+struct TaskLogger
 {
-public:
+    /** Defaulted virtual destructor. */
     virtual ~TaskLogger() = default;
 
     /** Emit an informational message. */
     virtual void log(std::string_view message) const = 0;
 
     /** Emit a warning message. */
-    virtual void warn(std::string_view message) const = 0;
+    virtual void warning(std::string_view message) const = 0;
 
     /** Emit an error message. */
     virtual void error(std::string_view message) const = 0;
 
+    /**
+     * Formatted logging.
+     *
+     * @param format Format string.
+     * @param args Arguments.
+     */
     template<typename... Args>
     void logf(
       std::format_string<Args...> format,
@@ -43,16 +49,28 @@ public:
           std::forward<Args>(args)...));
     }
 
+    /**
+     * Formatted warning.
+     *
+     * @param format Format string.
+     * @param args Arguments.
+     */
     template<typename... Args>
-    void warnf(
+    void warningf(
       std::format_string<Args...> format,
       Args&&... args) const
     {
-        warn(std::format(
+        warning(std::format(
           format,
           std::forward<Args>(args)...));
     }
 
+    /**
+     * Formatted error.
+     *
+     * @param format Format string.
+     * @param args Arguments.
+     */
     template<typename... Args>
     void errorf(
       std::format_string<Args...> format,
@@ -65,10 +83,10 @@ public:
 };
 
 /** Default no-op logger used when no logger is provided. */
-class NullTaskLogger final
+struct NullTaskLogger final
 : public TaskLogger
 {
-public:
+    /** Singleton instance accessor. */
     [[nodiscard]]
     static const NullTaskLogger& instance()
     {
@@ -80,7 +98,7 @@ public:
     {
     }
 
-    void warn(std::string_view) const override
+    void warning(std::string_view) const override
     {
     }
 
