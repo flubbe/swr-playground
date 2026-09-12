@@ -30,6 +30,7 @@ class MaterialRef;
 class MeshEntry;
 class RenderDevice;
 
+/** Mesh manager. Handles loading and caching. */
 class MeshManager
 {
     /** Task system for async loading. */
@@ -53,6 +54,12 @@ class MeshManager
       mesh_cache;
 
 public:
+    /** Explicitly disable copy construction. */
+    MeshManager(const MeshManager&) = delete;
+
+    /** Explicitly disable move constructor. */
+    MeshManager(MeshManager&&) = delete;
+
     /**
      * Constructor.
      *
@@ -67,17 +74,41 @@ public:
     {
     }
 
-    // TODO Constructor.
-    // TODO Destructor.
+    /**
+     * Default destructor.
+     *
+     * @note The render device has to be alive here, since queue or cache entries
+     *     might get released.
+     */
+    ~MeshManager() = default;
 
+    /**
+     * Schedule mesh loading.
+     *
+     * @param path Mesh asset path.
+     * @param material Material reference.
+     * @returns Returns a mesh reference.
+     */
     MeshRef load(
       const assets::AssetPath& path,
       MaterialRef& material);
 
+    /**
+     * Get a cached mesh reference.
+     *
+     * @param path Mesh asset path.
+     * @returns Returns a mesh reference if found in the cache,
+     *     and `std::nullopt` otherwise.
+     */
     [[nodiscard]]
     std::optional<MeshRef> try_get(
       const assets::AssetPath& path);
 
+    /**
+     * Delete a mesh.
+     *
+     * @note Not implemented yet.
+     */
     bool delete_mesh(
       const assets::AssetPath& path);
 
