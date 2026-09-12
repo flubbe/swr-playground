@@ -33,8 +33,6 @@ void MainLoop::run()
     {
         running = application.pump_messages();
 
-        application.prepare_frame();
-
         auto now = std::chrono::steady_clock::now();
         float delta_time =
           std::chrono::duration<float>(now - last_update_time).count();
@@ -42,6 +40,7 @@ void MainLoop::run()
 
         application.tick(delta_time);
 
+        application.prepare_frame();
         application.render_frame();
     }
 }

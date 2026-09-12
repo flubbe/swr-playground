@@ -16,6 +16,7 @@ class SpotLight
 : public reflect::Reflected<SpotLight, Light>
 {
 public:
+    /** Property registration hook. */
     static void register_properties(reflect::ClassInfo& class_info);
 
     bool enabled{true};

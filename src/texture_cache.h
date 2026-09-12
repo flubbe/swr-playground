@@ -57,13 +57,18 @@ struct TextureEntry
     ~TextureEntry();
 };
 
-/** A reference to a cached texture. */
+/** A reference to a texture. */
 class TextureRef
 {
     friend class TextureCache;
 
-    /** Referenced texture entry. */
+    /** Texture entry. */
     swr::shared_ptr<TextureEntry> entry;
+
+public:
+    TextureRef() = delete;
+    TextureRef(const TextureRef&) = default;
+    TextureRef(TextureRef&&) = default;
 
     /**
      * Constructor.
@@ -75,11 +80,6 @@ class TextureRef
     : entry{std::move(entry)}
     {
     }
-
-public:
-    TextureRef() = delete;
-    TextureRef(const TextureRef&) = default;
-    TextureRef(TextureRef&&) = default;
 
     TextureRef& operator=(const TextureRef&) = default;
     TextureRef& operator=(TextureRef&&) = default;

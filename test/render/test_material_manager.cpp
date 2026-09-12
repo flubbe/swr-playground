@@ -1,8 +1,5 @@
 #include <ranges>
 
-#include <swr/swr.h>
-#include <swr/shaders.h>
-
 #include <gtest/gtest.h>
 
 #include "tasks/task_system.h"
@@ -141,8 +138,10 @@ TEST(MaterialManagerTests, Load)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> result;
-    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    std::optional<MaterialRef> result;
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"FirstMaterial"}, json)));
     ASSERT_TRUE(result.has_value());
 
     ASSERT_TRUE(result.value().get_entry().valid());
@@ -154,13 +153,16 @@ TEST(MaterialManagerTests, Load)
       "{\n"
       "    \"shader\": \"Unknown\"\n"
       "}";
-    ASSERT_NO_THROW(result.emplace(manager.load("UnknownMaterial", unknown_shader)));
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"UnknownMaterial"}, unknown_shader)));
 
     ASSERT_TRUE(result.value().get_entry().valid());
     ASSERT_NO_THROW(result.value().get_entry().wait());
     ASSERT_THROW(result.value().get_entry().finalize(), task_system::TaskCancelledError);
 
-    EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
+    EXPECT_NO_THROW(manager.delete_material(
+      assets::AssetPath{"FirstMaterial"}));
 }
 
 TEST(MaterialManagerTests, LoadWithKey)
@@ -186,27 +188,33 @@ TEST(MaterialManagerTests, LoadWithKey)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> handle;
-    ASSERT_NO_THROW(handle.emplace(manager.load("FirstMaterial", json)));
+    std::optional<MaterialRef> handle;
+    ASSERT_NO_THROW(handle.emplace(
+      manager.load(
+        assets::AssetPath{"FirstMaterial"}, json)));
 
     ASSERT_TRUE((*handle).get_entry().valid());
     ASSERT_NO_THROW((*handle).get_entry().wait());
     ASSERT_NO_THROW((*handle).get_entry().finalize());
     EXPECT_EQ((*handle).try_get(), 1);    // material ids start at 1
 
-    std::optional<ResolvableMaterial> result;
-    ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
+    std::optional<MaterialRef> result;
+    ASSERT_NO_THROW(result = manager.get(
+                      assets::AssetPath{"FirstMaterial"}));
 
     ASSERT_TRUE(result.has_value());
     ASSERT_FALSE(result.value().get_entry().valid());    // because it's already resolved
     EXPECT_TRUE(result.value().get_entry().is_resolved());
     EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 
-    ASSERT_NO_THROW(result = manager.get("UnknownShader"));
+    ASSERT_NO_THROW(result = manager.get(
+                      assets::AssetPath{"UnknownShader"}));
     EXPECT_FALSE(result.has_value());
 
-    EXPECT_NO_THROW(manager.delete_material("FirstMaterial"));
-    ASSERT_NO_THROW(result = manager.get("FirstMaterial"));
+    EXPECT_NO_THROW(manager.delete_material(
+      assets::AssetPath{"FirstMaterial"}));
+    ASSERT_NO_THROW(result = manager.get(
+                      assets::AssetPath{"FirstMaterial"}));
     EXPECT_FALSE(result.has_value());
 }
 
@@ -234,15 +242,19 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"FirstShader\"\n"
       "}";
-    std::optional<ResolvableMaterial> result;
-    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    std::optional<MaterialRef> result;
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"FirstMaterial"}, json)));
 
     ASSERT_TRUE(result.value().get_entry().valid());
     ASSERT_NO_THROW(result.value().get_entry().wait());
     ASSERT_NO_THROW(result.value().get_entry().finalize());
     EXPECT_EQ(result.value().try_get(), 1);    // material ids start at 1
 
-    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"FirstMaterial"}, json)));
     EXPECT_TRUE(result.value().get_entry().is_resolved());
     EXPECT_EQ(result.value().try_get(), 1);
 
@@ -250,7 +262,9 @@ TEST(MaterialManagerTests, Deduplicate)
       "{\n"
       "    \"shader\": \"SecondShader\"\n"
       "}";
-    ASSERT_NO_THROW(result.emplace(manager.load("SecondMaterial", json2)));
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"SecondMaterial"}, json2)));
 
     ASSERT_TRUE(result.value().get_entry().valid());
     ASSERT_NO_THROW(result.value().get_entry().wait());
@@ -295,8 +309,10 @@ TEST(MaterialManagerTests, LoadWithTextures)
       "        }\n"
       "    }\n"
       "}";
-    std::optional<ResolvableMaterial> result;
-    ASSERT_NO_THROW(result.emplace(manager.load("FirstMaterial", json)));
+    std::optional<MaterialRef> result;
+    ASSERT_NO_THROW(result.emplace(
+      manager.load(
+        assets::AssetPath{"FirstMaterial"}, json)));
     ASSERT_TRUE(result.value().get_entry().valid());
     ASSERT_NO_THROW(result.value().get_entry().wait());
     ASSERT_NO_THROW(result.value().get_entry().finalize());

@@ -20,6 +20,7 @@
 #include "mesh_section.h"
 #include "shader_factory.h"
 #include "material_manager.h"
+#include "projection_type.h"
 #include "queue.h"
 
 class Scene;
@@ -400,6 +401,7 @@ class Renderer final
 
     ml::mat4x4 view;
     ml::mat4x4 projection;
+    ProjectionType projection_type{ProjectionType::Perspective};
 
     std::optional<ShadowCamera> shadow_camera;
     bool shadow_linear_filter;

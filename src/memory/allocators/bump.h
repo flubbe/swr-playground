@@ -74,7 +74,7 @@ public:
             throw std::bad_alloc{};
         }
 
-        end = reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(memory) + bytes);
+        end = reinterpret_cast<std::byte*>(memory) + bytes;
         base = memory;
     }
     ~BumpAllocator()
@@ -100,15 +100,15 @@ public:
 
     std::size_t size() const noexcept
     {
-        return reinterpret_cast<std::uintptr_t>(
+        return reinterpret_cast<const std::byte*>(
                  base.load(std::memory_order::relaxed))
-               - reinterpret_cast<std::uintptr_t>(memory);
+               - reinterpret_cast<const std::byte*>(memory);
     }
 
     std::size_t capacity() const noexcept
     {
-        return reinterpret_cast<std::uintptr_t>(end)
-               - reinterpret_cast<std::uintptr_t>(memory);
+        return reinterpret_cast<const std::byte*>(end)
+               - reinterpret_cast<const std::byte*>(memory);
     }
 
     BumpAllocatorStats get_stats() const noexcept

@@ -374,8 +374,24 @@ void Renderer::build_render_queue(
                     obj_transform.rows[2].xyz().length()});
         const float world_radius =
           obj_bounds.radius * scale;
-        const float projected_radius_pixels =
-          world_radius * projection.rows[1].y * device.get_height() * 0.5f / distance;
+
+        const float projected_radius_pixels = [&]()
+        {
+            if(projection_type == ProjectionType::Perspective)
+            {
+                return world_radius
+                       * projection.rows[1].y
+                       * device.get_height()
+                       * 0.5f
+                       / distance;
+            }
+
+            return world_radius
+                   * projection.rows[1].y
+                   * device.get_height()
+                   * 0.5f;
+        }();
+
         const float projected_pixel_area =
           std::numbers::pi_v<float> * projected_radius_pixels * projected_radius_pixels;
 
@@ -474,6 +490,7 @@ void Renderer::begin_scene_pass(
      */
     view = camera.get_transform();
     projection = camera.get_projection_matrix();
+    projection_type = camera.get_projection_type();
 
     shadow_linear_filter =
       shadow_pcf_mode == ShadowPcfMode::ModernBilinear3x3
@@ -585,7 +602,7 @@ void Renderer::create_grid_mesh()
     const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
     auto* gray_shader = shader_factory.get_or_create<shader::ColorOnly>();
     auto gray_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = device.create_shader(*gray_shader),
         .base_color_handle = {},
         .normal_map_handle = {}});
@@ -634,6 +651,7 @@ void Renderer::create_grid_mesh()
 
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
+        .color = color_gray,
         .mesh_handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Lines,
@@ -641,10 +659,9 @@ void Renderer::create_grid_mesh()
             .vertices = std::move(vb),
             .normals = std::move(nb),
             .texcoords = {}}),
-        .material = ResolvableMaterial{
-          "GrayMaterial",
-          gray_material},
-        .color = color_gray});
+        .material = MaterialRef{
+          assets::AssetPath{"GrayMaterial"},
+          gray_material}});
 }
 
 void Renderer::release_grid_mesh()
@@ -678,7 +695,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
     auto* debug_shadow_shader = shader_factory.get_or_create<shader::ShadowMapDebug>();
     shadow_debug_overlay_shader = device.create_shader(*debug_shadow_shader);
     shadow_debug_overlay_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = shadow_debug_overlay_shader,
         .base_color_handle = {},
         .normal_map_handle = {}});
@@ -717,6 +734,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
 
     overlay_spotlight_depth = swr::make_unique<MeshSection>(
       MeshSection{
+        .color = {1.f, 1.f, 1.f, 1.f},
         .mesh_handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Triangles,
@@ -725,10 +743,9 @@ void Renderer::create_spotlight_depth_debug_mesh()
             .normals = std::move(qnb),
             .texcoords = std::move(qtb),
           }),
-        .material = ResolvableMaterial{
-          "SpotlightDepthDebug",
+        .material = MaterialRef{
+          assets::AssetPath{"SpotlightDepthDebug"},
           shadow_debug_overlay_material},
-        .color = {1.f, 1.f, 1.f, 1.f},
       });
 }
 
@@ -785,7 +802,7 @@ void Renderer::ensure_shadow_map_resources()
 
     auto* shadow_shader = shader_factory.get_or_create<shader::ShadowDepth>();
     shadow_material = device.create_material(
-      Material{
+      RenderMaterial{
         .shader_handle = device.create_shader(*shadow_shader),
         .base_color_handle = {},
         .normal_map_handle = {}});

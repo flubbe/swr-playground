@@ -10,8 +10,13 @@
 
 #include <utility>
 
+#include "assets/path_formatter.h"
 #include "reflection/builtin_properties.h"
+#include "renderer/mesh_manager.h"
 #include "scene/properties.h"
+#include "asset_resolver.h"
+#include "logging.h"
+#include "scene.h"
 #include "static_mesh.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -28,6 +33,10 @@ void StaticMesh::register_properties(
       "path",
       "Asset Path",
       reflect::PropertyFlags::ReadOnly);
+    reflect::register_property<&StaticMesh::materials>(
+      class_info,
+      "materials",
+      "Material Paths");
     reflect::register_property<&StaticMesh::casts_shadows>(
       class_info,
       "casts_shadows",
@@ -38,12 +47,63 @@ void StaticMesh::register_properties(
       "Receives Shadows");
 }
 
+void StaticMesh::resolve(
+  AssetResolver& resolver)
+{
+    mesh_lods.clear();
+    material_ref.reset();
+
+    // TODO
+
+    if(materials.empty())
+    {
+        logging::warningf(
+          "StaticMesh '{}' doesn't declare materials.",
+          path);
+
+        return;
+    }
+
+    swr::vector<MaterialRef> material_refs;
+    for(auto& material_path: materials)
+    {
+        material_refs.emplace_back(
+          resolver.resolve_material(
+            material_path));
+    }
+
+    material_ref = material_refs[0];
+
+    if(path.path.empty())
+    {
+        // Parametric asset.
+        return;
+    }
+
+    // TODO pick first material.
+    mesh_ref = resolver.resolve_static_mesh(
+      path,
+      material_refs[0]);
+}
+
+void StaticMesh::post_load()
+{
+    mark_mesh_dirty();
+}
+
+void StaticMesh::on_properties_changed()
+{
+    mark_mesh_dirty();
+}
+
 void StaticMesh::init(
-  std::string_view path,
+  const assets::AssetPath& path,
+  const swr::vector<assets::AssetPath>& materials,
   swr::vector<MeshSection> sections,
   MeshBounds bounds)
 {
     this->path = path;
+    this->materials = materials;
     set_lods(
       {StaticMeshLod{
         .mesh_sections = std::move(sections),
@@ -51,16 +111,35 @@ void StaticMesh::init(
 }
 
 void StaticMesh::init(
-  std::string_view path,
+  const assets::AssetPath& path,
+  const swr::vector<assets::AssetPath>& materials,
   swr::vector<StaticMeshLod> lods)
 {
     this->path = path;
+    this->materials = materials;
     set_lods(std::move(lods));
 }
 
 void StaticMesh::set_lods(
   swr::vector<StaticMeshLod> lods)
 {
+    for(const auto& lod: lods)
+    {
+        for(const auto& section: lod.mesh_sections)
+        {
+            if(section.material)
+            {
+                material_ref = section.material;
+                break;
+            }
+        }
+
+        if(material_ref.has_value())
+        {
+            break;
+        }
+    }
+
     mesh_lods = std::move(lods);
     update_bounds();
 }
@@ -69,6 +148,21 @@ void StaticMesh::clear_mesh_sections() noexcept
 {
     mesh_lods.clear();
     update_bounds();
+}
+
+void StaticMesh::mark_mesh_dirty()
+{
+    mesh_dirty = true;
+
+    if(scene != nullptr)
+    {
+        scene->mark_mesh_dirty(object_id);
+    }
+}
+
+void StaticMesh::clear_mesh_dirty()
+{
+    mesh_dirty = false;
 }
 
 void StaticMesh::update_bounds() noexcept

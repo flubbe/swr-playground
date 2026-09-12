@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "camera.h"
+#include "logging.h"
 #include "properties.h"
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -20,6 +21,23 @@
 DEFINE_REFLECTION(Camera)
 
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+void Camera::post_load()
+{
+    Super::post_load();
+
+    // set the caches to the loaded values.
+    // the aspect ratio is potentially updated by the viewport.
+    // FIXME This should be cleaned up.
+
+    cached_aspect_ratio = 0.f;    // 0.f forces an update below.
+    cached_fov_y = fov_y;
+    cached_orthographic_height = orthographic_height;
+    cached_near_plane = near_plane;
+    cached_far_plane = far_plane;
+
+    update_projection_matrix(1.f);
+}
 
 void Camera::register_properties(reflect::ClassInfo& class_info)
 {
@@ -69,6 +87,8 @@ Camera::Camera()
 
 void Camera::on_properties_changed()
 {
+    Super::on_properties_changed();
+
     update_projection_matrix(cached_aspect_ratio);
 }
 
@@ -80,7 +100,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
     }
 
     if(cached_aspect_ratio == aspect_ratio
-       && cached_projection_mode == projection_mode
+       && cached_projection_type == projection_type
        && cached_fov_y == fov_y
        && cached_orthographic_height == orthographic_height
        && cached_near_plane == near_plane
@@ -89,7 +109,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
         return;
     }
 
-    if(projection_mode == CameraProjectionMode::Orthographic)
+    if(projection_type == ProjectionType::Orthographic)
     {
         const float half_height = orthographic_height * 0.5f;
         const float half_width = half_height * aspect_ratio;
@@ -111,7 +131,7 @@ void Camera::update_projection_matrix(float aspect_ratio)
     }
 
     cached_aspect_ratio = aspect_ratio;
-    cached_projection_mode = projection_mode;
+    cached_projection_type = projection_type;
     cached_fov_y = fov_y;
     cached_orthographic_height = orthographic_height;
     cached_near_plane = near_plane;
@@ -123,14 +143,14 @@ ml::mat4x4 Camera::get_projection_matrix() const
     return cached_projection;
 }
 
-void Camera::set_projection_mode(CameraProjectionMode mode)
+void Camera::set_projection_type(ProjectionType mode)
 {
-    projection_mode = mode;
+    projection_type = mode;
 }
 
-CameraProjectionMode Camera::get_projection_mode() const noexcept
+ProjectionType Camera::get_projection_type() const noexcept
 {
-    return projection_mode;
+    return projection_type;
 }
 
 void Camera::set_orthographic_height(float height)

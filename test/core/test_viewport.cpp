@@ -67,7 +67,7 @@ TEST(ViewportTests, UsesSceneCameraWhenPresent)
     Scene scene;
     Viewport viewport;
 
-    Camera* scene_camera = scene.add_object<Camera>();
+    Camera* scene_camera = scene.create_object<Camera>();
     ASSERT_NE(scene_camera, nullptr);
 
     viewport.use_scene_camera(scene_camera->get_object_id());
@@ -106,7 +106,7 @@ TEST(ViewportTests, UseLocalCameraClearsSceneCameraSelection)
 
     Scene scene;
     Viewport viewport;
-    Camera* scene_camera = scene.add_object<Camera>();
+    Camera* scene_camera = scene.create_object<Camera>();
     ASSERT_NE(scene_camera, nullptr);
 
     viewport.use_scene_camera(scene_camera->get_object_id());
@@ -148,15 +148,15 @@ TEST(ViewportTests, EditorCameraViewIsOwnedByViewportLocalCamera)
 
     EXPECT_EQ(viewport.get_editor_camera_view(), EditorCameraView::Perspective);
     EXPECT_EQ(
-      viewport.get_local_camera().get_projection_mode(),
-      CameraProjectionMode::Perspective);
+      viewport.get_local_camera().get_projection_type(),
+      ProjectionType::Perspective);
 
     viewport.set_editor_camera_view(EditorCameraView::Orthographic);
 
     EXPECT_EQ(viewport.get_editor_camera_view(), EditorCameraView::Orthographic);
     EXPECT_EQ(
-      viewport.get_local_camera().get_projection_mode(),
-      CameraProjectionMode::Orthographic);
+      viewport.get_local_camera().get_projection_type(),
+      ProjectionType::Orthographic);
     EXPECT_STREQ(
       to_string(EditorCameraView::Orthographic).data(),
       "Orthographic");

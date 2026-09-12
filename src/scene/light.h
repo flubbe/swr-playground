@@ -18,6 +18,7 @@ class Light
 : public reflect::Reflected<Light, Object>
 {
 public:
+    /** Property registration hook. */
     static void register_properties(reflect::ClassInfo& class_info);
 
     Light() = default;

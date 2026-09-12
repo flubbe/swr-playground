@@ -9,9 +9,9 @@
  */
 
 #include "material_manager.h"
-#include "resolvable_material.h"
+#include "material.h"
 
-bool ResolvableMaterial::is_resolved() const
+bool MaterialRef::is_resolved() const
 {
     if(auto* result =
          std::get_if<swr::shared_ptr<MaterialEntry>>(&material))
@@ -22,7 +22,7 @@ bool ResolvableMaterial::is_resolved() const
     return std::get<MaterialHandle>(material) != 0;
 }
 
-std::optional<MaterialHandle> ResolvableMaterial::try_get() const
+std::optional<MaterialHandle> MaterialRef::try_get() const
 {
     if(auto* result =
          std::get_if<swr::shared_ptr<MaterialEntry>>(&material))

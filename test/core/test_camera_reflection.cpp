@@ -57,7 +57,7 @@ TEST(CameraReflectionTests, ExposesCameraPropertiesOnInstance)
 TEST(CameraReflectionTests, UsesOrthographicProjectionWhenRequested)
 {
     Camera camera;
-    camera.set_projection_mode(CameraProjectionMode::Orthographic);
+    camera.set_projection_type(ProjectionType::Orthographic);
     camera.set_orthographic_height(20.f);
     camera.update_projection_matrix(2.f);
 

@@ -21,20 +21,19 @@
 #include "reflection/class_registry.h"
 #include "reflection/property.h"
 
+/*
+ * Forward declarations.
+ */
+
+struct AssetResolver;
+class Scene;
+
+/** An object identifier. */
 struct ObjectId
 {
-    using Type = unsigned int;
+    std::uint32_t value = 0;
 
-    Type value = 0;
-
-    bool operator==(const ObjectId& other) const noexcept
-    {
-        return value == other.value;
-    }
-    bool operator!=(const ObjectId& other) const noexcept
-    {
-        return !(*this == other);
-    }
+    bool operator==(const ObjectId& other) const noexcept = default;
 };
 
 // std::hash support.
@@ -47,13 +46,15 @@ struct hash<ObjectId>
 {
     std::size_t operator()(const ObjectId& id) const noexcept
     {
-        return std::hash<ObjectId::Type>{}(id.value);
+        return std::hash<decltype(ObjectId::value)>{}(id.value);
     }
 };
 
 }    // namespace std
 
-// Property support.
+/*
+ * Property support.
+ */
 
 namespace reflect
 {
@@ -61,7 +62,7 @@ namespace reflect
 template<>
 struct UnwrapType<ObjectId>
 {
-    using ValueType = unsigned int;
+    using ValueType = decltype(ObjectId::value);
 
     static ValueType& get(ObjectId& value) noexcept
     {
@@ -71,56 +72,58 @@ struct UnwrapType<ObjectId>
 
 }    // namespace reflect
 
-inline ObjectId make_object_id(std::uint32_t value)
+/** Create an object id from a value. */
+inline ObjectId make_object_id(
+  std::uint32_t value)
 {
     return {value};
 }
 
+/** Scene object base class. */
 class Object
 : public reflect::ReflectRoot<Object>
 {
 public:
-    static void register_properties(reflect::ClassInfo& class_info);
+    /** Property registration hook. */
+    static void register_properties(
+      reflect::ClassInfo& class_info);
 
-    /** object id. */
+    /** Object id. */
     ObjectId object_id{0};
 
-    /** object name. */
+    /** Object name. */
     swr::string name;
 
-    /** object transformation matrix. */
+    /** Object transformation matrix. */
     ml::mat4x4 transform{ml::mat4x4::identity()};
 
     /** Whether the object should be rendered when supported by the renderer. */
     bool visible{true};
 
 protected:
-    /** per-instance baseline snapshot object. */
+    /** Containing scene. */
+    Scene* scene{nullptr};
+
+    /** Per-instance baseline snapshot object. */
     swr::unique_ptr<Object> snapshot;
-
-protected:
-    explicit Object(
-      const reflect::ClassInfo* class_info)
-    : reflect::ReflectRoot<Object>{class_info}
-    {
-    }
-
-    void set_class_info(const reflect::ClassInfo* class_info) noexcept
-    {
-        this->class_info = class_info;
-    }
 
 public:
     /** Default constructor. */
     Object()
-    : reflect::ReflectRoot<Object>{Object::static_class()}
+    : reflect::ReflectRoot<Object>{
+        Object::static_class()}
     {
     }
 
     /** Default destructor. */
     virtual ~Object() = default;
 
-    /** Move constructor. */
+    /**
+     * Move constructor.
+     *
+     * FIXME Should be `noexcept`, but `ReflectRoot` can throw
+     *     (which it likely shouldn't do).
+     */
     Object(Object&& other)
     : reflect::ReflectRoot<Object>{std::move(other)}
     , object_id{other.object_id}
@@ -131,9 +134,13 @@ public:
         other.class_info = nullptr;
     }
 
+    /** Disable copy construction. */
     Object(const Object&) = delete;
+
+    /** Disable copy assignment. */
     Object& operator=(const Object&) = delete;
 
+    /** Move assignment. */
     Object& operator=(Object&& other)
     {
         static_cast<ReflectRoot<Object>&>(*this) = std::move(other);
@@ -144,6 +151,20 @@ public:
         visible = other.visible;
 
         return *this;
+    }
+
+    /**
+     * Called after object data loading is complete.
+     * Resolves object dependencies (e.g. resources/assets).
+     */
+    virtual void resolve(
+      [[maybe_unused]] AssetResolver& resolver)
+    {
+    }
+
+    /** Called after object dependency resolution. */
+    virtual void post_load()
+    {
     }
 
     /** Return the object id. */
@@ -178,6 +199,17 @@ public:
       std::string_view object_name)
     {
         name = object_name;
+    }
+
+    /**
+     * Set the containing scene.
+     *
+     * @param scene The containing scene.
+     */
+    void set_scene(
+      Scene* scene) noexcept
+    {
+        this->scene = scene;
     }
 
     /** Release all data. */

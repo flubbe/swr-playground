@@ -36,19 +36,22 @@
 #include "containers/format.h"
 #include "meshes/lod.h"
 #include "renderer/material_manager.h"
+#include "renderer/mesh_manager.h"
 #include "renderer/render_device.h"
 #include "renderer/renderer.h"
+#include "scene/floor.h"
 #include "scene/gear.h"
 #include "scene/scene.h"
 #include "scene/static_mesh.h"
 #include "serialization/file.h"
+#include "serialization/json/scene_loader.h"
 #include "tasks/task_system.h"
 #include "ui/imgui.h"
 #include "application.h"
 #include "file_manager.h"
 #include "logging.h"
+#include "runtime_asset_resolver.h"
 #include "shader_factory.h"
-#include "startup_tasks.h"
 #include "staged_data.h"
 #include "viewport.h"
 
@@ -59,30 +62,6 @@ using task_system::TaskHandle;
 using task_system::TaskSnapshot;
 using task_system::TaskSpec;
 using task_system::TaskState;
-
-struct StartupMaterials
-{
-    ResolvableMaterial gear;
-    ResolvableMaterial floor;
-    ResolvableMaterial static_mesh;
-
-    [[nodiscard]]
-    bool is_ready()
-    {
-        using namespace std::chrono_literals;
-
-        return gear.get_entry().wait_for(0ms) == std::future_status::ready
-               && floor.get_entry().wait_for(0ms) == std::future_status::ready
-               && static_mesh.get_entry().wait_for(0ms) == std::future_status::ready;
-    }
-
-    void wait()
-    {
-        gear.get_entry().wait();
-        floor.get_entry().wait();
-        static_mesh.get_entry().wait();
-    }
-};
 
 namespace
 {
@@ -206,10 +185,9 @@ DisplayProgress summarize_task_display(
     };
 }
 
-class SDLError final
+struct SDLError final
 : public std::runtime_error
 {
-public:
     explicit SDLError(
       std::string_view message)
     : std::runtime_error{
@@ -373,9 +351,6 @@ bool viewport_contains_mouse_position(
            && y >= viewport_input.viewport_min_y
            && y < viewport_input.viewport_max_y;
 }
-
-void configure_default_directional_lights(Scene& scene);
-void configure_default_spot_lights(Scene& scene);
 
 void imgui_draw_viewport_panel(
   RenderDevice& render_device,
@@ -652,245 +627,8 @@ void imgui_draw_viewport_panel(
 }
 
 /*
- * Startup scene finalization.
+ * Startup finalization.
  */
-
-GearParameters create_gear_resources(
-  RenderDevice& device,
-  ResolvableMaterial material,
-  const StagedGearInstance& staged)
-{
-    auto inner_mesh_data = MeshData{
-      .primitive_type = PrimitiveType::Triangles,
-      .indices = staged.geometry.inner_indices,
-      .vertices = staged.geometry.inner_vertices,
-      .normals = staged.geometry.inner_normals,
-      .texcoords = {}};
-    auto inner_mesh = device.create_mesh(inner_mesh_data);
-
-    auto outer_mesh_data = MeshData{
-      .primitive_type = PrimitiveType::Triangles,
-      .indices = staged.geometry.outer_indices,
-      .vertices = staged.geometry.outer_vertices,
-      .normals = staged.geometry.outer_normals,
-      .texcoords = {}};
-    auto outer_mesh = device.create_mesh(outer_mesh_data);
-
-    MeshBounds bounds = calculate_mesh_bounds(inner_mesh_data);
-    expand_bounds(bounds, calculate_mesh_bounds(outer_mesh_data));
-
-    return GearParameters{
-      .inner = MeshSection{
-        .mesh_handle = inner_mesh,
-        .material = material,
-        .color = staged.color,
-        .triangle_count = inner_mesh_data.indices.size() / 3,
-      },
-      .outer = MeshSection{
-        .mesh_handle = outer_mesh,
-        .material = material,
-        .color = staged.color,
-        .triangle_count = outer_mesh_data.indices.size() / 3,
-      },
-      .bounds = bounds,
-      .inner_radius = staged.inner_radius,
-      .outer_radius = staged.outer_radius,
-      .width = staged.width,
-      .teeth = staged.teeth,
-      .tooth_depth = staged.tooth_depth,
-    };
-}
-
-void add_staged_gears(
-  Scene& scene,
-  RenderDevice& device,
-  ResolvableMaterial material,
-  const swr::vector<StagedGearInstance>& gears)
-{
-    for(const StagedGearInstance& staged: gears)
-    {
-        auto params = create_gear_resources(
-          device,
-          material,
-          staged);
-        auto* gear = scene.add_object<Gear>(params);
-        gear->casts_shadows = true;
-        gear->set_transform(staged.transform);
-        scene.set_spin_animation(
-          gear->get_object_id(),
-          {.translation = staged.translation,
-           .angular_speed = staged.angular_speed,
-           .phase_offset = staged.phase_offset});
-    }
-}
-
-constexpr std::string_view floor_object_name = "Stone Floor";
-
-swr::vector<StaticMeshLod> create_static_mesh_resources(
-  RenderDevice& device,
-  ResolvableMaterial material,
-  const StagedStaticMeshAsset& staged_asset)
-{
-    swr::vector<StaticMeshLod> result_lods;
-    if(staged_asset.sections.empty())
-    {
-        return result_lods;
-    }
-
-    result_lods.resize(staged_asset.sections.front().lods.size());
-
-    for(std::size_t i = 0; i < result_lods.size(); ++i)
-    {
-        result_lods[i].triangle_count =
-          staged_asset.sections.front().lods[i].mesh.indices.size() / 3;
-    }
-
-    for(const StagedStaticMeshSection& section: staged_asset.sections)
-    {
-        for(std::size_t lod_index = 0;
-            lod_index < section.lods.size() && lod_index < result_lods.size();
-            ++lod_index)
-        {
-            const StagedStaticMeshSectionLod& staged_lod =
-              section.lods[lod_index];
-            const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
-            expand_bounds(
-              result_lods[lod_index].bounds,
-              staged_lod.bounds);
-            result_lods[lod_index].mesh_sections.push_back(
-              MeshSection{
-                .mesh_handle = mesh_handle,
-                .material = material,
-                .color = section.diffuse_color,
-                .triangle_count = staged_lod.mesh.indices.size() / 3,
-              });
-        }
-    }
-
-    std::erase_if(
-      result_lods,
-      [](const StaticMeshLod& lod)
-      {
-          return lod.mesh_sections.empty();
-      });
-
-    return result_lods;
-}
-
-void try_add_textured_floor(
-  Scene& scene,
-  RenderDevice& device,
-  ResolvableMaterial material,
-  const StagedFloorData& floor_data)
-{
-    std::optional<MeshHandle> mesh_handle;
-
-    try
-    {
-        constexpr float floor_height = -6.25f;
-
-        mesh_handle = device.create_mesh(
-          floor_data.mesh);
-
-        auto* floor = scene.add_object<StaticMesh>(
-          "",
-          swr::vector<MeshSection>{
-            MeshSection{
-              .mesh_handle = *mesh_handle,
-              .material = material,
-              .color = {1.f, 1.f, 1.f, 1.f},
-              .triangle_count = floor_data.mesh.indices.size() / 3,
-            }},
-          calculate_mesh_bounds(floor_data.mesh));
-        floor->set_name(floor_object_name);
-        floor->casts_shadows = false;
-        floor->set_transform(ml::matrices::translation(0.f, floor_height, 0.f));
-        floor->capture_snapshot();
-    }
-    catch(const std::exception& e)
-    {
-        if(mesh_handle.has_value())
-        {
-            device.delete_mesh(*mesh_handle);
-        }
-        logging::warningf(
-          "failed to create textured floor: {}",
-          e.what());
-    }
-}
-
-StaticMesh* create_static_mesh_instance(
-  std::string_view path,
-  Scene& scene,
-  const StagedStaticMeshAsset& resources,
-  swr::vector<StaticMeshLod> lods,
-  const ml::mat4x4& transform)
-{
-    StaticMesh* mesh = scene.add_object<StaticMesh>(
-      path,
-      std::move(lods));
-    mesh->set_name(resources.name);
-    mesh->set_transform(transform * resources.fit_transform);
-    mesh->capture_snapshot();
-    return mesh;
-}
-
-void finalize_startup_scene(
-  Scene& scene,
-  Viewport& viewport,
-  RenderDevice& render_device,
-  StartupMaterials& startup_materials,
-  const StagedStartupScene& staged_scene)
-{
-    configure_default_directional_lights(scene);
-    configure_default_spot_lights(scene);
-
-    add_staged_gears(
-      scene,
-      render_device,
-      startup_materials.gear,
-      staged_scene.gears);
-
-    if(staged_scene.floor.has_value())
-    {
-        try_add_textured_floor(
-          scene,
-          render_device,
-          startup_materials.floor,
-          *staged_scene.floor);
-    }
-
-    // place sample meshes in a line.
-    for(std::size_t i = 0; i < staged_scene.sample_meshes.size(); ++i)
-    {
-        auto& staged_sample_mesh = staged_scene.sample_meshes[i];
-        auto lods = create_static_mesh_resources(
-          render_device,
-          startup_materials.static_mesh,
-          staged_sample_mesh);
-
-        const float mesh_x =
-          (static_cast<float>(i) - static_cast<float>(staged_scene.sample_meshes.size() - 1) * 0.5f) * 5.f;
-
-        if(!lods.empty())
-        {
-            StaticMesh* sample_mesh = create_static_mesh_instance(
-              staged_sample_mesh.path,
-              scene,
-              staged_sample_mesh,
-              std::move(lods),
-              ml::matrices::translation(mesh_x, 0.f, 5.f));
-            sample_mesh->casts_shadows = true;
-        }
-    }
-
-    Camera* camera = scene.add_object<Camera>();
-    camera->set_transform(viewport.get_local_camera().get_transform());
-    camera->set_name("Editor Camera");
-    camera->capture_snapshot();
-
-    viewport.use_local_camera();
-}
 
 template<
   typename Rep,
@@ -927,136 +665,6 @@ TaskSpec make_wait_task(
           }
       },
     };
-}
-
-void rebuild_gear_mesh_if_needed(
-  RenderDevice& device,
-  Gear* gear)
-{
-    if(gear == nullptr)
-    {
-        return;
-    }
-
-    gear->clamp_runtime_parameters();
-    if(!gear->needs_rebuild())
-    {
-        return;
-    }
-
-    const int teeth = std::clamp(
-      gear->get_teeth(),
-      gear_limits::min_teeth,
-      gear_limits::max_teeth);
-
-    // FIXME The copy is here only to update the triangle count below.
-    auto mesh_lods = gear->get_lods();
-
-    // validate assumptions since we'd like to reuse the mesh handle.
-    if(mesh_lods.size() != 1
-       || mesh_lods[0].mesh_sections.size() != 2)
-    {
-        logging::errorf("Cannot rebuild gear mesh: LOD parameters do not match.");
-        return;
-    }
-
-    auto geom = make_gear(
-      gear->get_inner_radius(),
-      gear->get_outer_radius(),
-      gear->get_width(),
-      teeth,
-      gear->get_tooth_depth());
-
-    const MeshHandle old_inner_mesh = mesh_lods[0].mesh_sections[0].mesh_handle;
-    const MeshHandle old_outer_mesh = mesh_lods[0].mesh_sections[1].mesh_handle;
-
-    const bool inner_updated = device.update_mesh(
-      old_inner_mesh,
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = geom.inner_indices,
-        .vertices = geom.inner_vertices,
-        .normals = geom.inner_normals,
-        .texcoords = {}});
-
-    std::uint32_t inner_triangle_count = geom.inner_indices.size() / 3;
-    if(!inner_updated)
-    {
-        // mesh was not updated.
-        inner_triangle_count = mesh_lods[0].mesh_sections[0].triangle_count;
-    }
-
-    const bool outer_updated = device.update_mesh(
-      old_outer_mesh,
-      MeshData{
-        .primitive_type = PrimitiveType::Triangles,
-        .indices = geom.outer_indices,
-        .vertices = geom.outer_vertices,
-        .normals = geom.outer_normals,
-        .texcoords = {}});
-
-    std::uint32_t outer_triangle_count = geom.outer_indices.size() / 3;
-    if(!outer_updated)
-    {
-        // mesh was not updated.
-        outer_triangle_count = mesh_lods[0].mesh_sections[1].triangle_count;
-    }
-
-    // update triangle count.
-    mesh_lods[0].mesh_sections[0].triangle_count = inner_triangle_count;
-    mesh_lods[0].mesh_sections[1].triangle_count = outer_triangle_count;
-    gear->set_lods(mesh_lods);
-
-    gear->mark_rebuilt();
-}
-
-void configure_default_directional_lights(Scene& scene)
-{
-    auto* key_light = scene.add_object<DirectionalLight>();
-    key_light->set_name("Key Light");
-    key_light->behavior = DirectionalLightBehavior::Rotating;
-    key_light->brightness = 0.55f;
-    key_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(210.f))
-      * ml::matrices::rotation_x(ml::to_radians(-35.f)));
-    key_light->set_position({5.f, 8.f, 10.f});
-    key_light->capture_snapshot();
-
-    auto* fill_light = scene.add_object<DirectionalLight>();
-    fill_light->set_name("Fill Light");
-    fill_light->behavior = DirectionalLightBehavior::Stationary;
-    fill_light->brightness = 0.6f;
-    fill_light->set_transform(
-      ml::matrices::rotation_y(ml::to_radians(35.f))
-      * ml::matrices::rotation_x(ml::to_radians(-55.f)));
-    fill_light->set_position({-10.f, 12.f, -6.f});
-    fill_light->capture_snapshot();
-}
-
-void configure_default_spot_lights(Scene& scene)
-{
-    auto* spotlight = scene.add_object<SpotLight>();
-    spotlight->set_name("Spot Light");
-    spotlight->casts_shadows = true;
-    spotlight->color = {1.f, 1.f, 1.f, 1.f};
-    spotlight->brightness = 2.4f;
-    spotlight->inner_cone_angle_radians = ml::to_radians(20.f);
-    spotlight->outer_cone_angle_radians = ml::to_radians(21.f);
-    spotlight->range = 45.f;
-
-    const ml::vec3 spotlight_position{0.f, 11.f, 12.f};
-    const ml::vec3 direction_to_origin =
-      (-spotlight_position).normalized();
-    const float spotlight_pitch =
-      std::asin(direction_to_origin.y);
-    const float spotlight_yaw =
-      std::atan2(-direction_to_origin.x, -direction_to_origin.z);
-
-    spotlight->set_transform(
-      ml::matrices::rotation_y(spotlight_yaw)
-      * ml::matrices::rotation_x(spotlight_pitch));
-    spotlight->set_position(spotlight_position);
-    spotlight->capture_snapshot();
 }
 
 DisplayProgress aggregate_startup_progress(
@@ -1244,11 +852,6 @@ bool Application::pump_messages()
 
 void Application::prepare_frame()
 {
-    memory::frame_bump()->reset();
-    memory::frame_arena()->reset();
-
-    material_manager.process_pending();
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
@@ -1256,8 +859,6 @@ void Application::prepare_frame()
 
 void Application::render_frame()
 {
-    update_runtime_test_task();
-
     imgui::draw_main_dockspace(*this);
     imgui_draw_viewport_panel(
       render_device,
@@ -1313,13 +914,11 @@ void Application::on_startup_complete(const StagedStartupScene& staged_scene)
     {
         startup_logger.warningf("{}", notice);
     }
-    finalize_startup_scene(
-      scene,
-      viewport,
-      render_device,
-      *startup_materials,
-      staged_scene);
-    scene.add_default_systems();
+
+    /*
+     * TODO Add code for startup finalization here.
+     */
+
     setup_viewport();
 }
 
@@ -1344,6 +943,7 @@ Application::Application(
   RenderDevice& render_device,
   Renderer& renderer,
   MaterialManager& material_manager,
+  MeshManager& mesh_manager,
   Scene& scene,
   Viewport& viewport)
 : title{title}
@@ -1353,6 +953,7 @@ Application::Application(
 , render_device{render_device}
 , renderer{renderer}
 , material_manager{material_manager}
+, mesh_manager{mesh_manager}
 , scene{scene}
 , viewport{viewport}
 {
@@ -1515,79 +1116,20 @@ void Application::begin_startup()
     cancel_startup();
     startup_error.reset();
 
-    // Load materials.
-    const std::string_view floor_material_path = "assets/materials/floor/floor.json";
-    const std::string_view shadowed_material_path = "assets/materials/mesh/lit.json";
-
-    auto floor_material = material_manager.load(
-      floor_material_path,
-      read_text_file(file_manager, floor_material_path));
-    auto shadowed_material = material_manager.load(
-      shadowed_material_path,
-      read_text_file(file_manager, shadowed_material_path));
-
-    startup_materials = swr::make_unique<StartupMaterials>(
-      StartupMaterials{
-        .gear = shadowed_material,
-        .floor = floor_material,
-        .static_mesh = shadowed_material,
-      });
-
-    startup_scene = std::make_shared<StagedStartupScene>();
-    auto tasks = startup_tasks::create_startup_tasks(*startup_scene);
-
-    startup_task_handles.clear();
-    startup_task_futures.clear();
-    startup_task_weights.clear();
-    startup_task_handles.reserve(tasks.size());
-    startup_task_futures.reserve(tasks.size());
-    startup_task_weights.reserve(tasks.size());
-
-    for(TaskSpec& task: tasks)
-    {
-        startup_task_weights.push_back(std::max(task.weight, 1.f));
-
-        auto startup_submission = task_system.submit(
-          [task = std::move(task)](TaskExecutionContext& context) mutable
-          {
-              if(context.is_cancel_requested())
-              {
-                  throw TaskCancelledError{};
-              }
-
-              if(!task.name.empty())
-              {
-                  context.update(task.name, 0.f);
-              }
-
-              if(task.run)
-              {
-                  task.run(context);
-              }
-
-              if(context.is_cancel_requested())
-              {
-                  throw TaskCancelledError{};
-              }
-
-              if(!task.name.empty())
-              {
-                  context.update(task.name, 1.f);
-              }
-          });
-
-        startup_task_handles.push_back(startup_submission.handle);
-        startup_task_futures.push_back(std::move(startup_submission.future));
-    }
+    /*
+     * TODO Startup tasks can be added here.
+     */
 }
 
 bool Application::is_startup_ready() const
 {
     using namespace std::literals;
 
-    if(startup_task_futures.empty() || startup_materials == nullptr)
+    // Check all futures for readiness.
+
+    if(startup_task_futures.empty())
     {
-        return false;
+        return true;
     }
 
     for(const auto& startup_task_future: startup_task_futures)
@@ -1600,7 +1142,7 @@ bool Application::is_startup_ready() const
         }
     }
 
-    return startup_materials->is_ready();
+    return true;
 }
 
 bool Application::finish_startup_if_ready()
@@ -1620,22 +1162,9 @@ bool Application::finish_startup_if_ready()
             }
         }
 
-        if(startup_scene == nullptr)
-        {
-            throw std::runtime_error{"startup scene state is missing"};
-        }
-        if(startup_materials == nullptr)
-        {
-            throw std::runtime_error{"startup material state is missing"};
-        }
-
-        startup_materials->wait();
-        on_startup_complete(*startup_scene);
-        startup_task_handles.clear();
-        startup_task_futures.clear();
-        startup_task_weights.clear();
-        startup_scene.reset();
-        startup_materials.reset();
+        /*
+         * TODO Add code to finish startup here.
+         */
     }
     catch(const std::exception& e)
     {
@@ -1643,8 +1172,6 @@ bool Application::finish_startup_if_ready()
         startup_task_handles.clear();
         startup_task_futures.clear();
         startup_task_weights.clear();
-        startup_scene.reset();
-        startup_materials.reset();
 
         throw;
     }
@@ -1667,8 +1194,6 @@ void Application::cancel_startup()
     startup_task_handles.clear();
     startup_task_futures.clear();
     startup_task_weights.clear();
-    startup_scene.reset();
-    startup_materials.reset();
 }
 
 void Application::start_debug_test_tasks()
@@ -1844,8 +1369,203 @@ void Application::draw_runtime_test_modal()
     ImGui::EndPopup();
 }
 
+void Application::process_dirty_meshes()
+{
+    auto& objects_by_id = scene.get_objects_by_id();
+    for(auto& object_id: scene.get_dirty_meshes())
+    {
+        auto it = objects_by_id.find(object_id);
+        if(it == objects_by_id.end())
+        {
+            logging::warningf(
+              "Deleted object with id '{}' requested reload. Skipping.",
+              object_id.value);
+            continue;
+        }
+
+        auto* mesh = reflect::try_cast<StaticMesh>(it->second);
+        if(mesh == nullptr)
+        {
+            logging::warningf(
+              "Object with id '{}' requested reload, but is not a StaticMesh.",
+              object_id.value);
+            continue;
+        }
+
+        auto& material_paths = mesh->get_material_paths();
+        if(material_paths.empty())
+        {
+            logging::warningf(
+              "Cannot create {} {}: No material set.",
+              mesh->get_class()->name,
+              mesh->get_name());
+            continue;
+        }
+        if(material_paths.size() > 1)
+        {
+            logging::warningf(
+              "Too many materials set for {} {} (got {}, expected 1). Picking first one.",
+              mesh->get_class()->name,
+              mesh->get_name(),
+              material_paths.size());
+        }
+
+        const auto& material = mesh->get_material_ref();
+        if(!material.has_value())
+        {
+            logging::errorf(
+              "Cannot get material '{}' for {} {}.",
+              material_paths[0].path.string(),
+              mesh->get_class()->name,
+              mesh->get_name());
+
+            // TODO Currently this retries, but will spam the log if the material is not loaded.
+
+            continue;
+        }
+
+        if(auto* gear = reflect::try_cast<Gear>(mesh))
+        {
+            // TODO Reuse mesh handles if possible.
+
+            // Release mesh handles.
+            for(auto& lod: gear->get_lods())
+            {
+                for(auto& section: lod.mesh_sections)
+                {
+                    render_device.delete_mesh(
+                      section.mesh_handle);
+                }
+            }
+            gear->get_lods().clear();
+
+            // Generate and upload new mesh.
+            auto geom = gear->generate_mesh();
+
+            auto params = Gear::create_gear_resources(
+              render_device,
+              material.value(),
+              gear->get_inner_radius(),
+              gear->get_outer_radius(),
+              gear->get_width(),
+              gear->get_teeth(),
+              gear->get_tooth_depth(),
+              gear->get_color(),
+              geom);
+
+            gear->init(params);
+        }
+        else if(auto* floor = reflect::try_cast<Floor>(mesh))
+        {
+            for(auto& lod: floor->get_lods())
+            {
+                for(auto& section: lod.mesh_sections)
+                {
+                    render_device.delete_mesh(section.mesh_handle);
+                }
+            }
+
+            const MeshData floor_mesh = floor->generate_mesh();
+            const MeshHandle mesh_handle = render_device.create_mesh(floor_mesh);
+            floor->set_lods(
+              {StaticMeshLod{
+                .mesh_sections = {MeshSection{
+                  .color = {1.f, 1.f, 1.f, 1.f},
+                  .mesh_handle = mesh_handle,
+                  .material = material.value(),
+                  .triangle_count = floor_mesh.indices.size() / 3}},
+                .triangle_count = floor_mesh.indices.size() / 3,
+                .bounds = calculate_mesh_bounds(floor_mesh)}});
+            floor->clear_mesh_dirty();
+            continue;
+        }
+        else
+        {
+            /* StaticMesh. */
+
+            auto& path = mesh->get_path();
+            if(path.path.empty())
+            {
+                logging::warningf(
+                  "No asset path for {} {}.",
+                  mesh->get_class()->name,
+                  mesh->get_name());
+                continue;
+            }
+
+            auto mesh_ref = mesh_manager.try_get(path);
+            if(!mesh_ref.has_value())
+            {
+                logging::errorf(
+                  "Asset '{}' not found for {} {}.",
+                  mesh->get_path().path.string(),
+                  mesh->get_class()->name,
+                  mesh->get_name());
+                continue;
+            }
+
+            const auto* lods = mesh_ref.value().try_get_lods();
+            if(lods == nullptr)
+            {
+                continue;
+            }
+
+            mesh->set_lods(*lods);
+            mesh->set_mesh_ref(
+              std::move(mesh_ref.value()));
+        }
+
+        mesh->clear_mesh_dirty();
+    }
+
+    // FIXME The code doesn't clear the still-dirty meshes (on purpose),
+    //       but it's done by clear-all & re-insert.
+    scene.clear_dirty_meshes();
+    scene.for_each_object<StaticMesh>(
+      [&](StaticMesh& mesh)
+      {
+          if(mesh.is_mesh_dirty())
+          {
+              scene.mark_mesh_dirty(mesh.get_object_id());
+          }
+      });
+}
+
 void Application::tick(float delta_time)
 {
+    /*
+     * Reset per-frame memory.
+     */
+
+    memory::frame_bump()->reset();
+    memory::frame_arena()->reset();
+
+    /*
+     * Process pending tasks from other systems.
+     */
+
+    // Release resources from a previous scene before creating replacement resources.
+    // FIXME We don't really want to do this, since we could/should keep assets.
+    //       But we cannot simply re-order the logic here, since processing first
+    //       doesn't update deferred deletions, so we could end up in an inconsistent
+    //       state with deleted-but-used assets.
+    render_device.process_deferred_deletions();
+
+    mesh_manager.process_pending();
+    material_manager.process_pending();
+
+    process_dirty_meshes();
+
+    /*
+     * Update background (test) tasks.
+     */
+
+    update_runtime_test_task();
+
+    /*
+     * Input.
+     */
+
     update_viewport_mouse_capture();
     const ViewportNavigationMode navigation_mode = viewport.get_navigation_mode();
     const ViewportEditorCameraInput controller_input =
@@ -1869,12 +1589,9 @@ void Application::tick(float delta_time)
     }
     prev_space_pressed = space_pressed;
 
-    // FIXME temporary until a better update mechanism is in place
-    scene.for_each_object<Gear>(
-      [&](Gear& gear)
-      {
-          rebuild_gear_mesh_if_needed(render_device, &gear);
-      });
+    /*
+     * Scene.
+     */
 
     scene.tick(delta_time);
 }
@@ -1883,23 +1600,23 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
 {
     active_static_mesh_material = type;
 
-    const swr::string material_path = [&]() -> swr::string
+    const auto material_path = [&]() -> assets::AssetPath
     {
         if(type == StaticMeshMaterial::ColorFlat)
         {
-            return "assets/materials/mesh/flat.json";
+            return assets::AssetPath{"assets/materials/mesh/flat.json"};
         }
         else if(type == StaticMeshMaterial::ColorSmooth)
         {
-            return "assets/materials/mesh/smooth.json";
+            return assets::AssetPath{"assets/materials/mesh/smooth.json"};
         }
         else if(type == StaticMeshMaterial::PhongSmooth)
         {
-            return "assets/materials/mesh/phong.json";
+            return assets::AssetPath{"assets/materials/mesh/phong.json"};
         }
         else if(type == StaticMeshMaterial::LitSmooth)
         {
-            return "assets/materials/mesh/lit.json";
+            return assets::AssetPath{"assets/materials/mesh/lit.json"};
         }
         else
         {
@@ -1907,7 +1624,7 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
         }
     }();
 
-    const ResolvableMaterial material = [&]() -> ResolvableMaterial
+    const MaterialRef material = [&]() -> MaterialRef
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(material_path);
@@ -1916,18 +1633,13 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
             return cached_material.value();
         }
 
-        auto json = read_text_file(file_manager, material_path);
+        auto json = read_text_file(file_manager, material_path.path);
         return material_manager.load(material_path, json);
     }();
 
     for(auto& mesh: scene.objects_of<StaticMesh>())
     {
-        // skip gears for now.
-        if(mesh.is_a<Gear>())
-        {
-            continue;
-        }
-        if(mesh.get_name() == floor_object_name)
+        if(mesh.get_class() != StaticMesh::static_class())
         {
             continue;
         }
@@ -1946,15 +1658,15 @@ void Application::set_floor_material(FloorMaterial type)
 {
     active_floor_material = type;
 
-    const swr::string path = [&]() -> swr::string
+    const auto path = [&]() -> assets::AssetPath
     {
         if(type == FloorMaterial::TexturedFloor)
         {
-            return "assets/materials/floor/floor.json";
+            return assets::AssetPath{"assets/materials/floor/floor.json"};
         }
         else if(type == FloorMaterial::TexturedShinyFloor)
         {
-            return "assets/materials/floor/shiny_floor.json";
+            return assets::AssetPath{"assets/materials/floor/shiny_floor.json"};
         }
         else
         {
@@ -1962,7 +1674,7 @@ void Application::set_floor_material(FloorMaterial type)
         }
     }();
 
-    const ResolvableMaterial material = [&]() -> ResolvableMaterial
+    const MaterialRef material = [&]() -> MaterialRef
     {
         // Avoid filesystem access.
         auto cached_material = material_manager.get(path);
@@ -1973,16 +1685,11 @@ void Application::set_floor_material(FloorMaterial type)
 
         return material_manager.load(
           path,
-          read_text_file(file_manager, path));
+          read_text_file(file_manager, path.path));
     }();
 
-    for(auto& mesh: scene.objects_of<StaticMesh>())
+    for(auto& mesh: scene.objects_of<Floor>())
     {
-        if(mesh.get_name() != floor_object_name)
-        {
-            continue;
-        }
-
         for(auto& lod: mesh.get_lods())
         {
             for(auto& section: lod.mesh_sections)
@@ -1993,14 +1700,29 @@ void Application::set_floor_material(FloorMaterial type)
     }
 }
 
+void Application::new_scene()
+{
+    scene.clear();
+}
+
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
-    auto contents = read_text_file(file_manager, path);
+    logging::logf(
+      "Loading scene '{}'...",
+      path.string());
 
+    new_scene();
+
+    auto contents = read_text_file(file_manager, path);
     try
     {
-        scene.load(contents);
+        RuntimeAssetResolver resolver{
+          file_manager,
+          material_manager,
+          mesh_manager};
+        serial::json::JsonSceneLoader loader{resolver};
+        loader.load(scene, contents);
     }
     catch(const std::runtime_error& e)
     {
@@ -2042,4 +1764,15 @@ bool Application::save_scene(
       abs_path.string());
 
     return true;
+}
+
+void Application::reset()
+{
+    viewport.reset_editor_camera();
+    viewport.use_local_camera();
+    viewport.set_editor_camera_view(EditorCameraView::Perspective);
+    viewport.set_display_settings(ViewportDisplaySettings{});
+    viewport.set_overlay_settings(ViewportOverlaySettings{});
+
+    new_scene();
 }
