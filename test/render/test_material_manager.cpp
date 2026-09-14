@@ -99,6 +99,7 @@ struct SecondShader final
 TEST(MaterialManagerTests, Construction)
 {
     task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
 
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
@@ -109,6 +110,7 @@ TEST(MaterialManagerTests, Construction)
     ASSERT_NO_THROW(
       MaterialManager manager(
         task_system,
+        resource_tracker,
         device,
         shader_cache,
         shader_factory,
@@ -118,6 +120,7 @@ TEST(MaterialManagerTests, Construction)
 TEST(MaterialManagerTests, Load)
 {
     task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
 
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
@@ -129,6 +132,7 @@ TEST(MaterialManagerTests, Load)
 
     MaterialManager manager{
       task_system,
+      resource_tracker,
       device,
       shader_cache,
       shader_factory,
@@ -168,6 +172,7 @@ TEST(MaterialManagerTests, Load)
 TEST(MaterialManagerTests, LoadWithKey)
 {
     task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
 
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
@@ -179,6 +184,7 @@ TEST(MaterialManagerTests, LoadWithKey)
 
     MaterialManager manager{
       task_system,
+      resource_tracker,
       device,
       shader_cache,
       shader_factory,
@@ -221,6 +227,7 @@ TEST(MaterialManagerTests, LoadWithKey)
 TEST(MaterialManagerTests, Deduplicate)
 {
     task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
 
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
@@ -233,6 +240,7 @@ TEST(MaterialManagerTests, Deduplicate)
 
     MaterialManager manager{
       task_system,
+      resource_tracker,
       device,
       shader_cache,
       shader_factory,
@@ -277,6 +285,7 @@ TEST(MaterialManagerTests, Deduplicate)
 TEST(MaterialManagerTests, LoadWithTextures)
 {
     task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
 
     RenderDevice device{100, 100};
     ShaderFactory shader_factory;
@@ -288,6 +297,7 @@ TEST(MaterialManagerTests, LoadWithTextures)
 
     MaterialManager manager{
       task_system,
+      resource_tracker,
       device,
       shader_cache,
       shader_factory,

@@ -940,6 +940,7 @@ Application::Application(
   logging::BufferedLogDevice& log_device,
   FileManager& file_manager,
   task_system::TaskSystem& task_system,
+  ResourceTracker& resource_tracker,
   RenderDevice& render_device,
   Renderer& renderer,
   MaterialManager& material_manager,
@@ -950,6 +951,7 @@ Application::Application(
 , log_device{log_device}
 , file_manager{file_manager}
 , task_system{task_system}
+, resource_tracker{resource_tracker}
 , render_device{render_device}
 , renderer{renderer}
 , material_manager{material_manager}
@@ -1127,22 +1129,21 @@ bool Application::is_startup_ready() const
 
     // Check all futures for readiness.
 
-    if(startup_task_futures.empty())
+    if(!startup_task_futures.empty())
     {
-        return true;
-    }
-
-    for(const auto& startup_task_future: startup_task_futures)
-    {
-        if(!startup_task_future.valid()
-           || startup_task_future.wait_for(0ms)
-                != std::future_status::ready)
+        for(const auto& startup_task_future: startup_task_futures)
         {
-            return false;
+            if(!startup_task_future.valid()
+               || startup_task_future.wait_for(0ms)
+                    != std::future_status::ready)
+            {
+                return false;
+            }
         }
     }
 
-    return true;
+    // check resource tracker.
+    return resource_tracker.is_finished();
 }
 
 bool Application::finish_startup_if_ready()
@@ -1151,6 +1152,18 @@ bool Application::finish_startup_if_ready()
     {
         return false;
     }
+
+    // Check for loading errors.
+    if(resource_tracker.has_failed())
+    {
+        on_startup_complete_error(
+          "Resource failed to load.");
+        throw std::runtime_error{
+          "Resource failed to load."};
+    }
+
+    // All resources are loaded here, so we clear all.
+    resource_tracker.clear();
 
     try
     {

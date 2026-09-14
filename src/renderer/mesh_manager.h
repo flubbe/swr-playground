@@ -16,6 +16,7 @@
 #include "containers/unordered_map.h"
 #include "mesh.h"
 #include "queue.h"
+#include "resource_tracker.h"
 
 /*
  * Forward declarations.
@@ -35,6 +36,9 @@ class MeshManager
 {
     /** Task system for async loading. */
     task_system::TaskSystem& task_system;
+
+    /** Resource tracker. */
+    ResourceTracker& resource_tracker;
 
     /** Render device reference. */
     RenderDevice& device;
@@ -64,12 +68,15 @@ public:
      * Constructor.
      *
      * @param task_system The task system to use for async loading.
+     * @param resource_tracker The resource tracker.
      * @param device The render device for this material manager.
      */
     MeshManager(
       task_system::TaskSystem& task_system,
+      ResourceTracker& resource_tracker,
       RenderDevice& device)
     : task_system{task_system}
+    , resource_tracker{resource_tracker}
     , device{device}
     {
     }

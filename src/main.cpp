@@ -133,6 +133,8 @@ int main(int argc, char* argv[])
           std::thread::hardware_concurrency(),
           task_system_logger};
 
+        ResourceTracker resource_tracker;
+
         RenderDevice render_device{
           initial_framebuffer_width,
           initial_framebuffer_height};
@@ -142,12 +144,14 @@ int main(int argc, char* argv[])
         TextureCache texture_cache{render_device};
         MaterialManager material_manager{
           task_system,
+          resource_tracker,
           render_device,
           shader_cache,
           renderer.get_shader_factory(),
           texture_cache};
         MeshManager mesh_manager{
           task_system,
+          resource_tracker,
           render_device};
 
         Scene scene;
@@ -158,6 +162,7 @@ int main(int argc, char* argv[])
           log_device,
           file_manager,
           task_system,
+          resource_tracker,
           render_device,
           renderer,
           material_manager,

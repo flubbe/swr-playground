@@ -336,6 +336,8 @@ MeshRef MeshManager::load(
         return cached_mesh.value();
     }
 
+    auto resource_ticket = resource_tracker.track(path);
+
     get_logger().logf(
       "Loading mesh '{}'.",
       path);
@@ -344,11 +346,13 @@ MeshRef MeshManager::load(
     // to a task.
 
     auto submission = task_system.submit(
-      [path = assets::AssetPath{path}](
+      [resource_ticket,
+       path = assets::AssetPath{path}](
         task_system::TaskExecutionContext& context) mutable -> StagedStaticMeshAsset
       {
           if(context.is_cancel_requested())
           {
+              resource_ticket.cancelled();
               throw task_system::TaskCancelledError{};
           }
 
@@ -356,6 +360,7 @@ MeshRef MeshManager::load(
 
           if(context.is_cancel_requested())
           {
+              resource_ticket.cancelled();
               throw task_system::TaskCancelledError{};
           }
 
@@ -376,6 +381,8 @@ MeshRef MeshManager::load(
           get_logger().logf(
             "Loaded mesh '{}'.",
             path);
+
+          resource_ticket.completed();
 
           // StagedStaticMeshAsset contains only CPU-side data and can be transferred
           // to the render/main thread for finalization.

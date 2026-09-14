@@ -38,6 +38,7 @@ class MaterialManager;
 class MeshManager;
 class RenderDevice;
 class Renderer;
+class ResourceTracker;
 class Scene;
 struct StagedStartupScene;
 class Viewport;
@@ -121,6 +122,7 @@ class Application
     SDL_GLContext gl_context{nullptr};
 
     task_system::TaskSystem& task_system;
+    ResourceTracker& resource_tracker;
 
     RenderDevice& render_device;
     Renderer& renderer;
@@ -281,6 +283,7 @@ public:
      * @param log_device Log device to use.
      * @param file_manager File manager.
      * @param task_system The task system.
+     * @param resource_tracker The resource tracker.
      * @param render_device The render device.
      * @param renderer The renderer.
      * @param material_manager Material manager.
@@ -293,6 +296,7 @@ public:
       logging::BufferedLogDevice& log_device,
       FileManager& file_manager,
       task_system::TaskSystem& task_system,
+      ResourceTracker& resource_tracker,
       RenderDevice& render_device,
       Renderer& renderer,
       MaterialManager& material_manager,
