@@ -137,10 +137,11 @@ template<
   typename Class,
   typename... Args>
     requires(
-      sizeof...(Args) == 0
-      || requires(Class* c, Args&&... args) {
-             c->init(std::forward<Args>(args)...);
-         })
+      std::derived_from<Class, Root>
+      && (sizeof...(Args) == 0
+          || requires(Class* c, Args&&... args) {
+                 c->init(std::forward<Args>(args)...);
+             }))
 unique_ptr<Class> construct_and_init(Args&&... args)
 {
     unique_ptr<Root> obj = construct<Root>(Class::static_class());
@@ -151,10 +152,10 @@ unique_ptr<Class> construct_and_init(Args&&... args)
         ptr->init(std::forward<Args>(args)...);
     }
 
-    auto deleter = obj.get_deleter();
+    auto deleter = std::move(obj.get_deleter());
     obj.release();
 
-    return unique_ptr<Class>{ptr, deleter};
+    return unique_ptr<Class>{ptr, std::move(deleter)};
 }
 
 }    // namespace reflect
