@@ -11,14 +11,12 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
-#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <new>
-#include <utility>
-
 #include <print>
+#include <utility>
 
 #include "memory/manager.h"
 #include "memory/utils.h"
@@ -102,7 +100,6 @@ TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
 : allocator{allocator}
 {
-    assert(allocator != nullptr);
 }
 
 void* TrackingAllocator::allocate(

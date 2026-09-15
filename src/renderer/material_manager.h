@@ -26,6 +26,7 @@
 #include "material.h"
 #include "texture_cache.h"
 #include "queue.h"
+#include "resource_tracker.h"
 
 /*
  * Forward declarations.
@@ -199,6 +200,9 @@ class MaterialManager
     /** Task system for async loading. */
     task_system::TaskSystem& task_system;
 
+    /** Resource tracker. */
+    ResourceTracker& resource_tracker;
+
     /** Render device reference. */
     RenderDevice& device;
 
@@ -243,6 +247,7 @@ public:
      * Constructor.
      *
      * @param task_system The task system to use for async loading.
+     * @param resource_tracker Resource tracker.
      * @param device The render device for this material manager.
      * @param shader_cache The shader cache.
      * @param shader_factory The shader factory.
@@ -250,11 +255,13 @@ public:
      */
     MaterialManager(
       task_system::TaskSystem& task_system,
+      ResourceTracker& resource_tracker,
       RenderDevice& device,
       ShaderCache& shader_cache,
       ShaderFactory& shader_factory,
       TextureCache& texture_cache)
     : task_system{task_system}
+    , resource_tracker{resource_tracker}
     , device{device}
     , shader_cache{shader_cache}
     , shader_factory{shader_factory}

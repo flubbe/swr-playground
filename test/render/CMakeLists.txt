@@ -12,6 +12,7 @@ add_executable(render_tests
     ${PROJECT_SOURCE_DIR}/src/tasks/state.cpp
     ${PROJECT_SOURCE_DIR}/src/tasks/task_system.cpp
     ${PROJECT_SOURCE_DIR}/src/logging.cpp
+    ${PROJECT_SOURCE_DIR}/src/resource_tracker.cpp
     ${PROJECT_SOURCE_DIR}/src/shader_cache.cpp
     ${PROJECT_SOURCE_DIR}/src/texture_cache.cpp
 )

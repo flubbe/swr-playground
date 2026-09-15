@@ -162,14 +162,18 @@ MaterialRef MaterialManager::load(
     // The material needs to be loaded. We delegate everything
     // to a task.
 
+    auto resource_ticket = resource_tracker.track(path);
+
     auto submission = task_system.submit(
-      [shader_factory = &shader_factory,
+      [resource_ticket,
+       shader_factory = &shader_factory,
        json = swr::string{json},
        path = assets::AssetPath{path}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
           if(context.is_cancel_requested())
           {
+              resource_ticket.cancelled();
               throw task_system::TaskCancelledError{};
           }
 
@@ -183,6 +187,7 @@ MaterialRef MaterialManager::load(
           if(resources.shader == nullptr)
           {
               // TODO Handle failure downstream
+              resource_ticket.failed();
               throw task_system::TaskCancelledError{};
           }
 
@@ -194,6 +199,7 @@ MaterialRef MaterialManager::load(
           {
               if(context.is_cancel_requested())
               {
+                  resource_ticket.cancelled();
                   throw task_system::TaskCancelledError{};
               }
 
@@ -205,6 +211,7 @@ MaterialRef MaterialManager::load(
           {
               if(context.is_cancel_requested())
               {
+                  resource_ticket.cancelled();
                   throw task_system::TaskCancelledError{};
               }
 
@@ -214,6 +221,8 @@ MaterialRef MaterialManager::load(
                 normal_map.path.path,
                 normal_map.convention);
           }
+
+          resource_ticket.completed();
 
           get_logger().logf(
             "Loaded material '{}'.",

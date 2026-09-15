@@ -45,7 +45,8 @@ void MainLoop::run()
     }
 }
 
-bool MainLoop::run_startup()
+bool MainLoop::run_startup(
+  const std::filesystem::path& scene)
 {
     using namespace std::literals;
 
@@ -55,6 +56,8 @@ bool MainLoop::run_startup()
     auto next_frame_time = std::chrono::steady_clock::now();
 
     application.begin_startup();
+    application.load_scene(scene);
+
     while(running
           && !application.finish_startup_if_ready())
     {

@@ -39,9 +39,11 @@ public:
      * Waits for the startup future to complete while displaying a loading UI.
      * Finalizes the scene once loading is complete.
      *
+     * @param scene Path of the initial scene.
      * @returns true if startup was successful, false if aborted.
      */
-    bool run_startup();
+    bool run_startup(
+      const std::filesystem::path& scene);
 
     /**
      * Runs the main loop until the application quits.

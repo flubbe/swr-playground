@@ -133,6 +133,12 @@ int main(int argc, char* argv[])
           std::thread::hardware_concurrency(),
           task_system_logger};
 
+        const auto task_system_shutdown = gsl::finally(
+          [&task_system]() -> void
+          { task_system.cancel_all_and_wait(); });
+
+        ResourceTracker resource_tracker;
+
         RenderDevice render_device{
           initial_framebuffer_width,
           initial_framebuffer_height};
@@ -142,12 +148,14 @@ int main(int argc, char* argv[])
         TextureCache texture_cache{render_device};
         MaterialManager material_manager{
           task_system,
+          resource_tracker,
           render_device,
           shader_cache,
           renderer.get_shader_factory(),
           texture_cache};
         MeshManager mesh_manager{
           task_system,
+          resource_tracker,
           render_device};
 
         Scene scene;
@@ -158,6 +166,7 @@ int main(int argc, char* argv[])
           log_device,
           file_manager,
           task_system,
+          resource_tracker,
           render_device,
           renderer,
           material_manager,
@@ -165,20 +174,16 @@ int main(int argc, char* argv[])
           scene,
           viewport};
 
-        // Load default scene.
-        app.load_scene("assets/scenes/default.json");
-
         // Set up the main loop and exit the splash screen just before entering.
         MainLoop main_loop{*splash_screen, app};
-        if(!main_loop.run_startup())
+        if(!main_loop.run_startup(
+             "assets/scenes/default.json"))
         {
             return EXIT_FAILURE;
         }
 
         splash_screen.reset();
         main_loop.run();
-
-        // TODO cancel tasks and wait for all before resource cleanup.
 
 #ifndef DEBUG
     }

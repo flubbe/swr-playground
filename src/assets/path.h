@@ -55,8 +55,6 @@ struct AssetPath
     bool operator==(const AssetPath&) const = default;
 };
 
-}    // namespace assets
-
 /**
  * Serialize an asset path.
  *
@@ -71,6 +69,8 @@ inline serial::Archive& operator&(
     ar & path.path;
     return ar;
 }
+
+}    // namespace assets
 
 /*
  * Reflection support.

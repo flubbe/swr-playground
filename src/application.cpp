@@ -353,6 +353,7 @@ bool viewport_contains_mouse_position(
 }
 
 void imgui_draw_viewport_panel(
+  ResourceTracker& resource_tracker,
   RenderDevice& render_device,
   Renderer& renderer,
   Scene& scene,
@@ -408,219 +409,252 @@ void imgui_draw_viewport_panel(
           viewport);
     }
 
-    if(viewport_texture != 0)
-    {
-        update_viewport_texture(viewport_texture, render_device);
-
-        // Display at logical UI size, not pixel size.
-        ImGui::Image(
-          static_cast<ImTextureID>(viewport_texture),
-          avail,
-          ImVec2{0, 0},
-          ImVec2{1, 1});
-        const ImVec2 viewport_min = ImGui::GetItemRectMin();
-        const ImVec2 viewport_max = ImGui::GetItemRectMax();
-        viewport_input.viewport_hovered = ImGui::IsItemHovered();
-        viewport_input.viewport_rect_valid = true;
-        viewport_input.viewport_min_x = viewport_min.x;
-        viewport_input.viewport_min_y = viewport_min.y;
-        viewport_input.viewport_max_x = viewport_max.x;
-        viewport_input.viewport_max_y = viewport_max.y;
-
-        if(renderer.is_benchmark_in_progress())
-        {
-            const std::size_t iteration =
-              renderer.get_benchmark_current_iteration();
-            const std::size_t target =
-              renderer.get_benchmark_target_iterations();
-            const char* phase = renderer.is_benchmark_sorted_phase()
-                                  ? "With Sorting"
-                                  : "Without Sorting";
-            const swr::string status = swr::format(
-              "Benchmark running: {} {}/{}",
-              phase,
-              iteration + 1,
-              target);
-            const ImVec2 text_pos = ImVec2{
-              viewport_min.x + 8.0f,
-              viewport_min.y + 28.0f};
-            const ImVec2 text_size = ImGui::CalcTextSize(status.c_str());
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            draw_list->AddRectFilled(
-              ImVec2{text_pos.x - 4.f, text_pos.y - 4.f},
-              ImVec2{text_pos.x + text_size.x + 4.f,
-                     text_pos.y + text_size.y + 4.f},
-              IM_COL32(0, 0, 0, 180),
-              4.0f);
-            draw_list->AddText(
-              text_pos,
-              IM_COL32(255, 255, 255, 255),
-              status.c_str());
-        }
-
-        if(viewport.is_camera_selector_overlay_enabled())
-        {
-            const ViewportDisplaySettings display_settings =
-              viewport.get_display_settings();
-            const ViewportCameraType camera_type = viewport.get_camera_type(scene);
-            swr::string camera_name{to_string(viewport.get_editor_camera_view())};
-            if(display_settings.debug_spotlight_depth)
-            {
-                camera_name = "Spotlight Depth";
-            }
-            else if(camera_type == ViewportCameraType::Scene)
-            {
-                camera_name = viewport.get_camera(scene).get_name();
-            }
-
-            const swr::string label_left = "[";
-            const swr::string label_name = camera_name;
-            const swr::string label_right = "]";
-            const swr::string label = swr::format(
-              "[{}]",
-              label_name);
-            const ImVec2 text_pos = ImVec2{
-              viewport_min.x + 8.0f,
-              viewport_min.y + 6.0f};
-
-            // Context-menu trigger area over camera label (right-click like DCC/CAD tools).
-            const ImVec2 label_size = ImGui::CalcTextSize(label.c_str());
-            ImGui::SetCursorScreenPos(text_pos);
-            ImGui::InvisibleButton("viewport_camera_overlay_menu_trigger", label_size);
-            const bool is_hovered = ImGui::IsItemHovered();
-            const bool is_menu_open = ImGui::IsPopupOpen("viewport_camera_overlay_menu");
-            const bool is_active = is_hovered || is_menu_open;
-            if(is_hovered)
-            {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            }
-
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-            const ImU32 bracket_color = IM_COL32(235, 235, 235, 255);
-            const ImU32 name_color = is_active
-                                       ? IM_COL32(255, 224, 120, 255)
-                                       : bracket_color;
-            const ImVec2 left_size = ImGui::CalcTextSize(label_left.c_str());
-            const ImVec2 name_size = ImGui::CalcTextSize(label_name.c_str());
-
-            draw_list->AddText(
-              text_pos,
-              bracket_color,
-              label_left.c_str());
-            draw_list->AddText(
-              ImVec2{text_pos.x + left_size.x, text_pos.y},
-              name_color,
-              label_name.c_str());
-            draw_list->AddText(
-              ImVec2{text_pos.x + left_size.x + name_size.x, text_pos.y},
-              bracket_color,
-              label_right.c_str());
-            if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
-            {
-                ImGui::OpenPopup("viewport_camera_overlay_menu");
-            }
-            if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
-            {
-                ViewportDisplaySettings display_settings = viewport.get_display_settings();
-                const bool showing_spotlight_depth =
-                  display_settings.debug_spotlight_depth;
-                bool update_display_settings = false;
-
-                for(int view_index = 0;
-                    view_index <= static_cast<int>(EditorCameraView::Orthographic);
-                    ++view_index)
-                {
-                    const auto view = static_cast<EditorCameraView>(view_index);
-                    if(ImGui::MenuItem(
-                         to_string(view).data(),
-                         nullptr,
-                         !showing_spotlight_depth
-                           && viewport.is_editor_camera_view_active(scene, view)))
-                    {
-                        display_settings.debug_spotlight_depth = false;
-                        update_display_settings = true;
-                        viewport.use_local_camera();
-                        viewport.set_editor_camera_view(view);
-                    }
-                }
-
-                ImGui::Separator();
-                if(ImGui::BeginMenu("Scene Cameras"))
-                {
-                    bool has_any_scene_camera = false;
-
-                    for(const auto& camera: scene.objects_of<Camera>())
-                    {
-                        has_any_scene_camera = true;
-                        if(ImGui::MenuItem(
-                             camera.get_name().c_str(),
-                             nullptr,
-                             !showing_spotlight_depth
-                               && viewport.is_scene_camera_active(
-                                 scene,
-                                 camera.get_object_id())))
-                        {
-                            display_settings.debug_spotlight_depth = false;
-                            update_display_settings = true;
-                            viewport.use_scene_camera(camera.get_object_id());
-                        }
-                    }
-
-                    if(!has_any_scene_camera)
-                    {
-                        ImGui::BeginDisabled(true);
-                        ImGui::MenuItem("<No Scene Cameras>");
-                        ImGui::EndDisabled();
-                    }
-
-                    ImGui::EndMenu();
-                }
-
-                const bool using_scene_camera =
-                  camera_type == ViewportCameraType::Scene;
-                ImGui::Separator();
-                if(using_scene_camera)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if(ImGui::MenuItem("Reset Cameras") && !using_scene_camera)
-                {
-                    display_settings.debug_spotlight_depth = false;
-                    update_display_settings = true;
-                    viewport.reset_editor_camera();
-                }
-                if(using_scene_camera)
-                {
-                    ImGui::EndDisabled();
-                }
-
-                if(ImGui::BeginMenu("Debug"))
-                {
-                    if(ImGui::MenuItem(
-                         "Spotlight Depth",
-                         nullptr,
-                         display_settings.debug_spotlight_depth))
-                    {
-                        display_settings.debug_spotlight_depth =
-                          !display_settings.debug_spotlight_depth;
-                        update_display_settings = true;
-                    }
-                    ImGui::EndMenu();
-                }
-
-                if(update_display_settings)
-                {
-                    viewport.set_display_settings(display_settings);
-                }
-
-                ImGui::EndPopup();
-            }
-        }
-    }
-    else
+    if(viewport_texture == 0)
     {
         viewport_input.viewport_hovered = false;
         viewport_input.viewport_rect_valid = false;
+
+        ImGui::End();
+        return;
+    }
+
+    update_viewport_texture(viewport_texture, render_device);
+
+    // Display at logical UI size, not pixel size.
+    ImGui::Image(
+      static_cast<ImTextureID>(viewport_texture),
+      avail,
+      ImVec2{0, 0},
+      ImVec2{1, 1});
+    const ImVec2 viewport_min = ImGui::GetItemRectMin();
+    const ImVec2 viewport_max = ImGui::GetItemRectMax();
+    viewport_input.viewport_hovered = ImGui::IsItemHovered();
+    viewport_input.viewport_rect_valid = true;
+    viewport_input.viewport_min_x = viewport_min.x;
+    viewport_input.viewport_min_y = viewport_min.y;
+    viewport_input.viewport_max_x = viewport_max.x;
+    viewport_input.viewport_max_y = viewport_max.y;
+
+    float text_y = 4.f;
+
+    if(viewport.is_camera_selector_overlay_enabled())
+    {
+        const ViewportDisplaySettings display_settings =
+          viewport.get_display_settings();
+        const ViewportCameraType camera_type = viewport.get_camera_type(scene);
+        swr::string camera_name{to_string(viewport.get_editor_camera_view())};
+        if(display_settings.debug_spotlight_depth)
+        {
+            camera_name = "Spotlight Depth";
+        }
+        else if(camera_type == ViewportCameraType::Scene)
+        {
+            camera_name = viewport.get_camera(scene).get_name();
+        }
+
+        const swr::string label_left = "[";
+        const swr::string label_name = camera_name;
+        const swr::string label_right = "]";
+        const swr::string label = swr::format(
+          "[{}]",
+          label_name);
+        const ImVec2 text_pos = ImVec2{
+          viewport_min.x + 8.0f,
+          viewport_min.y + 6.0f};
+
+        // Context-menu trigger area over camera label (right-click like DCC/CAD tools).
+        const ImVec2 label_size = ImGui::CalcTextSize(label.c_str());
+        text_y += label_size.y + 4.f;
+
+        ImGui::SetCursorScreenPos(text_pos);
+        ImGui::InvisibleButton("viewport_camera_overlay_menu_trigger", label_size);
+        const bool is_hovered = ImGui::IsItemHovered();
+        const bool is_menu_open = ImGui::IsPopupOpen("viewport_camera_overlay_menu");
+        const bool is_active = is_hovered || is_menu_open;
+        if(is_hovered)
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        const ImU32 bracket_color = IM_COL32(235, 235, 235, 255);
+        const ImU32 name_color = is_active
+                                   ? IM_COL32(255, 224, 120, 255)
+                                   : bracket_color;
+        const ImVec2 left_size = ImGui::CalcTextSize(label_left.c_str());
+        const ImVec2 name_size = ImGui::CalcTextSize(label_name.c_str());
+
+        draw_list->AddText(
+          text_pos,
+          bracket_color,
+          label_left.c_str());
+        draw_list->AddText(
+          ImVec2{text_pos.x + left_size.x, text_pos.y},
+          name_color,
+          label_name.c_str());
+        draw_list->AddText(
+          ImVec2{text_pos.x + left_size.x + name_size.x, text_pos.y},
+          bracket_color,
+          label_right.c_str());
+        if(ImGui::IsItemClicked(ImGuiMouseButton_Left))
+        {
+            ImGui::OpenPopup("viewport_camera_overlay_menu");
+        }
+        if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
+        {
+            ViewportDisplaySettings display_settings = viewport.get_display_settings();
+            const bool showing_spotlight_depth =
+              display_settings.debug_spotlight_depth;
+            bool update_display_settings = false;
+
+            for(int view_index = 0;
+                view_index <= static_cast<int>(EditorCameraView::Orthographic);
+                ++view_index)
+            {
+                const auto view = static_cast<EditorCameraView>(view_index);
+                if(ImGui::MenuItem(
+                     to_string(view).data(),
+                     nullptr,
+                     !showing_spotlight_depth
+                       && viewport.is_editor_camera_view_active(scene, view)))
+                {
+                    display_settings.debug_spotlight_depth = false;
+                    update_display_settings = true;
+                    viewport.use_local_camera();
+                    viewport.set_editor_camera_view(view);
+                }
+            }
+
+            ImGui::Separator();
+            if(ImGui::BeginMenu("Scene Cameras"))
+            {
+                bool has_any_scene_camera = false;
+
+                for(const auto& camera: scene.objects_of<Camera>())
+                {
+                    has_any_scene_camera = true;
+                    if(ImGui::MenuItem(
+                         camera.get_name().c_str(),
+                         nullptr,
+                         !showing_spotlight_depth
+                           && viewport.is_scene_camera_active(
+                             scene,
+                             camera.get_object_id())))
+                    {
+                        display_settings.debug_spotlight_depth = false;
+                        update_display_settings = true;
+                        viewport.use_scene_camera(camera.get_object_id());
+                    }
+                }
+
+                if(!has_any_scene_camera)
+                {
+                    ImGui::BeginDisabled(true);
+                    ImGui::MenuItem("<No Scene Cameras>");
+                    ImGui::EndDisabled();
+                }
+
+                ImGui::EndMenu();
+            }
+
+            const bool using_scene_camera =
+              camera_type == ViewportCameraType::Scene;
+            ImGui::Separator();
+            if(using_scene_camera)
+            {
+                ImGui::BeginDisabled();
+            }
+            if(ImGui::MenuItem("Reset Cameras") && !using_scene_camera)
+            {
+                display_settings.debug_spotlight_depth = false;
+                update_display_settings = true;
+                viewport.reset_editor_camera();
+            }
+            if(using_scene_camera)
+            {
+                ImGui::EndDisabled();
+            }
+
+            if(ImGui::BeginMenu("Debug"))
+            {
+                if(ImGui::MenuItem(
+                     "Spotlight Depth",
+                     nullptr,
+                     display_settings.debug_spotlight_depth))
+                {
+                    display_settings.debug_spotlight_depth =
+                      !display_settings.debug_spotlight_depth;
+                    update_display_settings = true;
+                }
+                ImGui::EndMenu();
+            }
+
+            if(update_display_settings)
+            {
+                viewport.set_display_settings(display_settings);
+            }
+
+            ImGui::EndPopup();
+        }
+    }
+
+    if(!resource_tracker.is_finished())
+    {
+        const swr::string status = swr::format(
+          "Loading assets ({}/{})...",
+          resource_tracker.pending_count(),
+          resource_tracker.size());
+
+        const ImVec2 text_pos = ImVec2{
+          viewport_min.x + 8.0f,
+          viewport_min.y + text_y};
+        const ImVec2 text_size = ImGui::CalcTextSize(status.c_str());
+        text_y += text_size.y + 4.f;
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        draw_list->AddRectFilled(
+          ImVec2{text_pos.x - 4.f, text_pos.y - 4.f},
+          ImVec2{text_pos.x + text_size.x + 4.f,
+                 text_pos.y + text_size.y + 4.f},
+          IM_COL32(0, 0, 0, 180),
+          4.0f);
+        draw_list->AddText(
+          text_pos,
+          IM_COL32(255, 255, 255, 255),
+          status.c_str());
+    }
+
+    if(renderer.is_benchmark_in_progress())
+    {
+        const std::size_t iteration =
+          renderer.get_benchmark_current_iteration();
+        const std::size_t target =
+          renderer.get_benchmark_target_iterations();
+        const char* phase = renderer.is_benchmark_sorted_phase()
+                              ? "With Sorting"
+                              : "Without Sorting";
+        const swr::string status = swr::format(
+          "Benchmark running: {} {}/{}",
+          phase,
+          iteration + 1,
+          target);
+        const ImVec2 text_pos = ImVec2{
+          viewport_min.x + 8.0f,
+          viewport_min.y + text_y};
+        const ImVec2 text_size = ImGui::CalcTextSize(status.c_str());
+        text_y += text_size.y + 4.f;
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        draw_list->AddRectFilled(
+          ImVec2{text_pos.x - 4.f, text_pos.y - 4.f},
+          ImVec2{text_pos.x + text_size.x + 4.f,
+                 text_pos.y + text_size.y + 4.f},
+          IM_COL32(0, 0, 0, 180),
+          4.0f);
+        draw_list->AddText(
+          text_pos,
+          IM_COL32(255, 255, 255, 255),
+          status.c_str());
     }
 
     ImGui::End();
@@ -709,7 +743,7 @@ DisplayProgress aggregate_startup_progress(
     return summarize_task_display(
       task_snapshots,
       std::clamp(completed_weight / total_weight, 0.f, 1.f),
-      "Loading scene");
+      "Loading scene...");
 }
 
 }    // namespace
@@ -788,6 +822,11 @@ bool Application::is_window_shown() const
 
 swr::string Application::get_startup_status() const
 {
+    if(scene_load_task_handle.valid())
+    {
+        return "Loading scene...";
+    }
+
     return aggregate_startup_progress(
              startup_task_handles,
              startup_task_weights)
@@ -861,6 +900,7 @@ void Application::render_frame()
 {
     imgui::draw_main_dockspace(*this);
     imgui_draw_viewport_panel(
+      resource_tracker,
       render_device,
       renderer,
       scene,
@@ -906,22 +946,6 @@ void Application::render_frame()
     ++frame_index;
 }
 
-void Application::on_startup_complete(const StagedStartupScene& staged_scene)
-{
-    const logging::Logger startup_logger{"Startup"};
-
-    for(const auto& notice: staged_scene.notices)
-    {
-        startup_logger.warningf("{}", notice);
-    }
-
-    /*
-     * TODO Add code for startup finalization here.
-     */
-
-    setup_viewport();
-}
-
 void Application::on_startup_complete_error(const std::string& error_message)
 {
     const logging::Logger startup_logger{"Startup"};
@@ -940,6 +964,7 @@ Application::Application(
   logging::BufferedLogDevice& log_device,
   FileManager& file_manager,
   task_system::TaskSystem& task_system,
+  ResourceTracker& resource_tracker,
   RenderDevice& render_device,
   Renderer& renderer,
   MaterialManager& material_manager,
@@ -950,6 +975,7 @@ Application::Application(
 , log_device{log_device}
 , file_manager{file_manager}
 , task_system{task_system}
+, resource_tracker{resource_tracker}
 , render_device{render_device}
 , renderer{renderer}
 , material_manager{material_manager}
@@ -1012,15 +1038,6 @@ Application::Application(
 
 Application::~Application()
 {
-    if(runtime_test_task_handle.valid())
-    {
-        runtime_test_task_handle.cancel();
-        runtime_test_task_handle.wait();
-    }
-    runtime_test_task_handle = TaskHandle{};
-    runtime_test_task_future = std::future<void>{};
-
-    cancel_startup();
     startup_error.reset();
 
     set_viewport_mouse_capture(false);
@@ -1126,23 +1143,28 @@ bool Application::is_startup_ready() const
     using namespace std::literals;
 
     // Check all futures for readiness.
-
-    if(startup_task_futures.empty())
+    if(!startup_task_futures.empty())
     {
-        return true;
-    }
-
-    for(const auto& startup_task_future: startup_task_futures)
-    {
-        if(!startup_task_future.valid()
-           || startup_task_future.wait_for(0ms)
-                != std::future_status::ready)
+        for(const auto& startup_task_future: startup_task_futures)
         {
-            return false;
+            if(!startup_task_future.valid()
+               || startup_task_future.wait_for(0ms)
+                    != std::future_status::ready)
+            {
+                return false;
+            }
         }
     }
 
-    return true;
+    if(scene_load_task_future.valid()
+       && scene_load_task_future.wait_for(0ms)
+            != std::future_status::ready)
+    {
+        return false;
+    }
+
+    // check resource tracker.
+    return resource_tracker.is_finished();
 }
 
 bool Application::finish_startup_if_ready()
@@ -1152,6 +1174,18 @@ bool Application::finish_startup_if_ready()
         return false;
     }
 
+    // Check for loading errors.
+    if(resource_tracker.has_failed())
+    {
+        on_startup_complete_error(
+          "Resource failed to load.");
+        throw std::runtime_error{
+          "Resource failed to load."};
+    }
+
+    // All resources are loaded here, so we clear all.
+    resource_tracker.clear();
+
     try
     {
         for(auto& startup_task_future: startup_task_futures)
@@ -1160,6 +1194,15 @@ bool Application::finish_startup_if_ready()
             {
                 startup_task_future.get();
             }
+        }
+
+        if(scene_load_task_future.valid())
+        {
+            staged::StagedScene staged_scene = scene_load_task_future.get();
+            scene.replace(std::move(staged_scene.scene));
+            scene_load_task_handle = TaskHandle{};
+            scene_load_task_future = std::future<staged::StagedScene>{};
+            scene_load_task_error.reset();
         }
 
         /*
@@ -1281,6 +1324,44 @@ void Application::update_runtime_test_task()
 
     runtime_test_task_handle = TaskHandle{};
     runtime_test_task_future = std::future<void>{};
+}
+
+void Application::update_scene_load_task()
+{
+    using namespace std::chrono_literals;
+
+    if(!scene_load_task_future.valid())
+    {
+        return;
+    }
+
+    if(scene_load_task_future.wait_for(0ms)
+       != std::future_status::ready)
+    {
+        return;
+    }
+
+    try
+    {
+        staged::StagedScene staged_scene = scene_load_task_future.get();
+        scene.replace(std::move(staged_scene.scene));
+        scene_load_task_error.reset();
+    }
+    catch(const TaskCancelledError&)
+    {
+        scene_load_task_error = "Scene load cancelled.";
+        logging::warningf("Scene load task was cancelled.");
+    }
+    catch(const std::exception& e)
+    {
+        scene_load_task_error = e.what();
+        logging::errorf(
+          "Failed to load scene: {}",
+          e.what());
+    }
+
+    scene_load_task_handle = TaskHandle{};
+    scene_load_task_future = std::future<staged::StagedScene>{};
 }
 
 void Application::draw_runtime_test_modal()
@@ -1557,9 +1638,10 @@ void Application::tick(float delta_time)
     process_dirty_meshes();
 
     /*
-     * Update background (test) tasks.
+     * Update scene and background tasks.
      */
 
+    update_scene_load_task();
     update_runtime_test_task();
 
     /*
@@ -1708,21 +1790,60 @@ void Application::new_scene()
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
+    if(scene_load_task_handle.valid())
+    {
+        scene_load_task_handle.cancel();
+        scene_load_task_handle.wait();
+        scene_load_task_handle = TaskHandle{};
+        scene_load_task_future = std::future<staged::StagedScene>{};
+        scene_load_task_error.reset();
+    }
+
+    resource_tracker.clear();
+
     logging::logf(
       "Loading scene '{}'...",
       path.string());
 
     new_scene();
 
-    auto contents = read_text_file(file_manager, path);
     try
     {
-        RuntimeAssetResolver resolver{
-          file_manager,
-          material_manager,
-          mesh_manager};
-        serial::json::JsonSceneLoader loader{resolver};
-        loader.load(scene, contents);
+        auto contents = read_text_file(file_manager, path);
+
+        auto submission = task_system.submit(
+          [this,
+           path = std::filesystem::path{path},
+           contents = swr::string{std::move(contents)}](
+            task_system::TaskExecutionContext& context) mutable -> staged::StagedScene
+          {
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              staged::StagedScene staged_scene;
+              RuntimeAssetResolver resolver{
+                file_manager,
+                material_manager,
+                mesh_manager};
+              serial::json::JsonSceneLoader loader{resolver};
+              loader.load(staged_scene.scene, contents);
+
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              logging::logf(
+                "Loaded scene '{}' on worker thread.",
+                path.string());
+
+              return staged_scene;
+          });
+
+        scene_load_task_handle = submission.handle;
+        scene_load_task_future = std::move(submission.future);
     }
     catch(const std::runtime_error& e)
     {
@@ -1730,6 +1851,9 @@ bool Application::load_scene(
           "Failed to load scene from '{}': {}",
           path.string(),
           e.what());
+        scene_load_task_handle = TaskHandle{};
+        scene_load_task_future = std::future<staged::StagedScene>{};
+        scene_load_task_error = e.what();
         return false;
     }
 
