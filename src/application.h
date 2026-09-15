@@ -27,6 +27,7 @@
 #include "ui/imgui.h"
 #include "logging.h"
 #include "splash.h"
+#include "staged_data.h"
 
 /*
  * Forward declarations.
@@ -46,12 +47,6 @@ namespace logging
 {
 class BufferedLogDevice;
 }    // namespace logging
-
-namespace staged
-{
-struct StagedScene;
-
-}    // namespace staged
 
 struct ViewportInputState
 {
