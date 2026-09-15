@@ -12,11 +12,13 @@
 
 #include "assets/path_formatter.h"
 #include "assets/static_mesh_importer.h"
-#include "renderer/render_device.h"
+#include "scene/static_mesh.h"
 #include "meshes/lod.h"
 #include "colors.h"
 #include "logging.h"
+#include "material.h"
 #include "mesh_manager.h"
+#include "render_device.h"
 #include "staged_data.h"
 
 namespace
@@ -30,7 +32,7 @@ const logging::Logger& get_logger()
     return logger;
 }
 
-swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
+swr::vector<staged::StaticMeshSection> build_static_mesh_sections(
   ImportedStaticMesh imported_mesh)
 {
     const StaticMeshLodBuildSettings lod_settings{
@@ -39,7 +41,7 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
     };
 
     StaticMeshLodBuilder lod_builder;
-    swr::vector<StagedStaticMeshSection> sections;
+    swr::vector<staged::StaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
@@ -49,7 +51,7 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
             mesh.mesh_data,
             lod_settings);
 
-        StagedStaticMeshSection section{
+        staged::StaticMeshSection section{
           .diffuse_color = mesh.diffuse_color,
           .lods = {}};
         section.lods.reserve(lod_build_result.lod_meshes.size());
@@ -57,7 +59,7 @@ swr::vector<StagedStaticMeshSection> build_static_mesh_sections(
         for(const auto& lod_mesh: lod_build_result.lod_meshes)
         {
             section.lods.push_back(
-              StagedStaticMeshSectionLod{
+              staged::StaticMeshSectionLod{
                 .mesh = lod_mesh.mesh,
                 .bounds = calculate_mesh_bounds(lod_mesh.mesh),
               });
@@ -86,7 +88,9 @@ class MeshEntry
     MaterialRef material;
 
     /** CPU mesh data. deleted after driver upload. */
-    task_system::TaskSubmission<StagedStaticMeshAsset> resources;
+    task_system::TaskSubmission<
+      staged::StaticMeshAsset>
+      resources;
 
     /** Resolved mesh LODs and their GPU handles. */
     std::optional<
@@ -107,7 +111,9 @@ public:
     MeshEntry(
       RenderDevice& device,
       MaterialRef& material,
-      task_system::TaskSubmission<StagedStaticMeshAsset> resources)
+      task_system::TaskSubmission<
+        staged::StaticMeshAsset>
+        resources)
     : device{device}
     , material{material}
     , resources{std::move(resources)}
@@ -218,7 +224,7 @@ void MeshEntry::finalize()
         return;
     }
 
-    StagedStaticMeshAsset loaded = resources.future.get();
+    staged::StaticMeshAsset loaded = resources.future.get();
     if(loaded.sections.empty())
     {
         throw std::runtime_error{
@@ -252,14 +258,14 @@ void MeshEntry::finalize()
           loaded.sections.front().lods[i].mesh.indices.size() / 3;
     }
 
-    for(const StagedStaticMeshSection& section: loaded.sections)
+    for(const staged::StaticMeshSection& section: loaded.sections)
     {
         for(std::size_t lod_index = 0;
             lod_index < section.lods.size()
             && lod_index < result_lods.size();
             ++lod_index)
         {
-            const StagedStaticMeshSectionLod& staged_lod =
+            const staged::StaticMeshSectionLod& staged_lod =
               section.lods[lod_index];
 
             expand_bounds(
@@ -348,7 +354,7 @@ MeshRef MeshManager::load(
     auto submission = task_system.submit(
       [resource_ticket,
        path = assets::AssetPath{path}](
-        task_system::TaskExecutionContext& context) mutable -> StagedStaticMeshAsset
+        task_system::TaskExecutionContext& context) mutable -> staged::StaticMeshAsset
       {
           if(context.is_cancel_requested())
           {
@@ -373,7 +379,7 @@ MeshRef MeshManager::load(
           auto sections = build_static_mesh_sections(std::move(imported_mesh));
           std::erase_if(
             sections,
-            [](const StagedStaticMeshSection& section)
+            [](const staged::StaticMeshSection& section)
             {
                 return section.lods.empty();
             });
@@ -384,10 +390,10 @@ MeshRef MeshManager::load(
 
           resource_ticket.completed();
 
-          // StagedStaticMeshAsset contains only CPU-side data and can be transferred
+          // staged::StaticMeshAsset contains only CPU-side data and can be transferred
           // to the render/main thread for finalization.
 
-          return StagedStaticMeshAsset{
+          return staged::StaticMeshAsset{
             .path = path,
             .sections = std::move(sections),
           };

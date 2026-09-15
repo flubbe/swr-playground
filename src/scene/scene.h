@@ -84,8 +84,13 @@ public:
      */
     Scene(const Scene&) = delete;
 
-    /** Default move constructor. */
-    Scene(Scene&&) = default;
+    /**
+     * Disable move constructor.
+     *
+     * @note If the move should be allowed, we need to take care of e.g. Scene-Object
+     *     relations (see e.g. `Object::set_scene`).
+     */
+    Scene(Scene&&) = delete;
 
     /**
      * Disable copy assignment.
@@ -95,8 +100,13 @@ public:
      */
     Scene& operator=(const Scene&) = delete;
 
-    /** Default move assignment. */
-    Scene& operator=(Scene&&) = default;
+    /**
+     * Disable move assignment.
+     *
+     * @note If the move should be allowed, we need to take care of e.g. Scene-Object
+     *     relations (see e.g. `Object::set_scene`).
+     */
+    Scene& operator=(Scene&&) = delete;
 
     /*
      * Scene-global state.
@@ -130,6 +140,27 @@ public:
 
     /** Clear the scene. */
     void clear();
+
+    /** Replace the active scene contents with a staged scene. */
+    void replace(Scene&& other)
+    {
+        clear();
+
+        objects = std::move(other.objects);
+        systems = std::move(other.systems);
+        object_name_counters = std::move(other.object_name_counters);
+        next_id = other.next_id;
+        spin_animations = std::move(other.spin_animations);
+        objects_by_id = std::move(other.objects_by_id);
+        time = other.time;
+        paused = other.paused;
+        dirty_meshes = std::move(other.dirty_meshes);
+
+        for(auto& object: objects)
+        {
+            object->set_scene(this);
+        }
+    }
 
     /**
      * Tick the scene. Updates the scene time.

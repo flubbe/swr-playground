@@ -601,7 +601,7 @@ void imgui_draw_viewport_panel(
     if(!resource_tracker.is_finished())
     {
         const swr::string status = swr::format(
-          "[Loading assets {}/{}]",
+          "Loading assets ({}/{})...",
           resource_tracker.pending_count(),
           resource_tracker.size());
 
@@ -743,7 +743,7 @@ DisplayProgress aggregate_startup_progress(
     return summarize_task_display(
       task_snapshots,
       std::clamp(completed_weight / total_weight, 0.f, 1.f),
-      "Loading scene");
+      "Loading scene...");
 }
 
 }    // namespace
@@ -822,6 +822,11 @@ bool Application::is_window_shown() const
 
 swr::string Application::get_startup_status() const
 {
+    if(scene_load_task_handle.valid())
+    {
+        return "Loading scene...";
+    }
+
     return aggregate_startup_progress(
              startup_task_handles,
              startup_task_weights)
@@ -941,22 +946,6 @@ void Application::render_frame()
     ++frame_index;
 }
 
-void Application::on_startup_complete(const StagedStartupScene& staged_scene)
-{
-    const logging::Logger startup_logger{"Startup"};
-
-    for(const auto& notice: staged_scene.notices)
-    {
-        startup_logger.warningf("{}", notice);
-    }
-
-    /*
-     * TODO Add code for startup finalization here.
-     */
-
-    setup_viewport();
-}
-
 void Application::on_startup_complete_error(const std::string& error_message)
 {
     const logging::Logger startup_logger{"Startup"};
@@ -1049,15 +1038,6 @@ Application::Application(
 
 Application::~Application()
 {
-    if(runtime_test_task_handle.valid())
-    {
-        runtime_test_task_handle.cancel();
-        runtime_test_task_handle.wait();
-    }
-    runtime_test_task_handle = TaskHandle{};
-    runtime_test_task_future = std::future<void>{};
-
-    cancel_startup();
     startup_error.reset();
 
     set_viewport_mouse_capture(false);
@@ -1163,7 +1143,6 @@ bool Application::is_startup_ready() const
     using namespace std::literals;
 
     // Check all futures for readiness.
-
     if(!startup_task_futures.empty())
     {
         for(const auto& startup_task_future: startup_task_futures)
@@ -1175,6 +1154,13 @@ bool Application::is_startup_ready() const
                 return false;
             }
         }
+    }
+
+    if(scene_load_task_future.valid()
+       && scene_load_task_future.wait_for(0ms)
+            != std::future_status::ready)
+    {
+        return false;
     }
 
     // check resource tracker.
@@ -1208,6 +1194,15 @@ bool Application::finish_startup_if_ready()
             {
                 startup_task_future.get();
             }
+        }
+
+        if(scene_load_task_future.valid())
+        {
+            staged::StagedScene staged_scene = scene_load_task_future.get();
+            scene.replace(std::move(staged_scene.scene));
+            scene_load_task_handle = TaskHandle{};
+            scene_load_task_future = std::future<staged::StagedScene>{};
+            scene_load_task_error.reset();
         }
 
         /*
@@ -1329,6 +1324,44 @@ void Application::update_runtime_test_task()
 
     runtime_test_task_handle = TaskHandle{};
     runtime_test_task_future = std::future<void>{};
+}
+
+void Application::update_scene_load_task()
+{
+    using namespace std::chrono_literals;
+
+    if(!scene_load_task_future.valid())
+    {
+        return;
+    }
+
+    if(scene_load_task_future.wait_for(0ms)
+       != std::future_status::ready)
+    {
+        return;
+    }
+
+    try
+    {
+        staged::StagedScene staged_scene = scene_load_task_future.get();
+        scene.replace(std::move(staged_scene.scene));
+        scene_load_task_error.reset();
+    }
+    catch(const TaskCancelledError&)
+    {
+        scene_load_task_error = "Scene load cancelled.";
+        logging::warningf("Scene load task was cancelled.");
+    }
+    catch(const std::exception& e)
+    {
+        scene_load_task_error = e.what();
+        logging::errorf(
+          "Failed to load scene: {}",
+          e.what());
+    }
+
+    scene_load_task_handle = TaskHandle{};
+    scene_load_task_future = std::future<staged::StagedScene>{};
 }
 
 void Application::draw_runtime_test_modal()
@@ -1605,9 +1638,10 @@ void Application::tick(float delta_time)
     process_dirty_meshes();
 
     /*
-     * Update background (test) tasks.
+     * Update scene and background tasks.
      */
 
+    update_scene_load_task();
     update_runtime_test_task();
 
     /*
@@ -1756,6 +1790,15 @@ void Application::new_scene()
 bool Application::load_scene(
   const std::filesystem::path& path)
 {
+    if(scene_load_task_handle.valid())
+    {
+        scene_load_task_handle.cancel();
+        scene_load_task_handle.wait();
+        scene_load_task_handle = TaskHandle{};
+        scene_load_task_future = std::future<staged::StagedScene>{};
+        scene_load_task_error.reset();
+    }
+
     resource_tracker.clear();
 
     logging::logf(
@@ -1764,15 +1807,43 @@ bool Application::load_scene(
 
     new_scene();
 
-    auto contents = read_text_file(file_manager, path);
     try
     {
-        RuntimeAssetResolver resolver{
-          file_manager,
-          material_manager,
-          mesh_manager};
-        serial::json::JsonSceneLoader loader{resolver};
-        loader.load(scene, contents);
+        auto contents = read_text_file(file_manager, path);
+
+        auto submission = task_system.submit(
+          [this,
+           path = std::filesystem::path{path},
+           contents = swr::string{std::move(contents)}](
+            task_system::TaskExecutionContext& context) mutable -> staged::StagedScene
+          {
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              staged::StagedScene staged_scene;
+              RuntimeAssetResolver resolver{
+                file_manager,
+                material_manager,
+                mesh_manager};
+              serial::json::JsonSceneLoader loader{resolver};
+              loader.load(staged_scene.scene, contents);
+
+              if(context.is_cancel_requested())
+              {
+                  throw task_system::TaskCancelledError{};
+              }
+
+              logging::logf(
+                "Loaded scene '{}' on worker thread.",
+                path.string());
+
+              return staged_scene;
+          });
+
+        scene_load_task_handle = submission.handle;
+        scene_load_task_future = std::move(submission.future);
     }
     catch(const std::runtime_error& e)
     {
@@ -1780,6 +1851,9 @@ bool Application::load_scene(
           "Failed to load scene from '{}': {}",
           path.string(),
           e.what());
+        scene_load_task_handle = TaskHandle{};
+        scene_load_task_future = std::future<staged::StagedScene>{};
+        scene_load_task_error = e.what();
         return false;
     }
 

@@ -316,6 +316,86 @@ TaskSystem::TaskSystem(
       worker_count);
 }
 
+TaskSystem::~TaskSystem()
+{
+    {
+        std::scoped_lock lock{states_mutex};
+        shutting_down = true;
+    }
+    cancel_all_and_wait();
+}
+
+void TaskSystem::register_state(
+  const swr::shared_ptr<TaskSharedState>& state)
+{
+    std::scoped_lock lock{states_mutex};
+    if(!accepting_submissions)
+    {
+        throw std::runtime_error{"Task submission disallowed."};
+    }
+
+    states.erase(
+      std::remove_if(
+        states.begin(),
+        states.end(),
+        [](const auto& state)
+        {
+            return state->finished.load(std::memory_order_relaxed);
+        }),
+      states.end());
+    states.push_back(state);
+}
+
+void TaskSystem::cancel_all_and_wait()
+{
+    swr::vector<swr::shared_ptr<TaskSharedState>> states_to_cancel;
+    {
+        std::scoped_lock lock{states_mutex};
+        accepting_submissions = false;
+        states.erase(
+          std::remove_if(
+            states.begin(),
+            states.end(),
+            [](const auto& state)
+            {
+                return state->finished.load(std::memory_order_relaxed);
+            }),
+          states.end());
+        states_to_cancel.swap(states);
+    }
+
+    if(!states_to_cancel.empty())
+    {
+        logger.logf(
+          "Cancelling {} pending tasks...",
+          states_to_cancel.size());
+    }
+
+    for(const auto& state: states_to_cancel)
+    {
+        state->cancel_requested.store(true, std::memory_order_relaxed);
+    }
+
+    for(const auto& state: states_to_cancel)
+    {
+        std::unique_lock lock{state->finished_mutex};
+        state->finished_cv.wait(
+          lock,
+          [&state]
+          {
+              return state->finished.load(std::memory_order_relaxed);
+          });
+    }
+
+    {
+        std::scoped_lock lock{states_mutex};
+        if(!shutting_down)
+        {
+            accepting_submissions = true;
+        }
+    }
+}
+
 TaskSubmission<void> TaskSystem::submit_task_specs(
   swr::vector<TaskSpec> tasks)
 {
@@ -332,6 +412,8 @@ TaskSubmission<void> TaskSystem::submit_task_specs(
 
     auto promise = std::make_shared<std::promise<void>>();
     auto future = promise->get_future();
+
+    register_state(state);
 
     thread_pool.push_immediate_task(
       [this,

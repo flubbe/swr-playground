@@ -340,6 +340,7 @@ void draw_main_dockspace(Application& app)
             }
             if(ImGui::MenuItem("Clear Scene", nullptr, false, true))
             {
+                logging::logf("Clearing scene...");
                 app.reset();
             }
             if(ImGui::MenuItem("Quit", nullptr, false, true))

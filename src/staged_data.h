@@ -10,30 +10,27 @@
 
 #pragma once
 
-#include <mutex>
-#include <optional>
-#include <string>
-
 #include "assets/path.h"
-#include "containers/string.h"
 #include "containers/vector.h"
 #include "meshes/mesh.h"
-#include "scene/gear.h"
+#include "scene/scene.h"
 
 #include <ml/all.h>
 
 /*
- * Generic staged data.
+ * Data produced by load operations before being committed to runtime state.
  */
 
-struct StagedFloorData
+namespace staged
 {
-    MeshData mesh;
-};
 
-struct StagedStaticMeshSectionLod
+/** LOD mesh section produced by a load operation. */
+struct StaticMeshSectionLod
 {
+    /** Mesh data. */
     MeshData mesh;
+
+    /** Mesh bounds. */
     MeshBounds bounds;
 };
 
@@ -46,17 +43,21 @@ struct StagedStaticMeshSectionLod
  */
 inline serial::Archive& operator&(
   serial::Archive& ar,
-  StagedStaticMeshSectionLod& section)
+  StaticMeshSectionLod& lod)
 {
-    ar & section.mesh;
-    ar & section.bounds;
+    ar & lod.mesh;
+    ar & lod.bounds;
     return ar;
 }
 
-struct StagedStaticMeshSection
+/** Static mesh section produced by a load operation. */
+struct StaticMeshSection
 {
+    /** Diffuse color. */
     ml::vec4 diffuse_color{0.8f, 0.8f, 0.8f, 1.f};
-    swr::vector<StagedStaticMeshSectionLod> lods;
+
+    /** LODs. */
+    swr::vector<StaticMeshSectionLod> lods;
 };
 
 /**
@@ -68,18 +69,21 @@ struct StagedStaticMeshSection
  */
 inline serial::Archive& operator&(
   serial::Archive& ar,
-  StagedStaticMeshSection& section)
+  StaticMeshSection& section)
 {
     ar & section.diffuse_color;
     ar & section.lods;
     return ar;
 }
 
-struct StagedStaticMeshAsset
+/** Static mesh asset produced by a load operation. */
+struct StaticMeshAsset
 {
+    /** Asset path. */
     assets::AssetPath path;
-    ml::mat4x4 fit_transform{ml::mat4x4::identity()};
-    swr::vector<StagedStaticMeshSection> sections;
+
+    /** Staged mesh sections. */
+    swr::vector<StaticMeshSection> sections;
 };
 
 /**
@@ -91,38 +95,37 @@ struct StagedStaticMeshAsset
  */
 inline serial::Archive& operator&(
   serial::Archive& ar,
-  StagedStaticMeshAsset& mesh)
+  StaticMeshAsset& mesh)
 {
     ar & mesh.path;
     ar & mesh.sections;
     return ar;
 }
 
-/*
- * Concrete staged scene data (targeted to the current startup scene setup).
- */
-
-struct StagedGearInstance
+/** Scene produced by a load operation, pending replacement of the active scene. */
+struct StagedScene
 {
-    ml::vec4 color;
-    float inner_radius{1.f};
-    float outer_radius{2.f};
-    float width{1.f};
-    int teeth{10};
-    float tooth_depth{0.7f};
-    GearGeometry geometry;
-    ml::mat4x4 transform;
-    ml::vec3 translation;
-    float angular_speed{0.f};
-    float phase_offset{0.f};
+    /** Loaded scene pending commit. */
+    Scene scene;
+
+    StagedScene() = default;
+    StagedScene(const StagedScene&) = delete;
+    StagedScene(
+      StagedScene&& other)
+    {
+        scene.replace(std::move(other.scene));
+    }
+
+    StagedScene& operator=(const StagedScene&) = delete;
+    StagedScene& operator=(StagedScene&& other)
+    {
+        if(this != &other)
+        {
+            scene.replace(std::move(other.scene));
+        }
+
+        return *this;
+    }
 };
 
-struct StagedStartupScene
-{
-    swr::vector<StagedGearInstance> gears;
-    std::optional<StagedFloorData> floor;
-    swr::vector<StagedStaticMeshAsset> sample_meshes;
-
-    mutable std::mutex notices_mutex;
-    swr::vector<swr::string> notices;
-};
+}    // namespace staged

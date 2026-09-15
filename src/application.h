@@ -40,13 +40,18 @@ class RenderDevice;
 class Renderer;
 class ResourceTracker;
 class Scene;
-struct StagedStartupScene;
 class Viewport;
 
 namespace logging
 {
 class BufferedLogDevice;
 }    // namespace logging
+
+namespace staged
+{
+struct StagedScene;
+
+}    // namespace staged
 
 struct ViewportInputState
 {
@@ -170,6 +175,11 @@ class Application
     std::optional<swr::string> runtime_test_task_error;
     bool runtime_test_modal_open{false};
 
+    // Scene loading task state (worker parse + staged handoff).
+    task_system::TaskHandle scene_load_task_handle;
+    std::future<staged::StagedScene> scene_load_task_future;
+    std::optional<swr::string> scene_load_task_error;
+
     // Frame state for rendering
     int frame_index{0};
     imgui::State ui_state;
@@ -219,14 +229,6 @@ private:
     void render_frame();
 
     /**
-     * Called when startup completes successfully.
-     *
-     * @param staged_scene The staged startup scene.
-     */
-    void on_startup_complete(
-      const StagedStartupScene& staged_scene);
-
-    /**
      * Called when startup encounters an error.
      *
      * @param error_message The error message.
@@ -257,6 +259,9 @@ private:
 
     /** Poll and finalize runtime test task completion. */
     void update_runtime_test_task();
+
+    /** Poll and finalize scene load task completion. */
+    void update_scene_load_task();
 
     /** Render modal loading popup for runtime test tasks. */
     void draw_runtime_test_modal();

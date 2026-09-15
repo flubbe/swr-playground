@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <functional>
 #include <future>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -201,8 +202,27 @@ class TaskSystem
     /** Logger used for task-system lifecycle messages. */
     const TaskLogger& logger;
 
+    /** Protects the submitted task state registry. */
+    std::mutex states_mutex;
+
+    /** States of submissions retained until the next registry cleanup. */
+    swr::vector<
+      swr::shared_ptr<
+        TaskSharedState>>
+      states;
+
+    /** Whether new submissions are still accepted. */
+    bool accepting_submissions{true};
+
+    /** Whether the task system is being permanently destroyed. */
+    bool shutting_down{false};
+
     /** Worker pool used to run submitted tasks. */
     concurrency_utils::deferred_thread_pool<> thread_pool;
+
+    /** Register a submission for system-wide shutdown handling. */
+    void register_state(
+      const swr::shared_ptr<TaskSharedState>& state);
 
 public:
     /**
@@ -214,6 +234,12 @@ public:
     explicit TaskSystem(
       std::size_t worker_count,
       const TaskLogger& task_logger = NullTaskLogger::instance());
+
+    /** Cancel all submitted work and wait for every task to finish. */
+    void cancel_all_and_wait();
+
+    /** Cancel outstanding work before destroying the worker pool. */
+    ~TaskSystem();
 
     /**
      * Submits dependency-aware task specs and returns handle/future pair.
@@ -258,6 +284,8 @@ public:
         auto promise = std::make_shared<std::promise<Result>>();
         auto future = promise->get_future();
 
+        register_state(state);
+
         thread_pool.push_immediate_task(
           [state, promise, fn = Function{std::forward<Fn>(fn)}]() mutable
           {
@@ -268,10 +296,11 @@ public:
                   snapshot.state = TaskState::Running;
               };
 
-              auto mark_terminal = [&state](
-                                     TaskState task_state,
-                                     const char* default_status_text,
-                                     std::optional<float> task_progress = std::nullopt)
+              auto mark_terminal =
+                [&state](
+                  TaskState task_state,
+                  const char* default_status_text,
+                  std::optional<float> task_progress = std::nullopt)
               {
                   std::scoped_lock lock{state->snapshot_mutex};
                   TaskSnapshot& snapshot = state->snapshot.tasks.front();
