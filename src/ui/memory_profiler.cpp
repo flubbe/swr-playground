@@ -15,6 +15,8 @@
 #include <imgui.h>
 
 #include "memory/manager.h"
+#include "renderer/material_manager.h"
+#include "renderer/mesh_manager.h"
 #include "ui/imgui.h"
 
 namespace imgui
@@ -32,7 +34,9 @@ float to_megabytes(std::size_t bytes)
 
 }    // namespace
 
-void draw_memory_profiler_panel()
+void draw_memory_profiler_panel(
+  const MaterialManager& material_manager,
+  const MeshManager& mesh_manager)
 {
     static std::array<float, history_samples> live_memory_history{};
     static std::array<float, history_samples> peak_memory_history{};
@@ -45,14 +49,8 @@ void draw_memory_profiler_panel()
     const memory::BumpAllocatorStats bump_stats = memory::frame_bump().get_stats();
     const memory::ArenaAllocatorStats arena_stats = memory::frame_arena().get_stats();
 
-    const float live_mb =
-      to_megabytes(memory_stats.bytes_live)
-      + to_megabytes(bump_stats.used_before_reset)
-      + to_megabytes(arena_stats.used_before_reset);
-    const float peak_mb =
-      to_megabytes(memory_stats.bytes_peak)
-      + to_megabytes(bump_stats.used_peak)
-      + to_megabytes(arena_stats.used_peak);
+    const float live_mb = to_megabytes(memory_stats.bytes_live);
+    const float peak_mb = to_megabytes(memory_stats.bytes_peak);
     const std::size_t allocate_delta =
       memory_stats.allocate_calls >= previous_allocate_calls
         ? memory_stats.allocate_calls - previous_allocate_calls
@@ -75,19 +73,19 @@ void draw_memory_profiler_panel()
     {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Live memory");
+        ImGui::TextUnformatted("Heap live");
         ImGui::TableNextColumn();
         ImGui::Text("%.3f MB (%zu B)", live_mb, memory_stats.bytes_live);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Peak memory");
+        ImGui::TextUnformatted("Heap peak");
         ImGui::TableNextColumn();
         ImGui::Text("%.3f MB (%zu B)", peak_mb, memory_stats.bytes_peak);
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Total allocated");
+        ImGui::TextUnformatted("Total");
         ImGui::TableNextColumn();
         ImGui::Text(
           "%.3f MB (%zu B)",
@@ -117,6 +115,58 @@ void draw_memory_profiler_panel()
         ImGui::TextUnformatted("Allocs/frame");
         ImGui::TableNextColumn();
         ImGui::Text("%zu", allocate_delta);
+
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Asset managers");
+    if(ImGui::BeginTable(
+         "MemoryProfilerAssetManagers",
+         4,
+         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Manager");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Cache");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Live");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Pending");
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Materials");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", material_manager.cache_size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", material_manager.live_cache_size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", material_manager.pending_count());
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Meshes");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", mesh_manager.cache_size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", mesh_manager.live_cache_size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", mesh_manager.pending_count());
+
+        const TextureCache& texture_cache =
+          material_manager.get_texture_cache();
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Textures");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", texture_cache.cache_size());
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", texture_cache.live_cache_size());
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
 
         ImGui::EndTable();
     }

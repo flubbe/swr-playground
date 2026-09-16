@@ -10,38 +10,28 @@
 
 #pragma once
 
-#include <algorithm>
-#include <utility>
-
 #include "containers/vector.h"
 #include "meshes/simplifier.h"
 
-struct StaticMeshLodMesh
-{
-    MeshData mesh;
-};
-
+/** LOD generation result. */
 struct StaticMeshLodBuildResult
 {
-    swr::vector<StaticMeshLodMesh> lod_meshes;
-    swr::vector<MeshSimplifyStats> simplify_stats;
-};
+    /** Generated meshes. */
+    swr::vector<MeshData> lod_meshes;
 
-struct StaticMeshLodBuildEntry
-{
-    /** Fraction of source triangles to keep. */
-    float triangle_fraction{1.f};
+    /** Statistics. */
+    swr::vector<MeshSimplifyStats> simplify_stats;
 };
 
 struct StaticMeshLodBuildSettings
 {
-    /** LODs to generate. */
-    swr::vector<StaticMeshLodBuildEntry> lods{
-      {.triangle_fraction = 1.0f},      // LOD0: Original (Near camera)
-      {.triangle_fraction = 0.5f},      // LOD1: ~50% reduction
-      {.triangle_fraction = 0.25f},     // LOD2: ~75% reduction
-      {.triangle_fraction = 0.125f},    // LOD3: ~87.5% reduction
-      {.triangle_fraction = 0.03f},     // LOD4: ~97% reduction (Extreme distance silhouette)
+    /** Triangle fractions to generate. */
+    swr::vector<float> triangle_fractions{
+      1.0f,      // LOD0: Original (Near camera)
+      0.5f,      // LOD1: ~50% reduction
+      0.25f,     // LOD2: ~75% reduction
+      0.125f,    // LOD3: ~87.5% reduction
+      0.03f,     // LOD4: ~97% reduction (Extreme distance silhouette)
     };
 
     /** Prevent collapsing boundary edges. */
@@ -51,84 +41,14 @@ struct StaticMeshLodBuildSettings
     bool recompute_normals{true};
 };
 
-class StaticMeshLodBuilder
-{
-public:
-    [[nodiscard]]
-    StaticMeshLodBuildResult build(
-      const MeshData& source,
-      const StaticMeshLodBuildSettings& settings)
-    {
-        StaticMeshLodBuildResult result;
-        result.lod_meshes.reserve(settings.lods.size());
-        result.simplify_stats.reserve(settings.lods.size());
-
-        const std::size_t source_triangle_count = source.indices.size() / 3;
-
-        for(const StaticMeshLodBuildEntry& entry: settings.lods)
-        {
-            const float fraction =
-              std::clamp(entry.triangle_fraction, 0.f, 1.f);
-            const std::size_t target_triangles =
-              std::max<std::size_t>(
-                1,
-                static_cast<std::size_t>(
-                  static_cast<float>(source_triangle_count) * fraction));
-
-            MeshData lod_mesh;
-            MeshSimplifyStats stats{
-              .input_triangles = source_triangle_count,
-              .output_triangles = source_triangle_count,
-              .target_triangles = source_triangle_count,
-            };
-
-            if(fraction >= 1.f)
-            {
-                lod_mesh = source;
-            }
-            else
-            {
-                const MeshData* base_mesh = &source;
-                if(!result.lod_meshes.empty())
-                {
-                    const MeshData& previous_mesh =
-                      result.lod_meshes.back().mesh;
-                    const std::size_t previous_triangle_count =
-                      previous_mesh.indices.size() / 3;
-
-                    if(previous_triangle_count > target_triangles
-                       && previous_triangle_count < source_triangle_count)
-                    {
-                        base_mesh = &previous_mesh;
-                    }
-                }
-
-                const std::size_t base_triangle_count =
-                  base_mesh->indices.size() / 3;
-                const float base_fraction =
-                  base_triangle_count == 0
-                    ? 1.f
-                    : static_cast<float>(target_triangles)
-                        / static_cast<float>(base_triangle_count);
-
-                MeshSimplifier simplifier;
-
-                lod_mesh = simplifier.simplify(
-                  *base_mesh,
-                  MeshSimplifySettings{
-                    .target_triangle_fraction = base_fraction,
-                    .preserve_boundaries = settings.preserve_boundaries,
-                    .recompute_normals = settings.recompute_normals,
-                  });
-
-                stats = simplifier.stats();
-            }
-
-            result.lod_meshes.push_back({.mesh = std::move(lod_mesh)});
-
-            result.simplify_stats.push_back(stats);
-        }
-
-        return result;
-    }
-};
+/**
+ * Build LODs for a mesh.
+ *
+ * @param source The source mesh.
+ * @param settings LOD settings.
+ * @returns The mesh LODs.
+ */
+[[nodiscard]]
+StaticMeshLodBuildResult build_static_mesh_lods(
+  const MeshData& source,
+  const StaticMeshLodBuildSettings& settings);

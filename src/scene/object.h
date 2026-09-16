@@ -19,6 +19,7 @@
 #include "containers/memory.h"
 #include "containers/string.h"
 #include "reflection/class_registry.h"
+#include "reflection/construct.h"
 #include "reflection/property.h"
 
 /*
@@ -105,7 +106,7 @@ protected:
     Scene* scene{nullptr};
 
     /** Per-instance baseline snapshot object. */
-    swr::unique_ptr<Object> snapshot;
+    reflect::unique_ptr<Object> snapshot;
 
 public:
     /** Default constructor. */
@@ -130,8 +131,11 @@ public:
     , name{std::move(other.name)}
     , transform{other.transform}
     , visible{other.visible}
+    , scene{other.scene}
+    , snapshot{std::move(other.snapshot)}
     {
         other.class_info = nullptr;
+        other.scene = nullptr;
     }
 
     /** Disable copy construction. */
@@ -149,6 +153,11 @@ public:
         name = std::move(other.name);
         transform = other.transform;
         visible = other.visible;
+        scene = other.scene;
+        snapshot = std::move(other.snapshot);
+
+        other.class_info = nullptr;
+        other.scene = nullptr;
 
         return *this;
     }
