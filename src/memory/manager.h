@@ -94,7 +94,7 @@ public:
 };
 
 /** Bump memory size. */
-inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory to be able to grow dynamically.
+inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory should be able to grow dynamically.
 
 class MemoryManager final
 {

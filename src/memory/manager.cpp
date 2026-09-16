@@ -82,9 +82,10 @@ MemoryBlockHeader* header_from_user(
     auto* user = static_cast<std::byte*>(ptr);
 
     offset_type offset;
-    std::memcpy(&offset,
-                user - sizeof(offset),
-                sizeof(offset));
+    std::memcpy(
+      &offset,
+      user - sizeof(offset),
+      sizeof(offset));
 
     return reinterpret_cast<MemoryBlockHeader*>(user - offset);
 }
@@ -115,12 +116,13 @@ void* TrackingAllocator::allocate(
       bytes_live.fetch_add(bytes, std::memory_order_relaxed) + bytes;
 
     std::size_t previous_peak = bytes_peak.load(std::memory_order_relaxed);
-    while(live_after > previous_peak
-          && !bytes_peak.compare_exchange_weak(
-            previous_peak,
-            live_after,
-            std::memory_order_relaxed,
-            std::memory_order_relaxed))
+    while(
+      live_after > previous_peak
+      && !bytes_peak.compare_exchange_weak(
+        previous_peak,
+        live_after,
+        std::memory_order_relaxed,
+        std::memory_order_relaxed))
     {
     }
 
@@ -128,7 +130,9 @@ void* TrackingAllocator::allocate(
     ++buckets[b];
 
     if(bytes < exact_sizes.size())
+    {
         ++exact_sizes[bytes];
+    }
 
     return allocation;
 }

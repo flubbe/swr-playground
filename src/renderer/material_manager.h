@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <future>
 #include <utility>
 
@@ -343,4 +344,42 @@ public:
 
     /** Remove expired cache entries. */
     void prune();
+
+    /** Return the number of material cache entries. */
+    [[nodiscard]]
+    std::size_t cache_size() const noexcept
+    {
+        return material_cache.size();
+    }
+
+    /** Return the number of live material cache entries. */
+    [[nodiscard]]
+    std::size_t live_cache_size() const
+    {
+        return std::ranges::count_if(
+          material_cache,
+          [](const auto& entry)
+          { return !entry.second.expired(); });
+    }
+
+    /** Return the number of pending material uploads. */
+    [[nodiscard]]
+    std::size_t pending_count() const
+    {
+        return pending_upload.size();
+    }
+
+    /** Return the backing texture cache. */
+    [[nodiscard]]
+    TextureCache& get_texture_cache() noexcept
+    {
+        return texture_cache;
+    }
+
+    /** Return the backing texture cache. */
+    [[nodiscard]]
+    const TextureCache& get_texture_cache() const noexcept
+    {
+        return texture_cache;
+    }
 };

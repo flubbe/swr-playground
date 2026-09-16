@@ -918,7 +918,9 @@ void Application::render_frame()
       frame_index,
       pixel_density);
     imgui::draw_profiler_panel(renderer);
-    imgui::draw_memory_profiler_panel();
+    imgui::draw_memory_profiler_panel(
+      material_manager,
+      mesh_manager);
 
     if(imgui::check_and_clear_sorting_benchmark_request())
     {
@@ -1785,6 +1787,10 @@ void Application::set_floor_material(FloorMaterial type)
 void Application::new_scene()
 {
     scene.clear();
+
+    material_manager.prune();
+    material_manager.get_texture_cache().prune();
+    mesh_manager.prune();
 }
 
 bool Application::load_scene(
