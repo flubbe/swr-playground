@@ -1,0 +1,87 @@
+{
+  "time": 2.5290256,
+  "paused": false,
+  "objects": [
+    {
+      "class": "Scene.DirectionalLight",
+      "object_id": 1,
+      "name": "Key Light",
+      "transform": [
+        [-0.30151716, 0.61423624, -0.72924703, 3.0151725],
+        [0, 0.7648422, 0.64421767, 8],
+        [0.95346075, 0.19424269, -0.23061305, 9.534608],
+        [0, 0, 0, 1]
+      ],
+      "visible": true,
+      "enabled": true,
+      "brightness": 0.55
+    },
+    {
+      "class": "Scene.DirectionalLight",
+      "object_id": 2,
+      "name": "Fill Light",
+      "transform": [
+        [0.81915206, -0.46984634, 0.32898995, -10],
+        [0, 0.57357645, 0.81915206, 12],
+        [-0.57357645, -0.6710101, 0.46984634, -6],
+        [0, 0, 0, 1]
+      ],
+      "visible": true,
+      "enabled": true,
+      "brightness": 0.6
+    },
+    {
+      "class": "Scene.SpotLight",
+      "object_id": 3,
+      "name": "Spot Light",
+      "transform": [
+        [0.95346075, -0.17081818, 0.24846284, 4.824276],
+        [0, 0.82404196, 0.5665288, 11],
+        [-0.30151722, -0.540163, 0.7856917, 15.255372],
+        [0, 0, 0, 1]
+      ],
+      "visible": true,
+      "enabled": true,
+      "casts_shadows": true,
+      "color": [1, 1, 1, 1],
+      "brightness": 2.4,
+      "inner_cone_angle_radians": 0.34906584,
+      "outer_cone_angle_radians": 0.36651915,
+      "range": 45
+    },
+    {
+      "class": "Scene.StaticMesh",
+      "object_id": 10,
+      "name": "Sponza",
+      "transform": [
+        [0.1, 0, 0, 10],
+        [0, 0.1, 0, -17],
+        [0, 0, 0.1, 10],
+        [0, 0, 0, 1]
+      ],
+      "visible": true,
+      "path": "assets/models/sponza.obj",
+      "materials": ["assets/materials/mesh/lit.json"],
+      "casts_shadows": true,
+      "receives_shadows": true
+    },
+    {
+      "class": "Scene.Camera",
+      "object_id": 11,
+      "name": "Editor Camera",
+      "transform": [
+        [0.86602545, -7.324598e-9, 0.50000006, -1.9402448e-6],
+        [0.17101008, 0.9396927, -0.29619813, -3.8452072e-7],
+        [-0.4698463, 0.34202012, 0.81379765, -39.999996],
+        [0, 0, 0, 1]
+      ],
+      "visible": true,
+      "fov_y": 0.3926991,
+      "orthographic_height": 40,
+      "near_plane": 1,
+      "far_plane": 200
+    }
+  ],
+  "spin_animations": [],
+  "systems": ["Tick", "Animation", "Light"]
+}
