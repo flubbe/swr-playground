@@ -356,6 +356,7 @@ add_executable(swr_playground
     src/shader_cache.cpp
     src/texture_cache.cpp
     src/viewport.cpp
+    src/meshes/lod.cpp
 )
 
 target_include_directories(swr_playground PRIVATE

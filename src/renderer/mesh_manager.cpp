@@ -40,14 +40,13 @@ swr::vector<staged::StaticMeshSection> build_static_mesh_sections(
       .recompute_normals = true,
     };
 
-    StaticMeshLodBuilder lod_builder;
     swr::vector<staged::StaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
     {
         const StaticMeshLodBuildResult lod_build_result =
-          lod_builder.build(
+          build_static_mesh_lods(
             mesh.mesh_data,
             lod_settings);
 
@@ -60,8 +59,8 @@ swr::vector<staged::StaticMeshSection> build_static_mesh_sections(
         {
             section.lods.push_back(
               staged::StaticMeshSectionLod{
-                .mesh = lod_mesh.mesh,
-                .bounds = calculate_mesh_bounds(lod_mesh.mesh),
+                .mesh = lod_mesh,
+                .bounds = calculate_mesh_bounds(lod_mesh),
               });
         }
 
