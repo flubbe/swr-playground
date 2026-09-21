@@ -80,6 +80,7 @@ void draw_profiler_panel(
   Renderer& renderer);
 
 void draw_memory_profiler_panel(
+  const RenderDevice& render_device,
   const MaterialManager& material_manager,
   const MeshManager& mesh_manager);
 

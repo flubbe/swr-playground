@@ -862,6 +862,8 @@ bool Application::pump_messages()
 
         if(event.type == SDL_EVENT_QUIT)
         {
+            logging::logf("Received SDL_EVENT_QUIT");
+
             set_viewport_mouse_capture(false);
             running = false;
         }
@@ -919,6 +921,7 @@ void Application::render_frame()
       pixel_density);
     imgui::draw_profiler_panel(renderer);
     imgui::draw_memory_profiler_panel(
+      render_device,
       material_manager,
       mesh_manager);
 
@@ -1509,24 +1512,35 @@ void Application::process_dirty_meshes()
 
         if(auto* gear = reflect::try_cast<Gear>(mesh))
         {
-            // TODO Reuse mesh handles if possible.
-
-            // Release mesh handles.
-            for(auto& lod: gear->get_lods())
+            if(const auto& pending = gear->get_pending_mesh_ref();
+               pending.has_value())
             {
-                for(auto& section: lod.mesh_sections)
+                const auto* lods = pending->try_get_lods();
+                if(lods == nullptr)
                 {
-                    render_device.delete_mesh(
-                      section.mesh_handle);
+                    continue;
                 }
+
+                auto resolved_mesh = *pending;
+                gear->set_mesh_ref(std::move(resolved_mesh));
+                gear->set_lods(*lods);
+                for(auto& lod: gear->get_lods())
+                {
+                    for(auto& section: lod.mesh_sections)
+                    {
+                        section.color = gear->get_color();
+                    }
+                }
+                gear->clear_mesh_dirty();
+                continue;
             }
-            gear->get_lods().clear();
 
             // Generate and upload new mesh.
             auto geom = gear->generate_mesh();
 
             auto params = Gear::create_gear_resources(
-              render_device,
+              mesh_manager,
+              gear->get_name(),
               material.value(),
               gear->get_inner_radius(),
               gear->get_outer_radius(),
@@ -1536,31 +1550,76 @@ void Application::process_dirty_meshes()
               gear->get_color(),
               geom);
 
-            gear->init(params);
+            gear->set_pending_mesh_ref(params.mesh);
+
+            const auto* lods = params.mesh.try_get_lods();
+            if(lods == nullptr)
+            {
+                continue;
+            }
+
+            gear->set_mesh_ref(params.mesh);
+            gear->set_lods(*lods);
+            for(auto& lod: gear->get_lods())
+            {
+                for(auto& section: lod.mesh_sections)
+                {
+                    section.color = gear->get_color();
+                }
+            }
         }
         else if(auto* floor = reflect::try_cast<Floor>(mesh))
         {
+            if(const auto& pending = floor->get_pending_mesh_ref();
+               pending.has_value())
+            {
+                const auto* lods = pending->try_get_lods();
+                if(lods == nullptr)
+                {
+                    continue;
+                }
+
+                auto resolved_mesh = *pending;
+                floor->set_mesh_ref(std::move(resolved_mesh));
+                floor->set_lods(*lods);
+                for(auto& lod: floor->get_lods())
+                {
+                    for(auto& section: lod.mesh_sections)
+                    {
+                        section.color = {1.f, 1.f, 1.f, 1.f};
+                    }
+                }
+                floor->clear_mesh_dirty();
+                continue;
+            }
+
+            const assets::AssetPath floor_path{
+              swr::format(
+                "floor://{}:{}",
+                floor->get_half_extent(),
+                floor->get_uv_repeat())};
+            auto floor_material = material.value();
+            auto floor_ref = mesh_manager.reload_sync(
+              floor_path,
+              {floor->generate_mesh()},
+              floor_material);
+            floor->set_pending_mesh_ref(floor_ref);
+
+            const auto* lods = floor_ref.try_get_lods();
+            if(lods == nullptr)
+            {
+                continue;
+            }
+
+            floor->set_mesh_ref(floor_ref);
+            floor->set_lods(*lods);
             for(auto& lod: floor->get_lods())
             {
                 for(auto& section: lod.mesh_sections)
                 {
-                    render_device.delete_mesh(section.mesh_handle);
+                    section.color = {1.f, 1.f, 1.f, 1.f};
                 }
             }
-
-            const MeshData floor_mesh = floor->generate_mesh();
-            const MeshHandle mesh_handle = render_device.create_mesh(floor_mesh);
-            floor->set_lods(
-              {StaticMeshLod{
-                .mesh_sections = {MeshSection{
-                  .color = {1.f, 1.f, 1.f, 1.f},
-                  .mesh_handle = mesh_handle,
-                  .material = material.value(),
-                  .triangle_count = floor_mesh.indices.size() / 3}},
-                .triangle_count = floor_mesh.indices.size() / 3,
-                .bounds = calculate_mesh_bounds(floor_mesh)}});
-            floor->clear_mesh_dirty();
-            continue;
         }
         else
         {
@@ -1786,11 +1845,18 @@ void Application::set_floor_material(FloorMaterial type)
 
 void Application::new_scene()
 {
+    destroy_scene();
+
+    // The scene is empty and can be used.
+}
+
+void Application::destroy_scene()
+{
     scene.clear();
 
     material_manager.prune();
     material_manager.get_texture_cache().prune();
-    mesh_manager.prune();
+    mesh_manager.clear();
 }
 
 bool Application::load_scene(

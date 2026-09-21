@@ -97,12 +97,6 @@ void RenderDevice::resize(
 MeshHandle RenderDevice::create_mesh(
   const MeshData& mesh)
 {
-    MeshHandle mesh_id{1};
-    while(meshes.contains(mesh_id))
-    {
-        ++mesh_id;
-    }
-
     MeshGpuData gpu_data{
       .primitive_type = mesh.primitive_type,
       .indices = mesh.indices,
@@ -116,8 +110,9 @@ MeshHandle RenderDevice::create_mesh(
                 swr::CreateAttributeBuffer(mesh.texcoords)}),
     };
 
-    meshes.emplace(mesh_id, gpu_data);
-    return mesh_id;
+    auto mesh_handle = MeshHandle{next_mesh_handle++};
+    meshes.emplace(mesh_handle, gpu_data);
+    return mesh_handle;
 }
 
 bool RenderDevice::update_mesh(
@@ -130,23 +125,37 @@ bool RenderDevice::update_mesh(
         return false;
     }
 
-    if(mesh_it->second.texcoords_handle.has_value())
-    {
-        swr::DeleteAttributeBuffer(mesh_it->second.texcoords_handle.value().value);
-    }
-    swr::DeleteAttributeBuffer(mesh_it->second.normals_handle.value);
-    swr::DeleteAttributeBuffer(mesh_it->second.vertices_handle.value);
-
     mesh_it->second.primitive_type = mesh.primitive_type;
     mesh_it->second.indices = mesh.indices;
-    mesh_it->second.vertices_handle = {swr::CreateAttributeBuffer(mesh.vertices)};
-    mesh_it->second.normals_handle = {swr::CreateAttributeBuffer(mesh.normals)};
-    mesh_it->second.texcoords_handle =
-      mesh.texcoords.empty()
-        ? std::nullopt
-        : std::make_optional(
-            TexCoordBufferHandle{
-              swr::CreateAttributeBuffer(mesh.texcoords)});
+    swr::UpdateAttributeBuffer(
+      mesh_it->second.vertices_handle.value,
+      mesh.vertices);
+    swr::UpdateAttributeBuffer(
+      mesh_it->second.normals_handle.value,
+      mesh.normals);
+    if(mesh_it->second.texcoords_handle.has_value())
+    {
+        if(!mesh.texcoords.empty())
+        {
+            swr::UpdateAttributeBuffer(
+              mesh_it->second.texcoords_handle.value().value,
+              mesh.texcoords);
+        }
+        else
+        {
+            swr::DeleteAttributeBuffer(
+              mesh_it->second.texcoords_handle.value().value);
+        }
+    }
+    else
+    {
+        if(!mesh.texcoords.empty())
+        {
+            mesh_it->second.texcoords_handle = std::make_optional(
+              TexCoordBufferHandle{
+                swr::CreateAttributeBuffer(mesh.texcoords)});
+        }
+    }
 
     return true;
 }
@@ -366,12 +375,7 @@ ShadowMapHandle RenderDevice::create_shadow_map(
         throw std::runtime_error{"Unable to attach shadow-map depth texture"};
     }
 
-    ShadowMapHandle handle{1};
-    while(shadow_map_targets.contains(handle))
-    {
-        ++handle.value;
-    }
-
+    auto handle = ShadowMapHandle{next_shadow_map_target_handle++};
     shadow_map_targets.emplace(handle, gpu_data);
 
     success = true;
@@ -413,14 +417,9 @@ void RenderDevice::delete_shadow_map(
 MaterialHandle RenderDevice::create_material(
   const RenderMaterial& material)
 {
-    MaterialHandle material_id{1};
-    while(materials.contains(material_id))
-    {
-        ++material_id.value;
-    }
-
-    materials.insert({material_id, material});
-    return material_id;
+    auto material_handle = MaterialHandle{next_material_handle++};
+    materials.insert({material_handle, material});
+    return material_handle;
 }
 
 void RenderDevice::delete_material(

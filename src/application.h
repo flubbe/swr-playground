@@ -325,6 +325,9 @@ public:
     /** Create a new, empty scene. */
     void new_scene();
 
+    /** Destroy the current scene and its resources. */
+    void destroy_scene();
+
     /**
      * Load a scene from JSON.
      *

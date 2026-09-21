@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <optional>
 
 #include "containers/vector.h"
@@ -54,8 +55,7 @@ protected:
 
     swr::vector<StaticMeshLod> mesh_lods;
     std::optional<MeshRef> mesh_ref;
-
-    MeshBounds mesh_bounds;
+    std::optional<MeshRef> pending_mesh_ref;
 
     bool mesh_dirty{false};
 
@@ -63,7 +63,8 @@ protected:
 
 public:
     /** Property registration hook. */
-    static void register_properties(reflect::ClassInfo& class_info);
+    static void register_properties(
+      reflect::ClassInfo& class_info);
 
     /** Whether this mesh contributes to shadow maps when supported by the renderer. */
     bool casts_shadows{false};
@@ -75,26 +76,42 @@ public:
 
     void resolve(AssetResolver& resolver) override;
     void post_load() override;
+    void release() override;
     void on_properties_changed() override;
 
     void init(
       const assets::AssetPath& path,
       const swr::vector<assets::AssetPath>& materials,
-      swr::vector<MeshSection> sections,
-      MeshBounds bounds);
+      MeshRef mesh);
     void init(
       const assets::AssetPath& path,
       const swr::vector<assets::AssetPath>& materials,
       swr::vector<StaticMeshLod> lods);
 
-    void set_lods(swr::vector<StaticMeshLod> lods);
+    void set_lods(
+      swr::vector<StaticMeshLod> lods);
 
     void set_mesh_ref(MeshRef ref)
     {
+        pending_mesh_ref.reset();
         mesh_ref = std::move(ref);
     }
 
-    void clear_mesh_sections() noexcept;
+    void set_pending_mesh_ref(MeshRef ref)
+    {
+        pending_mesh_ref = std::move(ref);
+    }
+
+    void clear_pending_mesh_ref()
+    {
+        pending_mesh_ref.reset();
+    }
+
+    [[nodiscard]]
+    const std::optional<MeshRef>& get_pending_mesh_ref() const noexcept
+    {
+        return pending_mesh_ref;
+    }
 
     /**
      * Marks the mesh as dirty. If the mesh is part of a `Scene`,
@@ -147,9 +164,18 @@ public:
     }
 
     [[nodiscard]]
-    const MeshBounds& get_bounds() const noexcept
+    const MeshBounds* get_bounds() const noexcept
     {
-        return mesh_bounds;
+        for(const StaticMeshLod& lod: mesh_lods)
+        {
+            if(!lod.mesh_sections.empty()
+               && lod.bounds.valid)
+            {
+                return &lod.bounds;
+            }
+        }
+
+        return nullptr;
     }
 
     [[nodiscard]]

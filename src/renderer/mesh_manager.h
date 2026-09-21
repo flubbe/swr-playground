@@ -83,12 +83,12 @@ public:
     }
 
     /**
-     * Default destructor.
+     * Release all cached and pending meshes.
      *
      * @note The render device has to be alive here, since queue or cache entries
      *     might get released.
      */
-    ~MeshManager() = default;
+    ~MeshManager();
 
     /**
      * Schedule mesh loading.
@@ -102,6 +102,47 @@ public:
       MaterialRef& material);
 
     /**
+     * Directly load a mesh from data.
+     *
+     * @param path Mesh asset path.
+     * @param data The mesh data.
+     * @param material Material reference.
+     * @returns Returns a mesh reference.
+     */
+    MeshRef load(
+      const assets::AssetPath& path,
+      std::vector<MeshData> data,
+      const MaterialRef& material);
+
+    /**
+     * Replace a directly loaded mesh, cancelling an obsolete pending load.
+     *
+     * @param path Logical mesh asset path.
+     * @param data The mesh data.
+     * @param material Material reference.
+     * @returns Returns a mesh reference.
+     */
+    MeshRef reload_async(
+      const assets::AssetPath& path,
+      std::vector<MeshData> data,
+      const MaterialRef& material);
+
+    /**
+     * Immediately replace a directly loaded mesh, cancelling any
+     * obsolete pending asynchronous load for the same path.
+     *
+     * @note Must be called on the render thread.
+     * @param path Logical mesh asset path.
+     * @param data The mesh data.
+     * @param material Material reference.
+     * @returns Returns a mesh reference.
+     */
+    MeshRef reload_sync(
+      const assets::AssetPath& path,
+      std::vector<MeshData> data,
+      const MaterialRef& material);
+
+    /**
      * Get a cached mesh reference.
      *
      * @param path Mesh asset path.
@@ -113,14 +154,6 @@ public:
       const assets::AssetPath& path);
 
     /**
-     * Delete a mesh.
-     *
-     * @note Not implemented yet.
-     */
-    bool delete_mesh(
-      const assets::AssetPath& path);
-
-    /**
      * Process pending meshes.
      *
      * @note Needs to be called from the render/main thread.
@@ -129,6 +162,13 @@ public:
 
     /** Remove expired cache entries. */
     void prune();
+
+    /**
+     * Release all mesh resources that are owned by the manager.
+     *
+     * @note Pending mesh loads are cancelled and waited for.
+     */
+    void clear();
 
     /** Return the number of mesh cache entries. */
     [[nodiscard]]

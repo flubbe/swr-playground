@@ -181,9 +181,12 @@ private:
           drag_max,
           "%d",
           ImGuiSliderFlags_AlwaysClamp);
-        if(changed)
+        const bool deactivated_after_edit =
+          ImGui::IsItemDeactivatedAfterEdit();
+        if(changed || deactivated_after_edit)
         {
-            if(property.set_value(storage, value))
+            property.set_value(storage, value);
+            if(changed || deactivated_after_edit)
             {
                 change_callback();
             }
@@ -233,9 +236,12 @@ private:
           max_ptr,
           "%u",
           ImGuiSliderFlags_AlwaysClamp);
-        if(changed)
+        const bool deactivated_after_edit =
+          ImGui::IsItemDeactivatedAfterEdit();
+        if(changed || deactivated_after_edit)
         {
-            if(property.set_value(storage, value))
+            property.set_value(storage, value);
+            if(changed || deactivated_after_edit)
             {
                 change_callback();
             }
@@ -292,9 +298,12 @@ private:
           drag_max,
           property.get_format(),
           ImGuiSliderFlags_AlwaysClamp);
-        if(changed || ImGui::IsItemDeactivatedAfterEdit())
+        const bool deactivated_after_edit =
+          ImGui::IsItemDeactivatedAfterEdit();
+        if(changed || deactivated_after_edit)
         {
-            if(property.set_value(storage, value))
+            property.set_value(storage, value);
+            if(changed || deactivated_after_edit)
             {
                 change_callback();
             }

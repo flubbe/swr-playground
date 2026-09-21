@@ -200,6 +200,11 @@ void LogDevice::write_record(
 void BufferedLogDevice::write_record(
   const LogRecord& record)
 {
+    if(!enabled)
+    {
+        return;
+    }
+
     LogRecord prepared = prepare_record(record);
 
     std::scoped_lock lock{mutex};
@@ -241,7 +246,8 @@ void BufferedLogDevice::clear()
 FileLogDevice::FileLogDevice(
   std::filesystem::path output_path,
   FileLogDeviceOptions options)
-: output_path{std::move(output_path)}
+: BufferedLogDevice{}
+, output_path{std::move(output_path)}
 , options{options}
 {
     if(this->output_path.empty())
@@ -290,6 +296,11 @@ void FileLogDevice::enqueue_record(
   LogRecord record,
   bool notify_immediately)
 {
+    if(!enabled)
+    {
+        return;
+    }
+
     bool should_notify = notify_immediately;
 
     {

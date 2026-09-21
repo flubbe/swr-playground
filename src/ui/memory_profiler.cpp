@@ -17,6 +17,7 @@
 #include "memory/manager.h"
 #include "renderer/material_manager.h"
 #include "renderer/mesh_manager.h"
+#include "renderer/render_device.h"
 #include "ui/imgui.h"
 
 namespace imgui
@@ -35,6 +36,7 @@ float to_megabytes(std::size_t bytes)
 }    // namespace
 
 void draw_memory_profiler_panel(
+  const RenderDevice& render_device,
   const MaterialManager& material_manager,
   const MeshManager& mesh_manager)
 {
@@ -167,6 +169,44 @@ void draw_memory_profiler_panel(
         ImGui::Text("%zu", texture_cache.live_cache_size());
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("-");
+
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Render Device");
+    if(ImGui::BeginTable(
+         "RenderDevice",
+         2,
+         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+    {
+        auto stats = render_device.stats();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Meshes");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", stats.mesh_count);
+
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Shaders");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", stats.shader_count);
+
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Materials");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", stats.material_count);
+
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Shadow Map Targets");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", stats.shadow_map_targets);
+
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Deletion Queue Size");
+        ImGui::TableNextColumn();
+        ImGui::Text("%zu", stats.deletion_queue_size);
 
         ImGui::EndTable();
     }

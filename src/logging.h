@@ -107,6 +107,13 @@ class LogDevice
     static LogDevice* instance;
 
 protected:
+    /**
+     * Whether logging is enabled.
+     *
+     * @note Not changable after initialization due to thread safety.
+     */
+    const bool enabled;
+
     /** Log with newline at end. */
     virtual void log_n(std::string_view message) = 0;
 
@@ -124,8 +131,31 @@ protected:
     }
 
 public:
+    /**
+     * Constructor.
+     *
+     * @param enabled Whether this device is enabled.
+     */
+    LogDevice(
+      bool enabled = true)
+    : enabled{enabled}
+    {
+    }
+
+    /** Log device cannot be copied. */
+    LogDevice(const LogDevice&) = delete;
+
+    /** Default move constructor. */
+    LogDevice(LogDevice&&) = default;
+
     /** Default, virtual destructor */
     virtual ~LogDevice() = default;
+
+    /** Disable copy assignment. */
+    LogDevice& operator=(const LogDevice&) = delete;
+
+    /** Disable move assignment. */
+    LogDevice& operator=(LogDevice&&) = delete;
 
     /** Whether the log device writes to `stderr`. */
     virtual bool writes_to_stderr() const = 0;
@@ -137,6 +167,11 @@ public:
      */
     void write(const LogRecord& record)
     {
+        if(!enabled)
+        {
+            return;
+        }
+
         LogRecord stamped = record;
         if(stamped.timestamp.time_since_epoch().count() == 0)
         {
@@ -496,6 +531,29 @@ protected:
     void log_n(std::string_view message) override;
 
 public:
+    /**
+     * Constructor.
+     *
+     * @param enabled Whether this device is enabled.
+     */
+    BufferedLogDevice(
+      bool enabled = true)
+    : LogDevice{enabled}
+    {
+    }
+
+    /** Disable copy construction. */
+    BufferedLogDevice(const BufferedLogDevice&) = delete;
+
+    /** Disable move construction. */
+    BufferedLogDevice(BufferedLogDevice&&) = delete;
+
+    /** Disable copy assignment. */
+    BufferedLogDevice& operator=(const BufferedLogDevice&) = delete;
+
+    /** Disable move assignment. */
+    BufferedLogDevice& operator=(BufferedLogDevice&&) = delete;
+
     /** Get a thread-safe snapshot of stored log records. */
     void get_records(swr::vector<LogRecord>& records) const;
 
@@ -595,6 +653,18 @@ public:
     explicit FileLogDevice(
       std::filesystem::path output_path,
       FileLogDeviceOptions options = {});
+
+    /** Disable copy construction. */
+    FileLogDevice(const FileLogDevice&) = delete;
+
+    /** Disable move construction. */
+    FileLogDevice(FileLogDevice&&) = delete;
+
+    /** Disable copy assignment. */
+    FileLogDevice& operator=(const FileLogDevice&) = delete;
+
+    /** Disable move assignment. */
+    FileLogDevice& operator=(FileLogDevice&&) = delete;
 
     /** Stop the writer thread and flush all pending records. */
     ~FileLogDevice() override;
