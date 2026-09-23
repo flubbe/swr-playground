@@ -104,11 +104,22 @@ void* factory()
 {
     ClassInfo* cls = T::static_class();
 
-    auto storage = ::operator new(
+    void* storage = ::operator new(
       cls->size,
       std::align_val_t{cls->alignment});
 
-    return static_cast<Root*>(::new(storage) T{});
+    try
+    {
+        return ::new(storage) T{};
+    }
+    catch(...)
+    {
+        ::operator delete(
+          storage,
+          std::align_val_t{cls->alignment});
+
+        throw;
+    }
 }
 
 /**
@@ -122,7 +133,7 @@ template<
   typename Root,
   typename T>
     requires std::derived_from<T, Root>
-             && std::has_virtual_destructor_v<Root>
+             && std::destructible<T>
 void destroy(
   void* instance)
 {
