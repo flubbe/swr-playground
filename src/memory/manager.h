@@ -43,7 +43,7 @@ struct MemoryStats
     std::size_t deallocate_calls{0};
 
     /** Allocated bytes per tag. */
-    std::array<std::size_t, static_cast<int>(MemoryTag::Count)> bytes_per_tag;
+    std::array<std::size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
 
     MemoryStats operator+(const MemoryStats& other) const
     {
@@ -81,7 +81,7 @@ class TrackingAllocator final
     static std::atomic_uint64_t buckets[16];
     static std::array<std::atomic<uint64_t>, 256> exact_sizes;
 
-    static std::array<std::atomic_size_t, static_cast<int>(MemoryTag::Count)> bytes_per_tag;
+    static std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
 
 public:
     explicit TrackingAllocator(
@@ -116,9 +116,9 @@ class MemoryManager final
 {
     MallocAllocator system_malloc_allocator;
     Allocator& global_allocator;
+    TrackingAllocator tracking_allocator;
     BumpAllocator frame_bump_allocator;
     ArenaAllocator frame_arena_allocator;
-    TrackingAllocator tracking_allocator;
     bool initialized{false};
     mutable std::mutex mutex;
 

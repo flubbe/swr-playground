@@ -97,7 +97,7 @@ MemoryBlockHeader* header_from_user(
 std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
 std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 
-std::array<std::atomic_size_t, static_cast<int>(MemoryTag::Count)> TrackingAllocator::bytes_per_tag;
+std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> TrackingAllocator::bytes_per_tag;
 
 TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
@@ -137,7 +137,7 @@ void* TrackingAllocator::allocate(
         ++exact_sizes[bytes];
     }
 
-    bytes_per_tag[static_cast<int>(tag)].fetch_add(bytes, std::memory_order_relaxed);
+    bytes_per_tag[std::to_underlying(tag)].fetch_add(bytes, std::memory_order_relaxed);
 
     return allocation;
 }
@@ -150,7 +150,7 @@ void TrackingAllocator::deallocate(
 {
     deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
-    bytes_per_tag[static_cast<int>(tag)].fetch_sub(bytes, std::memory_order_relaxed);
+    bytes_per_tag[std::to_underlying(tag)].fetch_sub(bytes, std::memory_order_relaxed);
     allocator.deallocate(p, bytes, alignment, tag);
 }
 
@@ -161,7 +161,8 @@ MemoryStats TrackingAllocator::stats() const
       .bytes_peak = bytes_peak.load(std::memory_order_relaxed),
       .bytes_total_allocated = bytes_total.load(std::memory_order_relaxed),
       .allocate_calls = allocations.load(std::memory_order_relaxed),
-      .deallocate_calls = deallocations.load(std::memory_order_relaxed)};
+      .deallocate_calls = deallocations.load(std::memory_order_relaxed),
+      .bytes_per_tag = {}};
 
     for(std::size_t i = 0; i < bytes_per_tag.size(); ++i)
     {
@@ -197,9 +198,9 @@ MemoryManager::MemoryManager(
   std::size_t bump_size)
 : system_malloc_allocator{}
 , global_allocator{system_malloc_allocator}
-, frame_bump_allocator{bump_size, global_allocator}
-, frame_arena_allocator{global_allocator}
 , tracking_allocator{global_allocator}
+, frame_bump_allocator{bump_size, tracking_allocator}
+, frame_arena_allocator{tracking_allocator}
 {
     ::memory::global_allocator.store(
       &tracking_allocator,

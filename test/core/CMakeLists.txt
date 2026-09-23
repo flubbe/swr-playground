@@ -4,6 +4,7 @@ add_executable(core_tests
     test_logging.cpp
     test_file_manager.cpp
     test_materials.cpp
+    test_memory_manager.cpp
     test_mesh.cpp
     test_serialization.cpp
     test_task_system.cpp
