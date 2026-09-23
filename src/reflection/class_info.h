@@ -45,6 +45,9 @@ struct ClassInfo
     /** Byte size of the class. */
     std::size_t size{0};
 
+    /** Alignment of the class. */
+    std::size_t alignment{0};
+
     /** Super-class info. */
     const ClassInfo* super{nullptr};
 

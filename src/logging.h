@@ -526,7 +526,7 @@ class StdLogDevice
 protected:
     void log_n(std::string_view message) override
     {
-        std::print(stderr, "{}", message);
+        std::println(stderr, "{}", message);
     }
 
 public:

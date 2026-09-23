@@ -53,6 +53,9 @@ struct PendingClassRegistration
     /** Byte size of the class. */
     std::size_t size{0};
 
+    /** Alignment of the class. */
+    std::size_t alignment{0};
+
     /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
 
@@ -99,21 +102,35 @@ template<
              && std::default_initializable<T>
 void* factory()
 {
-    return static_cast<Root*>(new T{});
+    ClassInfo* cls = T::static_class();
+
+    auto storage = ::operator new(
+      cls->size,
+      std::align_val_t{cls->alignment});
+
+    return static_cast<Root*>(::new(storage) T{});
 }
 
 /**
  * Destroy an instance of a child class of `Root`.
  *
  * @tparam Root Root type for the class hierarchy.
+ * @tparam T The type to construct.
  * @param instance The instance to destroy.
  */
-template<typename Root>
-    requires std::has_virtual_destructor_v<Root>
+template<
+  typename Root,
+  typename T>
+    requires std::derived_from<T, Root>
+             && std::has_virtual_destructor_v<Root>
 void destroy(
   void* instance)
 {
-    delete static_cast<Root*>(instance);
+    ClassInfo* cls = T::static_class();
+
+    ::operator delete(
+      static_cast<Root*>(instance),
+      std::align_val_t{cls->alignment});
 }
 
 /** Return a type's super class or `nullptr` if there is none. */
@@ -307,11 +324,12 @@ struct StaticClassRegistration
       .module_name = TypeReflection<Root, T>::module_name,
       .name = TypeReflection<Root, T>::class_name,
       .size = sizeof(T),
+      .alignment = alignof(T),
       .storage = &storage,
       .resolve_super = detail::super_class_resolver<T>(),
       .root_tag = detail::root_type_tag<Root>(),
       .factory = &detail::factory<Root, T>,
-      .destroy = &detail::destroy<Root>,
+      .destroy = &detail::destroy<Root, T>,
       .register_properties = TypeReflection<Root, T>::register_properties};
     detail::PendingClassNode node{
       .reg = &registration,
