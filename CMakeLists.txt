@@ -192,7 +192,7 @@ endif()
 FetchContent_Declare(
     simdjson_src
     GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-    GIT_TAG v4.6.6
+    GIT_TAG v4.6.11
     SYSTEM
 )
 FetchContent_MakeAvailable(simdjson_src)

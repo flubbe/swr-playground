@@ -1207,7 +1207,6 @@ bool Application::finish_startup_if_ready()
             scene.replace(std::move(staged_scene.scene));
             scene_load_task_handle = TaskHandle{};
             scene_load_task_future = std::future<staged::StagedScene>{};
-            scene_load_task_error.reset();
         }
 
         /*
@@ -1350,16 +1349,13 @@ void Application::update_scene_load_task()
     {
         staged::StagedScene staged_scene = scene_load_task_future.get();
         scene.replace(std::move(staged_scene.scene));
-        scene_load_task_error.reset();
     }
     catch(const TaskCancelledError&)
     {
-        scene_load_task_error = "Scene load cancelled.";
         logging::warningf("Scene load task was cancelled.");
     }
     catch(const std::exception& e)
     {
-        scene_load_task_error = e.what();
         logging::errorf(
           "Failed to load scene: {}",
           e.what());
@@ -1868,7 +1864,6 @@ bool Application::load_scene(
         scene_load_task_handle.wait();
         scene_load_task_handle = TaskHandle{};
         scene_load_task_future = std::future<staged::StagedScene>{};
-        scene_load_task_error.reset();
     }
 
     resource_tracker.clear();
@@ -1886,7 +1881,7 @@ bool Application::load_scene(
         auto submission = task_system.submit(
           [this,
            path = std::filesystem::path{path},
-           contents = swr::string{std::move(contents)}](
+           contents = std::move(contents)](
             task_system::TaskExecutionContext& context) mutable -> staged::StagedScene
           {
               if(context.is_cancel_requested())
@@ -1925,7 +1920,6 @@ bool Application::load_scene(
           e.what());
         scene_load_task_handle = TaskHandle{};
         scene_load_task_future = std::future<staged::StagedScene>{};
-        scene_load_task_error = e.what();
         return false;
     }
 

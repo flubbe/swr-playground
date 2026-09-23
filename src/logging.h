@@ -504,7 +504,8 @@ inline void log_n()
  */
 
 /** Fall-back null log device. Does not log. */
-class LogNull : public LogDevice
+class LogNull final
+: public LogDevice
 {
 protected:
     void log_n(std::string_view) override
@@ -518,8 +519,26 @@ public:
     }
 };
 
+/** Log to `stderr`. */
+class StdLogDevice
+: public LogDevice
+{
+protected:
+    void log_n(std::string_view message) override
+    {
+        std::print(stderr, "{}", message);
+    }
+
+public:
+    bool writes_to_stderr() const override
+    {
+        return true;
+    }
+};
+
 /** Log device that stores messages in a growing line buffer. */
-class BufferedLogDevice : public LogDevice
+class BufferedLogDevice
+: public LogDevice
 {
     // TODO make configurable
     static constexpr std::size_t max_buffered_records = 5000;
@@ -598,7 +617,8 @@ struct FileLogDeviceOptions
  * (block producer, drop newest, or drop oldest). Dropped records are summarized in
  * the log stream once capacity becomes available again.
  */
-class FileLogDevice : public BufferedLogDevice
+class FileLogDevice
+: public BufferedLogDevice
 {
     /** Output log file path. */
     std::filesystem::path output_path;

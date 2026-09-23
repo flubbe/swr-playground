@@ -8,8 +8,6 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <simdjson.h>
-
 #include "serialization/json/property_writer.h"
 #include "serialization/json/writer.h"
 #include "systems/animation.h"
