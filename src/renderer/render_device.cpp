@@ -274,7 +274,7 @@ TextureHandle RenderDevice::create_texture(
         throw std::runtime_error{
           std::format(
             "Unable to upload texture image, got error {}",
-            static_cast<int>(err))};
+            std::to_underlying(err))};
     }
 
     swr::SetTextureWrapMode(

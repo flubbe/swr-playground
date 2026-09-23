@@ -10,7 +10,6 @@
 
 #include <simdjson.h>
 
-#include "containers/unordered_set.h"
 #include "serialization/json/property_writer.h"
 #include "serialization/json/writer.h"
 #include "systems/animation.h"

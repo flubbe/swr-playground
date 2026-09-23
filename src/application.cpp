@@ -508,7 +508,7 @@ void imgui_draw_viewport_panel(
             bool update_display_settings = false;
 
             for(int view_index = 0;
-                view_index <= static_cast<int>(EditorCameraView::Orthographic);
+                view_index <= std::to_underlying(EditorCameraView::Orthographic);
                 ++view_index)
             {
                 const auto view = static_cast<EditorCameraView>(view_index);

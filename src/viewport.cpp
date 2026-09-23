@@ -184,7 +184,7 @@ std::string_view to_string(EditorCameraView view)
     throw std::runtime_error{
       std::format(
         "Unknown EditorCameraView with value {}",
-        static_cast<int>(view))};
+        std::to_underlying(view))};
 }
 
 Viewport::Viewport()
