@@ -97,6 +97,8 @@ MemoryBlockHeader* header_from_user(
 std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
 std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 
+std::array<std::atomic_size_t, static_cast<int>(MemoryTag::Count)> TrackingAllocator::bytes_per_tag;
+
 TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
 : allocator{allocator}
@@ -105,9 +107,10 @@ TrackingAllocator::TrackingAllocator(
 
 void* TrackingAllocator::allocate(
   std::size_t bytes,
-  std::size_t alignment)
+  std::size_t alignment,
+  MemoryTag tag)
 {
-    void* allocation = allocator.allocate(bytes, alignment);
+    void* allocation = allocator.allocate(bytes, alignment, tag);
 
     allocations.fetch_add(1, std::memory_order_relaxed);
     bytes_total.fetch_add(bytes, std::memory_order_relaxed);
@@ -134,28 +137,38 @@ void* TrackingAllocator::allocate(
         ++exact_sizes[bytes];
     }
 
+    bytes_per_tag[static_cast<int>(tag)].fetch_add(bytes, std::memory_order_relaxed);
+
     return allocation;
 }
 
 void TrackingAllocator::deallocate(
   void* p,
   std::size_t bytes,
-  std::size_t alignment) noexcept
+  std::size_t alignment,
+  MemoryTag tag) noexcept
 {
     deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
-    allocator.deallocate(p, bytes, alignment);
+    bytes_per_tag[static_cast<int>(tag)].fetch_sub(bytes, std::memory_order_relaxed);
+    allocator.deallocate(p, bytes, alignment, tag);
 }
 
 MemoryStats TrackingAllocator::stats() const
 {
-    return MemoryStats{
+    auto result = MemoryStats{
       .bytes_live = bytes_live.load(std::memory_order_relaxed),
       .bytes_peak = bytes_peak.load(std::memory_order_relaxed),
       .bytes_total_allocated = bytes_total.load(std::memory_order_relaxed),
       .allocate_calls = allocations.load(std::memory_order_relaxed),
-      .deallocate_calls = deallocations.load(std::memory_order_relaxed),
-    };
+      .deallocate_calls = deallocations.load(std::memory_order_relaxed)};
+
+    for(std::size_t i = 0; i < bytes_per_tag.size(); ++i)
+    {
+        result.bytes_per_tag[i] = bytes_per_tag[i].load(std::memory_order_relaxed);
+    }
+
+    return result;
 }
 
 void TrackingAllocator::print_histogram() const

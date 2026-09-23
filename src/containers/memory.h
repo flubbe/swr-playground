@@ -43,7 +43,8 @@ struct DefaultDeleter
         memory::heap().deallocate(
           p,
           sizeof(T),
-          alignof(T));
+          alignof(T),
+          memory::MemoryTag::UniquePtr);
     }
 };
 
@@ -58,7 +59,8 @@ auto make_unique(
 
     void* mem = memory::heap().allocate(
       size,
-      alignment);
+      alignment,
+      memory::MemoryTag::UniquePtr);
 
     try
     {
@@ -70,7 +72,8 @@ auto make_unique(
         memory::heap().deallocate(
           mem,
           size,
-          alignment);
+          alignment,
+          memory::MemoryTag::UniquePtr);
         throw;
     }
 }

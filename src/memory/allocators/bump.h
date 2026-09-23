@@ -62,7 +62,8 @@ public:
 
         memory = allocator.allocate(
           bytes,
-          alignment);
+          alignment,
+          MemoryTag::Bump);
         if(memory == nullptr)
         {
             throw std::bad_alloc{};
@@ -71,12 +72,14 @@ public:
         end = reinterpret_cast<std::byte*>(memory) + bytes;
         base = memory;
     }
+
     ~BumpAllocator()
     {
         allocator.deallocate(
           memory,
           capacity(),
-          alignment);
+          alignment,
+          MemoryTag::Bump);
     }
 
     void reset() noexcept
@@ -113,12 +116,14 @@ public:
     [[nodiscard]]
     void* allocate(
       std::size_t bytes,
-      std::size_t alignment) override;
+      std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) override;
 
     void deallocate(
       [[maybe_unused]] void* p,
       [[maybe_unused]] std::size_t bytes,
-      [[maybe_unused]] std::size_t alignment) noexcept override
+      [[maybe_unused]] std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) noexcept override
     {
         /* no-op. just update statistics. */
 

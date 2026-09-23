@@ -11,6 +11,7 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <mutex>
@@ -41,14 +42,25 @@ struct MemoryStats
     /** Deallocation calls. */
     std::size_t deallocate_calls{0};
 
+    /** Allocated bytes per tag. */
+    std::array<std::size_t, static_cast<int>(MemoryTag::Count)> bytes_per_tag;
+
     MemoryStats operator+(const MemoryStats& other) const
     {
-        return {
+        auto accum_stats = MemoryStats{
           .bytes_live = bytes_live + other.bytes_live,
           .bytes_peak = bytes_peak + other.bytes_peak,
           .bytes_total_allocated = bytes_total_allocated + other.bytes_total_allocated,
           .allocate_calls = allocate_calls + other.allocate_calls,
-          .deallocate_calls = deallocate_calls + other.deallocate_calls};
+          .deallocate_calls = deallocate_calls + other.deallocate_calls,
+          .bytes_per_tag = bytes_per_tag};
+
+        for(std::size_t i = 0; i < other.bytes_per_tag.size(); ++i)
+        {
+            accum_stats.bytes_per_tag[i] += other.bytes_per_tag[i];
+        }
+
+        return accum_stats;
     }
 };
 
@@ -66,8 +78,10 @@ class TrackingAllocator final
     std::atomic_size_t allocations{0};
     std::atomic_size_t deallocations{0};
 
-    static std::atomic<uint64_t> buckets[16];
+    static std::atomic_uint64_t buckets[16];
     static std::array<std::atomic<uint64_t>, 256> exact_sizes;
+
+    static std::array<std::atomic_size_t, static_cast<int>(MemoryTag::Count)> bytes_per_tag;
 
 public:
     explicit TrackingAllocator(
@@ -76,12 +90,14 @@ public:
     [[nodiscard]]
     void* allocate(
       std::size_t bytes,
-      std::size_t alignment) override;
+      std::size_t alignment,
+      MemoryTag tag) override;
 
     void deallocate(
       void* p,
       std::size_t bytes,
-      std::size_t alignment) noexcept override;
+      std::size_t alignment,
+      MemoryTag tag) noexcept override;
 
     [[nodiscard]]
     const char* name() const noexcept override

@@ -16,7 +16,8 @@ namespace memory
 
 void* ArenaAllocator::allocate(
   size_t bytes,
-  size_t alignment)
+  size_t alignment,
+  [[maybe_unused]] MemoryTag tag)
 {
     ++allocations;
 

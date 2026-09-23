@@ -27,12 +27,14 @@ struct MallocAllocator final
     [[nodiscard]]
     void* allocate(
       std::size_t bytes,
-      std::size_t alignment) override;
+      std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) override;
 
     void deallocate(
       void* p,
       std::size_t bytes,
-      std::size_t alignment) noexcept override;
+      std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) noexcept override;
 
     [[nodiscard]]
     const char* name() const noexcept override

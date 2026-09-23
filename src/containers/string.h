@@ -28,7 +28,7 @@ using string = std::basic_string<
   std::char_traits<char>,
   swr::StdAllocator<
     char,
-    MemoryTag::String>>;
+    memory::MemoryTag::String>>;
 
 #else /* SWR_USE_CUSTOM_STD_ALLOCATORS */
 

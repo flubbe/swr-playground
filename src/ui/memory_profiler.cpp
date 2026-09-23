@@ -122,6 +122,31 @@ void draw_memory_profiler_panel(
     }
 
     ImGui::Spacing();
+    ImGui::SeparatorText("Tagged Memory");
+    if(ImGui::BeginTable(
+         "MemoryTagStats",
+         2,
+         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Tag");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Bytes");
+
+        for(std::size_t i = 0; i < memory_stats.bytes_per_tag.size(); ++i)
+        {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", memory::to_string(static_cast<memory::MemoryTag>(i)));
+            ImGui::TableNextColumn();
+            ImGui::Text("%zu", memory_stats.bytes_per_tag[i]);
+        }
+
+        ImGui::EndTable();
+    }
+
+    ImGui::Spacing();
     ImGui::SeparatorText("Asset managers");
     if(ImGui::BeginTable(
          "MemoryProfilerAssetManagers",

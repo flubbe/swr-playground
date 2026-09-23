@@ -17,6 +17,7 @@
 #include <fstream>
 #include <mutex>
 #include <print>
+#include <utility>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -97,7 +98,7 @@ constexpr const char* to_string(LogLevel level)
         return "Error";
     }
 
-    return "Unknown";
+    std::unreachable();
 }
 
 /** Generic text logging device */
