@@ -26,6 +26,53 @@
 namespace reflect
 {
 
+/**
+ * Memory allocation for type factory.
+ *
+ * @note Specialize the `Root` type to customize allocations.
+ * @tparam Root Root type for the class hierarchy.
+ */
+template<
+  typename Root>
+struct Allocation
+{
+    /**
+     * Allocate memory for a type.
+     *
+     * @note Defaults to global `operator new`.
+     * @param size Type size.
+     * @param alignment Type alignment.
+     * @returns Returns the allocated memory.
+     */
+    static void* allocate(
+      std::size_t size,
+      std::size_t alignment)
+    {
+        return ::operator new(
+          size,
+          std::align_val_t{alignment});
+    }
+
+    /**
+     * Deallocate memory for a type.
+     *
+     * @note Defaults to global `operator delete`.
+     * @param p Pointer to allocated memory.
+     * @param size Type size.
+     * @param alignment Type alignment.
+     */
+    static void deallocate(
+      void* p,
+      std::size_t size,
+      std::size_t alignment) noexcept
+    {
+        ::operator delete(
+          p,
+          size,
+          std::align_val_t{alignment});
+    }
+};
+
 namespace detail
 {
 
@@ -104,9 +151,9 @@ void* factory()
 {
     ClassInfo* cls = T::static_class();
 
-    void* storage = ::operator new(
+    void* storage = Allocation<Root>::allocate(
       cls->size,
-      std::align_val_t{cls->alignment});
+      cls->alignment);
 
     try
     {
@@ -141,9 +188,10 @@ void destroy(
 
     static_cast<T*>(instance)->~T();
 
-    ::operator delete(
+    Allocation<Root>::deallocate(
       instance,
-      std::align_val_t{cls->alignment});
+      cls->size,
+      cls->alignment);
 }
 
 /** Return a type's super class or `nullptr` if there is none. */

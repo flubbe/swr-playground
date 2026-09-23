@@ -27,6 +27,7 @@
  */
 
 struct AssetResolver;
+class Object;
 class Scene;
 
 /** An object identifier. */
@@ -53,12 +54,46 @@ struct hash<ObjectId>
 
 }    // namespace std
 
+namespace reflect
+{
+
+/*
+ * Allocator customization.
+ */
+
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
+template<>
+struct Allocation<Object>
+{
+    static void* allocate(
+      std::size_t size,
+      std::size_t alignment)
+    {
+        return memory::heap().allocate(
+          size,
+          alignment,
+          memory::MemoryTag::Object);
+    }
+
+    static void deallocate(
+      void* p,
+      std::size_t size,
+      std::size_t alignment) noexcept
+    {
+        return memory::heap().deallocate(
+          p,
+          size,
+          alignment,
+          memory::MemoryTag::Object);
+    }
+};
+
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
 /*
  * Property support.
  */
-
-namespace reflect
-{
 
 template<>
 struct UnwrapType<ObjectId>

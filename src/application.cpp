@@ -1880,7 +1880,7 @@ bool Application::load_scene(
 
         auto submission = task_system.submit(
           [this,
-           path = std::filesystem::path{path},
+           path = path,
            contents = std::move(contents)](
             task_system::TaskExecutionContext& context) mutable -> staged::StagedScene
           {

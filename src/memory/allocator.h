@@ -30,6 +30,7 @@ enum class MemoryTag : std::uint8_t
     UniquePtr,    /** swr::unique_ptr. */
     Page,         /** Arena page. */
     Bump,         /** Bump. */
+    Object,       /** Object hierarchy. */
 
     Count /** Tag count. Not a tag. */
 };
@@ -61,6 +62,8 @@ constexpr const char* to_string(
         return "Page";
     case MemoryTag::Bump:
         return "Bump";
+    case MemoryTag::Object:
+        return "Object";
     case MemoryTag::Count:
         /* Fall through to unreachable. */
         break;
