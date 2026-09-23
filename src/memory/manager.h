@@ -45,6 +45,9 @@ struct MemoryStats
     /** Allocated bytes per tag. */
     std::array<std::size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
 
+    /** Allocations per tag. */
+    std::array<std::size_t, std::to_underlying(MemoryTag::Count)> allocations_per_tag;
+
     MemoryStats operator+(const MemoryStats& other) const
     {
         auto accum_stats = MemoryStats{
@@ -53,11 +56,17 @@ struct MemoryStats
           .bytes_total_allocated = bytes_total_allocated + other.bytes_total_allocated,
           .allocate_calls = allocate_calls + other.allocate_calls,
           .deallocate_calls = deallocate_calls + other.deallocate_calls,
-          .bytes_per_tag = bytes_per_tag};
+          .bytes_per_tag = bytes_per_tag,
+          .allocations_per_tag = allocations_per_tag};
 
         for(std::size_t i = 0; i < other.bytes_per_tag.size(); ++i)
         {
             accum_stats.bytes_per_tag[i] += other.bytes_per_tag[i];
+        }
+
+        for(std::size_t i = 0; i < other.allocations_per_tag.size(); ++i)
+        {
+            accum_stats.allocations_per_tag[i] += other.allocations_per_tag[i];
         }
 
         return accum_stats;
@@ -82,6 +91,7 @@ class TrackingAllocator final
     static std::array<std::atomic<uint64_t>, 256> exact_sizes;
 
     static std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
+    static std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> allocations_per_tag;
 
 public:
     explicit TrackingAllocator(

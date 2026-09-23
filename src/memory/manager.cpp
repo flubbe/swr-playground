@@ -97,7 +97,14 @@ MemoryBlockHeader* header_from_user(
 std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
 std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 
-std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> TrackingAllocator::bytes_per_tag;
+std::array<
+  std::atomic_size_t,
+  std::to_underlying(MemoryTag::Count)>
+  TrackingAllocator::bytes_per_tag;
+std::array<
+  std::atomic_size_t,
+  std::to_underlying(MemoryTag::Count)>
+  TrackingAllocator::allocations_per_tag;
 
 TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
@@ -111,6 +118,10 @@ void* TrackingAllocator::allocate(
   MemoryTag tag)
 {
     void* allocation = allocator.allocate(bytes, alignment, tag);
+
+    /*
+     * Update statistics.
+     */
 
     allocations.fetch_add(1, std::memory_order_relaxed);
     bytes_total.fetch_add(bytes, std::memory_order_relaxed);
@@ -129,15 +140,28 @@ void* TrackingAllocator::allocate(
     {
     }
 
+    /*
+     * Updates buckets.
+     */
+
     auto b = std::min<size_t>(15, std::bit_width(bytes));
     ++buckets[b];
+
+    /*
+     * Update exact sizes for small allocations.
+     */
 
     if(bytes < exact_sizes.size())
     {
         ++exact_sizes[bytes];
     }
 
+    /*
+     * Update tag statistics.
+     */
+
     bytes_per_tag[std::to_underlying(tag)].fetch_add(bytes, std::memory_order_relaxed);
+    allocations_per_tag[std::to_underlying(tag)].fetch_add(1, std::memory_order_relaxed);
 
     return allocation;
 }
@@ -148,10 +172,16 @@ void TrackingAllocator::deallocate(
   std::size_t alignment,
   MemoryTag tag) noexcept
 {
+    allocator.deallocate(p, bytes, alignment, tag);
+
+    /*
+     * Update statistics.
+     */
+
     deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
     bytes_per_tag[std::to_underlying(tag)].fetch_sub(bytes, std::memory_order_relaxed);
-    allocator.deallocate(p, bytes, alignment, tag);
+    allocations_per_tag[std::to_underlying(tag)].fetch_sub(1, std::memory_order_relaxed);
 }
 
 MemoryStats TrackingAllocator::stats() const
@@ -162,11 +192,17 @@ MemoryStats TrackingAllocator::stats() const
       .bytes_total_allocated = bytes_total.load(std::memory_order_relaxed),
       .allocate_calls = allocations.load(std::memory_order_relaxed),
       .deallocate_calls = deallocations.load(std::memory_order_relaxed),
-      .bytes_per_tag = {}};
+      .bytes_per_tag = {},
+      .allocations_per_tag = {}};
 
     for(std::size_t i = 0; i < bytes_per_tag.size(); ++i)
     {
         result.bytes_per_tag[i] = bytes_per_tag[i].load(std::memory_order_relaxed);
+    }
+
+    for(std::size_t i = 0; i < allocations_per_tag.size(); ++i)
+    {
+        result.allocations_per_tag[i] = allocations_per_tag[i].load(std::memory_order_relaxed);
     }
 
     return result;

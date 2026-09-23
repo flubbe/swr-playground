@@ -514,7 +514,8 @@ public:
           std::is_base_of_v<SceneSystem, T>)
     T* add_system(Args&&... args)
     {
-        auto system = swr::make_unique<T>(std::forward<Args>(args)...);
+        auto system = swr::make_unique<T>(
+          std::forward<Args>(args)...);
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;

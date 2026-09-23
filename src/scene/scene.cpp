@@ -16,15 +16,26 @@
 #include "scene.h"
 #include "logging.h"
 
+template<
+  typename T,
+  typename Alloc>
+void clear_and_shrink(
+  std::vector<T, Alloc>& v)
+{
+    v.clear();
+    v.shrink_to_fit();
+}
+
 void Scene::clear()
 {
-    systems.clear();
+    clear_and_shrink(systems);
 
     for(auto& obj: objects)
     {
         obj->release();
     }
-    objects.clear();
+    clear_and_shrink(objects);
+
     object_name_counters.clear();
 
     next_id = 0;
