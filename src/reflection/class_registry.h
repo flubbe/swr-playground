@@ -128,8 +128,10 @@ void destroy(
 {
     ClassInfo* cls = T::static_class();
 
+    static_cast<T*>(instance)->~T();
+
     ::operator delete(
-      static_cast<Root*>(instance),
+      instance,
       std::align_val_t{cls->alignment});
 }
 
