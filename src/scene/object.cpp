@@ -132,7 +132,7 @@ void Object::capture_snapshot()
         return;
     }
 
-    snapshot.reset(static_cast<Object*>(cls->factory()));
+    snapshot = reflect::construct<Object>(cls);
     if(snapshot == nullptr)
     {
         return;

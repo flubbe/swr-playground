@@ -45,7 +45,7 @@ using unique_ptr = std::unique_ptr<
 /**
  * Construct an instance from a `ClassInfo` descriptor.
  *
- * @tparam Root
+ * @tparam Root Root type for the class hierarchy.
  * @param cls Pointer to the class metadata.
  * @returns Unique pointer to the constructed instance, or `nullptr` if
  *     either `cls` is `nullptr` or has it no factory function.
