@@ -251,6 +251,46 @@ TEST_F(MemoryManagerTests, UnorderedSet)
     EXPECT_EQ(stats.bytes_per_tag[std::to_underlying(memory::MemoryTag::UnorderedSet)], 0);
 }
 
+TEST_F(MemoryManagerTests, Vector)
+{
+    auto stats = memory::stats();
+    EXPECT_EQ(stats.bytes_per_tag[std::to_underlying(memory::MemoryTag::Vector)], 0);
+
+    {
+        auto vec = swr::vector<int>{
+          0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+        EXPECT_EQ(vec.size(), 10);
+        EXPECT_GE(vec.capacity(), 10);
+
+        auto stats = memory::stats();
+        EXPECT_GT(stats.allocate_calls, 1);
+        EXPECT_EQ(stats.deallocate_calls, 0);
+
+        for(std::size_t i = 0; i < stats.bytes_per_tag.size(); ++i)
+        {
+            if(i == static_cast<std::size_t>(memory::MemoryTag::Vector))
+            {
+                EXPECT_GT(stats.bytes_per_tag[i], 0);
+            }
+            else if(i == static_cast<std::size_t>(memory::MemoryTag::Bump))
+            {
+                EXPECT_EQ(stats.bytes_per_tag[i], memory::default_bump_size);
+            }
+            else
+            {
+                EXPECT_EQ(stats.bytes_per_tag[i], 0);
+            }
+        }
+    }
+
+    stats = memory::stats();
+    EXPECT_GT(stats.allocate_calls, 1);
+    EXPECT_GT(stats.deallocate_calls, 0);
+
+    EXPECT_EQ(stats.bytes_per_tag[std::to_underlying(memory::MemoryTag::Vector)], 0);
+}
+
 struct PropertyTestStruct
 {
     float x{0};
