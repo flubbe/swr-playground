@@ -165,7 +165,14 @@ public:
      */
     void finalize();
 
-    void finalize(staged::StaticMeshAsset loaded);
+    /**
+     * Finalize mesh loading.
+     *
+     * @param mesh The mesh asset to finalize.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
+     */
+    void finalize(
+      staged::StaticMeshAsset mesh);
 
     /**
      * Destroy the mesh handle.
@@ -246,22 +253,18 @@ MeshEntry::~MeshEntry()
 
 void MeshEntry::finalize()
 {
-    if(resolved_lods.has_value())
-    {
-        return;
-    }
-
     finalize(resources.future.get());
 }
 
-void MeshEntry::finalize(staged::StaticMeshAsset loaded)
+void MeshEntry::finalize(
+  staged::StaticMeshAsset mesh)
 {
     if(resolved_lods.has_value())
     {
         return;
     }
 
-    if(loaded.sections.empty())
+    if(mesh.sections.empty())
     {
         throw std::runtime_error{
           "Mesh asset contains no renderable sections."};
@@ -286,15 +289,15 @@ void MeshEntry::finalize(staged::StaticMeshAsset loaded)
           }
       });
 
-    result_lods.resize(loaded.sections.front().lods.size());
+    result_lods.resize(mesh.sections.front().lods.size());
 
     for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
         result_lods[i].triangle_count =
-          loaded.sections.front().lods[i].mesh.indices.size() / 3;
+          mesh.sections.front().lods[i].mesh.indices.size() / 3;
     }
 
-    for(const staged::StaticMeshSection& section: loaded.sections)
+    for(const staged::StaticMeshSection& section: mesh.sections)
     {
         for(std::size_t lod_index = 0;
             lod_index < section.lods.size()
