@@ -14,6 +14,7 @@
 #include <string_view>
 
 #include "containers/string.h"
+#include "construct_property.h"
 #include "property.h"
 
 namespace reflect
@@ -29,7 +30,7 @@ namespace reflect
 struct ClassInfo
 {
     using FactoryFn = void* (*)();
-    using DestroyFn = void (*)(void*);
+    using DestroyFn = void (*)(void*) noexcept;
     using PropertyRegisterFn = void (*)(ClassInfo&);
     using SuperResolverFn = const ClassInfo* (*)();
 

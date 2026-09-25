@@ -12,6 +12,7 @@
 
 #include <concepts>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "memory/manager.h"
@@ -24,15 +25,45 @@ namespace swr
 template<typename T>
 struct DefaultDeleter
 {
-    DefaultDeleter() = default;
+    using DeallocateFn = void (*)(void*) noexcept;
+    DeallocateFn deallocate{default_deallocate};
+
+    static void default_deallocate(void* p) noexcept
+    {
+        memory::heap().deallocate(
+          p,
+          sizeof(T),
+          alignof(T),
+          memory::MemoryTag::UniquePtr);
+    }
+
+    constexpr DefaultDeleter() noexcept = default;
+
+    constexpr explicit DefaultDeleter(
+      DeallocateFn fn)
+    : deallocate(fn)
+    {
+        if(deallocate == nullptr)
+        {
+            throw std::invalid_argument{
+              "Deleter requires a deletion function"};
+        }
+    }
 
     template<typename U>
         requires std::convertible_to<U*, T*>
-    DefaultDeleter(const DefaultDeleter<U>&) noexcept
+    constexpr DefaultDeleter(
+      const DefaultDeleter<U>& other)
+    : deallocate(other.deallocate)
     {
+        if(deallocate == nullptr)
+        {
+            throw std::invalid_argument{
+              "Cannot convert a Deleter with a null deletion function"};
+        }
     }
 
-    void operator()(T* p) const
+    void operator()(T* p) const noexcept
     {
         if(p == nullptr)
         {
@@ -40,48 +71,54 @@ struct DefaultDeleter
         }
 
         p->~T();
-        memory::heap().deallocate(
-          p,
-          sizeof(T),
-          alignof(T),
-          memory::MemoryTag::UniquePtr);
+
+        deallocate(p);
     }
 };
+
+template<typename T>
+using unique_ptr = std::unique_ptr<T, DefaultDeleter<T>>;
 
 template<
   typename T,
   typename... Args>
-auto make_unique(
-  Args&&... args)
+auto make_unique(Args&&... args)
 {
-    constexpr std::size_t size = sizeof(T);
-    constexpr std::size_t alignment = alignof(T);
+    constexpr std::size_t Size = sizeof(T);
+    constexpr std::size_t Alignment = alignof(T);
 
     void* mem = memory::heap().allocate(
-      size,
-      alignment,
+      Size,
+      Alignment,
       memory::MemoryTag::UniquePtr);
+
+    auto deallocate_fn = [](void* p) noexcept
+    {
+        memory::heap().deallocate(
+          p,
+          Size,
+          Alignment,
+          memory::MemoryTag::UniquePtr);
+    };
+
+    using Deleter = DefaultDeleter<T>;
 
     try
     {
-        T* p = new(mem) T(std::forward<Args>(args)...);
-        return std::unique_ptr<T, DefaultDeleter<T>>(p);
+        return std::unique_ptr<T, Deleter>{
+          new(mem) T{std::forward<Args>(args)...},
+          Deleter{deallocate_fn}};
     }
     catch(...)
     {
         memory::heap().deallocate(
           mem,
-          size,
-          alignment,
+          Size,
+          Alignment,
           memory::MemoryTag::UniquePtr);
         throw;
     }
 }
-
-template<
-  typename T,
-  typename Deleter = DefaultDeleter<T>>
-using unique_ptr = std::unique_ptr<T, Deleter>;
 
 template<typename T>
 using shared_ptr = std::shared_ptr<T>;

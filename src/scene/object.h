@@ -152,7 +152,7 @@ public:
     }
 
     /** Default destructor. */
-    virtual ~Object() = default;
+    virtual ~Object() override = default;
 
     /**
      * Move constructor.

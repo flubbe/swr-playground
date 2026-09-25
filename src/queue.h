@@ -38,7 +38,7 @@ public:
     [[nodiscard]]
     std::size_t size() const
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         return queue.size();
     }
 
@@ -46,28 +46,28 @@ public:
     [[nodiscard]]
     bool empty() const
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         return queue.empty();
     }
 
     /** Clear the queue's contents. */
     void clear()
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         queue.clear();
     }
 
     /** Push an element onto the queue. */
     void push_back(const T& elem)
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         queue.push_back(elem);
     }
 
     /** Push an element onto the queue. */
     void push_back(T&& elem)
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         queue.push_back(std::move(elem));
     }
 
@@ -75,7 +75,7 @@ public:
     template<typename... Args>
     void emplace_back(Args&&... args)
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         queue.emplace_back(std::forward<Args>(args)...);
     }
 
@@ -87,7 +87,7 @@ public:
      */
     bool try_pop(T& elem)
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         if(queue.empty())
         {
             return false;
@@ -108,7 +108,7 @@ public:
         swr::deque<T> result;
 
         {
-            std::scoped_lock lock{mutex};
+            std::unique_lock lock{mutex};
             result.swap(queue);
         }
 

@@ -10,7 +10,7 @@
 
 ResourceState ResourceTicket::get_state() const
 {
-    std::scoped_lock lock{tracker.mutex};
+    std::unique_lock lock{tracker.mutex};
 
     auto it = tracker.resources.find(id);
     if(it == tracker.resources.end())
@@ -44,7 +44,7 @@ void set_state(
 
 void ResourceTicket::pending()
 {
-    std::scoped_lock lock{tracker.mutex};
+    std::unique_lock lock{tracker.mutex};
     set_state(
       id,
       tracker.resources,
@@ -53,7 +53,7 @@ void ResourceTicket::pending()
 
 void ResourceTicket::completed()
 {
-    std::scoped_lock lock{tracker.mutex};
+    std::unique_lock lock{tracker.mutex};
     set_state(
       id,
       tracker.resources,
@@ -62,7 +62,7 @@ void ResourceTicket::completed()
 
 void ResourceTicket::failed()
 {
-    std::scoped_lock lock{tracker.mutex};
+    std::unique_lock lock{tracker.mutex};
     set_state(
       id,
       tracker.resources,
@@ -71,7 +71,7 @@ void ResourceTicket::failed()
 
 void ResourceTicket::cancelled()
 {
-    std::scoped_lock lock{tracker.mutex};
+    std::unique_lock lock{tracker.mutex};
     set_state(
       id,
       tracker.resources,
@@ -84,7 +84,7 @@ void ResourceTicket::cancelled()
 
 ResourceTicket ResourceTracker::track()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
 
     if(next_id == std::numeric_limits<ResourceId::Type>::max())
     {
@@ -105,7 +105,7 @@ ResourceTicket ResourceTracker::track()
 ResourceTicket ResourceTracker::track(
   const assets::AssetPath& path)
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
 
     if(next_id == std::numeric_limits<ResourceId::Type>::max())
     {
@@ -143,7 +143,7 @@ std::size_t count_state(
 
 std::size_t ResourceTracker::pending_count() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return count_state(
       resources,
       ResourceState::Pending);
@@ -151,7 +151,7 @@ std::size_t ResourceTracker::pending_count() const
 
 std::size_t ResourceTracker::completed_count() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return count_state(
       resources,
       ResourceState::Completed);
@@ -159,7 +159,7 @@ std::size_t ResourceTracker::completed_count() const
 
 std::size_t ResourceTracker::failed_count() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return count_state(
       resources,
       ResourceState::Failed);
@@ -167,7 +167,7 @@ std::size_t ResourceTracker::failed_count() const
 
 std::size_t ResourceTracker::cancelled_count() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return count_state(
       resources,
       ResourceState::Cancelled);
@@ -175,7 +175,7 @@ std::size_t ResourceTracker::cancelled_count() const
 
 bool ResourceTracker::is_complete() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return std::ranges::all_of(
       resources,
       [](const auto& p)
@@ -186,7 +186,7 @@ bool ResourceTracker::is_complete() const
 
 bool ResourceTracker::is_finished() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return std::ranges::none_of(
       resources,
       [](const auto& p) -> bool
@@ -195,7 +195,7 @@ bool ResourceTracker::is_finished() const
 
 bool ResourceTracker::has_failed() const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     return std::ranges::any_of(
       resources,
       [](const auto& p) -> bool
@@ -204,13 +204,13 @@ bool ResourceTracker::has_failed() const
 
 void ResourceTracker::clear()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     resources.clear();
 }
 
 void ResourceTracker::clear_finished()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     std::erase_if(
       resources,
       [](const auto& p) -> bool

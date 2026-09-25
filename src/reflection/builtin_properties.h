@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "containers/format.h"
+#include "reflection/construct_property.h"
 #include "reflection/property.h"
 
 namespace reflect

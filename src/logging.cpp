@@ -140,7 +140,7 @@ LogDevice* LogDevice::instance{&g_log_null};
 void LogDevice::set(
   LogDevice* instance)
 {
-    std::scoped_lock lock{g_log_device_mutex};
+    std::unique_lock lock{g_log_device_mutex};
 
     LogDevice* next = instance != nullptr
                         ? instance
@@ -161,20 +161,20 @@ void LogDevice::set(
 
 LogDevice& LogDevice::get()
 {
-    std::scoped_lock lock{g_log_device_mutex};
+    std::unique_lock lock{g_log_device_mutex};
     assert(instance != nullptr);
     return *instance;
 }
 
 bool LogDevice::is_initialized()
 {
-    std::scoped_lock lock{g_log_device_mutex};
+    std::unique_lock lock{g_log_device_mutex};
     return instance != nullptr;
 }
 
 void LogDevice::cleanup()
 {
-    std::scoped_lock lock{g_log_device_mutex};
+    std::unique_lock lock{g_log_device_mutex};
     instance = &g_log_null;
 }
 
@@ -207,7 +207,7 @@ void BufferedLogDevice::write_record(
 
     LogRecord prepared = prepare_record(record);
 
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     records.push_back(std::move(prepared));
 }
 
@@ -226,7 +226,7 @@ void BufferedLogDevice::log_n(
 void BufferedLogDevice::get_records(
   swr::vector<LogRecord>& records) const
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     records.reserve(this->records.size());
     records.assign(
       this->records.cbegin(),
@@ -235,7 +235,7 @@ void BufferedLogDevice::get_records(
 
 void BufferedLogDevice::clear()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     records.clear();
 }
 
@@ -246,7 +246,7 @@ void BufferedLogDevice::clear()
 FileLogDevice::FileLogDevice(
   std::filesystem::path output_path,
   FileLogDeviceOptions options)
-: BufferedLogDevice{}
+: BufferedLogDevice{false}
 , output_path{std::move(output_path)}
 , options{options}
 {
@@ -279,7 +279,7 @@ FileLogDevice::~FileLogDevice()
     on_shutdown();
 
     {
-        std::scoped_lock lock{file_mutex};
+        std::unique_lock lock{file_mutex};
         stop_requested = true;
     }
     file_condition.notify_all();
@@ -356,7 +356,7 @@ void FileLogDevice::emit_lifecycle_record(std::string_view message)
 void FileLogDevice::on_initialized()
 {
     {
-        std::scoped_lock lock{file_mutex};
+        std::unique_lock lock{file_mutex};
         if(session_active || stop_requested)
         {
             return;
@@ -374,7 +374,7 @@ void FileLogDevice::on_initialized()
 void FileLogDevice::on_shutdown()
 {
     {
-        std::scoped_lock lock{file_mutex};
+        std::unique_lock lock{file_mutex};
         if(!session_active || stop_requested)
         {
             return;

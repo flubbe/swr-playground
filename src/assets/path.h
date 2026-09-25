@@ -11,6 +11,7 @@
 #pragma once
 
 #include "reflection/property.h"
+#include "reflection/construct_property.h"
 #include "serialization/archive.h"
 #include "serialization/containers.h"
 

@@ -100,11 +100,11 @@ std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 std::array<
   std::atomic_size_t,
   std::to_underlying(MemoryTag::Count)>
-  TrackingAllocator::bytes_per_tag;
+  TrackingAllocator::bytes_per_tag = {};
 std::array<
   std::atomic_size_t,
   std::to_underlying(MemoryTag::Count)>
-  TrackingAllocator::allocations_per_tag;
+  TrackingAllocator::allocations_per_tag = {};
 
 TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
@@ -251,7 +251,7 @@ MemoryManager& MemoryManager::instance()
 
 void MemoryManager::initialize()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     if(initialized)
     {
         return;
@@ -264,7 +264,7 @@ void MemoryManager::initialize()
 
 void MemoryManager::shutdown()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     if(!initialized)
     {
         return;

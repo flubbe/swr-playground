@@ -161,9 +161,10 @@ void* factory()
     }
     catch(...)
     {
-        ::operator delete(
+        Allocation<Root>::deallocate(
           storage,
-          std::align_val_t{cls->alignment});
+          cls->size,
+          cls->alignment);
 
         throw;
     }
@@ -182,7 +183,7 @@ template<
     requires std::derived_from<T, Root>
              && std::destructible<T>
 void destroy(
-  void* instance)
+  void* instance) noexcept
 {
     ClassInfo* cls = T::static_class();
 
