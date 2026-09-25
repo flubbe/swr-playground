@@ -8,9 +8,6 @@
  * \license Distributed under the MIT software license (see accompanying LICENSE.txt).
  */
 
-#include <simdjson.h>
-
-#include "containers/unordered_set.h"
 #include "serialization/json/property_writer.h"
 #include "serialization/json/writer.h"
 #include "systems/animation.h"
@@ -19,15 +16,26 @@
 #include "scene.h"
 #include "logging.h"
 
+template<
+  typename T,
+  typename Alloc>
+void clear_and_shrink(
+  std::vector<T, Alloc>& v)
+{
+    v.clear();
+    v.shrink_to_fit();
+}
+
 void Scene::clear()
 {
-    systems.clear();
+    clear_and_shrink(systems);
 
     for(auto& obj: objects)
     {
         obj->release();
     }
-    objects.clear();
+    clear_and_shrink(objects);
+
     object_name_counters.clear();
 
     next_id = 0;

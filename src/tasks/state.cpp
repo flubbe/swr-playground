@@ -73,7 +73,7 @@ void set_task_state(
   std::optional<swr::string> status_text,
   std::optional<float> progress)
 {
-    std::scoped_lock lock{state.snapshot_mutex};
+    std::unique_lock lock{state.snapshot_mutex};
     if(task_index >= state.snapshot.tasks.size())
     {
         return;
@@ -95,7 +95,7 @@ void set_task_state(
 
 void cancel_unfinished_tasks(TaskSharedState& state)
 {
-    std::scoped_lock lock{state.snapshot_mutex};
+    std::unique_lock lock{state.snapshot_mutex};
     for(TaskSnapshot& task_snapshot: state.snapshot.tasks)
     {
         if(task_snapshot.state == TaskState::Queued

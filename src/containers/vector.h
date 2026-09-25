@@ -26,7 +26,7 @@ using vector = std::vector<
   T,
   swr::StdAllocator<
     T,
-    MemoryTag::Vector,
+    memory::MemoryTag::Vector,
     Domain>>;
 
 #else /* SWR_USE_CUSTOM_STD_ALLOCATORS */

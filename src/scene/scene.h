@@ -84,13 +84,24 @@ public:
      */
     Scene(const Scene&) = delete;
 
-    /**
-     * Disable move constructor.
-     *
-     * @note If the move should be allowed, we need to take care of e.g. Scene-Object
-     *     relations (see e.g. `Object::set_scene`).
-     */
-    Scene(Scene&&) = delete;
+    /** Move constructor. */
+    Scene(
+      Scene&& other)
+    : objects{std::move(other.objects)}
+    , systems{std::move(other.systems)}
+    , object_name_counters{std::move(other.object_name_counters)}
+    , next_id{other.next_id}
+    , spin_animations{std::move(other.spin_animations)}
+    , objects_by_id{std::move(other.objects_by_id)}
+    , time{other.time}
+    , paused{other.paused}
+    , dirty_meshes{std::move(other.dirty_meshes)}
+    {
+        for(auto& object: objects)
+        {
+            object->set_scene(this);
+        }
+    }
 
     /**
      * Disable copy assignment.
@@ -503,7 +514,8 @@ public:
           std::is_base_of_v<SceneSystem, T>)
     T* add_system(Args&&... args)
     {
-        auto system = swr::make_unique<T>(std::forward<Args>(args)...);
+        auto system = swr::make_unique<T>(
+          std::forward<Args>(args)...);
         T* ptr = system.get();
         systems.emplace_back(std::move(system));
         return ptr;

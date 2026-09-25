@@ -12,7 +12,6 @@
 
 #include <simdjson.h>
 
-#include "containers/unordered_set.h"
 #include "reflection/builtin_properties.h"
 #include "reflection/construct.h"
 #include "scene/systems/animation.h"

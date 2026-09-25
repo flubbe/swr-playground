@@ -13,6 +13,7 @@
 #include <ml/all.h>
 
 #include "containers/string.h"
+#include "reflection/construct_property.h"
 #include "reflection/property.h"
 
 namespace reflect

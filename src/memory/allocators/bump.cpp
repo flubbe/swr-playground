@@ -18,9 +18,11 @@ namespace memory
  * BumpAllocator.
  */
 
+// NOTE `tag` is unused, as everything is `MemoryTag::Bump`.
 void* BumpAllocator::allocate(
   std::size_t bytes,
-  std::size_t alignment)
+  std::size_t alignment,
+  [[maybe_unused]] MemoryTag tag)
 {
     allocations.fetch_add(1, std::memory_order_relaxed);
 

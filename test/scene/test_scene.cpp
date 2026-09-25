@@ -145,8 +145,8 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
       swr::vector{
-        make_mesh_section(12)},
-      MeshBounds{});
+        StaticMeshLod{
+          .mesh_sections = {make_mesh_section(12)}}});
     ASSERT_NE(mesh, nullptr);
 
     EXPECT_TRUE(mesh->is_a<StaticMesh>());
@@ -221,16 +221,14 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
       assets::AssetPath{"<mesh>"},
       {},
       swr::vector{
-        make_mesh_section(10)},
-      bounds);
+        StaticMeshLod{
+          .mesh_sections = {make_mesh_section(10)},
+          .bounds = bounds}});
 
-    EXPECT_TRUE(mesh.get_bounds().valid);
-    EXPECT_EQ(mesh.get_bounds().min.x, -1.f);
-    EXPECT_EQ(mesh.get_bounds().max.z, 3.f);
-
-    mesh.clear_mesh_sections();
-
-    EXPECT_FALSE(mesh.get_bounds().valid);
+    ASSERT_NE(mesh.get_bounds(), nullptr);
+    EXPECT_TRUE(mesh.get_bounds()->valid);
+    EXPECT_EQ(mesh.get_bounds()->min.x, -1.f);
+    EXPECT_EQ(mesh.get_bounds()->max.z, 3.f);
 }
 
 TEST(SceneTests, ForEachObjectVisitsRequestedType)
@@ -243,8 +241,8 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
       swr::vector{
-        make_mesh_section(56)},
-      MeshBounds{});
+        StaticMeshLod{
+          .mesh_sections = {make_mesh_section(56)}}});
     ASSERT_NE(mesh, nullptr);
 
     int mutable_visit_count = 0;
@@ -334,7 +332,7 @@ TEST(SceneTests, SaveLoad)
         ASSERT_NO_THROW(mesh->init(
           assets::AssetPath{"assets/models/car.obj"},
           {assets::AssetPath{"assets/materials/mesh/flat.json"}},
-          {}));
+          swr::vector<StaticMeshLod>{}));
         ASSERT_NE(mesh, nullptr);
 
         mesh->casts_shadows = true;

@@ -87,7 +87,7 @@ void run_scheduled_task_worker(
           task_state_value,
           std::move(status_text));
 
-        std::scoped_lock lock{shared->mutex};
+        std::unique_lock lock{shared->mutex};
         if(!shared->first_error)
         {
             shared->first_error = std::current_exception();
@@ -145,7 +145,7 @@ void run_scheduled_task_worker(
     }
 
     {
-        std::scoped_lock lock{shared->mutex};
+        std::unique_lock lock{shared->mutex};
         shared->finished_tasks.push_back(task_index);
         if(shared->running_tasks > 0)
         {
@@ -205,7 +205,7 @@ void dispatch_ready_tasks(
           && !state->cancel_requested.load(std::memory_order_relaxed))
     {
         {
-            std::scoped_lock lock{scheduler_shared->mutex};
+            std::unique_lock lock{scheduler_shared->mutex};
             if(scheduler_shared->first_error)
             {
                 break;
@@ -244,7 +244,7 @@ void dispatch_ready_tasks(
         }
 
         {
-            std::scoped_lock lock{scheduler_shared->mutex};
+            std::unique_lock lock{scheduler_shared->mutex};
             ++scheduler_shared->running_tasks;
         }
 

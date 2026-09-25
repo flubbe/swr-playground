@@ -158,7 +158,7 @@ public:
     /** Get the number of tracked resources. */
     std::size_t size() const
     {
-        std::scoped_lock lock{mutex};
+        std::unique_lock lock{mutex};
         return resources.size();
     }
 

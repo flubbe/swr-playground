@@ -75,7 +75,8 @@ class ArenaAllocator final
 
         void* memory = allocator.allocate(
           page_size,
-          alignment);
+          alignment,
+          MemoryTag::Page);
         if(memory == nullptr)
         {
             throw std::bad_alloc{};
@@ -120,7 +121,8 @@ public:
             allocator.deallocate(
               head,
               head->page_size,
-              alignment);
+              alignment,
+              MemoryTag::Page);
 
             head = next;
         }
@@ -163,12 +165,14 @@ public:
     [[nodiscard]]
     void* allocate(
       std::size_t bytes,
-      std::size_t alignment) override;
+      std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) override;
 
     void deallocate(
       [[maybe_unused]] void* p,
       [[maybe_unused]] std::size_t bytes,
-      [[maybe_unused]] std::size_t alignment) noexcept override
+      [[maybe_unused]] std::size_t alignment,
+      [[maybe_unused]] MemoryTag tag) noexcept override
     {
         /* no-op. just update statistics. */
 

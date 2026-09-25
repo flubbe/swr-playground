@@ -12,6 +12,7 @@
 #include <cmath>
 #include <algorithm>
 
+#include "containers/format.h"
 #include "reflection/builtin_properties.h"
 #include "renderer/material_manager.h"
 #include "renderer/mesh_manager.h"
@@ -330,11 +331,10 @@ void Gear::post_load()
 void Gear::init(
   const GearParameters& params)
 {
-    Reflected<Gear, StaticMesh>::init(
+    Super::init(
       assets::AssetPath{},
       params.materials,
-      swr::vector{params.inner, params.outer},
-      params.bounds);
+      params.mesh);
 
     inner_radius = params.inner_radius;
     outer_radius = params.outer_radius;
@@ -454,7 +454,8 @@ void Gear::register_properties(
 }
 
 GearParameters Gear::create_gear_resources(
-  RenderDevice& device,
+  MeshManager& mesh_manager,
+  const swr::string& name,
   MaterialRef material,
   float inner_radius,
   float outer_radius,
@@ -470,33 +471,30 @@ GearParameters Gear::create_gear_resources(
       .vertices = geom.inner_vertices,
       .normals = geom.inner_normals,
       .texcoords = {}};
-    auto inner_mesh = device.create_mesh(inner_mesh_data);
-
     auto outer_mesh_data = MeshData{
       .primitive_type = PrimitiveType::Triangles,
       .indices = geom.outer_indices,
       .vertices = geom.outer_vertices,
       .normals = geom.outer_normals,
       .texcoords = {}};
-    auto outer_mesh = device.create_mesh(outer_mesh_data);
+
+    const assets::AssetPath mesh_path{
+      swr::format(
+        "gear://{}",
+        name)};
+
+    auto mesh = mesh_manager.reload_sync(
+      mesh_path,
+      {std::move(inner_mesh_data),
+       std::move(outer_mesh_data)},
+      material);
 
     MeshBounds bounds = calculate_mesh_bounds(inner_mesh_data);
     expand_bounds(bounds, calculate_mesh_bounds(outer_mesh_data));
 
     return GearParameters{
       .materials = {material.get_path()},
-      .inner = MeshSection{
-        .color = color,
-        .mesh_handle = inner_mesh,
-        .material = material,
-        .triangle_count = inner_mesh_data.indices.size() / 3,
-      },
-      .outer = MeshSection{
-        .color = color,
-        .mesh_handle = outer_mesh,
-        .material = material,
-        .triangle_count = outer_mesh_data.indices.size() / 3,
-      },
+      .mesh = mesh,
       .bounds = bounds,
       .inner_radius = inner_radius,
       .outer_radius = outer_radius,

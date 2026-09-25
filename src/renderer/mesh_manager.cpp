@@ -40,14 +40,13 @@ swr::vector<staged::StaticMeshSection> build_static_mesh_sections(
       .recompute_normals = true,
     };
 
-    StaticMeshLodBuilder lod_builder;
     swr::vector<staged::StaticMeshSection> sections;
     sections.reserve(imported_mesh.meshes.size());
 
     for(auto& mesh: imported_mesh.meshes)
     {
         const StaticMeshLodBuildResult lod_build_result =
-          lod_builder.build(
+          build_static_mesh_lods(
             mesh.mesh_data,
             lod_settings);
 
@@ -60,8 +59,8 @@ swr::vector<staged::StaticMeshSection> build_static_mesh_sections(
         {
             section.lods.push_back(
               staged::StaticMeshSectionLod{
-                .mesh = lod_mesh.mesh,
-                .bounds = calculate_mesh_bounds(lod_mesh.mesh),
+                .mesh = lod_mesh,
+                .bounds = calculate_mesh_bounds(lod_mesh),
               });
         }
 
@@ -110,7 +109,7 @@ public:
      */
     MeshEntry(
       RenderDevice& device,
-      MaterialRef& material,
+      const MaterialRef& material,
       task_system::TaskSubmission<
         staged::StaticMeshAsset>
         resources)
@@ -119,6 +118,19 @@ public:
     , resources{std::move(resources)}
     , resolved_lods{std::nullopt}
     {
+    }
+
+    /** Construct an already uploaded mesh entry. */
+    MeshEntry(
+      RenderDevice& device,
+      const MaterialRef& material,
+      staged::StaticMeshAsset loaded)
+    : device{device}
+    , material{material}
+    , resources{}
+    , resolved_lods{std::nullopt}
+    {
+        finalize(std::move(loaded));
     }
 
     /** Destructor. */
@@ -154,6 +166,15 @@ public:
     void finalize();
 
     /**
+     * Finalize mesh loading.
+     *
+     * @param mesh The mesh asset to finalize.
+     * @note Performs `RenderDevice` access and needs to be called from the render thread.
+     */
+    void finalize(
+      staged::StaticMeshAsset mesh);
+
+    /**
      * Destroy the mesh handle.
      *
      * @note Performs `RenderDevice` access and needs to be called from the render thread.
@@ -174,6 +195,19 @@ public:
         {
             resources.future.wait();
         }
+    }
+
+    /** Cancel and wait for the asynchronous load. */
+    void cancel_and_wait()
+    {
+        resources.handle.cancel();
+        wait();
+    }
+
+    /** Request cancellation of an asynchronous load. */
+    void cancel()
+    {
+        resources.handle.cancel();
     }
 
     /**
@@ -219,13 +253,18 @@ MeshEntry::~MeshEntry()
 
 void MeshEntry::finalize()
 {
+    finalize(resources.future.get());
+}
+
+void MeshEntry::finalize(
+  staged::StaticMeshAsset mesh)
+{
     if(resolved_lods.has_value())
     {
         return;
     }
 
-    staged::StaticMeshAsset loaded = resources.future.get();
-    if(loaded.sections.empty())
+    if(mesh.sections.empty())
     {
         throw std::runtime_error{
           "Mesh asset contains no renderable sections."};
@@ -250,15 +289,15 @@ void MeshEntry::finalize()
           }
       });
 
-    result_lods.resize(loaded.sections.front().lods.size());
+    result_lods.resize(mesh.sections.front().lods.size());
 
     for(std::size_t i = 0; i < result_lods.size(); ++i)
     {
         result_lods[i].triangle_count =
-          loaded.sections.front().lods[i].mesh.indices.size() / 3;
+          mesh.sections.front().lods[i].mesh.indices.size() / 3;
     }
 
-    for(const staged::StaticMeshSection& section: loaded.sections)
+    for(const staged::StaticMeshSection& section: mesh.sections)
     {
         for(std::size_t lod_index = 0;
             lod_index < section.lods.size()
@@ -326,6 +365,11 @@ const swr::vector<StaticMeshLod>*
 /*
  * MeshManager.
  */
+
+MeshManager::~MeshManager()
+{
+    clear();
+}
 
 MeshRef MeshManager::load(
   const assets::AssetPath& path,
@@ -417,6 +461,176 @@ MeshRef MeshManager::load(
       mesh};
 }
 
+MeshRef MeshManager::load(
+  const assets::AssetPath& path,
+  std::vector<MeshData> data,
+  const MaterialRef& material)
+{
+    // Collect cached LOD's.
+    auto cached_mesh = try_get(path);
+    if(cached_mesh.has_value())
+    {
+        get_logger().logf(
+          "Using cached mesh '{}'.",
+          path);
+
+        return cached_mesh.value();
+    }
+
+    auto resource_ticket = resource_tracker.track(path);
+
+    get_logger().logf(
+      "Loading mesh '{}'.",
+      path);
+
+    auto submission = task_system.submit(
+      [resource_ticket,
+       data = std::move(data),
+       path = assets::AssetPath{path}](
+        task_system::TaskExecutionContext& context) mutable -> staged::StaticMeshAsset
+      {
+          if(context.is_cancel_requested())
+          {
+              resource_ticket.cancelled();
+              throw task_system::TaskCancelledError{};
+          }
+
+          ImportedStaticMesh imported_mesh;
+          imported_mesh.meshes.reserve(data.size());
+          for(auto& mesh_data: data)
+          {
+              imported_mesh.meshes.push_back(
+                ImportedMesh{
+                  .name = {},
+                  .mesh_data = std::move(mesh_data),
+                  .diffuse_color = {0.8f, 0.8f, 0.8f, 1.0f},
+                  .bounds = {}});
+          }
+
+          auto sections = build_static_mesh_sections(std::move(imported_mesh));
+          std::erase_if(
+            sections,
+            [](const staged::StaticMeshSection& section)
+            {
+                return section.lods.empty();
+            });
+
+          if(context.is_cancel_requested())
+          {
+              resource_ticket.cancelled();
+              throw task_system::TaskCancelledError{};
+          }
+
+          get_logger().logf(
+            "Loaded mesh '{}'.",
+            path);
+
+          resource_ticket.completed();
+
+          return staged::StaticMeshAsset{
+            .path = path,
+            .sections = std::move(sections),
+          };
+      });
+
+    auto mesh = std::make_shared<MeshEntry>(
+      device,
+      material,
+      std::move(submission));
+
+    mesh_cache.emplace(
+      path,
+      mesh);
+
+    pending_upload.emplace_back(
+      std::make_pair(path, mesh));
+
+    return MeshRef{
+      path,
+      mesh};
+}
+
+MeshRef MeshManager::reload_async(
+  const assets::AssetPath& path,
+  std::vector<MeshData> data,
+  const MaterialRef& material)
+{
+    // Cancel pending load.
+    if(auto it = mesh_cache.find(path);
+       it != mesh_cache.end())
+    {
+        if(auto mesh = it->second.lock();
+           mesh
+           && !mesh->is_resolved())
+        {
+            mesh->cancel();
+        }
+
+        mesh_cache.erase(it);
+    }
+
+    return load(
+      path,
+      std::move(data),
+      material);
+}
+
+MeshRef MeshManager::reload_sync(
+  const assets::AssetPath& path,
+  std::vector<MeshData> data,
+  const MaterialRef& material)
+{
+    // Cancel pending load.
+    if(auto it = mesh_cache.find(path);
+       it != mesh_cache.end())
+    {
+        if(auto mesh = it->second.lock();
+           mesh
+           && !mesh->is_resolved())
+        {
+            mesh->cancel_and_wait();
+        }
+
+        mesh_cache.erase(it);
+    }
+
+    ImportedStaticMesh imported_mesh;
+    imported_mesh.meshes.reserve(data.size());
+    for(auto& mesh_data: data)
+    {
+        imported_mesh.meshes.push_back(
+          ImportedMesh{
+            .name = {},
+            .mesh_data = std::move(mesh_data),
+            .diffuse_color = {0.8f, 0.8f, 0.8f, 1.0f},
+            .bounds = {}});
+    }
+
+    auto sections = build_static_mesh_sections(std::move(imported_mesh));
+    std::erase_if(
+      sections,
+      [](const staged::StaticMeshSection& section)
+      {
+          return section.lods.empty();
+      });
+
+    auto mesh = std::make_shared<MeshEntry>(
+      device,
+      material,
+      staged::StaticMeshAsset{
+        .path = path,
+        .sections = std::move(sections),
+      });
+
+    mesh_cache.insert_or_assign(
+      path,
+      mesh);
+
+    return MeshRef{
+      path,
+      mesh};
+}
+
 std::optional<MeshRef> MeshManager::try_get(
   const assets::AssetPath& path)
 {
@@ -439,13 +653,6 @@ std::optional<MeshRef> MeshManager::try_get(
     }
 
     return std::nullopt;
-}
-
-bool MeshManager::delete_mesh(
-  const assets::AssetPath& path)
-{
-    get_logger().errorf("MeshManager::delete_mesh not implemented.");
-    return {};
 }
 
 void MeshManager::process_pending()
@@ -519,4 +726,16 @@ void MeshManager::prune()
             ++it;
         }
     }
+}
+
+void MeshManager::clear()
+{
+    auto pending_meshes = pending_upload.drain();
+    for(auto& [key, entry]: pending_meshes)
+    {
+        entry->cancel_and_wait();
+    }
+
+    pending_meshes.clear();
+    mesh_cache.clear();
 }

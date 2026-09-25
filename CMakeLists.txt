@@ -192,7 +192,7 @@ endif()
 FetchContent_Declare(
     simdjson_src
     GIT_REPOSITORY https://github.com/simdjson/simdjson.git
-    GIT_TAG v4.6.6
+    GIT_TAG v4.6.11
     SYSTEM
 )
 FetchContent_MakeAvailable(simdjson_src)
@@ -356,6 +356,7 @@ add_executable(swr_playground
     src/shader_cache.cpp
     src/texture_cache.cpp
     src/viewport.cpp
+    src/meshes/lod.cpp
 )
 
 target_include_directories(swr_playground PRIVATE

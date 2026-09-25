@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <xxhash.h>
 
 #include "assets/texture.h"
@@ -206,4 +207,21 @@ public:
 
     /** Remove expired cache entries. */
     void prune();
+
+    /** Return the number of texture cache entries. */
+    [[nodiscard]]
+    std::size_t cache_size() const noexcept
+    {
+        return texture_cache.size();
+    }
+
+    /** Return the number of live texture cache entries. */
+    [[nodiscard]]
+    std::size_t live_cache_size() const
+    {
+        return std::ranges::count_if(
+          texture_cache,
+          [](const auto& entry)
+          { return !entry.second.expired(); });
+    }
 };

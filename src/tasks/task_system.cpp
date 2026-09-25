@@ -49,7 +49,7 @@ void initialize_task_group_snapshot(
   const swr::vector<TaskSpec>& tasks,
   const swr::vector<float>& weights)
 {
-    std::scoped_lock lock{state.snapshot_mutex};
+    std::unique_lock lock{state.snapshot_mutex};
     state.snapshot.tasks.clear();
     state.snapshot.tasks.reserve(tasks.size());
     for(const TaskSpec& task: tasks)
@@ -197,7 +197,7 @@ void TaskExecutionContext::update(
       1.f);
 
     {
-        std::scoped_lock lock{state->snapshot_mutex};
+        std::unique_lock lock{state->snapshot_mutex};
         if(const auto task_index = resolve_task_index_locked(
              *state,
              aggregate_task_index);
@@ -281,7 +281,7 @@ TaskGroupSnapshot TaskHandle::snapshot() const
         return TaskGroupSnapshot{};
     }
 
-    std::scoped_lock lock{state->snapshot_mutex};
+    std::unique_lock lock{state->snapshot_mutex};
     return state->snapshot;
 }
 
@@ -319,7 +319,7 @@ TaskSystem::TaskSystem(
 TaskSystem::~TaskSystem()
 {
     {
-        std::scoped_lock lock{states_mutex};
+        std::unique_lock lock{states_mutex};
         shutting_down = true;
     }
     cancel_all_and_wait();
@@ -328,7 +328,7 @@ TaskSystem::~TaskSystem()
 void TaskSystem::register_state(
   const swr::shared_ptr<TaskSharedState>& state)
 {
-    std::scoped_lock lock{states_mutex};
+    std::unique_lock lock{states_mutex};
     if(!accepting_submissions)
     {
         throw std::runtime_error{"Task submission disallowed."};
@@ -350,7 +350,7 @@ void TaskSystem::cancel_all_and_wait()
 {
     swr::vector<swr::shared_ptr<TaskSharedState>> states_to_cancel;
     {
-        std::scoped_lock lock{states_mutex};
+        std::unique_lock lock{states_mutex};
         accepting_submissions = false;
         states.erase(
           std::remove_if(
@@ -388,7 +388,7 @@ void TaskSystem::cancel_all_and_wait()
     }
 
     {
-        std::scoped_lock lock{states_mutex};
+        std::unique_lock lock{states_mutex};
         if(!shutting_down)
         {
             accepting_submissions = true;

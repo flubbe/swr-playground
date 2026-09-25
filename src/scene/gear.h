@@ -55,8 +55,7 @@ GearGeometry make_gear(
 struct GearParameters
 {
     swr::vector<assets::AssetPath> materials;
-    MeshSection inner;
-    MeshSection outer;
+    MeshRef mesh;
     MeshBounds bounds;
     float inner_radius{1.0f};
     float outer_radius{2.0f};
@@ -129,8 +128,23 @@ public:
         return color;
     }
 
+    /**
+     * Create the resources to create a gear mesh.
+     *
+     * @param mesh_manager Mesh manager.
+     * @param name Gear name. Must be unique per name. Used for mesh identification.
+     * @param material Material.
+     * @param inner_radius Inner gear radius.
+     * @param outer_radius Outer gear radius.
+     * @param width Gear width.
+     * @param teeth Teeth count.
+     * @param color Color.
+     * @param geom Gear geometry.
+     * @returns Returns the gear parameters, including a mesh reference.
+     */
     static GearParameters create_gear_resources(
-      RenderDevice& device,    // FIXME should be MeshManager ?
+      MeshManager& mesh_manager,
+      const swr::string& name,
       MaterialRef material,
       float inner_radius,
       float outer_radius,

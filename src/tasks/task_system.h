@@ -269,7 +269,7 @@ public:
 
         auto state = std::make_shared<TaskSharedState>();
         {
-            std::scoped_lock lock{state->snapshot_mutex};
+            std::unique_lock lock{state->snapshot_mutex};
             state->snapshot.progress = 0.f;
             state->snapshot.tasks = {
               TaskSnapshot{
@@ -287,11 +287,13 @@ public:
         register_state(state);
 
         thread_pool.push_immediate_task(
-          [state, promise, fn = Function{std::forward<Fn>(fn)}]() mutable
+          [state,
+           promise,
+           fn = Function{std::forward<Fn>(fn)}]() mutable
           {
               auto mark_running = [&state]()
               {
-                  std::scoped_lock lock{state->snapshot_mutex};
+                  std::unique_lock lock{state->snapshot_mutex};
                   TaskSnapshot& snapshot = state->snapshot.tasks.front();
                   snapshot.state = TaskState::Running;
               };
@@ -302,7 +304,7 @@ public:
                   const char* default_status_text,
                   std::optional<float> task_progress = std::nullopt)
               {
-                  std::scoped_lock lock{state->snapshot_mutex};
+                  std::unique_lock lock{state->snapshot_mutex};
                   TaskSnapshot& snapshot = state->snapshot.tasks.front();
                   snapshot.state = task_state;
                   if(task_progress.has_value())

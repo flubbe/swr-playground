@@ -238,6 +238,7 @@ void ReflectionSystem::process_pending_registrations()
         cls.resolve_super = reg->resolve_super;
         cls.root_tag = reg->root_tag;
         cls.size = reg->size;
+        cls.alignment = reg->alignment;
         cls.factory = reg->factory;
         cls.destroy = reg->destroy;
         cls.register_properties = reg->register_properties;

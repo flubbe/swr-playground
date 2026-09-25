@@ -334,20 +334,21 @@ void Renderer::build_render_queue(
         }
 
         const auto obj_transform = static_mesh.get_transform();
-        const auto& obj_bounds = static_mesh.get_bounds();
+        const auto* obj_bounds = static_mesh.get_bounds();
 
         const auto obj_view = view * obj_transform;
         const auto obj_clip = projection * obj_view;
 
         if(display_settings.cull_frustum
-           && obj_bounds.valid
-           && !bounds_intersect_frustum(obj_bounds, obj_clip))
+           && obj_bounds != nullptr
+           && obj_bounds->valid
+           && !bounds_intersect_frustum(*obj_bounds, obj_clip))
         {
             continue;
         }
 
         const ml::vec3 view_center =
-          (obj_view * ml::vec4{obj_bounds.center, 1.f}).xyz();
+          (obj_view * ml::vec4{obj_bounds->center, 1.f}).xyz();
 
         const float distance = -view_center.z;
         if(distance <= 0.0f)
@@ -356,7 +357,7 @@ void Renderer::build_render_queue(
         }
 
         const float obj_sort_depth =
-          estimate_sort_depth(obj_bounds, obj_view);
+          estimate_sort_depth(*obj_bounds, obj_view);
 
         ml::mat4x4 shadow_clip_from_mesh = ml::mat4x4::identity();
         if(shadow_camera)
@@ -373,7 +374,7 @@ void Renderer::build_render_queue(
                     obj_transform.rows[1].xyz().length(),
                     obj_transform.rows[2].xyz().length()});
         const float world_radius =
-          obj_bounds.radius * scale;
+          obj_bounds->radius * scale;
 
         const float projected_radius_pixels = [&]()
         {

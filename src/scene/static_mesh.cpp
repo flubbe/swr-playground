@@ -87,23 +87,31 @@ void StaticMesh::post_load()
     mark_mesh_dirty();
 }
 
+void StaticMesh::release()
+{
+    Super::release();
+
+    materials.clear();
+    material_ref.reset();
+    mesh_lods.clear();
+    mesh_ref.reset();
+    pending_mesh_ref.reset();
+}
+
 void StaticMesh::on_properties_changed()
 {
+    pending_mesh_ref.reset();
     mark_mesh_dirty();
 }
 
 void StaticMesh::init(
   const assets::AssetPath& path,
   const swr::vector<assets::AssetPath>& materials,
-  swr::vector<MeshSection> sections,
-  MeshBounds bounds)
+  MeshRef mesh)
 {
     this->path = path;
     this->materials = materials;
-    set_lods(
-      {StaticMeshLod{
-        .mesh_sections = std::move(sections),
-        .bounds = bounds}});
+    mesh_ref = mesh;
 }
 
 void StaticMesh::init(
@@ -137,13 +145,6 @@ void StaticMesh::set_lods(
     }
 
     mesh_lods = std::move(lods);
-    update_bounds();
-}
-
-void StaticMesh::clear_mesh_sections() noexcept
-{
-    mesh_lods.clear();
-    update_bounds();
 }
 
 void StaticMesh::mark_mesh_dirty()
@@ -159,20 +160,6 @@ void StaticMesh::mark_mesh_dirty()
 void StaticMesh::clear_mesh_dirty()
 {
     mesh_dirty = false;
-}
-
-void StaticMesh::update_bounds() noexcept
-{
-    mesh_bounds = {};
-    for(const StaticMeshLod& lod: mesh_lods)
-    {
-        if(!lod.mesh_sections.empty()
-           && lod.bounds.valid)
-        {
-            mesh_bounds = lod.bounds;
-            return;
-        }
-    }
 }
 
 std::size_t StaticMesh::select_lod(

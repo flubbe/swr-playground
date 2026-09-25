@@ -26,7 +26,7 @@ using deque = std::deque<
   T,
   swr::StdAllocator<
     T,
-    MemoryTag::Deque,
+    memory::MemoryTag::Deque,
     Domain>>;
 
 #else /* SWR_USE_CUSTOM_STD_ALLOCATORS */

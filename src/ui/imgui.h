@@ -27,6 +27,8 @@ class Scene;
 class Object;
 class Viewport;
 class Application;
+class MaterialManager;
+class MeshManager;
 
 namespace logging
 {
@@ -77,7 +79,10 @@ void draw_tools_panel(
 void draw_profiler_panel(
   Renderer& renderer);
 
-void draw_memory_profiler_panel();
+void draw_memory_profiler_panel(
+  const RenderDevice& render_device,
+  const MaterialManager& material_manager,
+  const MeshManager& mesh_manager);
 
 bool check_and_clear_sorting_benchmark_request();
 

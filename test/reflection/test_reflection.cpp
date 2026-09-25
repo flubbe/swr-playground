@@ -11,13 +11,14 @@
 #include "reflection/construct.h"
 #include "reflection/except.h"
 
-class TestRoot : public reflect::ReflectRoot<TestRoot>
+class TestRoot
+: public reflect::ReflectRoot<TestRoot>
 {
 protected:
     std::size_t* destructor_calls{nullptr};
 
 public:
-    virtual ~TestRoot()
+    virtual ~TestRoot() override
     {
         if(destructor_calls != nullptr)
         {
@@ -49,11 +50,12 @@ void TestRoot::register_properties(reflect::ClassInfo& class_info)
       "Root Name");
 }
 
-class TestChild : public reflect::Reflected<TestChild, TestRoot>
+class TestChild
+: public reflect::Reflected<TestChild, TestRoot>
 {
 
 public:
-    virtual ~TestChild()
+    virtual ~TestChild() override
     {
         if(destructor_calls != nullptr)
         {
@@ -76,7 +78,8 @@ void TestChild::register_properties(reflect::ClassInfo& class_info)
       "Enabled");
 }
 
-class TestGrandChild : public reflect::Reflected<TestGrandChild, TestChild>
+class TestGrandChild
+: public reflect::Reflected<TestGrandChild, TestChild>
 {
 public:
     static void register_properties(reflect::ClassInfo& class_info);
@@ -311,6 +314,7 @@ TEST(ReflectionSystemTests, AllowsSameNameAcrossRoots)
       .module_name = "RuntimeIso",
       .name = "SharedName",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_a_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootA>(),
@@ -321,6 +325,7 @@ TEST(ReflectionSystemTests, AllowsSameNameAcrossRoots)
       .module_name = "RuntimeIso",
       .name = "SharedName",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_b_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootB>(),
@@ -369,6 +374,7 @@ TEST(ReflectionSystemTests, RejectsDuplicateNameInRoot)
       .module_name = "RuntimeDup",
       .name = "SameName",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &first_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootDuplicate>(),
@@ -379,6 +385,7 @@ TEST(ReflectionSystemTests, RejectsDuplicateNameInRoot)
       .module_name = "RuntimeDup",
       .name = "SameName",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &second_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootDuplicate>(),
@@ -420,6 +427,7 @@ TEST(ReflectionSystemTests, ResolvesSuperChain)
       .module_name = "RuntimeSuper",
       .name = "A",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_a_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -430,6 +438,7 @@ TEST(ReflectionSystemTests, ResolvesSuperChain)
       .module_name = "RuntimeSuper",
       .name = "B",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_b_storage,
       .resolve_super = &resolve_chain_super_a,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -440,6 +449,7 @@ TEST(ReflectionSystemTests, ResolvesSuperChain)
       .module_name = "RuntimeSuper",
       .name = "C",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_c_storage,
       .resolve_super = &resolve_chain_super_b,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -477,6 +487,7 @@ TEST(ReflectionSystemTests, RejectsDirectSuperCycle)
       .module_name = "RuntimeCycle",
       .name = "Self",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_storage,
       .resolve_super = &resolve_cycle_self,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -508,6 +519,7 @@ TEST(ReflectionSystemTests, RejectsIndirectSuperCycle)
       .module_name = "RuntimeCycle2",
       .name = "A",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_a_storage,
       .resolve_super = &resolve_cycle_a,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -518,6 +530,7 @@ TEST(ReflectionSystemTests, RejectsIndirectSuperCycle)
       .module_name = "RuntimeCycle2",
       .name = "B",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_b_storage,
       .resolve_super = &resolve_cycle_b,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -549,6 +562,7 @@ TEST(ReflectionSystemTests, PropagatesSuperResolverError)
       .module_name = "RuntimeThrow",
       .name = "Throwing",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_storage,
       .resolve_super = &resolve_throw_once,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootSuper>(),
@@ -575,6 +589,7 @@ TEST(ReflectionSystemTests, AllowsRegisteredResolvedSuper)
       .module_name = "RuntimeSuperRef",
       .name = "Child",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &child_storage,
       .resolve_super = []() -> const reflect::ClassInfo*
       { return TestRoot::static_class(); },
@@ -602,6 +617,7 @@ TEST(ReflectionSystemTests, UnregisterRemovesEntries)
       .module_name = "RuntimeUnregister",
       .name = "ClassA",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_a_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootUnregister>(),
@@ -612,6 +628,7 @@ TEST(ReflectionSystemTests, UnregisterRemovesEntries)
       .module_name = "RuntimeUnregister",
       .name = "ClassB",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_b_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootUnregister>(),
@@ -681,6 +698,7 @@ TEST(ReflectionSystemTests, RejectsPendingWithNullStorage)
       .module_name = "RuntimeInvalid",
       .name = "NoStorage",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = nullptr,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootInvalid>(),
@@ -1313,6 +1331,7 @@ TEST(ReflectionSystemTests, ClearThenReregisterWorks)
       .module_name = "RuntimeClear",
       .name = "TempClass",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_storage,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootClear>(),
@@ -1340,6 +1359,7 @@ TEST(ReflectionSystemTests, ClearThenReregisterWorks)
       .module_name = "RuntimeClear",
       .name = "TempClass",
       .size = sizeof(int),
+      .alignment = alignof(int),
       .storage = &class_storage2,
       .resolve_super = nullptr,
       .root_tag = reflect::detail::root_type_tag<RuntimeRootClear>(),

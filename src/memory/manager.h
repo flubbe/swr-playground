@@ -11,6 +11,7 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <mutex>
@@ -41,14 +42,34 @@ struct MemoryStats
     /** Deallocation calls. */
     std::size_t deallocate_calls{0};
 
+    /** Allocated bytes per tag. */
+    std::array<std::size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
+
+    /** Allocations per tag. */
+    std::array<std::size_t, std::to_underlying(MemoryTag::Count)> allocations_per_tag;
+
     MemoryStats operator+(const MemoryStats& other) const
     {
-        return {
+        auto accum_stats = MemoryStats{
           .bytes_live = bytes_live + other.bytes_live,
           .bytes_peak = bytes_peak + other.bytes_peak,
           .bytes_total_allocated = bytes_total_allocated + other.bytes_total_allocated,
           .allocate_calls = allocate_calls + other.allocate_calls,
-          .deallocate_calls = deallocate_calls + other.deallocate_calls};
+          .deallocate_calls = deallocate_calls + other.deallocate_calls,
+          .bytes_per_tag = bytes_per_tag,
+          .allocations_per_tag = allocations_per_tag};
+
+        for(std::size_t i = 0; i < other.bytes_per_tag.size(); ++i)
+        {
+            accum_stats.bytes_per_tag[i] += other.bytes_per_tag[i];
+        }
+
+        for(std::size_t i = 0; i < other.allocations_per_tag.size(); ++i)
+        {
+            accum_stats.allocations_per_tag[i] += other.allocations_per_tag[i];
+        }
+
+        return accum_stats;
     }
 };
 
@@ -66,8 +87,11 @@ class TrackingAllocator final
     std::atomic_size_t allocations{0};
     std::atomic_size_t deallocations{0};
 
-    static std::atomic<uint64_t> buckets[16];
+    static std::atomic_uint64_t buckets[16];
     static std::array<std::atomic<uint64_t>, 256> exact_sizes;
+
+    static std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> bytes_per_tag;
+    static std::array<std::atomic_size_t, std::to_underlying(MemoryTag::Count)> allocations_per_tag;
 
 public:
     explicit TrackingAllocator(
@@ -76,12 +100,14 @@ public:
     [[nodiscard]]
     void* allocate(
       std::size_t bytes,
-      std::size_t alignment) override;
+      std::size_t alignment,
+      MemoryTag tag) override;
 
     void deallocate(
       void* p,
       std::size_t bytes,
-      std::size_t alignment) noexcept override;
+      std::size_t alignment,
+      MemoryTag tag) noexcept override;
 
     [[nodiscard]]
     const char* name() const noexcept override
@@ -94,15 +120,15 @@ public:
 };
 
 /** Bump memory size. */
-inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory to be able to grow dynamically.
+inline constexpr std::size_t default_bump_size = 4096;    // TODO Memory should be able to grow dynamically.
 
 class MemoryManager final
 {
     MallocAllocator system_malloc_allocator;
     Allocator& global_allocator;
+    TrackingAllocator tracking_allocator;
     BumpAllocator frame_bump_allocator;
     ArenaAllocator frame_arena_allocator;
-    TrackingAllocator tracking_allocator;
     bool initialized{false};
     mutable std::mutex mutex;
 

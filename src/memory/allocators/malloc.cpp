@@ -22,7 +22,8 @@ namespace memory
 
 void* MallocAllocator::allocate(
   std::size_t bytes,
-  std::size_t alignment)
+  std::size_t alignment,
+  [[maybe_unused]] MemoryTag tag)
 {
     const std::size_t safe_bytes = std::max<std::size_t>(bytes, 1);
 
@@ -59,7 +60,8 @@ void* MallocAllocator::allocate(
 void MallocAllocator::deallocate(
   void* p,
   [[maybe_unused]] std::size_t bytes,
-  [[maybe_unused]] std::size_t alignment) noexcept
+  [[maybe_unused]] std::size_t alignment,
+  [[maybe_unused]] MemoryTag tag) noexcept
 {
     if(p == nullptr)
     {

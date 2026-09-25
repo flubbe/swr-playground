@@ -16,24 +16,13 @@
 namespace swr
 {
 
-/** Memory tags (container types). */
-enum class MemoryTag
-{
-    Unknown,
-    Deque,
-    String,
-    UnorderedSet,
-    UnorderedMap,
-    Vector,
-};
-
 template<
   typename T,
-  MemoryTag Tag = MemoryTag::Unknown,
+  memory::MemoryTag Tag = memory::MemoryTag::None,
   memory::MemoryDomain Domain = memory::MemoryDomain::Heap>
 struct StdAllocator
 {
-    static constexpr MemoryTag tag = Tag;
+    static constexpr memory::MemoryTag tag = Tag;
     static constexpr memory::MemoryDomain domain = Domain;
 
     using value_type = T;
@@ -52,7 +41,7 @@ struct StdAllocator
 
     template<
       typename U,
-      MemoryTag OtherTag,
+      memory::MemoryTag OtherTag,
       memory::MemoryDomain OtherDomain>
     StdAllocator(
       const StdAllocator<U, OtherTag, OtherDomain>&) noexcept
@@ -67,14 +56,16 @@ struct StdAllocator
             return static_cast<T*>(
               memory::heap().allocate(
                 n * sizeof(T),
-                alignof(T)));
+                alignof(T),
+                tag));
         }
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
             return static_cast<T*>(
               memory::frame_arena().allocate(
                 n * sizeof(T),
-                alignof(T)));
+                alignof(T),
+                tag));
         }
         else
         {
@@ -96,14 +87,16 @@ struct StdAllocator
             memory::heap().deallocate(
               p,
               n * sizeof(T),
-              alignof(T));
+              alignof(T),
+              tag);
         }
         else if constexpr(Domain == memory::MemoryDomain::Frame)
         {
             memory::frame_arena().deallocate(
               p,
               n * sizeof(T),
-              alignof(T));
+              alignof(T),
+              tag);
         }
         else
         {

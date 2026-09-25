@@ -36,7 +36,8 @@ void* operator new(
     return get_system_allocator()
       .allocate(
         bytes,
-        alignof(std::max_align_t));
+        alignof(std::max_align_t),
+        memory::MemoryTag::New);
 }
 
 void* operator new[](
@@ -45,7 +46,8 @@ void* operator new[](
     return get_system_allocator()
       .allocate(
         bytes,
-        alignof(std::max_align_t));
+        alignof(std::max_align_t),
+        memory::MemoryTag::New);
 }
 
 void* operator new(
@@ -55,7 +57,8 @@ void* operator new(
     return get_system_allocator()
       .allocate(
         bytes,
-        std::to_underlying(alignment));
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 void* operator new[](
@@ -65,7 +68,8 @@ void* operator new[](
     return get_system_allocator()
       .allocate(
         bytes,
-        std::to_underlying(alignment));
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 void* operator new(
@@ -134,7 +138,7 @@ void operator delete(void* p) noexcept
     }
 
     get_system_allocator()
-      .deallocate(p, 0, 0);
+      .deallocate(p, 0, 0, memory::MemoryTag::New);
 }
 
 void operator delete[](void* p) noexcept
@@ -145,7 +149,7 @@ void operator delete[](void* p) noexcept
     }
 
     get_system_allocator()
-      .deallocate(p, 0, 0);
+      .deallocate(p, 0, 0, memory::MemoryTag::New);
 }
 
 void operator delete(
@@ -158,7 +162,7 @@ void operator delete(
     }
 
     get_system_allocator()
-      .deallocate(p, bytes, 0);
+      .deallocate(p, bytes, 0, memory::MemoryTag::New);
 }
 
 void operator delete[](
@@ -171,7 +175,7 @@ void operator delete[](
     }
 
     get_system_allocator()
-      .deallocate(p, bytes, 0);
+      .deallocate(p, bytes, 0, memory::MemoryTag::New);
 }
 
 void operator delete(
@@ -184,7 +188,11 @@ void operator delete(
     }
 
     get_system_allocator()
-      .deallocate(p, 0, std::to_underlying(alignment));
+      .deallocate(
+        p,
+        0,
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 void operator delete[](
@@ -197,7 +205,11 @@ void operator delete[](
     }
 
     get_system_allocator()
-      .deallocate(p, 0, std::to_underlying(alignment));
+      .deallocate(
+        p,
+        0,
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 void operator delete(
@@ -211,7 +223,11 @@ void operator delete(
     }
 
     get_system_allocator()
-      .deallocate(p, bytes, std::to_underlying(alignment));
+      .deallocate(
+        p,
+        bytes,
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 void operator delete[](
@@ -225,7 +241,11 @@ void operator delete[](
     }
 
     get_system_allocator()
-      .deallocate(p, bytes, std::to_underlying(alignment));
+      .deallocate(
+        p,
+        bytes,
+        std::to_underlying(alignment),
+        memory::MemoryTag::New);
 }
 
 #endif /* SWR_OVERRIDE_GLOBAL_NEW */

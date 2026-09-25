@@ -32,7 +32,7 @@ using unordered_map =
     swr::equal_to<K>,
     swr::StdAllocator<
       std::pair<const K, V>,
-      MemoryTag::UnorderedMap,
+      memory::MemoryTag::UnorderedMap,
       Domain>>;
 
 #else /* SWR_USE_CUSTOM_STD_ALLOCATORS */

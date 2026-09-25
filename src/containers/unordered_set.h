@@ -29,7 +29,7 @@ using unordered_set =
     std::equal_to<K>,
     swr::StdAllocator<
       K,
-      MemoryTag::UnorderedSet,
+      memory::MemoryTag::UnorderedSet,
       Domain>>;
 
 #else /* SWR_USE_CUSTOM_STD_ALLOCATORS */

@@ -145,22 +145,41 @@ struct RenderResourceDeletionRequest
       handle;
 };
 
+/** Render statistics. */
+struct RenderDeviceStats
+{
+    /** Mesh count. */
+    std::size_t mesh_count{0};
+
+    /** Shader count. */
+    std::size_t shader_count{0};
+
+    /** Material count. */
+    std::size_t material_count{0};
+
+    /** Shadow map count. */
+    std::size_t shadow_map_targets{0};
+
+    /** Deletion queue size. */
+    std::size_t deletion_queue_size{0};
+};
+
 /** Render device. */
 class RenderDevice
 {
-    /** framebuffer width. */
+    /** Framebuffer width. */
     int width = 0;
 
-    /** framebuffer height. */
+    /** Framebuffer height. */
     int height = 0;
 
-    /** framebuffer data pointer. */
+    /** Framebuffer data pointer. */
     std::uint32_t* data{nullptr};
 
-    /** rasterizer context. */
+    /** Rasterizer context. */
     swr::context_handle context{nullptr};
 
-    /** uploaded mesh data. */
+    /** Uploaded mesh data. */
     swr::unordered_map<MeshHandle, MeshGpuData> meshes;
 
     /** Shaders. */
@@ -169,13 +188,22 @@ class RenderDevice
     /** Materials. */
     swr::unordered_map<MaterialHandle, RenderMaterial> materials;
 
-    /** shadow-map render targets. */
+    /** Shadow-map render targets. */
     swr::unordered_map<ShadowMapHandle, ShadowMapTargetGpuData> shadow_map_targets;
+
+    /** Next mesh handle */
+    std::uint32_t next_mesh_handle{0};
+
+    /** Next material handle. */
+    std::uint32_t next_material_handle{1};
+
+    /** Next shadow-map render target handle. */
+    std::uint32_t next_shadow_map_target_handle{0};
 
     /** Render resource to be deleted. */
     ThreadSafeQueue<RenderResourceDeletionRequest> deletion_queue;
 
-    /** state cache. */
+    /** State cache. */
     RasterizerState current_rasterizer_state;
     std::size_t current_bound_texture_count{0};
     std::optional<ShadowMapBinding> current_shadow_map_binding;
@@ -242,7 +270,7 @@ public:
     void resize(int width, int height);
 
     /*
-     * getters.
+     * Getters.
      */
 
     [[nodiscard]]
@@ -270,7 +298,7 @@ public:
     }
 
     /*
-     * resource management.
+     * Resource management.
      */
 
     MeshHandle create_mesh(
@@ -326,7 +354,7 @@ public:
     void process_deferred_deletions();
 
     /*
-     * begin/end frame.
+     * Begin/end frame.
      */
 
     void begin_frame()
@@ -343,7 +371,7 @@ public:
     }
 
     /*
-     * bindings.
+     * Bindings.
      */
 
     void bind_rasterizer_state(const RasterizerState& state);
@@ -360,8 +388,23 @@ public:
     void end_shadow_map_pass();
 
     /*
-     * drawing functions.
+     * Drawing functions.
      */
 
     void draw_mesh(MeshHandle handle);
+
+    /*
+     * Statistics.
+     */
+
+    /** Return statistics. */
+    RenderDeviceStats stats() const
+    {
+        return {
+          .mesh_count = meshes.size(),
+          .shader_count = shaders.size(),
+          .material_count = materials.size(),
+          .shadow_map_targets = shadow_map_targets.size(),
+          .deletion_queue_size = deletion_queue.size()};
+    }
 };

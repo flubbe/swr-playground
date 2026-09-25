@@ -82,9 +82,10 @@ MemoryBlockHeader* header_from_user(
     auto* user = static_cast<std::byte*>(ptr);
 
     offset_type offset;
-    std::memcpy(&offset,
-                user - sizeof(offset),
-                sizeof(offset));
+    std::memcpy(
+      &offset,
+      user - sizeof(offset),
+      sizeof(offset));
 
     return reinterpret_cast<MemoryBlockHeader*>(user - offset);
 }
@@ -96,6 +97,15 @@ MemoryBlockHeader* header_from_user(
 std::atomic<uint64_t> TrackingAllocator::buckets[16] = {};
 std::array<std::atomic<uint64_t>, 256> TrackingAllocator::exact_sizes = {};
 
+std::array<
+  std::atomic_size_t,
+  std::to_underlying(MemoryTag::Count)>
+  TrackingAllocator::bytes_per_tag = {};
+std::array<
+  std::atomic_size_t,
+  std::to_underlying(MemoryTag::Count)>
+  TrackingAllocator::allocations_per_tag = {};
+
 TrackingAllocator::TrackingAllocator(
   Allocator& allocator)
 : allocator{allocator}
@@ -104,9 +114,14 @@ TrackingAllocator::TrackingAllocator(
 
 void* TrackingAllocator::allocate(
   std::size_t bytes,
-  std::size_t alignment)
+  std::size_t alignment,
+  MemoryTag tag)
 {
-    void* allocation = allocator.allocate(bytes, alignment);
+    void* allocation = allocator.allocate(bytes, alignment, tag);
+
+    /*
+     * Update statistics.
+     */
 
     allocations.fetch_add(1, std::memory_order_relaxed);
     bytes_total.fetch_add(bytes, std::memory_order_relaxed);
@@ -115,20 +130,38 @@ void* TrackingAllocator::allocate(
       bytes_live.fetch_add(bytes, std::memory_order_relaxed) + bytes;
 
     std::size_t previous_peak = bytes_peak.load(std::memory_order_relaxed);
-    while(live_after > previous_peak
-          && !bytes_peak.compare_exchange_weak(
-            previous_peak,
-            live_after,
-            std::memory_order_relaxed,
-            std::memory_order_relaxed))
+    while(
+      live_after > previous_peak
+      && !bytes_peak.compare_exchange_weak(
+        previous_peak,
+        live_after,
+        std::memory_order_relaxed,
+        std::memory_order_relaxed))
     {
     }
+
+    /*
+     * Updates buckets.
+     */
 
     auto b = std::min<size_t>(15, std::bit_width(bytes));
     ++buckets[b];
 
+    /*
+     * Update exact sizes for small allocations.
+     */
+
     if(bytes < exact_sizes.size())
+    {
         ++exact_sizes[bytes];
+    }
+
+    /*
+     * Update tag statistics.
+     */
+
+    bytes_per_tag[std::to_underlying(tag)].fetch_add(bytes, std::memory_order_relaxed);
+    allocations_per_tag[std::to_underlying(tag)].fetch_add(1, std::memory_order_relaxed);
 
     return allocation;
 }
@@ -136,22 +169,43 @@ void* TrackingAllocator::allocate(
 void TrackingAllocator::deallocate(
   void* p,
   std::size_t bytes,
-  std::size_t alignment) noexcept
+  std::size_t alignment,
+  MemoryTag tag) noexcept
 {
+    allocator.deallocate(p, bytes, alignment, tag);
+
+    /*
+     * Update statistics.
+     */
+
     deallocations.fetch_add(1, std::memory_order_relaxed);
     bytes_live.fetch_sub(bytes, std::memory_order_relaxed);
-    allocator.deallocate(p, bytes, alignment);
+    bytes_per_tag[std::to_underlying(tag)].fetch_sub(bytes, std::memory_order_relaxed);
+    allocations_per_tag[std::to_underlying(tag)].fetch_sub(1, std::memory_order_relaxed);
 }
 
 MemoryStats TrackingAllocator::stats() const
 {
-    return MemoryStats{
+    auto result = MemoryStats{
       .bytes_live = bytes_live.load(std::memory_order_relaxed),
       .bytes_peak = bytes_peak.load(std::memory_order_relaxed),
       .bytes_total_allocated = bytes_total.load(std::memory_order_relaxed),
       .allocate_calls = allocations.load(std::memory_order_relaxed),
       .deallocate_calls = deallocations.load(std::memory_order_relaxed),
-    };
+      .bytes_per_tag = {},
+      .allocations_per_tag = {}};
+
+    for(std::size_t i = 0; i < bytes_per_tag.size(); ++i)
+    {
+        result.bytes_per_tag[i] = bytes_per_tag[i].load(std::memory_order_relaxed);
+    }
+
+    for(std::size_t i = 0; i < allocations_per_tag.size(); ++i)
+    {
+        result.allocations_per_tag[i] = allocations_per_tag[i].load(std::memory_order_relaxed);
+    }
+
+    return result;
 }
 
 void TrackingAllocator::print_histogram() const
@@ -180,9 +234,9 @@ MemoryManager::MemoryManager(
   std::size_t bump_size)
 : system_malloc_allocator{}
 , global_allocator{system_malloc_allocator}
-, frame_bump_allocator{bump_size, global_allocator}
-, frame_arena_allocator{global_allocator}
 , tracking_allocator{global_allocator}
+, frame_bump_allocator{bump_size, tracking_allocator}
+, frame_arena_allocator{tracking_allocator}
 {
     ::memory::global_allocator.store(
       &tracking_allocator,
@@ -197,7 +251,7 @@ MemoryManager& MemoryManager::instance()
 
 void MemoryManager::initialize()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     if(initialized)
     {
         return;
@@ -210,7 +264,7 @@ void MemoryManager::initialize()
 
 void MemoryManager::shutdown()
 {
-    std::scoped_lock lock{mutex};
+    std::unique_lock lock{mutex};
     if(!initialized)
     {
         return;

@@ -173,7 +173,6 @@ class Application
     // Scene loading task state (worker parse + staged handoff).
     task_system::TaskHandle scene_load_task_handle;
     std::future<staged::StagedScene> scene_load_task_future;
-    std::optional<swr::string> scene_load_task_error;
 
     // Frame state for rendering
     int frame_index{0};
@@ -324,6 +323,9 @@ public:
 
     /** Create a new, empty scene. */
     void new_scene();
+
+    /** Destroy the current scene and its resources. */
+    void destroy_scene();
 
     /**
      * Load a scene from JSON.

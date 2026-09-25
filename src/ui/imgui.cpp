@@ -329,10 +329,15 @@ void draw_main_dockspace(Application& app)
     {
         if(ImGui::BeginMenu("File"))
         {
-            if(ImGui::MenuItem("Load Scene", nullptr, false, true))
+            if(ImGui::MenuItem("Load Default Scene", nullptr, false, true))
             {
                 app.reset();    // resets e.g. the viewport state
-                app.load_scene("scene.json");
+                app.load_scene("assets/scenes/default.json");
+            }
+            if(ImGui::MenuItem("Load Sponza Scene", nullptr, false, true))
+            {
+                app.reset();    // resets e.g. the viewport state
+                app.load_scene("assets/scenes/sponza.json");
             }
             if(ImGui::MenuItem("Save Scene", nullptr, false, true))
             {

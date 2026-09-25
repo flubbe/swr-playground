@@ -26,6 +26,53 @@
 namespace reflect
 {
 
+/**
+ * Memory allocation for type factory.
+ *
+ * @note Specialize the `Root` type to customize allocations.
+ * @tparam Root Root type for the class hierarchy.
+ */
+template<
+  typename Root>
+struct Allocation
+{
+    /**
+     * Allocate memory for a type.
+     *
+     * @note Defaults to global `operator new`.
+     * @param size Type size.
+     * @param alignment Type alignment.
+     * @returns Returns the allocated memory.
+     */
+    static void* allocate(
+      std::size_t size,
+      std::size_t alignment)
+    {
+        return ::operator new(
+          size,
+          std::align_val_t{alignment});
+    }
+
+    /**
+     * Deallocate memory for a type.
+     *
+     * @note Defaults to global `operator delete`.
+     * @param p Pointer to allocated memory.
+     * @param size Type size.
+     * @param alignment Type alignment.
+     */
+    static void deallocate(
+      void* p,
+      std::size_t size,
+      std::size_t alignment) noexcept
+    {
+        ::operator delete(
+          p,
+          size,
+          std::align_val_t{alignment});
+    }
+};
+
 namespace detail
 {
 
@@ -52,6 +99,9 @@ struct PendingClassRegistration
 
     /** Byte size of the class. */
     std::size_t size{0};
+
+    /** Alignment of the class. */
+    std::size_t alignment{0};
 
     /** Pointer to the static `ClassInfo` instance/storage. */
     ClassInfo* storage{nullptr};
@@ -99,21 +149,49 @@ template<
              && std::default_initializable<T>
 void* factory()
 {
-    return static_cast<Root*>(new T{});
+    constexpr std::size_t size = sizeof(T);
+    constexpr std::size_t alignment = alignof(T);
+
+    void* storage = Allocation<Root>::allocate(
+      size,
+      alignment);
+
+    try
+    {
+        return ::new(storage) T{};
+    }
+    catch(...)
+    {
+        Allocation<Root>::deallocate(
+          storage,
+          size,
+          alignment);
+
+        throw;
+    }
 }
 
 /**
  * Destroy an instance of a child class of `Root`.
  *
  * @tparam Root Root type for the class hierarchy.
+ * @tparam T The type to construct.
  * @param instance The instance to destroy.
  */
-template<typename Root>
-    requires std::has_virtual_destructor_v<Root>
+template<
+  typename Root,
+  typename T>
+    requires std::derived_from<T, Root>
+             && std::destructible<T>
 void destroy(
-  void* instance)
+  void* instance) noexcept
 {
-    delete static_cast<Root*>(instance);
+    static_cast<T*>(instance)->~T();
+
+    Allocation<Root>::deallocate(
+      instance,
+      sizeof(T),
+      alignof(T));
 }
 
 /** Return a type's super class or `nullptr` if there is none. */
@@ -307,11 +385,12 @@ struct StaticClassRegistration
       .module_name = TypeReflection<Root, T>::module_name,
       .name = TypeReflection<Root, T>::class_name,
       .size = sizeof(T),
+      .alignment = alignof(T),
       .storage = &storage,
       .resolve_super = detail::super_class_resolver<T>(),
       .root_tag = detail::root_type_tag<Root>(),
       .factory = &detail::factory<Root, T>,
-      .destroy = &detail::destroy<Root>,
+      .destroy = &detail::destroy<Root, T>,
       .register_properties = TypeReflection<Root, T>::register_properties};
     detail::PendingClassNode node{
       .reg = &registration,

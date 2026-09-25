@@ -19,6 +19,7 @@
 #include "containers/memory.h"
 #include "containers/string.h"
 #include "reflection/class_registry.h"
+#include "reflection/construct.h"
 #include "reflection/property.h"
 
 /*
@@ -26,6 +27,7 @@
  */
 
 struct AssetResolver;
+class Object;
 class Scene;
 
 /** An object identifier. */
@@ -52,12 +54,46 @@ struct hash<ObjectId>
 
 }    // namespace std
 
+namespace reflect
+{
+
+/*
+ * Allocator customization.
+ */
+
+#if SWR_USE_CUSTOM_STD_ALLOCATORS
+
+template<>
+struct Allocation<Object>
+{
+    static void* allocate(
+      std::size_t size,
+      std::size_t alignment)
+    {
+        return memory::heap().allocate(
+          size,
+          alignment,
+          memory::MemoryTag::Object);
+    }
+
+    static void deallocate(
+      void* p,
+      std::size_t size,
+      std::size_t alignment) noexcept
+    {
+        return memory::heap().deallocate(
+          p,
+          size,
+          alignment,
+          memory::MemoryTag::Object);
+    }
+};
+
+#endif /* SWR_USE_CUSTOM_STD_ALLOCATORS */
+
 /*
  * Property support.
  */
-
-namespace reflect
-{
 
 template<>
 struct UnwrapType<ObjectId>
@@ -105,7 +141,7 @@ protected:
     Scene* scene{nullptr};
 
     /** Per-instance baseline snapshot object. */
-    swr::unique_ptr<Object> snapshot;
+    reflect::unique_ptr<Object> snapshot;
 
 public:
     /** Default constructor. */
@@ -116,7 +152,7 @@ public:
     }
 
     /** Default destructor. */
-    virtual ~Object() = default;
+    virtual ~Object() override = default;
 
     /**
      * Move constructor.
@@ -130,8 +166,11 @@ public:
     , name{std::move(other.name)}
     , transform{other.transform}
     , visible{other.visible}
+    , scene{other.scene}
+    , snapshot{std::move(other.snapshot)}
     {
         other.class_info = nullptr;
+        other.scene = nullptr;
     }
 
     /** Disable copy construction. */
@@ -149,6 +188,11 @@ public:
         name = std::move(other.name);
         transform = other.transform;
         visible = other.visible;
+        scene = other.scene;
+        snapshot = std::move(other.snapshot);
+
+        other.class_info = nullptr;
+        other.scene = nullptr;
 
         return *this;
     }
