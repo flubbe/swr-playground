@@ -11,13 +11,14 @@
 #include "reflection/construct.h"
 #include "reflection/except.h"
 
-class TestRoot : public reflect::ReflectRoot<TestRoot>
+class TestRoot
+: public reflect::ReflectRoot<TestRoot>
 {
 protected:
     std::size_t* destructor_calls{nullptr};
 
 public:
-    virtual ~TestRoot()
+    virtual ~TestRoot() override
     {
         if(destructor_calls != nullptr)
         {
@@ -49,11 +50,12 @@ void TestRoot::register_properties(reflect::ClassInfo& class_info)
       "Root Name");
 }
 
-class TestChild : public reflect::Reflected<TestChild, TestRoot>
+class TestChild
+: public reflect::Reflected<TestChild, TestRoot>
 {
 
 public:
-    virtual ~TestChild()
+    virtual ~TestChild() override
     {
         if(destructor_calls != nullptr)
         {
@@ -76,7 +78,8 @@ void TestChild::register_properties(reflect::ClassInfo& class_info)
       "Enabled");
 }
 
-class TestGrandChild : public reflect::Reflected<TestGrandChild, TestChild>
+class TestGrandChild
+: public reflect::Reflected<TestGrandChild, TestChild>
 {
 public:
     static void register_properties(reflect::ClassInfo& class_info);

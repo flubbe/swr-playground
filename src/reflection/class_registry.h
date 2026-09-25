@@ -149,11 +149,12 @@ template<
              && std::default_initializable<T>
 void* factory()
 {
-    ClassInfo* cls = T::static_class();
+    constexpr std::size_t size = sizeof(T);
+    constexpr std::size_t alignment = alignof(T);
 
     void* storage = Allocation<Root>::allocate(
-      cls->size,
-      cls->alignment);
+      size,
+      alignment);
 
     try
     {
@@ -163,8 +164,8 @@ void* factory()
     {
         Allocation<Root>::deallocate(
           storage,
-          cls->size,
-          cls->alignment);
+          size,
+          alignment);
 
         throw;
     }
@@ -185,14 +186,12 @@ template<
 void destroy(
   void* instance) noexcept
 {
-    ClassInfo* cls = T::static_class();
-
     static_cast<T*>(instance)->~T();
 
     Allocation<Root>::deallocate(
       instance,
-      cls->size,
-      cls->alignment);
+      sizeof(T),
+      alignof(T));
 }
 
 /** Return a type's super class or `nullptr` if there is none. */
