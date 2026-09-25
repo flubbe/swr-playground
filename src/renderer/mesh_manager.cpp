@@ -245,7 +245,7 @@ MeshEntry::~MeshEntry()
         {
             for(const auto& section: lod.mesh_sections)
             {
-                device.defer_delete(section.mesh_handle);
+                device.defer_delete(section.handle);
             }
         }
     }
@@ -283,7 +283,7 @@ void MeshEntry::finalize(
                   for(auto& section: lod.mesh_sections)
                   {
                       device.delete_mesh(
-                        section.mesh_handle);
+                        section.handle);
                   }
               }
           }
@@ -296,6 +296,8 @@ void MeshEntry::finalize(
         result_lods[i].triangle_count =
           mesh.sections.front().lods[i].mesh.indices.size() / 3;
     }
+
+    // TODO Bounds calculation could happen during load.
 
     for(const staged::StaticMeshSection& section: mesh.sections)
     {
@@ -315,8 +317,9 @@ void MeshEntry::finalize(
             result_lods[lod_index].mesh_sections.push_back(
               MeshSection{
                 .color = section.diffuse_color,
-                .mesh_handle = mesh_handle,
+                .handle = mesh_handle,
                 .material = material,
+                .bounds = staged_lod.bounds,
                 .triangle_count = staged_lod.mesh.indices.size() / 3,
               });
         }
@@ -337,7 +340,7 @@ void MeshEntry::release()
     {
         for(auto& section: lod.mesh_sections)
         {
-            device.delete_mesh(section.mesh_handle);
+            device.delete_mesh(section.handle);
         }
     }
 

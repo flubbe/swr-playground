@@ -38,7 +38,7 @@ MeshSection make_mesh_section(
 {
     return {
       .color = {0.f, 1.f, 0.f, 1.f},
-      .mesh_handle = {.value = mesh_handle},
+      .handle = {.value = mesh_handle},
       .material = make_test_material(),
       .triangle_count = triangle_count};
 }
@@ -157,7 +157,7 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     const auto& mesh_sections = mesh_lods[0].mesh_sections;
     ASSERT_EQ(mesh_sections.size(), 1u);
 
-    EXPECT_EQ(mesh_sections[0].mesh_handle, MeshHandle{.value = 12U});
+    EXPECT_EQ(mesh_sections[0].handle, MeshHandle{.value = 12U});
 
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }

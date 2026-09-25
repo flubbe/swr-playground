@@ -14,6 +14,7 @@
 #include <ml/all.h>
 
 #include "assets/path.h"
+#include "meshes/mesh.h"
 #include "material.h"
 #include "types.h"
 
@@ -38,14 +39,17 @@ struct MeshSection
      */
 
     /** Mesh handle. */
-    MeshHandle mesh_handle;
+    MeshHandle handle;
 
     /** Material reference. */
     MaterialRef material;
 
     /*
-     * Metadata.
+     * Generated metadata.
      */
+
+    /** Mesh bounds. */
+    MeshBounds bounds;
 
     /** Triangle count in this level of detail. */
     std::size_t triangle_count{0};

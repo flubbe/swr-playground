@@ -342,7 +342,9 @@ void Renderer::build_render_queue(
         if(display_settings.cull_frustum
            && obj_bounds != nullptr
            && obj_bounds->valid
-           && !bounds_intersect_frustum(*obj_bounds, obj_clip))
+           && !bounds_intersect_frustum(
+             *obj_bounds,
+             obj_clip))
         {
             continue;
         }
@@ -408,14 +410,21 @@ void Renderer::build_render_queue(
           estimate_sort_depth(*obj_bounds, obj_view);
         for(const auto& section: lod.mesh_sections)
         {
-            // TODO We could add bound checks for the mesh sections here.
+            if(display_settings.cull_frustum
+               && section.bounds.valid
+               && !bounds_intersect_frustum(
+                 section.bounds,
+                 obj_clip))
+            {
+                continue;
+            }
 
             if(auto material = section.material.try_get();
                material.has_value())
             {
                 render_queue.push_back({
                   .sort_depth = obj_sort_depth,
-                  .mesh_handle = section.mesh_handle,
+                  .mesh_handle = section.handle,
                   .material_handle = material.value(),
                   .color = section.color,
                   .view_from_mesh = obj_view,
@@ -556,7 +565,7 @@ void Renderer::build_shadow_queue(
         for(const auto& section: lod.mesh_sections)
         {
             shadow_queue.push_back({
-              .mesh_handle = section.mesh_handle,
+              .mesh_handle = section.handle,
               .light_view_from_mesh =
                 shadow_camera->view * static_mesh.get_transform(),
             });
@@ -653,7 +662,7 @@ void Renderer::create_grid_mesh()
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
         .color = color_gray,
-        .mesh_handle = device.create_mesh(
+        .handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Lines,
             .indices = std::move(ib),
@@ -668,10 +677,10 @@ void Renderer::create_grid_mesh()
 void Renderer::release_grid_mesh()
 {
     if(overlay_grid != nullptr
-       && overlay_grid->mesh_handle)
+       && overlay_grid->handle)
     {
-        device.delete_mesh(overlay_grid->mesh_handle);
-        overlay_grid->mesh_handle = {};
+        device.delete_mesh(overlay_grid->handle);
+        overlay_grid->handle = {};
     }
 
     overlay_grid.reset();
@@ -736,7 +745,7 @@ void Renderer::create_spotlight_depth_debug_mesh()
     overlay_spotlight_depth = swr::make_unique<MeshSection>(
       MeshSection{
         .color = {1.f, 1.f, 1.f, 1.f},
-        .mesh_handle = device.create_mesh(
+        .handle = device.create_mesh(
           MeshData{
             .primitive_type = PrimitiveType::Triangles,
             .indices = std::move(qib),
@@ -753,10 +762,10 @@ void Renderer::create_spotlight_depth_debug_mesh()
 void Renderer::release_spotlight_depth_debug_mesh()
 {
     if(overlay_spotlight_depth != nullptr
-       && overlay_spotlight_depth->mesh_handle)
+       && overlay_spotlight_depth->handle)
     {
-        device.delete_mesh(overlay_spotlight_depth->mesh_handle);
-        overlay_spotlight_depth->mesh_handle = {};
+        device.delete_mesh(overlay_spotlight_depth->handle);
+        overlay_spotlight_depth->handle = {};
     }
 
     overlay_spotlight_depth.reset();
@@ -887,7 +896,7 @@ void Renderer::render_grid(
     });
     device.bind_shadow_uniforms({});
 
-    device.draw_mesh(overlay_grid->mesh_handle);
+    device.draw_mesh(overlay_grid->handle);
 }
 
 void Renderer::render_spotlight_depth_debug()
@@ -929,7 +938,7 @@ void Renderer::render_spotlight_depth_debug()
       .clip_from_mesh = ml::mat4x4::identity(),
       .params = {0.f, static_cast<float>(ShadowPcfMode::Off), 0.f, 0.f},
     });
-    device.draw_mesh(overlay_spotlight_depth->mesh_handle);
+    device.draw_mesh(overlay_spotlight_depth->handle);
     device.clear_shadow_map();
 }
 
