@@ -227,7 +227,6 @@ void BufferedLogDevice::get_records(
   swr::vector<LogRecord>& records) const
 {
     std::unique_lock lock{mutex};
-    records.reserve(this->records.size());
     records.assign(
       this->records.cbegin(),
       this->records.cend());
