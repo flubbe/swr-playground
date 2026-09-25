@@ -25,7 +25,7 @@ class Camera
     ProjectionType projection_type{ProjectionType::Perspective};
 
     /** Vertical field-of-view in radians. */
-    float fov_y{std::numbers::pi_v<float> / 8.f};
+    float fov_y{std::numbers::pi_v<float> / 3.f};
 
     /** Orthographic view height. */
     float orthographic_height{40.f};

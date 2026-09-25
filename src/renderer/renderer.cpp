@@ -350,14 +350,7 @@ void Renderer::build_render_queue(
         const ml::vec3 view_center =
           (obj_view * ml::vec4{obj_bounds->center, 1.f}).xyz();
 
-        const float distance = -view_center.z;
-        if(distance <= 0.0f)
-        {
-            continue;
-        }
-
-        const float obj_sort_depth =
-          estimate_sort_depth(*obj_bounds, obj_view);
+        const float center_depth = -view_center.z;
 
         ml::mat4x4 shadow_clip_from_mesh = ml::mat4x4::identity();
         if(shadow_camera)
@@ -369,43 +362,50 @@ void Renderer::build_render_queue(
               * obj_transform;
         }
 
-        const float scale =
-          std::max({obj_transform.rows[0].xyz().length(),
-                    obj_transform.rows[1].xyz().length(),
-                    obj_transform.rows[2].xyz().length()});
-        const float world_radius =
-          obj_bounds->radius * scale;
+        std::size_t lod_index = 0;
 
-        const float projected_radius_pixels = [&]()
+        if(display_settings.dynamic_lod
+           && (projection_type != ProjectionType::Perspective
+               || center_depth > 0.0f))
         {
-            if(projection_type == ProjectionType::Perspective)
+            const float scale =
+              std::max({obj_transform.rows[0].xyz().length(),
+                        obj_transform.rows[1].xyz().length(),
+                        obj_transform.rows[2].xyz().length()});
+            const float world_radius =
+              obj_bounds->radius * scale;
+
+            const float projected_radius_pixels = [&]()
             {
-                return world_radius
-                       * projection.rows[1].y
-                       * device.get_height()
-                       * 0.5f
-                       / distance;
-            }
+                const float projection_scale =
+                  projection.rows[1].y * device.get_height() * 0.5f;
 
-            return world_radius
-                   * projection.rows[1].y
-                   * device.get_height()
-                   * 0.5f;
-        }();
+                if(projection_type == ProjectionType::Perspective)
+                {
+                    return world_radius
+                           * projection_scale
+                           / center_depth;
+                }
 
-        const float projected_pixel_area =
-          std::numbers::pi_v<float> * projected_radius_pixels * projected_radius_pixels;
+                return world_radius * projection_scale;
+            }();
 
-        const std::size_t lod_index =
-          display_settings.dynamic_lod
-            ? static_mesh.select_lod(
+            const float projected_pixel_area =
+              std::numbers::pi_v<float>
+              * projected_radius_pixels
+              * projected_radius_pixels;
+
+            lod_index =
+              static_mesh.select_lod(
                 projected_pixel_area,
-                display_settings.target_pixels_per_triangle)
-            : 0;    // always choose base LOD when dynamic LOD is disabled.
+                display_settings.target_pixels_per_triangle);
+        }
 
         record_selected_lod(render_stats, lod_index);
 
         const auto& lod = static_mesh.get_lod(lod_index);
+        const float obj_sort_depth =
+          estimate_sort_depth(*obj_bounds, obj_view);
         for(const auto& section: lod.mesh_sections)
         {
             // TODO We could add bound checks for the mesh sections here.
