@@ -246,7 +246,7 @@ void BufferedLogDevice::clear()
 FileLogDevice::FileLogDevice(
   std::filesystem::path output_path,
   FileLogDeviceOptions options)
-: BufferedLogDevice{false}
+: BufferedLogDevice{}
 , output_path{std::move(output_path)}
 , options{options}
 {
