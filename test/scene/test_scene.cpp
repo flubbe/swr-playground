@@ -34,13 +34,16 @@ MaterialRef make_test_material()
 
 MeshSection make_mesh_section(
   std::uint32_t mesh_handle,
-  std::uint32_t triangle_count = 4)
+  std::uint32_t triangle_count = 4,
+  MeshBounds bounds = {})
 {
     return {
       .color = {0.f, 1.f, 0.f, 1.f},
-      .mesh_handle = {.value = mesh_handle},
+      .lods = {SectionLOD{
+        .mesh_handle = {.value = mesh_handle},
+        .triangle_count = triangle_count}},
       .material = make_test_material(),
-      .triangle_count = triangle_count};
+      .bounds = bounds};
 }
 
 }    // namespace
@@ -144,20 +147,18 @@ TEST(SceneTests, AddStaticMeshStoresMeshSections)
     StaticMesh* mesh = scene.create_object<StaticMesh>(
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
-      swr::vector{
-        StaticMeshLod{
-          .mesh_sections = {make_mesh_section(12)}}});
+      swr::vector{make_mesh_section(12)});
     ASSERT_NE(mesh, nullptr);
 
     EXPECT_TRUE(mesh->is_a<StaticMesh>());
 
-    const auto& mesh_lods = mesh->get_lods();
-    ASSERT_EQ(mesh_lods.size(), 1u);
-
-    const auto& mesh_sections = mesh_lods[0].mesh_sections;
+    const auto& mesh_sections = mesh->get_sections();
     ASSERT_EQ(mesh_sections.size(), 1u);
 
-    EXPECT_EQ(mesh_sections[0].mesh_handle, MeshHandle{.value = 12U});
+    const auto& lods = mesh_sections[0].lods;
+    ASSERT_EQ(lods.size(), 1u);
+
+    EXPECT_EQ(lods[0].mesh_handle, MeshHandle{.value = 12U});
 
     EXPECT_EQ(scene.find_object(mesh->get_object_id()), mesh);
 }
@@ -170,40 +171,37 @@ TEST(SceneTests, StaticMeshSelectsLodFromProjectedPixelArea)
     mesh.init(
       assets::AssetPath{"<mesh>"},
       {},
-      swr::vector{
-        StaticMeshLod{
-          .mesh_sections = {
-            make_mesh_section(10)},
-          .triangle_count = 100000,
-          .bounds = {},
-        },
-        StaticMeshLod{
-          .mesh_sections = {make_mesh_section(11)},
-          .triangle_count = 10000,
-          .bounds = {},
-        },
-        StaticMeshLod{
-          .mesh_sections = {make_mesh_section(12)},
-          .triangle_count = 1000,
-          .bounds = {},
-        },
-      });
+      std::vector<MeshSection>{
+        {.color = {0.f, 1.f, 0.f, 1.f},
+         .lods = {SectionLOD{
+                    .mesh_handle = {.value = 10},
+                    .triangle_count = 100000},
+                  SectionLOD{
+                    .mesh_handle = {.value = 11},
+                    .triangle_count = 10000},
+                  SectionLOD{
+                    .mesh_handle = {.value = 12},
+                    .triangle_count = 1000}},
+         .material = make_test_material(),
+         .bounds = {}}});
 
-    EXPECT_EQ(mesh.get_lod_count(), 3U);
+    EXPECT_EQ(mesh.get_sections().size(), 1U);
+    EXPECT_EQ(mesh.get_sections()[0].lods.size(), 3U);
+    const auto& sections = mesh.get_sections();
 
     constexpr float target = 2.0f;
 
     // 200000 / 100000 = 2 px/triangle
-    EXPECT_EQ(mesh.select_lod(200000.0f, target), 0U);
+    EXPECT_EQ(sections[0].select_lod(200000.0f, target), 0U);
 
     // 20000 / 100000 = 0.2  (reject LOD0)
     // 20000 / 10000  = 2.0  (accept LOD1)
-    EXPECT_EQ(mesh.select_lod(20000.0f, target), 1U);
+    EXPECT_EQ(sections[0].select_lod(20000.0f, target), 1U);
 
     // 2000 / 100000 = 0.02  (reject LOD0)
     // 2000 / 10000  = 0.2   (reject LOD1)
     // 2000 / 1000   = 2.0   (accept LOD2)
-    EXPECT_EQ(mesh.select_lod(2000.0f, target), 2U);
+    EXPECT_EQ(sections[0].select_lod(2000.0f, target), 2U);
 }
 
 TEST(SceneTests, StaticMeshStoresCachedBounds)
@@ -220,15 +218,11 @@ TEST(SceneTests, StaticMeshStoresCachedBounds)
     mesh.init(
       assets::AssetPath{"<mesh>"},
       {},
-      swr::vector{
-        StaticMeshLod{
-          .mesh_sections = {make_mesh_section(10)},
-          .bounds = bounds}});
+      swr::vector{make_mesh_section(10, 4, bounds)});
 
-    ASSERT_NE(mesh.get_bounds(), nullptr);
-    EXPECT_TRUE(mesh.get_bounds()->valid);
-    EXPECT_EQ(mesh.get_bounds()->min.x, -1.f);
-    EXPECT_EQ(mesh.get_bounds()->max.z, 3.f);
+    EXPECT_TRUE(mesh.get_bounds().valid);
+    EXPECT_EQ(mesh.get_bounds().min.x, -1.f);
+    EXPECT_EQ(mesh.get_bounds().max.z, 3.f);
 }
 
 TEST(SceneTests, ForEachObjectVisitsRequestedType)
@@ -240,9 +234,7 @@ TEST(SceneTests, ForEachObjectVisitsRequestedType)
     StaticMesh* mesh = scene.create_object<StaticMesh>(
       assets::AssetPath{"<mesh>"},
       swr::vector<assets::AssetPath>{},
-      swr::vector{
-        StaticMeshLod{
-          .mesh_sections = {make_mesh_section(56)}}});
+      swr::vector{make_mesh_section(56)});
     ASSERT_NE(mesh, nullptr);
 
     int mutable_visit_count = 0;
@@ -332,7 +324,7 @@ TEST(SceneTests, SaveLoad)
         ASSERT_NO_THROW(mesh->init(
           assets::AssetPath{"assets/models/car.obj"},
           {assets::AssetPath{"assets/materials/mesh/flat.json"}},
-          swr::vector<StaticMeshLod>{}));
+          std::vector<MeshSection>{}));
         ASSERT_NE(mesh, nullptr);
 
         mesh->casts_shadows = true;
