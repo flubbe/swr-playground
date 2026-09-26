@@ -190,16 +190,15 @@ float estimate_sort_depth(
 
 void record_selected_lod(
   RendererStats& stats,
-  std::size_t lod_index,
-  std::size_t count = 1)
+  std::size_t lod_index)
 {
     if(lod_index < stats.static_mesh_lods_selected.size())
     {
-        stats.static_mesh_lods_selected[lod_index] += count;
+        ++stats.static_mesh_lods_selected[lod_index];
         return;
     }
 
-    stats.static_mesh_lods_selected_overflow += count;
+    ++stats.static_mesh_lods_selected_overflow;
 }
 
 LightingUniforms collect_light_uniforms(
@@ -317,7 +316,7 @@ void Renderer::register_shaders()
 }
 
 /** Colors for LOD visualization. */
-static std::array<ml::vec4, 6> lod_colors = {{
+static const std::array<ml::vec4, 6> lod_colors = {{
   {0.20f, 0.85f, 0.35f, 1.f},    // LOD 0
   {0.70f, 0.85f, 0.20f, 1.f},    // LOD 1
   {1.00f, 0.70f, 0.15f, 1.f},    // LOD 2
@@ -326,11 +325,18 @@ static std::array<ml::vec4, 6> lod_colors = {{
   {0.65f, 0.15f, 0.55f, 1.f},    // LOD 5
 }};
 
+// Assert that lod_colors always has at least one entry, as assumed by
+// the code below.
+static_assert(
+  !lod_colors.empty(),
+  "LOD colors cannot be empty.");
+
 void Renderer::build_render_queue(
   const Scene& scene,
   const ViewportDisplaySettings& display_settings)
 {
-    static std::vector<std::size_t> lod_indices;
+    static swr::vector<std::size_t> drawn_section_indices;
+    static swr::vector<std::size_t> selected_section_lod;
 
     for(const auto& static_mesh: scene.objects_of<StaticMesh>())
     {
@@ -362,11 +368,6 @@ void Renderer::build_render_queue(
             continue;
         }
 
-        const ml::vec3 view_center =
-          (obj_view * ml::vec4{obj_bounds.center, 1.f}).xyz();
-
-        const float center_depth = -view_center.z;
-
         ml::mat4x4 shadow_clip_from_mesh = ml::mat4x4::identity();
         if(shadow_camera)
         {
@@ -379,89 +380,170 @@ void Renderer::build_render_queue(
 
         const auto& sections = static_mesh.get_sections();
 
+        drawn_section_indices.clear();
+        drawn_section_indices.reserve(sections.size());
+
+        selected_section_lod.clear();
+        selected_section_lod.reserve(sections.size());
+
+        /*
+         * Mesh section and LOD selection.
+         */
+
         if(!display_settings.dynamic_lod)
         {
-            // Choose the base level for all sections.
-            lod_indices.assign(sections.size(), 0);
-            record_selected_lod(render_stats, 0, sections.size());
-        }
-        else
-        {
-            lod_indices.clear();
-            lod_indices.reserve(sections.size());
-
-            const float scale =
-              std::max({obj_transform.rows[0].xyz().length(),
-                        obj_transform.rows[1].xyz().length(),
-                        obj_transform.rows[2].xyz().length()});
-
-            for(const auto& section: sections)
+            // Choose the base level for visible sections.
+            for(std::size_t i = 0; i < sections.size(); ++i)
             {
-                const float world_radius =
-                  section.bounds.radius * scale;
+                const auto& section = sections[i];
 
-                const float closest_depth = center_depth - world_radius;
-
-                if(closest_depth <= 0.f)
+                // Per-section frustum culling.
+                if(display_settings.cull_frustum
+                   && section.bounds.valid
+                   && !bounds_intersect_frustum(
+                     section.bounds,
+                     obj_clip))
                 {
-                    lod_indices.push_back(0);
-                    record_selected_lod(render_stats, 0);
-
                     continue;
                 }
 
-                const float projected_radius_pixels = [&]()
-                {
-                    const float projection_scale =
-                      projection.rows[1].y * device.get_height() * 0.5f;
+                selected_section_lod.push_back(0);
+                drawn_section_indices.push_back(i);
 
-                    if(projection_type == ProjectionType::Perspective)
+                record_selected_lod(render_stats, 0);
+            }
+        }
+        else
+        {
+            const auto row0 = obj_transform.rows[0].xyz();
+            const auto row1 = obj_transform.rows[1].xyz();
+            const auto row2 = obj_transform.rows[2].xyz();
+
+            /*
+             * The scale calculation below assumes that the transformation contains
+             * only rotation and scale, without a shear component. Under this
+             * assumption, the columns are orthogonal scaled basis vectors, and the
+             * maximum column length gives the maximum scale factor.
+             *
+             * For a more conservative upper bound that also handles shear, we could
+             * use the Frobenius norm here:
+             *
+             *   const float scale =
+             *     std::sqrt(
+             *       row0.length_squared()
+             *       + row1.length_squared()
+             *       + row2.length_squared());
+             */
+
+            const float scale =
+              std::max({ml::vec3{row0.x, row1.x, row2.x}.length(),
+                        ml::vec3{row0.y, row1.y, row2.y}.length(),
+                        ml::vec3{row0.z, row1.z, row2.z}.length()});
+
+            // Use abs to account for other coordinate system convention
+            // or possible axis flips.
+            const float projection_scale =
+              std::abs(projection.rows[1].y) * device.get_height() * 0.5f;
+
+            for(std::size_t i = 0; i < sections.size(); ++i)
+            {
+                const auto& section = sections[i];
+
+                if(!section.bounds.valid)
+                {
+                    // Without valid bounds, neither culling nor screen-size LOD
+                    // selection is possible. Fall back to the base level.
+
+                    selected_section_lod.push_back(0);
+                    drawn_section_indices.push_back(i);
+
+                    record_selected_lod(render_stats, 0);
+                    continue;
+                }
+
+                // Per-section frustum culling.
+                if(display_settings.cull_frustum
+                   && section.bounds.valid
+                   && !bounds_intersect_frustum(
+                     section.bounds,
+                     obj_clip))
+                {
+                    continue;
+                }
+
+                const float world_radius =
+                  section.bounds.radius * scale;
+                const ml::vec3 view_center =
+                  (obj_view * ml::vec4{section.bounds.center, 1.f}).xyz();
+                const float center_depth = -view_center.z;
+
+                // This is correct for orthographic projections. For perspective
+                // projections, we need to divide by closest_depth.
+                float projected_radius_pixels =
+                  world_radius * projection_scale;
+
+                if(projection_type == ProjectionType::Perspective)
+                {
+                    const float closest_depth =
+                      center_depth - world_radius;
+
+                    if(closest_depth <= 0.f)
                     {
-                        return world_radius
-                               * projection_scale
-                               / closest_depth;
+                        // We might be inside the object.
+                        // Conservatively assume it needs to be drawn.
+
+                        selected_section_lod.push_back(0);
+                        drawn_section_indices.push_back(i);
+
+                        record_selected_lod(render_stats, 0);
+                        continue;
                     }
 
-                    return world_radius * projection_scale;
-                }();
+                    // Perspective division.
+                    projected_radius_pixels /= closest_depth;
+                }
 
                 const float projected_pixel_area =
                   std::numbers::pi_v<float>
                   * projected_radius_pixels
                   * projected_radius_pixels;
 
-                auto lod_index = section.select_lod(
+                const auto lod_index = section.select_lod(
                   projected_pixel_area,
                   display_settings.target_pixels_per_triangle);
-                lod_indices.push_back(lod_index);
+
+                selected_section_lod.push_back(lod_index);
+                drawn_section_indices.push_back(i);
 
                 record_selected_lod(render_stats, lod_index);
             }
         }
 
+        assert(selected_section_lod.size() == drawn_section_indices.size());
+
+        /*
+         * Depth estimation for optional sorting step.
+         */
+
         const float obj_sort_depth =
           estimate_sort_depth(obj_bounds, obj_view);
-        for(std::size_t i = 0; i < sections.size(); ++i)
-        {
-            const auto& section = sections[i];
 
-            // Per-section frustum culling.
-            if(display_settings.cull_frustum
-               && section.bounds.valid
-               && !bounds_intersect_frustum(
-                 section.bounds,
-                 obj_clip))
-            {
-                continue;
-            }
+        /*
+         * Push sections/LODs to render queue.
+         */
+
+        for(std::size_t i = 0; i < drawn_section_indices.size(); ++i)
+        {
+            const auto& section = sections[drawn_section_indices[i]];
 
             if(auto material = section.material.try_get();
                material.has_value())
             {
-                const auto& lod = section.lods[lod_indices[i]];
-                const auto color = display_settings.visualize_lod
-                                     ? lod_colors[std::min(lod_indices[i], lod_colors.size() - 1)]
-                                     : section.color;
+                const auto& lod = section.lods[selected_section_lod[i]];
+                const auto color =
+                  display_settings.visualize_lod
+                    ? lod_colors[std::min(selected_section_lod[i], lod_colors.size() - 1)]
+                    : section.color;
 
                 render_queue.push_back(
                   {.sort_depth = obj_sort_depth,
