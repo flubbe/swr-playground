@@ -91,10 +91,10 @@ class MeshEntry
       staged::StaticMeshAsset>
       resources;
 
-    /** Resolved mesh LODs and their GPU handles. */
+    /** Resolved mesh sections and their GPU handles. */
     std::optional<
-      swr::vector<StaticMeshLod>>
-      resolved_lods;
+      swr::vector<MeshSection>>
+      resolved_sections;
 
 public:
     /** Deleted default constructor. */
@@ -116,7 +116,7 @@ public:
     : device{device}
     , material{material}
     , resources{std::move(resources)}
-    , resolved_lods{std::nullopt}
+    , resolved_sections{std::nullopt}
     {
     }
 
@@ -128,7 +128,7 @@ public:
     : device{device}
     , material{material}
     , resources{}
-    , resolved_lods{std::nullopt}
+    , resolved_sections{std::nullopt}
     {
         finalize(std::move(loaded));
     }
@@ -143,7 +143,7 @@ public:
     [[nodiscard]]
     bool is_resolved() const noexcept
     {
-        return resolved_lods.has_value();
+        return resolved_sections.has_value();
     }
 
     /**
@@ -152,10 +152,10 @@ public:
      * @returns Returns the mesh LODs if available, or `std::nullopt`.
      */
     const std::optional<
-      swr::vector<StaticMeshLod>>&
-      try_get_lods() const noexcept
+      swr::vector<MeshSection>>&
+      try_get_sections() const noexcept
     {
-        return resolved_lods;
+        return resolved_sections;
     }
 
     /**
@@ -239,13 +239,13 @@ public:
 
 MeshEntry::~MeshEntry()
 {
-    if(resolved_lods.has_value())
+    if(resolved_sections.has_value())
     {
-        for(const auto& lod: resolved_lods.value())
+        for(const auto& section: resolved_sections.value())
         {
-            for(const auto& section: lod.mesh_sections)
+            for(const auto& lod: section.lods)
             {
-                device.defer_delete(section.handle);
+                device.defer_delete(lod.mesh_handle);
             }
         }
     }
@@ -259,7 +259,7 @@ void MeshEntry::finalize()
 void MeshEntry::finalize(
   staged::StaticMeshAsset mesh)
 {
-    if(resolved_lods.has_value())
+    if(is_resolved())
     {
         return;
     }
@@ -270,7 +270,7 @@ void MeshEntry::finalize(
           "Mesh asset contains no renderable sections."};
     }
 
-    swr::vector<StaticMeshLod> result_lods;
+    swr::vector<MeshSection> result_sections;
 
     bool success = false;
     auto rollback = gsl::finally(
@@ -278,90 +278,91 @@ void MeshEntry::finalize(
       {
           if(!success)
           {
-              for(auto& lod: result_lods)
+              for(auto& section: result_sections)
               {
-                  for(auto& section: lod.mesh_sections)
+                  for(auto& lod: section.lods)
                   {
                       device.delete_mesh(
-                        section.handle);
+                        lod.mesh_handle);
                   }
               }
           }
       });
 
-    result_lods.resize(mesh.sections.front().lods.size());
-
-    for(std::size_t i = 0; i < result_lods.size(); ++i)
-    {
-        result_lods[i].triangle_count =
-          mesh.sections.front().lods[i].mesh.indices.size() / 3;
-    }
+    const auto section_count = mesh.sections.size();
+    result_sections.reserve(section_count);
 
     // TODO Bounds calculation could happen during load.
 
-    for(const staged::StaticMeshSection& section: mesh.sections)
+    for(std::size_t i = 0; i < section_count; ++i)
     {
+        const staged::StaticMeshSection& section = mesh.sections[i];
+
+        auto mesh_section = MeshSection{
+          .color = section.diffuse_color,
+          .lods = {},
+          .material = material,
+          .bounds = {}};
+
         for(std::size_t lod_index = 0;
-            lod_index < section.lods.size()
-            && lod_index < result_lods.size();
+            lod_index < section.lods.size();
             ++lod_index)
         {
             const staged::StaticMeshSectionLod& staged_lod =
               section.lods[lod_index];
 
+            // TODO Don't accumulate?
             expand_bounds(
-              result_lods[lod_index].bounds,
+              mesh_section.bounds,
               staged_lod.bounds);
 
             const MeshHandle mesh_handle = device.create_mesh(staged_lod.mesh);
-            result_lods[lod_index].mesh_sections.push_back(
-              MeshSection{
-                .color = section.diffuse_color,
-                .handle = mesh_handle,
-                .material = material,
-                .bounds = staged_lod.bounds,
-                .triangle_count = staged_lod.mesh.indices.size() / 3,
-              });
+            mesh_section.lods.emplace_back(
+              SectionLOD{
+                .mesh_handle = mesh_handle,
+                .triangle_count = staged_lod.mesh.indices.size() / 3});
         }
+
+        result_sections.push_back(mesh_section);
     }
 
-    resolved_lods = std::move(result_lods);
+    resolved_sections = std::move(result_sections);
     success = true;
 }
 
 void MeshEntry::release()
 {
-    if(!resolved_lods.has_value())
+    if(!is_resolved())
     {
         return;
     }
 
-    for(auto& lod: resolved_lods.value())
+    for(auto& section: resolved_sections.value())
     {
-        for(auto& section: lod.mesh_sections)
+        for(auto& lod: section.lods)
         {
-            device.delete_mesh(section.handle);
+            device.delete_mesh(lod.mesh_handle);
         }
     }
 
-    resolved_lods.reset();
+    resolved_sections.reset();
 }
 
 /*
  * MeshRef.
  */
 
-const swr::vector<StaticMeshLod>*
-  MeshRef::try_get_lods() const noexcept
+const swr::vector<MeshSection>*
+  MeshRef::try_get_sections() const noexcept
 {
     if(!mesh)
     {
         return nullptr;
     }
 
-    const auto& lods = mesh->try_get_lods();
-    return lods.has_value()
-             ? &lods.value()
+    const auto& sections = mesh->try_get_sections();
+    return sections.has_value()
+             ? &sections.value()
              : nullptr;
 }
 

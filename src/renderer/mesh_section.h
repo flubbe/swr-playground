@@ -24,6 +24,16 @@
 
 struct AssetResolver;
 
+/** Mesh section at a specific Level of Detail. */
+struct SectionLOD
+{
+    /** GPU geometry handle for this LOD. */
+    MeshHandle mesh_handle;
+
+    /** Triangle count for this LOD. */
+    std::size_t triangle_count{0};
+};
+
 /** Part of a mesh using one material. */
 struct MeshSection
 {
@@ -38,8 +48,8 @@ struct MeshSection
      * Runtime.
      */
 
-    /** Mesh handle. */
-    MeshHandle handle;
+    /** Mesh LODs. */
+    swr::vector<SectionLOD> lods;
 
     /** Material reference. */
     MaterialRef material;
@@ -51,6 +61,16 @@ struct MeshSection
     /** Mesh bounds. */
     MeshBounds bounds;
 
-    /** Triangle count in this level of detail. */
-    std::size_t triangle_count{0};
+    /**
+     * Selects the appropriate LOD index based on screen coverage and
+     * target triangle density.
+     *
+     * @param projected_pixel_area Estimated projected pixel are of the section.
+     * @param target_pixels_per_triangle Target pixels per triangle.
+     * @returns Returns the selected LOD.
+     */
+    [[nodiscard]]
+    std::size_t select_lod(
+      float projected_pixel_area,
+      float target_pixels_per_triangle) const noexcept;
 };

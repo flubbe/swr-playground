@@ -314,11 +314,12 @@ add_executable(swr_playground
     src/meshes/simplifier.cpp
     src/reflection/builtin_properties.cpp
     src/reflection/class_registry.cpp
+    src/renderer/material.cpp
     src/renderer/material_manager.cpp
     src/renderer/mesh_manager.cpp
     src/renderer/render_device.cpp
     src/renderer/renderer.cpp
-    src/renderer/material.cpp
+    src/renderer/mesh_section.cpp
     src/scene/camera.cpp
     src/scene/directional_light.cpp
     src/scene/floor.cpp

@@ -190,15 +190,16 @@ float estimate_sort_depth(
 
 void record_selected_lod(
   RendererStats& stats,
-  std::size_t lod_index)
+  std::size_t lod_index,
+  std::size_t count = 1)
 {
     if(lod_index < stats.static_mesh_lods_selected.size())
     {
-        ++stats.static_mesh_lods_selected[lod_index];
+        stats.static_mesh_lods_selected[lod_index] += count;
         return;
     }
 
-    ++stats.static_mesh_lods_selected_overflow;
+    stats.static_mesh_lods_selected_overflow += count;
 }
 
 LightingUniforms collect_light_uniforms(
@@ -319,6 +320,8 @@ void Renderer::build_render_queue(
   const Scene& scene,
   const ViewportDisplaySettings& display_settings)
 {
+    static std::vector<std::size_t> lod_indices;
+
     for(const auto& static_mesh: scene.objects_of<StaticMesh>())
     {
         if(!static_mesh.is_visible())
@@ -334,23 +337,23 @@ void Renderer::build_render_queue(
         }
 
         const auto obj_transform = static_mesh.get_transform();
-        const auto* obj_bounds = static_mesh.get_bounds();
+        const auto obj_bounds = static_mesh.get_bounds();
 
         const auto obj_view = view * obj_transform;
         const auto obj_clip = projection * obj_view;
 
+        // Per-mesh frustum culling.
         if(display_settings.cull_frustum
-           && obj_bounds != nullptr
-           && obj_bounds->valid
+           && obj_bounds.valid
            && !bounds_intersect_frustum(
-             *obj_bounds,
+             obj_bounds,
              obj_clip))
         {
             continue;
         }
 
         const ml::vec3 view_center =
-          (obj_view * ml::vec4{obj_bounds->center, 1.f}).xyz();
+          (obj_view * ml::vec4{obj_bounds.center, 1.f}).xyz();
 
         const float center_depth = -view_center.z;
 
@@ -364,52 +367,75 @@ void Renderer::build_render_queue(
               * obj_transform;
         }
 
-        std::size_t lod_index = 0;
+        const auto& sections = static_mesh.get_sections();
 
-        if(display_settings.dynamic_lod
-           && (projection_type != ProjectionType::Perspective
-               || center_depth > 0.0f))
+        if(!display_settings.dynamic_lod)
         {
+            // Choose the base level for all sections.
+            lod_indices.assign(sections.size(), 0);
+            record_selected_lod(render_stats, 0, sections.size());
+        }
+        else
+        {
+            lod_indices.clear();
+            lod_indices.reserve(sections.size());
+
             const float scale =
               std::max({obj_transform.rows[0].xyz().length(),
                         obj_transform.rows[1].xyz().length(),
                         obj_transform.rows[2].xyz().length()});
-            const float world_radius =
-              obj_bounds->radius * scale;
 
-            const float projected_radius_pixels = [&]()
+            for(const auto& section: sections)
             {
-                const float projection_scale =
-                  projection.rows[1].y * device.get_height() * 0.5f;
+                const float world_radius =
+                  section.bounds.radius * scale;
 
-                if(projection_type == ProjectionType::Perspective)
+                const float closest_depth = center_depth - world_radius;
+
+                if(closest_depth <= 0.f)
                 {
-                    return world_radius
-                           * projection_scale
-                           / center_depth;
+                    lod_indices.push_back(0);
+                    record_selected_lod(render_stats, 0);
+
+                    continue;
                 }
 
-                return world_radius * projection_scale;
-            }();
+                const float projected_radius_pixels = [&]()
+                {
+                    const float projection_scale =
+                      projection.rows[1].y * device.get_height() * 0.5f;
 
-            const float projected_pixel_area =
-              std::numbers::pi_v<float>
-              * projected_radius_pixels
-              * projected_radius_pixels;
+                    if(projection_type == ProjectionType::Perspective)
+                    {
+                        return world_radius
+                               * projection_scale
+                               / closest_depth;
+                    }
 
-            lod_index =
-              static_mesh.select_lod(
-                projected_pixel_area,
-                display_settings.target_pixels_per_triangle);
+                    return world_radius * projection_scale;
+                }();
+
+                const float projected_pixel_area =
+                  std::numbers::pi_v<float>
+                  * projected_radius_pixels
+                  * projected_radius_pixels;
+
+                auto lod_index = section.select_lod(
+                  projected_pixel_area,
+                  display_settings.target_pixels_per_triangle);
+                lod_indices.push_back(lod_index);
+
+                record_selected_lod(render_stats, lod_index);
+            }
         }
 
-        record_selected_lod(render_stats, lod_index);
-
-        const auto& lod = static_mesh.get_lod(lod_index);
         const float obj_sort_depth =
-          estimate_sort_depth(*obj_bounds, obj_view);
-        for(const auto& section: lod.mesh_sections)
+          estimate_sort_depth(obj_bounds, obj_view);
+        for(std::size_t i = 0; i < sections.size(); ++i)
         {
+            const auto& section = sections[i];
+
+            // Per-section frustum culling.
             if(display_settings.cull_frustum
                && section.bounds.valid
                && !bounds_intersect_frustum(
@@ -422,28 +448,30 @@ void Renderer::build_render_queue(
             if(auto material = section.material.try_get();
                material.has_value())
             {
-                render_queue.push_back({
-                  .sort_depth = obj_sort_depth,
-                  .mesh_handle = section.handle,
-                  .material_handle = material.value(),
-                  .color = section.color,
-                  .view_from_mesh = obj_view,
-                  .shadow_map = {
-                    .enabled =
-                      shadow_camera.has_value()
-                      && static_mesh.receives_shadows
-                      && shadow_map != 0,
-                    .handle = shadow_map,
-                    .clip_from_mesh = shadow_clip_from_mesh,
-                    .depth_bias = 0.0008f,
-                    .linear_filter = shadow_linear_filter,
-                  },
-                });
+                const auto& lod = section.lods[lod_indices[i]];
+
+                render_queue.push_back(
+                  {.sort_depth = obj_sort_depth,
+                   .mesh_handle = lod.mesh_handle,
+                   .material_handle = material.value(),
+                   .color = section.color,
+                   .view_from_mesh = obj_view,
+                   .shadow_map = {
+                     .enabled =
+                       shadow_camera.has_value()
+                       && static_mesh.receives_shadows
+                       && shadow_map != 0,
+                     .handle = shadow_map,
+                     .clip_from_mesh = shadow_clip_from_mesh,
+                     .depth_bias = 0.0008f,
+                     .linear_filter = shadow_linear_filter,
+                   }});
+
+                render_stats.triangles_submitted += lod.triangle_count;
             }
 
             // update stats.
             ++render_stats.mesh_sections_drawn;
-            render_stats.triangles_submitted += section.triangle_count;
         }
     }
 }
@@ -561,11 +589,10 @@ void Renderer::build_shadow_queue(
             continue;
         }
 
-        const auto& lod = static_mesh.get_lod(0);
-        for(const auto& section: lod.mesh_sections)
+        for(const auto& section: static_mesh.get_sections())
         {
             shadow_queue.push_back({
-              .mesh_handle = section.handle,
+              .mesh_handle = section.lods[0].mesh_handle,
               .light_view_from_mesh =
                 shadow_camera->view * static_mesh.get_transform(),
             });
@@ -662,13 +689,15 @@ void Renderer::create_grid_mesh()
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
         .color = color_gray,
-        .handle = device.create_mesh(
-          MeshData{
-            .primitive_type = PrimitiveType::Lines,
-            .indices = std::move(ib),
-            .vertices = std::move(vb),
-            .normals = std::move(nb),
-            .texcoords = {}}),
+        .lods = {SectionLOD{
+          .mesh_handle = device.create_mesh(
+            MeshData{
+              .primitive_type = PrimitiveType::Lines,
+              .indices = std::move(ib),
+              .vertices = std::move(vb),
+              .normals = std::move(nb),
+              .texcoords = {}}),
+          .triangle_count = 0}},
         .material = MaterialRef{
           assets::AssetPath{"GrayMaterial"},
           gray_material}});
@@ -677,10 +706,13 @@ void Renderer::create_grid_mesh()
 void Renderer::release_grid_mesh()
 {
     if(overlay_grid != nullptr
-       && overlay_grid->handle)
+       && !overlay_grid->lods.empty())
     {
-        device.delete_mesh(overlay_grid->handle);
-        overlay_grid->handle = {};
+        for(auto& lod: overlay_grid->lods)
+        {
+            device.delete_mesh(lod.mesh_handle);
+        }
+        overlay_grid->lods.clear();
     }
 
     overlay_grid.reset();
@@ -745,27 +777,30 @@ void Renderer::create_spotlight_depth_debug_mesh()
     overlay_spotlight_depth = swr::make_unique<MeshSection>(
       MeshSection{
         .color = {1.f, 1.f, 1.f, 1.f},
-        .handle = device.create_mesh(
-          MeshData{
-            .primitive_type = PrimitiveType::Triangles,
-            .indices = std::move(qib),
-            .vertices = std::move(qvb),
-            .normals = std::move(qnb),
-            .texcoords = std::move(qtb),
-          }),
-        .material = MaterialRef{
-          assets::AssetPath{"SpotlightDepthDebug"},
-          shadow_debug_overlay_material},
+        .lods = {
+          SectionLOD{
+            .mesh_handle = device.create_mesh(
+              MeshData{
+                .primitive_type = PrimitiveType::Triangles,
+                .indices = std::move(qib),
+                .vertices = std::move(qvb),
+                .normals = std::move(qnb),
+                .texcoords = std::move(qtb)}),
+            .triangle_count = 2}},
+        .material = MaterialRef{assets::AssetPath{"SpotlightDepthDebug"}, shadow_debug_overlay_material},
       });
 }
 
 void Renderer::release_spotlight_depth_debug_mesh()
 {
     if(overlay_spotlight_depth != nullptr
-       && overlay_spotlight_depth->handle)
+       && !overlay_spotlight_depth->lods.empty())
     {
-        device.delete_mesh(overlay_spotlight_depth->handle);
-        overlay_spotlight_depth->handle = {};
+        for(auto& lod: overlay_spotlight_depth->lods)
+        {
+            device.delete_mesh(lod.mesh_handle);
+        }
+        overlay_spotlight_depth->lods.clear();
     }
 
     overlay_spotlight_depth.reset();
@@ -896,7 +931,7 @@ void Renderer::render_grid(
     });
     device.bind_shadow_uniforms({});
 
-    device.draw_mesh(overlay_grid->handle);
+    device.draw_mesh(overlay_grid->lods[0].mesh_handle);
 }
 
 void Renderer::render_spotlight_depth_debug()
@@ -938,7 +973,7 @@ void Renderer::render_spotlight_depth_debug()
       .clip_from_mesh = ml::mat4x4::identity(),
       .params = {0.f, static_cast<float>(ShadowPcfMode::Off), 0.f, 0.f},
     });
-    device.draw_mesh(overlay_spotlight_depth->handle);
+    device.draw_mesh(overlay_spotlight_depth->lods[0].mesh_handle);
     device.clear_shadow_map();
 }
 

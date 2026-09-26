@@ -31,19 +31,6 @@ class MeshManager;
 class RenderDevice;
 class Scene;
 
-/** One renderable level of detail for a static mesh. */
-struct StaticMeshLod
-{
-    /** Sections to draw when this LOD is selected. */
-    swr::vector<MeshSection> mesh_sections;
-
-    /** Triangle count in this level of detail. */
-    std::size_t triangle_count{0};
-
-    /** Combined local-space bounds for all sections in this LOD. */
-    MeshBounds bounds;
-};
-
 /** A static mesh. */
 class StaticMesh
 : public reflect::Reflected<StaticMesh, Object>
@@ -53,9 +40,11 @@ protected:
     swr::vector<assets::AssetPath> materials;
     std::optional<MaterialRef> material_ref;
 
-    swr::vector<StaticMeshLod> mesh_lods;
+    swr::vector<MeshSection> sections;
     std::optional<MeshRef> mesh_ref;
     std::optional<MeshRef> pending_mesh_ref;
+
+    MeshBounds bounds;
 
     bool mesh_dirty{false};
 
@@ -86,10 +75,10 @@ public:
     void init(
       const assets::AssetPath& path,
       const swr::vector<assets::AssetPath>& materials,
-      swr::vector<StaticMeshLod> lods);
+      swr::vector<MeshSection> sections);
 
-    void set_lods(
-      swr::vector<StaticMeshLod> lods);
+    void set_sections(
+      swr::vector<MeshSection> sections);
 
     void set_mesh_ref(MeshRef ref)
     {
@@ -148,9 +137,9 @@ public:
     }
 
     [[nodiscard]]
-    const swr::vector<StaticMeshLod>& get_lods() const
+    const swr::vector<MeshSection>& get_sections() const
     {
-        return mesh_lods;
+        return sections;
     }
 
     /*
@@ -158,53 +147,22 @@ public:
      *       changable at run-time.
      */
     [[nodiscard]]
-    swr::vector<StaticMeshLod>& get_lods()
+    swr::vector<MeshSection>& get_sections()
     {
-        return mesh_lods;
+        return sections;
     }
 
     [[nodiscard]]
-    const MeshBounds* get_bounds() const noexcept
+    MeshBounds get_bounds() const noexcept
     {
-        for(const StaticMeshLod& lod: mesh_lods)
-        {
-            if(!lod.mesh_sections.empty()
-               && lod.bounds.valid)
-            {
-                return &lod.bounds;
-            }
-        }
-
-        return nullptr;
-    }
-
-    [[nodiscard]]
-    const StaticMeshLod& get_lod(std::size_t index) const
-    {
-        return mesh_lods[index];
-    }
-
-    [[nodiscard]]
-    std::size_t get_lod_count() const noexcept
-    {
-        return mesh_lods.size();
+        return bounds;
     }
 
     [[nodiscard]]
     bool has_mesh_sections() const noexcept
     {
-        return std::ranges::any_of(
-          mesh_lods,
-          [](const StaticMeshLod& lod)
-          {
-              return !lod.mesh_sections.empty();
-          });
+        return !sections.empty();
     }
-
-    [[nodiscard]]
-    std::size_t select_lod(
-      float projected_pixel_area,
-      float target_pixels_per_triangle) const noexcept;
 };
 
 DECLARE_REFLECTION(Scene, StaticMesh);
