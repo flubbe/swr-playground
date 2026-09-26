@@ -35,6 +35,9 @@ struct ViewportDisplaySettings
     /** Whether to select static mesh LODs from projected screen size. */
     bool dynamic_lod{true};
 
+    /** Whether to visualize LODs levels in the viewport. */
+    bool visualize_lod{false};
+
     /** LOD pixels per triangle target. */
     float target_pixels_per_triangle{2.f};
 

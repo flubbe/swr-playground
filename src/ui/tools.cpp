@@ -158,6 +158,11 @@ void draw_tools_panel(
             update_display_settings = true;
         }
 
+        if(ImGui::Checkbox("Show LODs", &display_settings.visualize_lod))
+        {
+            update_display_settings = true;
+        }
+
         if(ImGui::DragFloat(
              "LOD Pixels Per Triangle",
              &display_settings.target_pixels_per_triangle,

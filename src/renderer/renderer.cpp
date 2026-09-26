@@ -316,6 +316,16 @@ void Renderer::register_shaders()
     get_logger().logf("Registered shaders: {}", shader_names);
 }
 
+/** Colors for LOD visualization. */
+static std::array<ml::vec4, 6> lod_colors = {{
+  {0.20f, 0.85f, 0.35f, 1.f},    // LOD 0
+  {0.70f, 0.85f, 0.20f, 1.f},    // LOD 1
+  {1.00f, 0.70f, 0.15f, 1.f},    // LOD 2
+  {1.00f, 0.40f, 0.15f, 1.f},    // LOD 3
+  {0.90f, 0.20f, 0.20f, 1.f},    // LOD 4
+  {0.65f, 0.15f, 0.55f, 1.f},    // LOD 5
+}};
+
 void Renderer::build_render_queue(
   const Scene& scene,
   const ViewportDisplaySettings& display_settings)
@@ -449,12 +459,15 @@ void Renderer::build_render_queue(
                material.has_value())
             {
                 const auto& lod = section.lods[lod_indices[i]];
+                const auto color = display_settings.visualize_lod
+                                     ? lod_colors[std::min(lod_indices[i], lod_colors.size() - 1)]
+                                     : section.color;
 
                 render_queue.push_back(
                   {.sort_depth = obj_sort_depth,
                    .mesh_handle = lod.mesh_handle,
                    .material_handle = material.value(),
-                   .color = section.color,
+                   .color = color,
                    .view_from_mesh = obj_view,
                    .shadow_map = {
                      .enabled =
