@@ -46,7 +46,9 @@ void StaticMesh::register_properties(
 void StaticMesh::resolve(
   AssetResolver& resolver)
 {
-    mesh_lods.clear();
+    sections.clear();
+    bounds.valid = false;
+
     material_ref.reset();
 
     // TODO
@@ -93,7 +95,7 @@ void StaticMesh::release()
 
     materials.clear();
     material_ref.reset();
-    mesh_lods.clear();
+    sections.clear();
     mesh_ref.reset();
     pending_mesh_ref.reset();
 }
@@ -117,34 +119,31 @@ void StaticMesh::init(
 void StaticMesh::init(
   const assets::AssetPath& path,
   const swr::vector<assets::AssetPath>& materials,
-  swr::vector<StaticMeshLod> lods)
+  swr::vector<MeshSection> sections)
 {
     this->path = path;
     this->materials = materials;
-    set_lods(std::move(lods));
+    set_sections(std::move(sections));
 }
 
-void StaticMesh::set_lods(
-  swr::vector<StaticMeshLod> lods)
+void StaticMesh::set_sections(
+  swr::vector<MeshSection> sections)
 {
-    for(const auto& lod: lods)
-    {
-        for(const auto& section: lod.mesh_sections)
-        {
-            if(section.material)
-            {
-                material_ref = section.material;
-                break;
-            }
-        }
+    bounds = {};
 
-        if(material_ref.has_value())
+    for(const auto& section: sections)
+    {
+        expand_bounds(
+          bounds,
+          section.bounds);
+
+        if(section.material)
         {
-            break;
+            material_ref = section.material;
         }
     }
 
-    mesh_lods = std::move(lods);
+    this->sections = std::move(sections);
 }
 
 void StaticMesh::mark_mesh_dirty()
@@ -160,46 +159,4 @@ void StaticMesh::mark_mesh_dirty()
 void StaticMesh::clear_mesh_dirty()
 {
     mesh_dirty = false;
-}
-
-std::size_t StaticMesh::select_lod(
-  float projected_pixel_area,
-  float target_pixels_per_triangle) const noexcept
-{
-    if(mesh_lods.empty())
-    {
-        return 0;
-    }
-
-    std::size_t fallback = 0;
-    if(target_pixels_per_triangle <= 0)
-    {
-        return fallback;
-    }
-
-    projected_pixel_area = std::max(0.0f, projected_pixel_area);
-
-    bool found_renderable = false;
-
-    for(std::size_t lod_index = 0; lod_index < mesh_lods.size(); ++lod_index)
-    {
-        const StaticMeshLod& lod = mesh_lods[lod_index];
-        if(lod.mesh_sections.empty() || lod.triangle_count == 0)
-        {
-            continue;
-        }
-
-        fallback = lod_index;
-        found_renderable = true;
-
-        const float pixels_per_triangle =
-          projected_pixel_area / static_cast<float>(lod.triangle_count);
-
-        if(pixels_per_triangle >= target_pixels_per_triangle)
-        {
-            return lod_index;
-        }
-    }
-
-    return found_renderable ? fallback : 0;
 }

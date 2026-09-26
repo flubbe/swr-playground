@@ -547,12 +547,13 @@ void draw_static_mesh_sections(
         ImGui::TableSetupColumn("Material", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
-        for(std::size_t lod_index = 0; lod_index < mesh.get_lod_count(); ++lod_index)
+        const auto& sections = mesh.get_sections();
+        for(std::size_t section_index = 0; section_index < sections.size(); ++section_index)
         {
-            const auto& lod = mesh.get_lod(lod_index);
-            for(std::size_t section_index = 0; section_index < lod.mesh_sections.size(); ++section_index)
+            const auto& section = sections[section_index];
+            const auto& lods = section.lods;
+            for(std::size_t lod_index = 0; lod_index < lods.size(); ++lod_index)
             {
-                const auto& section = lod.mesh_sections[section_index];
                 ImGui::TableNextRow();
 
                 ImGui::TableSetColumnIndex(0);

@@ -47,7 +47,7 @@
       "brightness": 2.4,
       "inner_cone_angle_radians": 0.34906584,
       "outer_cone_angle_radians": 0.36651915,
-      "range": 45
+      "range": 200
     },
     {
       "class": "Scene.StaticMesh",

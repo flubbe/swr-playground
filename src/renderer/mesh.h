@@ -20,8 +20,8 @@
  */
 
 class MeshEntry;
+struct MeshSection;
 class RenderDevice;
-struct StaticMeshLod;
 
 /** A mesh that is asynchronously loaded. */
 class MeshRef
@@ -63,10 +63,10 @@ public:
         return static_cast<bool>(mesh);
     }
 
-    /** Get the resolved mesh LODs. */
+    /** Get the resolved mesh sections. */
     [[nodiscard]]
-    const swr::vector<StaticMeshLod>*
-      try_get_lods() const noexcept;
+    const swr::vector<MeshSection>*
+      try_get_sections() const noexcept;
 
     /** Get the path identifying this mesh. */
     const assets::AssetPath& get_path() const

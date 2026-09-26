@@ -1511,21 +1511,18 @@ void Application::process_dirty_meshes()
             if(const auto& pending = gear->get_pending_mesh_ref();
                pending.has_value())
             {
-                const auto* lods = pending->try_get_lods();
-                if(lods == nullptr)
+                const auto* sections = pending->try_get_sections();
+                if(sections == nullptr)
                 {
                     continue;
                 }
 
                 auto resolved_mesh = *pending;
                 gear->set_mesh_ref(std::move(resolved_mesh));
-                gear->set_lods(*lods);
-                for(auto& lod: gear->get_lods())
+                gear->set_sections(*sections);
+                for(auto& section: gear->get_sections())
                 {
-                    for(auto& section: lod.mesh_sections)
-                    {
-                        section.color = gear->get_color();
-                    }
+                    section.color = gear->get_color();
                 }
                 gear->clear_mesh_dirty();
                 continue;
@@ -1548,20 +1545,17 @@ void Application::process_dirty_meshes()
 
             gear->set_pending_mesh_ref(params.mesh);
 
-            const auto* lods = params.mesh.try_get_lods();
-            if(lods == nullptr)
+            const auto* sections = params.mesh.try_get_sections();
+            if(sections == nullptr)
             {
                 continue;
             }
 
             gear->set_mesh_ref(params.mesh);
-            gear->set_lods(*lods);
-            for(auto& lod: gear->get_lods())
+            gear->set_sections(*sections);
+            for(auto& section: gear->get_sections())
             {
-                for(auto& section: lod.mesh_sections)
-                {
-                    section.color = gear->get_color();
-                }
+                section.color = gear->get_color();
             }
         }
         else if(auto* floor = reflect::try_cast<Floor>(mesh))
@@ -1569,21 +1563,18 @@ void Application::process_dirty_meshes()
             if(const auto& pending = floor->get_pending_mesh_ref();
                pending.has_value())
             {
-                const auto* lods = pending->try_get_lods();
-                if(lods == nullptr)
+                const auto* sections = pending->try_get_sections();
+                if(sections == nullptr)
                 {
                     continue;
                 }
 
                 auto resolved_mesh = *pending;
                 floor->set_mesh_ref(std::move(resolved_mesh));
-                floor->set_lods(*lods);
-                for(auto& lod: floor->get_lods())
+                floor->set_sections(*sections);
+                for(auto& section: floor->get_sections())
                 {
-                    for(auto& section: lod.mesh_sections)
-                    {
-                        section.color = {1.f, 1.f, 1.f, 1.f};
-                    }
+                    section.color = {1.f, 1.f, 1.f, 1.f};
                 }
                 floor->clear_mesh_dirty();
                 continue;
@@ -1601,20 +1592,17 @@ void Application::process_dirty_meshes()
               floor_material);
             floor->set_pending_mesh_ref(floor_ref);
 
-            const auto* lods = floor_ref.try_get_lods();
-            if(lods == nullptr)
+            const auto* sections = floor_ref.try_get_sections();
+            if(sections == nullptr)
             {
                 continue;
             }
 
             floor->set_mesh_ref(floor_ref);
-            floor->set_lods(*lods);
-            for(auto& lod: floor->get_lods())
+            floor->set_sections(*sections);
+            for(auto& section: floor->get_sections())
             {
-                for(auto& section: lod.mesh_sections)
-                {
-                    section.color = {1.f, 1.f, 1.f, 1.f};
-                }
+                section.color = {1.f, 1.f, 1.f, 1.f};
             }
         }
         else
@@ -1642,13 +1630,13 @@ void Application::process_dirty_meshes()
                 continue;
             }
 
-            const auto* lods = mesh_ref.value().try_get_lods();
-            if(lods == nullptr)
+            const auto* sections = mesh_ref.value().try_get_sections();
+            if(sections == nullptr)
             {
                 continue;
             }
 
-            mesh->set_lods(*lods);
+            mesh->set_sections(*sections);
             mesh->set_mesh_ref(
               std::move(mesh_ref.value()));
         }
@@ -1783,12 +1771,9 @@ void Application::set_static_mesh_material(StaticMeshMaterial type)
             continue;
         }
 
-        for(auto& lod: mesh.get_lods())
+        for(auto& section: mesh.get_sections())
         {
-            for(auto& section: lod.mesh_sections)
-            {
-                section.material = material;
-            }
+            section.material = material;
         }
     }
 }
@@ -1829,12 +1814,9 @@ void Application::set_floor_material(FloorMaterial type)
 
     for(auto& mesh: scene.objects_of<Floor>())
     {
-        for(auto& lod: mesh.get_lods())
+        for(auto& section: mesh.get_sections())
         {
-            for(auto& section: lod.mesh_sections)
-            {
-                section.material = material;
-            }
+            section.material = material;
         }
     }
 }
