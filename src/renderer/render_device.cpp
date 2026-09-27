@@ -35,6 +35,9 @@ void RenderDevice::apply_rasterizer_state(const RasterizerState& state)
     swr::SetState(
       swr::state::cull_face,
       state.cull_face);
+    swr::SetState(
+      swr::state::depth_test,
+      state.depth_test);
 }
 
 const ShadowMapTargetGpuData* RenderDevice::find_shadow_map_target(
@@ -47,6 +50,44 @@ const ShadowMapTargetGpuData* RenderDevice::find_shadow_map_target(
     }
 
     return &it->second;
+}
+
+void RenderDevice::initialize()
+{
+    swr::SetClearColor(0, 0, 0, 1);
+    swr::SetClearDepth(1.0f);
+    swr::SetViewport(0, 0, width, height);
+}
+
+void RenderDevice::release()
+{
+    while(!meshes.empty())
+    {
+        delete_mesh(meshes.begin()->first);
+    }
+    while(!meshes.empty())
+    {
+        delete_mesh(meshes.begin()->first);
+    }
+
+    while(!materials.empty())
+    {
+        delete_material(materials.begin()->first);
+    }
+    while(!shaders.empty())
+    {
+        delete_shader(shaders.begin()->first);
+    }
+    while(!shadow_map_targets.empty())
+    {
+        delete_shadow_map(shadow_map_targets.begin()->first);
+    }
+
+    if(context != nullptr)
+    {
+        swr::DestroyContext(context);
+        context = nullptr;
+    }
 }
 
 void RenderDevice::resize(
@@ -463,6 +504,24 @@ void RenderDevice::process_deferred_deletions()
           },
           request.handle);
     }
+}
+
+void RenderDevice::set_viewport(
+  const RenderViewport& viewport)
+{
+    this->viewport = viewport;
+    swr::SetViewport(
+      viewport.x,
+      viewport.y,
+      viewport.width,
+      viewport.height);
+}
+
+RenderViewport RenderDevice::get_viewport()
+{
+    // FIXME There's no way to query the viewport size right now,
+    //       so we resort to storing the state and returning it.
+    return viewport;
 }
 
 void RenderDevice::bind_rasterizer_state(

@@ -298,6 +298,27 @@ std::optional<ShadowCamera> collect_shadow_camera(
     return std::nullopt;
 }
 
+/** Extract the top-left 3x3 submatrix from a 4x4 matrix. */
+ml::mat3x3 get_top_left_3x3(
+  const ml::mat4x4& m)
+{
+    return {
+      m.rows[0].xyz(),
+      m.rows[1].xyz(),
+      m.rows[2].xyz()};
+}
+
+/** Extend a 3x3 matrix to a 4x4 matrix. */
+ml::mat4x4 extend_mat3x3_to_mat4x4(
+  const ml::mat3x3& m)
+{
+    return {
+      ml::vec4{m.rows[0], 0},
+      ml::vec4{m.rows[1], 0},
+      ml::vec4{m.rows[2], 0},
+      ml::vec4{0.f, 0.f, 0.f, 1.f}};
+}
+
 }    // namespace
 
 void Renderer::register_shaders()
@@ -635,8 +656,10 @@ void Renderer::begin_scene_pass(
     /*
      * Set up rasterizer.
      */
-    device.bind_rasterizer_state({.wireframe = display_settings.wireframe,
-                                  .cull_face = display_settings.cull_face});
+    device.bind_rasterizer_state(
+      {.wireframe = display_settings.wireframe,
+       .cull_face = display_settings.cull_face,
+       .depth_test = true});
     device.bind_lighting_uniforms(
       collect_light_uniforms(scene, view));
 }
@@ -731,11 +754,10 @@ void Renderer::create_grid_mesh()
 {
     release_grid_mesh();
 
-    const auto color_gray = ml::vec4{0.5, 0.5, 0.5, 1.0};
-    auto* gray_shader = shader_factory.get_or_create<shader::ColorOnly>();
-    auto gray_material = device.create_material(
+    auto* shader = shader_factory.get_or_create<shader::ColorOnly>();
+    grid_material = device.create_material(
       RenderMaterial{
-        .shader_handle = device.create_shader(*gray_shader),
+        .shader_handle = device.create_shader(*shader),
         .base_color_handle = {},
         .normal_map_handle = {}});
 
@@ -783,7 +805,7 @@ void Renderer::create_grid_mesh()
 
     overlay_grid = swr::make_unique<MeshSection>(
       MeshSection{
-        .color = color_gray,
+        .color = {0.5, 0.5, 0.5, 1.0},
         .lods = {SectionLOD{
           .mesh_handle = device.create_mesh(
             MeshData{
@@ -794,8 +816,8 @@ void Renderer::create_grid_mesh()
               .texcoords = {}}),
           .triangle_count = 0}},
         .material = MaterialRef{
-          assets::AssetPath{"GrayMaterial"},
-          gray_material}});
+          assets::AssetPath{"ColorMaterial"},
+          grid_material}});
 }
 
 void Renderer::release_grid_mesh()
@@ -817,11 +839,69 @@ void Renderer::release_grid_mesh()
         device.delete_material(grid_material);
         grid_material = {};
     }
+}
 
-    if(grid_shader != 0)
+void Renderer::create_gizmo_mesh()
+{
+    release_gizmo_mesh();
+
+    auto* shader = shader_factory.get_or_create<shader::ColorOnly>();
+    gizmo_material = device.create_material(
+      RenderMaterial{
+        .shader_handle = device.create_shader(*shader),
+        .base_color_handle = {},
+        .normal_map_handle = {}});
+
+    auto create_axis = [&](std::size_t axis) -> swr::unique_ptr<MeshSection>
     {
-        device.delete_shader(grid_shader);
-        grid_shader = {};
+        const std::array<ml::vec4, 3> end_vertices = {
+          ml::vec4{1.f, 0.f, 0.f, 1.f},
+          ml::vec4{0.f, 1.f, 0.f, 1.f},
+          ml::vec4{0.f, 0.f, 1.f, 1.f}};
+        const ml::vec4 up_normal{0.0f, 1.0f, 0.0f, 0.0f};
+
+        return swr::make_unique<MeshSection>(
+          MeshSection{
+            .color = end_vertices.at(axis),
+            .lods = {SectionLOD{
+              .mesh_handle = device.create_mesh(
+                MeshData{
+                  .primitive_type = PrimitiveType::Lines,
+                  .indices = {0, 1},
+                  .vertices = {{0.f, 0.f, 0.f, 1.f}, end_vertices.at(axis)},
+                  .normals = {up_normal, up_normal},
+                  .texcoords = {}}),
+              .triangle_count = 0}},
+            .material = MaterialRef{
+              assets::AssetPath{"ColorMaterial"},
+              gizmo_material}});
+    };
+
+    overlay_gizmo = {
+      create_axis(0), create_axis(1), create_axis(2)};
+}
+
+void Renderer::release_gizmo_mesh()
+{
+    for(auto& axis: overlay_gizmo)
+    {
+        if(axis != nullptr
+           && !axis->lods.empty())
+        {
+            for(auto& lod: axis->lods)
+            {
+                device.delete_mesh(lod.mesh_handle);
+            }
+            axis->lods.clear();
+        }
+
+        axis.reset();
+    }
+
+    if(gizmo_material != 0)
+    {
+        device.delete_material(gizmo_material);
+        gizmo_material = {};
     }
 }
 
@@ -916,6 +996,7 @@ void Renderer::release_spotlight_depth_debug_mesh()
 Renderer::~Renderer()
 {
     release_spotlight_depth_debug_mesh();
+    release_gizmo_mesh();
     release_grid_mesh();
     release_shadow_map_resources();
 }
@@ -1010,6 +1091,7 @@ void Renderer::render_grid(
     device.bind_rasterizer_state({
       .wireframe = false,
       .cull_face = false,
+      .depth_test = true,
     });
 
     auto view = camera.get_transform();
@@ -1029,6 +1111,74 @@ void Renderer::render_grid(
     device.draw_mesh(overlay_grid->lods[0].mesh_handle);
 }
 
+void Renderer::render_gizmo(
+  const Camera& camera)
+{
+    if(overlay_gizmo[0] == nullptr
+       || overlay_gizmo[1] == nullptr
+       || overlay_gizmo[2] == nullptr)
+    {
+        return;
+    }
+
+    /*
+     * FIXME Depth testing should be enabled, and the depth buffer should be cleared.
+     *       Currently this doesn't work, because `swr::ClearDepthBuffer` executes
+     *       the clear command immediately.
+     */
+    device.bind_rasterizer_state({
+      .wireframe = false,
+      .cull_face = false,
+      .depth_test = false,
+    });
+
+    const auto camera_view = camera.get_transform();
+    ml::mat4x4 gizmo_view = extend_mat3x3_to_mat4x4(
+      get_top_left_3x3(camera_view));
+
+    const float camera_distance = 3.0f;
+    gizmo_view = ml::matrices::translation({0.f, 0.f, -camera_distance}) * gizmo_view;
+
+    const float extents = 1.2f;
+    const float near_plane = 1.0f;
+    const float far_plane = 5.0f;
+
+    const auto gizmo_projection = ml::matrices::orthographic_projection(
+      -extents, extents,    // left, right
+      -extents, extents,    // bottom, top
+      near_plane, far_plane);
+
+    auto main_viewport = device.get_viewport();
+    device.set_viewport(
+      {.x = gizmo_settings.margin_left,
+       .y = gizmo_settings.margin_bottom,
+       .width = gizmo_settings.pixel_size,
+       .height = gizmo_settings.pixel_size});
+
+    device.bind_camera_uniforms({
+      .proj = gizmo_projection,
+      .view = gizmo_view,
+    });
+
+    for(const auto& axis: overlay_gizmo)
+    {
+        std::optional<MaterialHandle> material = axis->material.try_get();
+        if(!material.has_value())
+        {
+            continue;
+        }
+
+        device.bind_material(material.value());
+        device.bind_material_uniforms({
+          .base_color = axis->color,
+        });
+
+        device.draw_mesh(axis->lods[0].mesh_handle);
+    }
+
+    device.set_viewport(main_viewport);
+}
+
 void Renderer::render_spotlight_depth_debug()
 {
     if(shadow_map == 0)
@@ -1042,10 +1192,10 @@ void Renderer::render_spotlight_depth_debug()
         return;
     }
 
-    device.bind_rasterizer_state({
-      .wireframe = false,
-      .cull_face = false,
-    });
+    device.bind_rasterizer_state(
+      {.wireframe = false,
+       .cull_face = false,
+       .depth_test = true});
 
     device.bind_shadow_map({
       .enabled = true,
@@ -1106,11 +1256,19 @@ void Renderer::render(
      * Viewport overlays.
      */
 
-    if(!display_settings.debug_spotlight_depth
-       && overlay_settings.show_grid)
+    if(!display_settings.debug_spotlight_depth)
     {
-        render_grid(
-          camera);
+        if(overlay_settings.show_grid)
+        {
+            render_grid(
+              camera);
+        }
+
+        if(overlay_settings.show_gizmo)
+        {
+            render_gizmo(
+              camera);
+        }
     }
 
     end_render();
