@@ -446,7 +446,7 @@ void imgui_draw_viewport_panel(
         {
             camera_name = "Spotlight Depth";
         }
-        else if(viewport.is_scene_camera_active())
+        else if(viewport.is_using_scene_camera())
         {
             camera_name = viewport.get_camera(scene).get_name();
         }
@@ -539,7 +539,7 @@ void imgui_draw_viewport_panel(
                          camera.get_name().c_str(),
                          nullptr,
                          !showing_spotlight_depth
-                           && viewport.is_scene_camera_active()
+                           && viewport.is_using_scene_camera()
                            && viewport.get_camera(scene).get_object_id() == camera.get_object_id()))
                     {
                         display_settings.debug_spotlight_depth = false;
@@ -558,7 +558,7 @@ void imgui_draw_viewport_panel(
                 ImGui::EndMenu();
             }
 
-            const bool using_scene_camera = viewport.is_scene_camera_active();
+            const bool using_scene_camera = viewport.is_using_scene_camera();
             ImGui::Separator();
             if(using_scene_camera)
             {
@@ -859,7 +859,7 @@ bool Application::pump_messages()
         if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
            && event.button.button == SDL_BUTTON_RIGHT
            && viewport.is_editor_camera_modification_enabled()
-           && viewport.is_local_camera_active()
+           && !viewport.is_using_scene_camera()
            && viewport_contains_mouse_position(
              viewport_input,
              event.button.x,
@@ -1121,7 +1121,7 @@ void Application::set_viewport_mouse_capture(
 void Application::update_viewport_mouse_capture()
 {
     if(!viewport.is_editor_camera_modification_enabled()
-       || !viewport.is_local_camera_active())
+       || viewport.is_using_scene_camera())
     {
         set_viewport_mouse_capture(false);
         return;

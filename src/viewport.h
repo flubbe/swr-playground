@@ -259,14 +259,8 @@ public:
         return local_camera;
     }
 
-    /** Return whether the local camera is active. */
-    bool is_local_camera_active() const
-    {
-        return !scene_camera_id.has_value();
-    }
-
     /** Return whether a scene camera is active. */
-    bool is_scene_camera_active() const
+    bool is_using_scene_camera() const
     {
         return scene_camera_id.has_value();
     }
@@ -284,7 +278,7 @@ public:
     bool is_editor_camera_view_active(
       EditorCameraView view) const
     {
-        return is_local_camera_active()
+        return !is_using_scene_camera()
                && editor_camera_view == view;
     }
 
