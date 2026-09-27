@@ -441,13 +441,12 @@ void imgui_draw_viewport_panel(
     {
         const ViewportDisplaySettings display_settings =
           viewport.get_display_settings();
-        const ViewportCameraType camera_type = viewport.get_camera_type(scene);
         swr::string camera_name{to_string(viewport.get_editor_camera_view())};
         if(display_settings.debug_spotlight_depth)
         {
             camera_name = "Spotlight Depth";
         }
-        else if(camera_type == ViewportCameraType::Scene)
+        else if(viewport.is_scene_camera_active())
         {
             camera_name = viewport.get_camera(scene).get_name();
         }
@@ -503,9 +502,12 @@ void imgui_draw_viewport_panel(
         if(ImGui::BeginPopup("viewport_camera_overlay_menu"))
         {
             ViewportDisplaySettings display_settings = viewport.get_display_settings();
+            ViewportOverlaySettings overlay_settings = viewport.get_overlay_settings();
+            bool update_display_settings = false;
+            bool update_overlay_settings = false;
+
             const bool showing_spotlight_depth =
               display_settings.debug_spotlight_depth;
-            bool update_display_settings = false;
 
             for(int view_index = 0;
                 view_index <= std::to_underlying(EditorCameraView::Orthographic);
@@ -516,7 +518,7 @@ void imgui_draw_viewport_panel(
                      to_string(view).data(),
                      nullptr,
                      !showing_spotlight_depth
-                       && viewport.is_editor_camera_view_active(scene, view)))
+                       && viewport.is_editor_camera_view_active(view)))
                 {
                     display_settings.debug_spotlight_depth = false;
                     update_display_settings = true;
@@ -537,9 +539,8 @@ void imgui_draw_viewport_panel(
                          camera.get_name().c_str(),
                          nullptr,
                          !showing_spotlight_depth
-                           && viewport.is_scene_camera_active(
-                             scene,
-                             camera.get_object_id())))
+                           && viewport.is_scene_camera_active()
+                           && viewport.get_camera(scene).get_object_id() == camera.get_object_id()))
                     {
                         display_settings.debug_spotlight_depth = false;
                         update_display_settings = true;
@@ -557,8 +558,7 @@ void imgui_draw_viewport_panel(
                 ImGui::EndMenu();
             }
 
-            const bool using_scene_camera =
-              camera_type == ViewportCameraType::Scene;
+            const bool using_scene_camera = viewport.is_scene_camera_active();
             ImGui::Separator();
             if(using_scene_camera)
             {
@@ -573,6 +573,12 @@ void imgui_draw_viewport_panel(
             if(using_scene_camera)
             {
                 ImGui::EndDisabled();
+            }
+
+            if(ImGui::MenuItem("Viewport Gizmo", nullptr, overlay_settings.show_gizmo))
+            {
+                overlay_settings.show_gizmo = !overlay_settings.show_gizmo;
+                update_overlay_settings = true;
             }
 
             if(ImGui::BeginMenu("Debug"))
@@ -592,6 +598,11 @@ void imgui_draw_viewport_panel(
             if(update_display_settings)
             {
                 viewport.set_display_settings(display_settings);
+            }
+
+            if(update_overlay_settings)
+            {
+                viewport.set_overlay_settings(overlay_settings);
             }
 
             ImGui::EndPopup();
@@ -848,7 +859,7 @@ bool Application::pump_messages()
         if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN
            && event.button.button == SDL_BUTTON_RIGHT
            && viewport.is_editor_camera_modification_enabled()
-           && viewport.is_local_camera_active(scene)
+           && viewport.is_local_camera_active()
            && viewport_contains_mouse_position(
              viewport_input,
              event.button.x,
@@ -1110,7 +1121,7 @@ void Application::set_viewport_mouse_capture(
 void Application::update_viewport_mouse_capture()
 {
     if(!viewport.is_editor_camera_modification_enabled()
-       || !viewport.is_local_camera_active(scene))
+       || !viewport.is_local_camera_active())
     {
         set_viewport_mouse_capture(false);
         return;

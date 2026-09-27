@@ -222,16 +222,6 @@ void Viewport::reset_editor_camera()
     sync_local_camera();
 }
 
-void Viewport::set_editor_camera_view(EditorCameraView view)
-{
-    apply_editor_camera_view(view, true);
-}
-
-bool Viewport::is_local_camera_active(const Scene& scene) const
-{
-    return get_camera_type(scene) == ViewportCameraType::Local;
-}
-
 void Viewport::update_editor_camera(
   float delta_time,
   const ViewportEditorCameraInput& input)
