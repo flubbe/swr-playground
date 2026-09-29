@@ -54,8 +54,8 @@ const ShadowMapTargetGpuData* RenderDevice::find_shadow_map_target(
 
 void RenderDevice::initialize()
 {
-    swr::SetClearColor(0, 0, 0, 1);
-    swr::SetClearDepth(1.0f);
+    swr::SetClearColor(0.f, 0.f, 0.f, 1.f);
+    swr::SetClearDepth(1.f);
     swr::SetViewport(0, 0, width, height);
 }
 
@@ -667,6 +667,13 @@ void RenderDevice::bind_shadow_map(
     }
 
     current_shadow_map_binding.reset();
+}
+
+void RenderDevice::clear_depth_buffer(float z)
+{
+    swr::SetClearDepth(z);
+    swr::ClearDepthBuffer();
+    swr::SetClearDepth(1.f);
 }
 
 void RenderDevice::clear_shadow_map()

@@ -1121,15 +1121,10 @@ void Renderer::render_gizmo(
         return;
     }
 
-    /*
-     * FIXME Depth testing should be enabled, and the depth buffer should be cleared.
-     *       Currently this doesn't work, because `swr::ClearDepthBuffer` executes
-     *       the clear command immediately.
-     */
     device.bind_rasterizer_state({
       .wireframe = false,
       .cull_face = false,
-      .depth_test = false,
+      .depth_test = true,
     });
 
     const auto camera_view = camera.get_transform();
@@ -1154,6 +1149,8 @@ void Renderer::render_gizmo(
        .y = gizmo_settings.margin_bottom,
        .width = gizmo_settings.pixel_size,
        .height = gizmo_settings.pixel_size});
+
+    device.clear_depth_buffer(1.0f);
 
     device.bind_camera_uniforms({
       .proj = gizmo_projection,

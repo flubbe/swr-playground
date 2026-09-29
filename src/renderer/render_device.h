@@ -376,6 +376,7 @@ public:
     void bind_shadow_map(const ShadowMapBinding& binding);
     void bind_shadow_uniforms(const ShadowUniforms& uniforms);
 
+    void clear_depth_buffer(float z);
     void clear_shadow_map();
 
     void begin_shadow_map_pass(ShadowMapHandle handle);
