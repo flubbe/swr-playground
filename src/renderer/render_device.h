@@ -54,6 +54,22 @@ struct MeshGpuData    // TODO rename: renderer::Mesh
     std::optional<TexCoordBufferHandle> texcoords_handle;
 };
 
+/** Render viewport. */
+struct RenderViewport
+{
+    /** x offset. */
+    int x{0};
+
+    /** y offset. */
+    int y{0};
+
+    /** Viewport rect width. */
+    unsigned int width{0};
+
+    /** Viewport rect height. */
+    unsigned int height{0};
+};
+
 /** Camera-related shader uniforms. */
 struct CameraUniforms
 {
@@ -112,6 +128,9 @@ struct RasterizerState
 
     /** Whether to enable face culling. */
     bool cull_face{true};
+
+    /** Whether to enable depth testing. */
+    bool depth_test{true};
 
     bool operator==(const RasterizerState& other) const
     {
@@ -179,6 +198,14 @@ class RenderDevice
     /** Rasterizer context. */
     swr::context_handle context{nullptr};
 
+    /**
+     * The current viewport.
+     *
+     * FIXME This only exists because we cannot currently query the viewport setting from the
+     *       rasterizer library.
+     */
+    RenderViewport viewport;
+
     /** Uploaded mesh data. */
     swr::unordered_map<MeshHandle, MeshGpuData> meshes;
 
@@ -216,43 +243,8 @@ class RenderDevice
       ShadowMapHandle handle) const;
 
 protected:
-    void initialize()
-    {
-        swr::SetClearColor(0, 0, 0, 1);
-        swr::SetClearDepth(1.0f);
-        swr::SetViewport(0, 0, width, height);
-    }
-
-    void release()
-    {
-        while(!meshes.empty())
-        {
-            delete_mesh(meshes.begin()->first);
-        }
-        while(!meshes.empty())
-        {
-            delete_mesh(meshes.begin()->first);
-        }
-
-        while(!materials.empty())
-        {
-            delete_material(materials.begin()->first);
-        }
-        while(!shaders.empty())
-        {
-            delete_shader(shaders.begin()->first);
-        }
-        while(!shadow_map_targets.empty())
-        {
-            delete_shadow_map(shadow_map_targets.begin()->first);
-        }
-
-        if(context != nullptr)
-        {
-            swr::DestroyContext(context);
-            context = nullptr;
-        }
-    }
+    void initialize();
+    void release();
 
 public:
     RenderDevice(
@@ -361,8 +353,6 @@ public:
     {
         swr::ClearColorBuffer();
         swr::ClearDepthBuffer();
-
-        swr::SetState(swr::state::depth_test, true);
     }
 
     void end_frame()
@@ -371,8 +361,12 @@ public:
     }
 
     /*
-     * Bindings.
+     * Render state.
      */
+
+    void set_viewport(
+      const RenderViewport& viewport);
+    RenderViewport get_viewport();
 
     void bind_rasterizer_state(const RasterizerState& state);
     void bind_material(MaterialHandle handle);
@@ -382,6 +376,7 @@ public:
     void bind_shadow_map(const ShadowMapBinding& binding);
     void bind_shadow_uniforms(const ShadowUniforms& uniforms);
 
+    void clear_depth_buffer(float z);
     void clear_shadow_map();
 
     void begin_shadow_map_pass(ShadowMapHandle handle);
