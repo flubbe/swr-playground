@@ -386,6 +386,8 @@ void Renderer::build_render_queue(
              obj_bounds,
              obj_clip))
         {
+            // TODO Could add stats for culled meshes.
+
             continue;
         }
 
@@ -425,6 +427,9 @@ void Renderer::build_render_queue(
                      section.bounds,
                      obj_clip))
                 {
+                    // update stats.
+                    ++render_stats.mesh_sections_culled;
+
                     continue;
                 }
 
@@ -489,6 +494,9 @@ void Renderer::build_render_queue(
                      section.bounds,
                      obj_clip))
                 {
+                    // update stats.
+                    ++render_stats.mesh_sections_culled;
+
                     continue;
                 }
 
