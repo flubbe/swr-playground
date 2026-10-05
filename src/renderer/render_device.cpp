@@ -309,7 +309,7 @@ TextureHandle RenderDevice::create_texture(
       static_cast<std::size_t>(image.width),
       static_cast<std::size_t>(image.height),
       swr::pixel_format::rgba8888,
-      {image.pixels.begin(), image.pixels.end()});    // FIXME Copies. SetImage should take a span.
+      image.pixels);
     if(auto err = swr::GetLastError(); err != swr::error::none)
     {
         throw std::runtime_error{
