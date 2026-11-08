@@ -85,7 +85,7 @@ FetchContent_MakeAvailable(gsl)
 FetchContent_Declare(
     imgui_src
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG docking
+    GIT_TAG 5c7c293a6 # docking branch
     SYSTEM
 )
 FetchContent_MakeAvailable(imgui_src)
