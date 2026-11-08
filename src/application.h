@@ -217,6 +217,12 @@ private:
      */
     void prepare_frame();
 
+    /** Ensure the application's OpenGL context is current. */
+    void make_gl_context_current();
+
+    /** Process deferred deletions and pending resource uploads. */
+    void process_pending_resources();
+
     /**
      * Renders the main application frame (viewport, panels, etc).
      */

@@ -337,6 +337,20 @@ inline const char* RenderQueueSorter::get_name() const
       get_sort_mode());
 }
 
+/** Gizmo settings. */
+struct GizmoDisplaySettings
+{
+    /** Gizmo size, in pixels. */
+    std::uint32_t pixel_size{100};
+
+    /** Gizmo left margin. */
+    std::int32_t margin_left{10};
+
+    /** Gizmo bottom margin. */
+    std::int32_t margin_bottom{10};
+};
+
+/** Renderer. */
 class Renderer final
 {
     static constexpr int shadow_map_resolution = 1024;
@@ -352,9 +366,10 @@ class Renderer final
     ShadowPcfMode shadow_pcf_mode{ShadowPcfMode::Off};
 
     MaterialHandle shadow_material{0};
-
     MaterialHandle grid_material{0};
-    ShaderHandle grid_shader{0};
+
+    MaterialHandle gizmo_material{0};
+    GizmoDisplaySettings gizmo_settings{100};
 
     MaterialHandle shadow_debug_overlay_material{0};
     ShaderHandle shadow_debug_overlay_shader{0};
@@ -418,10 +433,13 @@ class Renderer final
 
     swr::unique_ptr<MeshSection> overlay_grid;
     swr::unique_ptr<MeshSection> overlay_spotlight_depth;
+    std::array<swr::unique_ptr<MeshSection>, 3> overlay_gizmo;
     ShadowMapHandle shadow_map{};
 
     void create_grid_mesh();
     void release_grid_mesh();
+    void create_gizmo_mesh();
+    void release_gizmo_mesh();
     void create_spotlight_depth_debug_mesh();
     void release_spotlight_depth_debug_mesh();
     void ensure_shadow_map_resources();
@@ -442,6 +460,8 @@ class Renderer final
 
     void render_grid(
       const Camera& camera);
+    void render_gizmo(
+      const Camera& camera);
 
 public:
     explicit Renderer(
@@ -451,6 +471,7 @@ public:
         register_shaders();
 
         create_grid_mesh();
+        create_gizmo_mesh();
         create_spotlight_depth_debug_mesh();
     }
 

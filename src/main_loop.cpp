@@ -26,6 +26,8 @@ void MainLoop::run()
     auto last_update_time = std::chrono::steady_clock::now();
     bool running = true;
 
+    application.make_gl_context_current();
+
     // ensure the application window is shown.
     application.show_window();
 
@@ -62,6 +64,12 @@ bool MainLoop::run_startup(
           && !application.finish_startup_if_ready())
     {
         running = application.pump_messages();
+        if(running)
+        {
+            // The splash screen potentially rebinds the OpenGL context.
+            application.make_gl_context_current();
+            application.process_pending_resources();
+        }
 
         // Update startup progress.
         // We naively always update, even if there's no change.

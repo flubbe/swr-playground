@@ -56,6 +56,9 @@ struct ViewportOverlaySettings
 
     /** Whether to show a grid. */
     bool show_grid{false};
+
+    /** Whether to show a gizmo. */
+    bool show_gizmo{true};
 };
 
 /** Viewport render resolution in pixels. */
@@ -66,13 +69,6 @@ struct ViewportResolution
 
     /** Viewport height. */
     int height{1};
-};
-
-/** Viewport camera type. */
-enum class ViewportCameraType : std::uint8_t
-{
-    Local, /** Viewport controls the camera. */
-    Scene  /** Scene update controls the camera. */
 };
 
 /** Viewport mouse navigation mode. */
@@ -125,9 +121,6 @@ private:
     /** Local viewport camera. */
     Camera local_camera;
 
-    /** Selected camera source for this viewport. */
-    ViewportCameraType camera_selection{ViewportCameraType::Local};
-
     /** Selected scene camera id, when the viewport is looking through a scene camera. */
     std::optional<ObjectId> scene_camera_id;
 
@@ -138,10 +131,12 @@ private:
     ViewportOverlaySettings overlay_settings;
 
     /** Mouse navigation mode. */
-    ViewportNavigationMode navigation_mode{ViewportNavigationMode::Orbit};
+    ViewportNavigationMode navigation_mode{
+      ViewportNavigationMode::Orbit};
 
     /** Current editor-local camera preset. */
-    EditorCameraView editor_camera_view{EditorCameraView::Perspective};
+    EditorCameraView editor_camera_view{
+      EditorCameraView::Perspective};
 
     /** Editor controller state for the viewport-local camera. */
     EditorCameraControllerState editor_camera_controller{};
@@ -172,7 +167,6 @@ public:
     /** Use the local viewport camera. */
     void use_local_camera()
     {
-        camera_selection = ViewportCameraType::Local;
         scene_camera_id.reset();
     }
 
@@ -184,7 +178,6 @@ public:
     void use_scene_camera(
       ObjectId camera_id)
     {
-        camera_selection = ViewportCameraType::Scene;
         scene_camera_id = camera_id;
     }
 
@@ -201,10 +194,10 @@ public:
      * @returns The camera, or `nullptr` if either there is no scene camera set, or
      *         the camera is not found in the scene.
      */
-    Camera* try_get_scene_camera(Scene& scene)
+    Camera* try_get_scene_camera(
+      Scene& scene)
     {
-        if(camera_selection != ViewportCameraType::Scene
-           || !scene_camera_id.has_value())
+        if(!scene_camera_id.has_value())
         {
             return nullptr;
         }
@@ -219,10 +212,10 @@ public:
      * @returns The camera, or `nullptr` if either there is no scene camera set, or
      *         the camera is not found in the scene.
      */
-    const Camera* try_get_scene_camera(const Scene& scene) const
+    const Camera* try_get_scene_camera(
+      const Scene& scene) const
     {
-        if(camera_selection != ViewportCameraType::Scene
-           || !scene_camera_id.has_value())
+        if(!scene_camera_id.has_value())
         {
             return nullptr;
         }
@@ -231,7 +224,8 @@ public:
     }
 
     /** Get the viewport camera. Falls back to the local camera if the scene camera cannot be found. */
-    Camera& get_camera(Scene& scene)
+    Camera& get_camera(
+      Scene& scene)
     {
         if(Camera* camera = try_get_scene_camera(scene))
         {
@@ -242,7 +236,8 @@ public:
     }
 
     /** Get the active viewport camera (const). Falls back to local if scene camera cannot be found. */
-    const Camera& get_camera(const Scene& scene) const
+    const Camera& get_camera(
+      const Scene& scene) const
     {
         if(const Camera* camera = try_get_scene_camera(scene))
         {
@@ -264,38 +259,27 @@ public:
         return local_camera;
     }
 
-    /** Ensure the active camera projection matches current viewport aspect ratio. */
-    void update_active_camera_projection(Scene& scene)
+    /** Return whether a scene camera is active. */
+    bool is_using_scene_camera() const
     {
-        get_camera(scene).update_projection_matrix(get_aspect_ratio());
+        return scene_camera_id.has_value();
     }
 
-    /** Return the active camera type for this viewport. */
-    ViewportCameraType get_camera_type(const Scene& scene) const
+    /** Ensure the active camera projection matches current viewport aspect ratio. */
+    void update_active_camera_projection(
+      Scene& scene)
     {
-        if(try_get_scene_camera(scene) != nullptr)
-        {
-            return ViewportCameraType::Scene;
-        }
-        return ViewportCameraType::Local;
+        get_camera(scene)
+          .update_projection_matrix(
+            get_aspect_ratio());
     }
 
     /** Return whether the given editor view is currently the active viewport camera. */
     bool is_editor_camera_view_active(
-      const Scene& scene,
       EditorCameraView view) const
     {
-        return get_camera_type(scene) == ViewportCameraType::Local
+        return !is_using_scene_camera()
                && editor_camera_view == view;
-    }
-
-    /** Return whether the given scene camera is currently active in the viewport. */
-    bool is_scene_camera_active(
-      const Scene& scene,
-      ObjectId camera_id) const
-    {
-        const Camera* camera = try_get_scene_camera(scene);
-        return camera != nullptr && camera->get_object_id() == camera_id;
     }
 
     /** Return the display settings for this viewport. */
@@ -305,7 +289,8 @@ public:
     }
 
     /** Set the display settings for this viewport. */
-    void set_display_settings(ViewportDisplaySettings settings)
+    void set_display_settings(
+      ViewportDisplaySettings settings)
     {
         display_settings = settings;
     }
@@ -317,7 +302,8 @@ public:
     }
 
     /** Set the overlay settings for this viewport. */
-    void set_overlay_settings(ViewportOverlaySettings settings)
+    void set_overlay_settings(
+      ViewportOverlaySettings settings)
     {
         overlay_settings = settings;
     }
@@ -339,16 +325,17 @@ public:
     void reset_editor_camera();
 
     /** Set the viewport-local editor camera preset. */
-    void set_editor_camera_view(EditorCameraView view);
+    void set_editor_camera_view(
+      EditorCameraView view)
+    {
+        apply_editor_camera_view(view, true);
+    }
 
     /** Return the current viewport-local editor camera preset. */
     EditorCameraView get_editor_camera_view() const noexcept
     {
         return editor_camera_view;
     }
-
-    /** Return whether the viewport is actively using its local editor camera. */
-    bool is_local_camera_active(const Scene& scene) const;
 
     /** Return whether editor-camera input is enabled for this viewport. */
     bool is_editor_camera_modification_enabled() const noexcept
@@ -393,7 +380,9 @@ public:
      * @param width The new width.
      * @param height The new height.
      */
-    void set_resolution(int width, int height)
+    void set_resolution(
+      int width,
+      int height)
     {
         resolution.width = std::max(1, width);
         resolution.height = std::max(1, height);
