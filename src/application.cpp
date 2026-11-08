@@ -902,6 +902,21 @@ bool Application::pump_messages()
     return running;
 }
 
+void Application::make_gl_context_current()
+{
+    if(!SDL_GL_MakeCurrent(window, gl_context))
+    {
+        throw SDLError{"SDL_GL_MakeCurrent failed"};
+    }
+}
+
+void Application::process_pending_resources()
+{
+    render_device.process_deferred_deletions();
+    mesh_manager.process_pending();
+    material_manager.process_pending();
+}
+
 void Application::prepare_frame()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -999,11 +1014,17 @@ Application::Application(
 , scene{scene}
 , viewport{viewport}
 {
+    SDL_WindowFlags window_flags =
+      SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN;
+#if defined(__APPLE__)
+    window_flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#endif
+
     window = SDL_CreateWindow(
       this->title.c_str(),
       1280,    // TODO load from config
       800,     // TODO load from config
-      SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN);
+      window_flags);
     if(!window)
     {
         throw SDLError{"SDL_CreateWindow failed"};
@@ -1194,9 +1215,7 @@ bool Application::finish_startup_if_ready()
     if(resource_tracker.has_failed())
     {
         on_startup_complete_error(
-          "Resource failed to load.");
-        throw std::runtime_error{
-          "Resource failed to load."};
+          "One or more resources failed to load; see the console for details.");
     }
 
     // All resources are loaded here, so we clear all.
@@ -1686,10 +1705,7 @@ void Application::tick(float delta_time)
     //       But we cannot simply re-order the logic here, since processing first
     //       doesn't update deferred deletions, so we could end up in an inconsistent
     //       state with deleted-but-used assets.
-    render_device.process_deferred_deletions();
-
-    mesh_manager.process_pending();
-    material_manager.process_pending();
+    process_pending_resources();
 
     process_dirty_meshes();
 

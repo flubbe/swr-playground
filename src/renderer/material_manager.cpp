@@ -171,6 +171,15 @@ MaterialRef MaterialManager::load(
        path = assets::AssetPath{path}](
         task_system::TaskExecutionContext& context) mutable -> MaterialResources
       {
+          auto mark_failure_if_pending = gsl::finally(
+            [&resource_ticket]()
+            {
+                if(resource_ticket.get_state() == ResourceState::Pending)
+                {
+                    resource_ticket.failed();
+                }
+            });
+
           if(context.is_cancel_requested())
           {
               resource_ticket.cancelled();

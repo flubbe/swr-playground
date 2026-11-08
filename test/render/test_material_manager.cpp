@@ -169,6 +169,35 @@ TEST(MaterialManagerTests, Load)
       assets::AssetPath{"FirstMaterial"}));
 }
 
+TEST(MaterialManagerTests, LoadFailureFinishesResourceTracking)
+{
+    task_system::TaskSystem task_system{1};
+    ResourceTracker resource_tracker;
+
+    RenderDevice device{100, 100};
+    ShaderFactory shader_factory;
+    ShaderCache shader_cache{device};
+    TextureCache texture_cache{device};
+
+    MaterialManager manager{
+      task_system,
+      resource_tracker,
+      device,
+      shader_cache,
+      shader_factory,
+      texture_cache};
+
+    const std::string invalid_json{"{"};
+    auto material = manager.load(
+      assets::AssetPath{"InvalidMaterial"},
+      invalid_json);
+
+    ASSERT_NO_THROW(material.get_entry().wait());
+    EXPECT_THROW(material.get_entry().finalize(), std::exception);
+    EXPECT_EQ(resource_tracker.failed_count(), 1);
+    EXPECT_TRUE(resource_tracker.is_finished());
+}
+
 TEST(MaterialManagerTests, LoadWithKey)
 {
     task_system::TaskSystem task_system{1};
